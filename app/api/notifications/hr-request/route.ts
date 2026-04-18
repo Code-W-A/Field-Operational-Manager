@@ -105,6 +105,43 @@ function requestDateLabel(req: any) {
   return "—"
 }
 
+function toMillis(value: any): number {
+  if (typeof value?.toMillis === "function") {
+    try {
+      const ms = value.toMillis()
+      if (Number.isFinite(ms)) return ms
+    } catch {}
+  }
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (value && typeof value === "object") {
+    const seconds = typeof value._seconds === "number" ? value._seconds : (typeof value.seconds === "number" ? value.seconds : null)
+    const nanos = typeof value._nanoseconds === "number" ? value._nanoseconds : (typeof value.nanoseconds === "number" ? value.nanoseconds : 0)
+    if (seconds != null) return seconds * 1000 + Math.floor(nanos / 1_000_000)
+  }
+  return Date.now()
+}
+
+function buildReqForGenerators(data: any, requestId: string) {
+  return {
+    id: requestId,
+    employeeId: String(data.employeeId || ""),
+    employeeName: data.employeeName || data.employeeId || "—",
+    requesterUid: String(data.requesterUid || ""),
+    sectorId: String(data.sectorId || ""),
+    managerUid: String(data.managerUid || ""),
+    kind: String(data.kind || ""),
+    status: String(data.status || ""),
+    payload: data.payload || {},
+    rejectionReason: data.rejectionReason || undefined,
+    documentSerial:
+      typeof data.documentSerial === "number" && Number.isFinite(data.documentSerial)
+        ? data.documentSerial
+        : undefined,
+    createdAt: toMillis(data.createdAt),
+    updatedAt: toMillis(data.updatedAt),
+  }
+}
+
 export async function POST(request: NextRequest) {
   const logContextId = `hrreq_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   try {
@@ -222,20 +259,7 @@ export async function POST(request: NextRequest) {
 
     const attachment = (() => {
       try {
-        const req = {
-          id: requestId,
-          employeeId: String(data.employeeId || ""),
-          employeeName: data.employeeName || data.employeeId || "—",
-          requesterUid: String(data.requesterUid || ""),
-          sectorId: String(data.sectorId || ""),
-          managerUid: String(data.managerUid || ""),
-          kind: String(data.kind || ""),
-          status: String(data.status || ""),
-          payload: data.payload || {},
-          rejectionReason: data.rejectionReason || undefined,
-          createdAt: Number(data.createdAt || Date.now()),
-          updatedAt: Number(data.updatedAt || Date.now()),
-        }
+        const req = buildReqForGenerators(data, requestId)
         if (canGenerateHrRequestDocx(req.kind as any)) {
           // CO/CFP/DEL: trimitem DOCX fidel template-ului clientului.
           return "docx" as const
@@ -257,20 +281,7 @@ export async function POST(request: NextRequest) {
     const resolveAttachments = async (): Promise<Array<{ filename: string; content: Buffer; contentType: string }> | undefined> => {
       try {
         if (attachment === "docx") {
-          const req = {
-            id: requestId,
-            employeeId: String(data.employeeId || ""),
-            employeeName: data.employeeName || data.employeeId || "—",
-            requesterUid: String(data.requesterUid || ""),
-            sectorId: String(data.sectorId || ""),
-            managerUid: String(data.managerUid || ""),
-            kind: String(data.kind || ""),
-            status: String(data.status || ""),
-            payload: data.payload || {},
-            rejectionReason: data.rejectionReason || undefined,
-            createdAt: Number(data.createdAt || Date.now()),
-            updatedAt: Number(data.updatedAt || Date.now()),
-          }
+          const req = buildReqForGenerators(data, requestId)
           const { buffer, filename } = await generateHrRequestDocxBuffer(req as any)
           return [
             {
@@ -288,20 +299,7 @@ export async function POST(request: NextRequest) {
           { category: "email", context: { requestId, logContextId } },
         )
         try {
-          const req = {
-            id: requestId,
-            employeeId: String(data.employeeId || ""),
-            employeeName: data.employeeName || data.employeeId || "—",
-            requesterUid: String(data.requesterUid || ""),
-            sectorId: String(data.sectorId || ""),
-            managerUid: String(data.managerUid || ""),
-            kind: String(data.kind || ""),
-            status: String(data.status || ""),
-            payload: data.payload || {},
-            rejectionReason: data.rejectionReason || undefined,
-            createdAt: Number(data.createdAt || Date.now()),
-            updatedAt: Number(data.updatedAt || Date.now()),
-          }
+          const req = buildReqForGenerators(data, requestId)
           const { buffer, filename } = generateHrRequestPdfBuffer(req as any, {
             departmentName: departmentLabel || undefined,
           })

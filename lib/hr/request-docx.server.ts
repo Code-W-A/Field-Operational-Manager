@@ -3,7 +3,7 @@ import path from "node:path"
 import Docxtemplater from "docxtemplater"
 import PizZip from "pizzip"
 import type { HrRequest } from "@/lib/hr/types"
-import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
+import { formatHrRequestSerial, hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { adminDb } from "@/lib/firebase/admin"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 
@@ -104,11 +104,6 @@ function requestNumberFromId(requestId: string): string {
   const clean = String(requestId || "").trim()
   if (!clean) return `HR-${Date.now()}`
   return `HR-${clean.slice(0, 8).toUpperCase()}`
-}
-
-function formatNrCerere(documentSerial: number | undefined): string {
-  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
-  return String(Math.trunc(documentSerial)).padStart(4, "0")
 }
 
 function sanitizeFileNameChunk(raw: string): string {
@@ -226,7 +221,7 @@ export async function generateHrRequestDocxBuffer(
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
-    "nr-cerere": formatNrCerere(request.documentSerial),
+    "nr-cerere": formatHrRequestSerial(request.documentSerial),
     "tip-eveniment": hrRequestKindLabel(request.kind),
     "nume-angajat": employeeLastName,
     "prenume-angajat": employeeFirstName,
