@@ -60,6 +60,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [initialValues, setInitialValues] = useState<Record<string, ItemState | undefined>>({})
   const [initialObs, setInitialObs] = useState<Record<string, string>>({})
+  const [finalObservations, setFinalObservations] = useState("")
+  const [initialFinalObservations, setInitialFinalObservations] = useState("")
   const [equipmentTimes, setEquipmentTimes] = useState<Record<
     string,
     { startIso?: string; endIso?: string; durationMinutes?: number; durationText?: string }
@@ -129,7 +131,11 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
           
           // Sync existing photos from doc (real-time)
           setExistingPhotos(Array.isArray(existing?.photos) ? existing.photos : [])
-          
+
+          const fo = existing?.finalObservations != null ? String(existing.finalObservations) : ""
+          setFinalObservations(fo)
+          setInitialFinalObservations(fo)
+
           setLoading(false)
         } catch (e: any) {
           setError(e?.message || "Eroare la încărcarea fișei")
@@ -187,10 +193,11 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   useEffect(() => {
     const valuesChanged = JSON.stringify(values) !== JSON.stringify(initialValues)
     const obsChanged = JSON.stringify(obs) !== JSON.stringify(initialObs)
-    const hasChanges = valuesChanged || obsChanged
+    const finalChanged = finalObservations !== initialFinalObservations
+    const hasChanges = valuesChanged || obsChanged || finalChanged
     setHasUnsavedChanges(hasChanges)
     onUnsavedChanges?.(hasChanges)
-  }, [values, obs, initialValues, initialObs, onUnsavedChanges])
+  }, [values, obs, finalObservations, initialValues, initialObs, initialFinalObservations, onUnsavedChanges])
 
   // Provide save draft function to parent
   useEffect(() => {
@@ -386,6 +393,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         equipmentId,
         equipmentName,
         sections: payloadSections,
+        finalObservations: finalObservations.trim() || "",
         overallState,
         completedAt: new Date().toISOString(),
         completedBy: userData?.uid || "unknown",
@@ -419,6 +427,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       // Reset unsaved changes flag
       setInitialValues({...values})
       setInitialObs({...obs})
+      setInitialFinalObservations(finalObservations.trim())
       setHasUnsavedChanges(false)
       
       // Success toast
@@ -470,12 +479,14 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         equipmentId,
         equipmentName,
         sections: payloadSections,
+        finalObservations: finalObservations.trim() || "",
         qrVerified: verified,
       })
       
       // Reset unsaved changes flag
       setInitialValues({...values})
       setInitialObs({...obs})
+      setInitialFinalObservations(finalObservations.trim())
       setHasUnsavedChanges(false)
       
       toast({
@@ -802,6 +813,29 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                 💡 Tip: Click pe poză pentru a o șterge
               </div>
             )}
+          </div>
+        </div>
+
+        <div
+          className={`space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4 ${!verified ? "pointer-events-none opacity-60" : ""}`}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="final-observations" className="text-sm font-medium text-foreground">
+              Observații
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Observații generale despre operațiunile pe echipament. Pentru detalii per punct, folosiți coloana „Obs.” din tabel
+              sau butonul de observații de pe rând.
+            </p>
+            <Textarea
+              id="final-observations"
+              value={finalObservations}
+              onChange={(e) => setFinalObservations(e.target.value)}
+              placeholder="Observații generale despre operațiunile efectuate…"
+              className="min-h-[140px] text-base resize-y max-h-[min(70vh,28rem)]"
+              rows={6}
+              autoComplete="off"
+            />
           </div>
         </div>
 

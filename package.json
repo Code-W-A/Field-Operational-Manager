@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:crm-file-preview": "tsx --test lib/crm/file-preview.test.ts",
     "seed:crm": "node scripts/seed-crm.mjs",
     "seed:hr-reminder-test": "tsx scripts/seed-hr-reminder-test.ts",
     "logs:functions": "firebase functions:log --limit 100",

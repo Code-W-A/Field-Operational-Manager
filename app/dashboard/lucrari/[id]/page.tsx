@@ -48,6 +48,11 @@ import { format } from "date-fns"
 import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
 import { subscribeDocumentatiiFiles, type DocumentatiiFile } from "@/lib/firebase/documentatii"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
+import {
+  isTehnicianGarantieDecizie,
+  TEHNICIAN_GARANTIE_DECIZIE_LABELS,
+  tehnicianGarantieDecizieBadgeClassName,
+} from "@/lib/utils/tehnician-garantie-decizie"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
@@ -3651,26 +3656,69 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </div>
 
                     {/* Confirmarea tehnicianului la fața locului */}
-                    {lucrare.tehnicianConfirmaGarantie !== undefined && (
+                    {((lucrare as any).tehnicianGarantieDecizie &&
+                      isTehnicianGarantieDecizie(String((lucrare as any).tehnicianGarantieDecizie))) ||
+                    lucrare.tehnicianConfirmaGarantie !== undefined ? (
                       <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md mb-4">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-sm text-yellow-800">
                             Confirmarea tehnicianului la fața locului:
                           </span>
-                          <Badge 
-                            className={lucrare.tehnicianConfirmaGarantie 
-                              ? "bg-green-100 text-green-800 border-green-200 rounded-md" 
-                              : "bg-red-100 text-red-800 border-red-200 rounded-md"
-                            }
-                          >
-                            {lucrare.tehnicianConfirmaGarantie ? "✓ Confirmă garanția" : "✗ Nu confirmă garanția"}
-                          </Badge>
+                          {(lucrare as any).tehnicianGarantieDecizie &&
+                          isTehnicianGarantieDecizie(String((lucrare as any).tehnicianGarantieDecizie)) ? (
+                            <Badge
+                              className={`rounded-md border ${tehnicianGarantieDecizieBadgeClassName(
+                                (lucrare as any).tehnicianGarantieDecizie
+                              )}`}
+                            >
+                              {
+                                TEHNICIAN_GARANTIE_DECIZIE_LABELS[
+                                  (lucrare as any).tehnicianGarantieDecizie
+                                ]
+                              }
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className={
+                                lucrare.tehnicianConfirmaGarantie
+                                  ? "bg-green-100 text-green-800 border-green-200 rounded-md"
+                                  : "bg-red-100 text-red-800 border-red-200 rounded-md"
+                              }
+                            >
+                              {lucrare.tehnicianConfirmaGarantie
+                                ? "✓ Confirmă garanția"
+                                : "✗ Nu confirmă garanția"}
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-xs text-yellow-700 mt-1">
-                          Tehnicianul a verificat fizic echipamentul și a {lucrare.tehnicianConfirmaGarantie ? 'confirmat' : 'infirmat'} că este în garanție.
-                            </p>
-                          </div>
+                        {(lucrare as any).tehnicianGarantieDecizie === "nu_intra" &&
+                        (lucrare as any).tehnicianGarantieNuIntraMotiv ? (
+                          <p className="text-xs text-yellow-900 mt-2 whitespace-pre-wrap">
+                            <span className="font-medium">Motiv: </span>
+                            {(lucrare as any).tehnicianGarantieNuIntraMotiv}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-yellow-700 mt-1">
+                            {(lucrare as any).tehnicianGarantieDecizie &&
+                            isTehnicianGarantieDecizie(String((lucrare as any).tehnicianGarantieDecizie)) ? (
+                              (lucrare as any).tehnicianGarantieDecizie === "confirma" ? (
+                                <>Tehnicianul a confirmat că intervenția face obiectul garanției.</>
+                              ) : (lucrare as any).tehnicianGarantieDecizie === "dupa_atelier" ? (
+                                <>Se va stabili după constatarea în atelier.</>
+                              ) : (lucrare as any).tehnicianGarantieDecizie === "nu_intra" ? (
+                                <>Intervenția a fost considerată că nu face obiectul garanției.</>
+                              ) : null
+                            ) : (
+                              <>
+                                Tehnicianul a verificat fizic echipamentul și a{" "}
+                                {lucrare.tehnicianConfirmaGarantie ? "confirmat" : "infirmat"} că este în
+                                garanție.
+                              </>
+                            )}
+                          </p>
                         )}
+                      </div>
+                    ) : null}
                       </div>
                 )}
 
@@ -4693,6 +4741,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   statusFinalizareInterventie: lucrare.statusFinalizareInterventie,
                   // Adăugăm confirmarea garanției de către tehnician
                   tehnicianConfirmaGarantie: lucrare.tehnicianConfirmaGarantie,
+                  tehnicianGarantieDecizie: lucrare.tehnicianGarantieDecizie,
+                  tehnicianGarantieNuIntraMotiv: lucrare.tehnicianGarantieNuIntraMotiv,
                   // Adăugăm imaginile defectelor
                   imaginiDefecte: lucrare.imaginiDefecte,
                   // Notă internă tehnician
@@ -4710,34 +4760,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           <TabsContent value="verificare" className="mt-4">
             <Card className="border-0 shadow-none bg-transparent md:border md:bg-card md:shadow-sm">
               <CardHeader>
-                {/* Layout responsive: pe mobil butonul apare sub text, pe desktop alături */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl md:text-2xl">Verificare Echipament</CardTitle>
-                    <CardDescription className="text-base md:text-sm">
-                      {otherActiveWork
-                        ? "Ai deja o tichet în lucru. Finalizează sau închide lucrarea deschisă înainte de a începe alta."
-                        : "Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea."}
-                    </CardDescription>
-                  </div>
-                  {/* Buton de amânare - disponibil doar pentru lucrări neamânate și nefinalizate */}
-                  {lucrare.statusLucrare !== "Amânată" && lucrare.statusLucrare !== "Finalizat" && (
-                    <div className="flex justify-start sm:justify-end">
-                      <PostponeWorkDialog
-                        lucrareId={lucrare.id!}
-                        onSuccess={() => {
-                          toast({
-                            title: "Tichet amânată",
-                            description: "Vei fi redirecționat către lista de tichete.",
-                          })
-                          setTimeout(() => {
-                            router.push("/dashboard/lucrari")
-                          }, 2000)
-                        }}
-                        className="w-full sm:w-auto"
-                      />
-                    </div>
-                  )}
+                <div>
+                  <CardTitle className="text-xl md:text-2xl">Verificare Echipament</CardTitle>
+                  <CardDescription className="text-base md:text-sm">
+                    {otherActiveWork
+                      ? "Ai deja o tichet în lucru. Finalizează sau închide lucrarea deschisă înainte de a începe alta."
+                      : "Scanați QR code-ul echipamentului pentru a verifica dacă corespunde cu lucrarea."}
+                  </CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -4815,6 +4844,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 {equipmentVerified && (
                   <div className="mt-4 flex justify-center">
                     <Button onClick={() => setActiveTab("interventie")}>Mergi la intervenție</Button>
+                  </div>
+                )}
+
+                {lucrare.statusLucrare !== "Amânată" && lucrare.statusLucrare !== "Finalizat" && (
+                  <div className="mt-6 flex flex-col items-stretch border-t pt-4">
+                    <PostponeWorkDialog
+                      lucrareId={lucrare.id!}
+                      onSuccess={() => {
+                        toast({
+                          title: "Tichet amânată",
+                          description: "Vei fi redirecționat către lista de tichete.",
+                        })
+                        setTimeout(() => {
+                          router.push("/dashboard/lucrari")
+                        }, 2000)
+                      }}
+                      className="w-full sm:self-end"
+                    />
                   </div>
                 )}
               </CardContent>

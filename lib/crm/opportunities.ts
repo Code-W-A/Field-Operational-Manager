@@ -108,6 +108,11 @@ export async function listCrmUsers(): Promise<CrmUserOption[]> {
     .filter((user) => user.role !== "client" && user.role !== "kiosk")
 }
 
+function readClientCui(data: Record<string, unknown>): string | undefined {
+  const s = String(data.cui || data.cif || "").trim()
+  return s || undefined
+}
+
 export async function listCrmClients(): Promise<CrmClient[]> {
   const [crmRows, legacyRows] = await Promise.all([
     getDocs(query(collection(db, CRM_COLLECTIONS.clients), orderBy("name", "asc"), limit(500))),
@@ -116,11 +121,13 @@ export async function listCrmClients(): Promise<CrmClient[]> {
 
   const mappedCrm = crmRows.docs.map((snap) => {
     const data = snap.data() as Record<string, unknown>
+    const cui = readClientCui(data)
     return {
       id: snap.id,
       name: String(data.name || "").trim(),
       type: String(data.type || "Persoană juridică"),
       address: String(data.address || ""),
+      ...(cui ? { cui } : {}),
       createdAt: data.createdAt as CrmClient["createdAt"],
       updatedAt: data.updatedAt as CrmClient["updatedAt"],
     } satisfies CrmClient
@@ -128,11 +135,13 @@ export async function listCrmClients(): Promise<CrmClient[]> {
 
   const mappedLegacy = legacyRows.docs.map((snap) => {
     const data = snap.data() as Record<string, unknown>
+    const cui = readClientCui(data)
     return {
       id: snap.id,
       name: String(data.nume || "").trim(),
       type: "Persoană juridică",
       address: String(data.adresa || ""),
+      ...(cui ? { cui } : {}),
       createdAt: data.createdAt as CrmClient["createdAt"],
       updatedAt: data.updatedAt as CrmClient["updatedAt"],
     } satisfies CrmClient
@@ -152,11 +161,13 @@ export async function getCrmClientById(clientId: string): Promise<CrmClient | nu
   const crmSnap = await getDoc(doc(db, CRM_COLLECTIONS.clients, clientId))
   if (crmSnap.exists()) {
     const data = crmSnap.data() as Record<string, unknown>
+    const cui = readClientCui(data)
     return {
       id: crmSnap.id,
       name: String(data.name || ""),
       type: String(data.type || "Persoană juridică"),
       address: String(data.address || ""),
+      ...(cui ? { cui } : {}),
       createdAt: data.createdAt as CrmClient["createdAt"],
       updatedAt: data.updatedAt as CrmClient["updatedAt"],
     }
@@ -165,11 +176,13 @@ export async function getCrmClientById(clientId: string): Promise<CrmClient | nu
   const legacySnap = await getDoc(doc(db, "clienti", clientId))
   if (!legacySnap.exists()) return null
   const legacy = legacySnap.data() as Record<string, unknown>
+  const cui = readClientCui(legacy)
   return {
     id: legacySnap.id,
     name: String(legacy.nume || ""),
     type: "Persoană juridică",
     address: String(legacy.adresa || ""),
+    ...(cui ? { cui } : {}),
     createdAt: legacy.createdAt as CrmClient["createdAt"],
     updatedAt: legacy.updatedAt as CrmClient["updatedAt"],
   }
@@ -322,11 +335,13 @@ async function getClientsMap(clientIds: string[]) {
     const rows = await getDocs(query(collection(db, CRM_COLLECTIONS.clients), where(documentId(), "in", clientIdChunk)))
     rows.docs.forEach((snap) => {
       const data = snap.data() as Record<string, unknown>
+      const cui = readClientCui(data)
       map.set(snap.id, {
         id: snap.id,
         name: String(data.name || ""),
         type: String(data.type || ""),
         address: String(data.address || ""),
+        ...(cui ? { cui } : {}),
         createdAt: data.createdAt as CrmClient["createdAt"],
         updatedAt: data.updatedAt as CrmClient["updatedAt"],
       })

@@ -14,7 +14,7 @@ import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import { deleteCrmFile, listCrmFiles, updateCrmFileVisibility, uploadCrmFile } from "@/lib/crm/tasks"
 import { listCrmUsers } from "@/lib/crm/opportunities"
 import { CRM_VISIBILITIES, CRM_VISIBILITY_LABELS } from "@/lib/crm/constants"
-import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
+import { getCrmFileDownloadPath, getCrmFileOpenUrl, isCrmFileDownloadOnly } from "@/lib/crm/file-preview"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { useToast } from "@/hooks/use-toast"
 import type { CrmFileAttachment } from "@/lib/crm/types"
@@ -308,7 +308,10 @@ export default function OpportunityFilesPage() {
           <p className="text-sm text-neutral-500">Nu există fișiere vizibile.</p>
         ) : (
           <div className="space-y-2 pb-1">
-            {files.map((file) => (
+            {files.map((file) => {
+              const openUrl = getCrmFileOpenUrl(file)
+              const downloadViaApi = isCrmFileDownloadOnly(file.mime, file.filename)
+              return (
               <div key={file.id} className="rounded-lg border border-neutral-200 bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-3">
@@ -346,13 +349,25 @@ export default function OpportunityFilesPage() {
                         Editează vizibilitate
                       </Button>
                     ) : null}
-                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                      <a href={getCrmFileOpenUrl(file)} target="_blank" rel="noreferrer">
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                      <a href={file.url} target="_blank" rel="noreferrer" download={file.filename}>
+                    {openUrl ? (
+                      <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Deschide în filă nouă">
+                        <a
+                          href={openUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label="Deschide în filă nouă"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    ) : null}
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Descarcă">
+                      <a
+                        href={downloadViaApi ? getCrmFileDownloadPath(file.id) || file.url : file.url}
+                        rel="noreferrer"
+                        {...(downloadViaApi ? {} : { target: "_blank" as const, download: file.filename })}
+                        aria-label="Descarcă"
+                      >
                         <Download className="h-4 w-4" />
                       </a>
                     </Button>
@@ -380,7 +395,8 @@ export default function OpportunityFilesPage() {
                 </div>
 
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

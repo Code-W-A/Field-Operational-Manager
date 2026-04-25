@@ -991,8 +991,15 @@ FOM by NRG`,
       }
 
       if (String(tichet?.tipLucrare || "") === "Intervenție în garanție") {
-        if (typeof (tichet as any)?.tehnicianConfirmaGarantie === "boolean") {
-          updateData.tehnicianConfirmaGarantie = (tichet as any).tehnicianConfirmaGarantie
+        const t = tichet as any
+        if (typeof t?.tehnicianConfirmaGarantie === "boolean") {
+          updateData.tehnicianConfirmaGarantie = t.tehnicianConfirmaGarantie
+        }
+        if (t?.tehnicianGarantieDecizie) {
+          updateData.tehnicianGarantieDecizie = t.tehnicianGarantieDecizie
+        }
+        if (typeof t?.tehnicianGarantieNuIntraMotiv === "string") {
+          updateData.tehnicianGarantieNuIntraMotiv = t.tehnicianGarantieNuIntraMotiv
         }
       }
 

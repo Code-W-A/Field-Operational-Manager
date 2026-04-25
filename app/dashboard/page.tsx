@@ -992,8 +992,8 @@ export default function Dashboard() {
               disabled={!dashboardConfig.ofertateEnabled && !dashboardConfig.statusOferteEnabled}
             >
               <div className="flex flex-wrap gap-1">
-                {dashboardConfig.ofertateEnabled && buckets.ofertate.map(statusBubble("bg-indigo-600"))}
                 {dashboardConfig.statusOferteEnabled && buckets.statusOferte.map(offerStatusBubble())}
+                {dashboardConfig.ofertateEnabled && buckets.ofertate.map(statusBubble("bg-indigo-600"))}
               </div>
             </StatusBox>
             <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length} disabled={!dashboardConfig.equipmentStatusEnabled}>

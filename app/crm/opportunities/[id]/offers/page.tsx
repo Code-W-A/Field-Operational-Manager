@@ -26,7 +26,7 @@ import { crmStorageProvider } from "@/lib/crm/storage/provider"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
 import { blobToBase64, isValidEmail, normalizeEmail } from "@/lib/work-documents/shared"
 import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
-import type { CrmClientContact, CrmOffer } from "@/lib/crm/types"
+import type { CrmClient, CrmClientContact, CrmOffer } from "@/lib/crm/types"
 
 function createEmptyProduct(): ProductItem {
   return {
@@ -67,6 +67,7 @@ export default function OpportunityOffersPage() {
   const [loading, setLoading] = useState(true)
   const [offers, setOffers] = useState<CrmOffer[]>([])
   const [clientName, setClientName] = useState("")
+  const [crmClient, setCrmClient] = useState<CrmClient | null>(null)
   const [contacts, setContacts] = useState<CrmClientContact[]>([])
   const [offerEditorOpen, setOfferEditorOpen] = useState(false)
 
@@ -117,6 +118,7 @@ export default function OpportunityOffersPage() {
       setOffers([])
       setContacts([])
       setClientName("")
+      setCrmClient(null)
       setLoading(false)
       return
     }
@@ -125,9 +127,12 @@ export default function OpportunityOffersPage() {
       // Contacts + client must not be blocked if listCrmOffers (API) fails
       const [contactRows, clientRow] = await Promise.all([listCrmClientContacts(clientId), getCrmClientById(clientId)])
       setContacts(contactRows)
+      setCrmClient(clientRow ?? null)
       setClientName(clientRow?.name || "")
     } catch (error) {
       console.error("[CRM Offers] Failed to load contacts", error)
+      setCrmClient(null)
+      setClientName("")
       toast({
         title: "Contacte indisponibile",
         description: error instanceof Error ? error.message : "Nu s-au putut încărca contactele clientului.",
@@ -155,7 +160,7 @@ export default function OpportunityOffersPage() {
     if (!subject) setSubject(`Ofertă ${opportunity.code}`)
     if (!message) {
       setMessage(
-        `Bună ziua,\n\nVă transmitem oferta pentru oportunitatea ${opportunity.code}${clientName ? ` (${clientName})` : ""}.\n\nAșteptăm confirmarea dvs. prin linkurile din email.\n\nMulțumim.`
+        `Bună ziua,\n\nVă transmitem oferta comercială pentru oportunitatea ${opportunity.code}${clientName ? ` — ${clientName}` : ""}.\n\nPuteți accepta sau refuza oferta din acest email, folosind butoanele incluse în mesaj.\n\nCu stimă,`
       )
     }
   }, [clientName, message, opportunity, subject])
@@ -301,9 +306,14 @@ export default function OpportunityOffersPage() {
         offerVAT: snapshot.vatPercent,
         adjustmentPercent: snapshot.adjustmentPercent,
         conditions: snapshot.conditions,
-        locationName: opportunity.title,
+        locationName: opportunity.displayTitle || opportunity.title,
         preparedBy: userData?.displayName || userData?.email || user.uid,
         preparedAt: new Date().toISOString(),
+        beneficiar: {
+          name: (crmClient?.name || clientName || opportunity.title).trim() || opportunity.title,
+          cui: crmClient?.cui,
+          address: crmClient?.address || "",
+        },
       })
 
       const pdfFilename = `crm_oferta_${opportunity.code || opportunity.id}.pdf`
@@ -351,9 +361,8 @@ export default function OpportunityOffersPage() {
     }
   }
 
-  const editorForm = (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
-      <div className="grid min-h-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+  const offerEditorGrid = (
+    <div className="grid min-h-0 min-w-0 grid-cols-1 gap-6 pb-1 lg:grid-cols-2 lg:items-start">
         <Card className="border-neutral-200 shadow-sm">
           <CardHeader className="space-y-1 border-b border-neutral-100 bg-neutral-50/80 pb-4">
             <CardTitle className="flex items-center gap-2 text-base font-semibold text-neutral-900">
@@ -476,18 +485,24 @@ export default function OpportunityOffersPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+    </div>
+  )
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4">
-        <Button variant="outline" onClick={handleSaveDraft} disabled={savingDraft || issuingOffer}>
-          <Save className="mr-1.5 h-4 w-4" />
-          {savingDraft ? "Se salvează..." : "Salvează draft"}
-        </Button>
-        <Button onClick={handleIssueOffer} disabled={issuingOffer || savingDraft}>
-          <Send className="mr-1.5 h-4 w-4" />
-          {issuingOffer ? "Se emite..." : "Emite ofertă"}
-        </Button>
-      </div>
+  const offerEditorFooter = (
+    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
+      <Button
+        variant="outline"
+        onClick={handleSaveDraft}
+        disabled={savingDraft || issuingOffer}
+        className="h-10 w-full min-w-0 sm:w-auto"
+      >
+        <Save className="mr-1.5 h-4 w-4 shrink-0" />
+        {savingDraft ? "Se salvează..." : "Salvează draft"}
+      </Button>
+      <Button onClick={handleIssueOffer} disabled={issuingOffer || savingDraft} className="h-10 w-full min-w-0 sm:w-auto">
+        <Send className="mr-1.5 h-4 w-4 shrink-0" />
+        {issuingOffer ? "Se emite..." : "Emite ofertă"}
+      </Button>
     </div>
   )
 
@@ -579,10 +594,10 @@ export default function OpportunityOffersPage() {
         </div>
 
         <Dialog open={offerEditorOpen} onOpenChange={setOfferEditorOpen}>
-          <DialogContent className="flex max-h-[92vh] w-[min(100%,96vw)] max-w-6xl flex-col gap-5 overflow-y-auto p-6 sm:p-8 xl:max-w-7xl">
-            <DialogHeader className="shrink-0 space-y-2 text-left">
+          <DialogContent className="flex max-h-[92vh] w-[min(100%,96vw)] max-w-6xl min-h-0 flex-col gap-0 overflow-hidden p-0 xl:max-w-7xl">
+            <DialogHeader className="min-w-0 shrink-0 space-y-2 border-b border-neutral-200/80 bg-neutral-50/50 px-5 py-4 text-left pr-10 sm:px-7 sm:py-5 sm:pr-12">
               <DialogTitle className="text-xl font-semibold tracking-tight text-neutral-900">Editor ofertă</DialogTitle>
-              <p className="text-sm leading-relaxed text-neutral-600">
+              <p className="min-w-0 break-words text-sm leading-relaxed text-neutral-600">
                 Destinatar:{" "}
                 <span className="font-medium text-neutral-900">{primaryRecipientName || "—"}</span>{" "}
                 <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-700">
@@ -590,7 +605,12 @@ export default function OpportunityOffersPage() {
                 </span>
               </p>
             </DialogHeader>
-            {editorForm}
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 sm:px-7 sm:py-5">
+              {offerEditorGrid}
+            </div>
+            <div className="shrink-0 border-t border-neutral-200 bg-neutral-50/90 px-5 py-3 sm:px-7 sm:py-4">
+              {offerEditorFooter}
+            </div>
           </DialogContent>
         </Dialog>
 

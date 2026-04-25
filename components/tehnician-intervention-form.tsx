@@ -18,8 +18,12 @@ import { logInfo } from "@/lib/utils/logging-service" // Import the logging serv
 
 import { Badge } from "@/components/ui/badge"
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
+import {
+  initialTehnicianGarantieState,
+  TEHNICIAN_GARANTIE_DECIZIE_LABELS,
+  type TehnicianGarantieDecizie,
+} from "@/lib/utils/tehnician-garantie-decizie"
 import type { Echipament } from "@/lib/firebase/firestore"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { useAuth } from "@/contexts/AuthContext"
@@ -42,8 +46,9 @@ interface TehnicianInterventionFormProps {
     echipamentCod?: string
     // Adăugăm câmpul pentru status finalizare intervenție
     statusFinalizareInterventie?: "FINALIZAT" | "NEFINALIZAT"
-    // Adăugăm bifa pentru confirmarea garanției de către tehnician
     tehnicianConfirmaGarantie?: boolean
+    tehnicianGarantieDecizie?: TehnicianGarantieDecizie
+    tehnicianGarantieNuIntraMotiv?: string
     // Adăugăm imaginile defectelor
     imaginiDefecte?: Array<{
       url: string
@@ -136,10 +141,15 @@ export function TehnicianInterventionForm({
 
   // Eliminat: status finalizare intervenție este setat automat la generarea raportului
 
-  // State pentru confirmarea garanției de către tehnician  
-  const [tehnicianConfirmaGarantie, setTehnicianConfirmaGarantie] = useState<boolean>(
-    initialData.tehnicianConfirmaGarantie || false
+  const _gInit = initialTehnicianGarantieState({
+    tehnicianGarantieDecizie: initialData.tehnicianGarantieDecizie,
+    tehnicianGarantieNuIntraMotiv: initialData.tehnicianGarantieNuIntraMotiv,
+    tehnicianConfirmaGarantie: initialData.tehnicianConfirmaGarantie,
+  })
+  const [tehnicianGarantieDecizie, setTehnicianGarantieDecizie] = useState<TehnicianGarantieDecizie | "">(
+    _gInit.decizie
   )
+  const [tehnicianGarantieNuIntraMotiv, setTehnicianGarantieNuIntraMotiv] = useState(_gInit.motiv)
 
   useEffect(() => {
     const checkWorkOrderStatus = async () => {
@@ -167,6 +177,34 @@ export function TehnicianInterventionForm({
     }
   }, [isWarrantyWork, initialData.echipamentData])
 
+  const validateWarrantyOnSite = (): string | null => {
+    if (!isWarrantyWork) return null
+    if (!tehnicianGarantieDecizie) {
+      return "Selectați confirmarea garanției la fața locului."
+    }
+    if (
+      tehnicianGarantieDecizie === "nu_intra" &&
+      !tehnicianGarantieNuIntraMotiv.trim()
+    ) {
+      return "Introduceți motivul pentru opțiunea „Nu face obiectul garanției”."
+    }
+    return null
+  }
+
+  const warrantyPayload = (): {
+    tehnicianGarantieDecizie: TehnicianGarantieDecizie
+    tehnicianGarantieNuIntraMotiv: string
+    tehnicianConfirmaGarantie: boolean
+  } | null => {
+    if (!isWarrantyWork || !tehnicianGarantieDecizie) return null
+    return {
+      tehnicianGarantieDecizie: tehnicianGarantieDecizie,
+      tehnicianGarantieNuIntraMotiv:
+        tehnicianGarantieDecizie === "nu_intra" ? tehnicianGarantieNuIntraMotiv.trim() : "",
+      tehnicianConfirmaGarantie: tehnicianGarantieDecizie === "confirma",
+    }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
@@ -178,6 +216,12 @@ export function TehnicianInterventionForm({
 
   const handleSave = async () => {
     try {
+      const wErr = validateWarrantyOnSite()
+      if (wErr) {
+        toast({ title: "Câmpuri obligatorii", description: wErr, variant: "destructive" })
+        return
+      }
+
       setIsSaving(true)
 
       // Aplicăm mai întâi ștergerile imaginilor marcate
@@ -199,9 +243,11 @@ export function TehnicianInterventionForm({
         notaInternaTehnician,
       }
 
-      // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
-      if (isWarrantyWork) {
-        updateData.tehnicianConfirmaGarantie = tehnicianConfirmaGarantie
+      const w = warrantyPayload()
+      if (w) {
+        updateData.tehnicianGarantieDecizie = w.tehnicianGarantieDecizie
+        updateData.tehnicianGarantieNuIntraMotiv = w.tehnicianGarantieNuIntraMotiv
+        updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
       await updateLucrare(lucrareId, updateData)
@@ -259,6 +305,12 @@ export function TehnicianInterventionForm({
       return
     }
 
+    const wErr = validateWarrantyOnSite()
+    if (wErr) {
+      toast({ title: "Câmpuri obligatorii", description: wErr, variant: "destructive" })
+      return
+    }
+
     try {
       setIsGeneratingReport(true)
 
@@ -282,9 +334,11 @@ export function TehnicianInterventionForm({
         notaInternaTehnician,
       }
 
-      // Adăugăm tehnicianConfirmaGarantie doar pentru lucrările în garanție
-      if (isWarrantyWork) {
-        updateData.tehnicianConfirmaGarantie = tehnicianConfirmaGarantie
+      const w = warrantyPayload()
+      if (w) {
+        updateData.tehnicianGarantieDecizie = w.tehnicianGarantieDecizie
+        updateData.tehnicianGarantieNuIntraMotiv = w.tehnicianGarantieNuIntraMotiv
+        updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
       await updateLucrare(lucrareId, updateData)
@@ -578,28 +632,46 @@ export function TehnicianInterventionForm({
                   </div>
 
                   {/* Confirmarea garanției de către tehnician */}
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <Label className="font-medium text-sm text-yellow-800 mb-3 block">
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md space-y-3">
+                    <Label className="font-medium text-sm text-yellow-800 block" htmlFor="tehnician-garantie-decizie">
                       Confirmarea tehnicianului la fața locului:
                     </Label>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="tehnicianConfirmaGarantie"
-                        checked={tehnicianConfirmaGarantie}
-                        onCheckedChange={(checked) => setTehnicianConfirmaGarantie(checked === true)}
-                        disabled={formDisabled}
-                      />
-                      <Label
-                        htmlFor="tehnicianConfirmaGarantie"
-                        className="text-sm font-medium text-yellow-800 cursor-pointer"
+                    <Select
+                      value={tehnicianGarantieDecizie || undefined}
+                      onValueChange={(v) => {
+                        setTehnicianGarantieDecizie(v as TehnicianGarantieDecizie)
+                        if (v !== "nu_intra") setTehnicianGarantieNuIntraMotiv("")
+                      }}
+                      disabled={formDisabled}
+                    >
+                      <SelectTrigger
+                        id="tehnician-garantie-decizie"
+                        className={`w-full ${formDisabled ? "opacity-70 cursor-not-allowed" : ""}`}
                       >
-                        Confirm că intervenția face obiectul garanției
-                      </Label>
-                    </div>
-                    {/* <p className="text-xs text-yellow-700 mt-2">
-                      Această bifă reprezintă confirmarea dvs. ca tehnician despre starea garanției echipamentului după verificarea fizică.
-                      Nu se suprapune peste calculul automat de mai sus.
-                    </p> */}
+                        <SelectValue placeholder="Selectați confirmarea…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="confirma">{TEHNICIAN_GARANTIE_DECIZIE_LABELS.confirma}</SelectItem>
+                        <SelectItem value="nu_intra">{TEHNICIAN_GARANTIE_DECIZIE_LABELS.nu_intra}</SelectItem>
+                        <SelectItem value="dupa_atelier">{TEHNICIAN_GARANTIE_DECIZIE_LABELS.dupa_atelier}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {tehnicianGarantieDecizie === "nu_intra" && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="tehnician-garantie-motiv" className="text-sm text-yellow-900">
+                          Motiv / justificare
+                        </Label>
+                        <Textarea
+                          id="tehnician-garantie-motiv"
+                          value={tehnicianGarantieNuIntraMotiv}
+                          onChange={(e) => setTehnicianGarantieNuIntraMotiv(e.target.value)}
+                          disabled={formDisabled}
+                          placeholder="Explicați de ce intervenția nu face obiectul garanției…"
+                          className={`min-h-[100px] text-base resize-y ${formDisabled ? "opacity-70 cursor-not-allowed" : ""}`}
+                          rows={4}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -33,6 +33,8 @@ export interface CrmClient {
   name: string
   type: string
   address: string
+  /** CIF/CUI afișat pe oferte/PDF; sursă Firestore: `cui` sau `cif` */
+  cui?: string
   createdAt?: FirestoreDateValue
   updatedAt?: FirestoreDateValue
 }

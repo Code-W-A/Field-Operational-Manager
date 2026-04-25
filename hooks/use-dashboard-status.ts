@@ -185,6 +185,18 @@ function sortByDate(items: DashboardBubbleItem[]): DashboardBubbleItem[] {
   })
 }
 
+/** Acceptate primele, apoi refuzuri; în fiecare grup, după data răspunsului (cele mai vechi sus). */
+function sortStatusOferteItems(items: DashboardBubbleItem[]): DashboardBubbleItem[] {
+  const rank = (o?: "accept" | "reject") => (o === "accept" ? 0 : o === "reject" ? 1 : 2)
+  return [...items].sort((a, b) => {
+    const r = rank(a.offerStatus) - rank(b.offerStatus)
+    if (r !== 0) return r
+    const dateA = a.sortDate || a.createdAt || new Date(0)
+    const dateB = b.sortDate || b.createdAt || new Date(0)
+    return dateA.getTime() - dateB.getTime()
+  })
+}
+
 const DEFAULT_DASHBOARD_STATUS_CONFIG: DashboardStatusConfig = {
   intarziateEnabled: true,
   intarziateRequireExecDate: true,
@@ -546,7 +558,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     res.nefacturate = sortByDate(res.nefacturate)
     res.necesitaOferta = sortByDate(res.necesitaOferta)
     res.ofertate = sortByDate(res.ofertate)
-    res.statusOferte = sortByDate(res.statusOferte)
+    res.statusOferte = sortStatusOferteItems(res.statusOferte)
     res.equipmentStatus = sortByDate(res.equipmentStatus)
 
     return res

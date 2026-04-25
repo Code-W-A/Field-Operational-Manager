@@ -39,6 +39,11 @@ import { useAuth } from "@/contexts/AuthContext"
 import { getLucrareById, updateLucrare, getClientById, type Lucrare, type Client } from "@/lib/firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import {
+  isTehnicianGarantieDecizie,
+  TEHNICIAN_GARANTIE_DECIZIE_LABELS,
+  tehnicianGarantieDecizieBadgeClassName,
+} from "@/lib/utils/tehnician-garantie-decizie"
 import { formatDate } from "@/lib/utils/date-formatter"
 import { formatDate as formatISODate, formatTime, formatDateTime } from "@/lib/utils/time-format"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
@@ -742,26 +747,69 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     )}
 
                     {/* Confirmarea tehnicianului la fața locului */}
-                    {lucrare.tehnicianConfirmaGarantie !== undefined && (
+                    {((lucrare as any).tehnicianGarantieDecizie &&
+                      isTehnicianGarantieDecizie(String((lucrare as any).tehnicianGarantieDecizie))) ||
+                    lucrare.tehnicianConfirmaGarantie !== undefined ? (
                       <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-sm text-yellow-800">
                             Confirmarea tehnicianului la fața locului:
                           </span>
-                          <Badge 
-                            className={lucrare.tehnicianConfirmaGarantie 
-                              ? "bg-green-100 text-green-800 border-green-200" 
-                              : "bg-red-100 text-red-800 border-red-200"
-                            }
-                          >
-                            {lucrare.tehnicianConfirmaGarantie ? "✓ Confirmă garanția" : "✗ Nu confirmă garanția"}
-                          </Badge>
+                          {(lucrare as any).tehnicianGarantieDecizie &&
+                          isTehnicianGarantieDecizie(String((lucrare as any).tehnicianGarantieDecizie)) ? (
+                            <Badge
+                              className={`rounded-md border ${tehnicianGarantieDecizieBadgeClassName(
+                                (lucrare as any).tehnicianGarantieDecizie
+                              )}`}
+                            >
+                              {
+                                TEHNICIAN_GARANTIE_DECIZIE_LABELS[
+                                  (lucrare as any).tehnicianGarantieDecizie
+                                ]
+                              }
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className={
+                                lucrare.tehnicianConfirmaGarantie
+                                  ? "bg-green-100 text-green-800 border-green-200"
+                                  : "bg-red-100 text-red-800 border-red-200"
+                              }
+                            >
+                              {lucrare.tehnicianConfirmaGarantie
+                                ? "✓ Confirmă garanția"
+                                : "✗ Nu confirmă garanția"}
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-xs text-yellow-700 mt-1">
-                          Tehnicianul a verificat fizic echipamentul și a {lucrare.tehnicianConfirmaGarantie ? 'confirmat' : 'infirmat'} că este în garanție.
-                        </p>
+                        {(lucrare as any).tehnicianGarantieDecizie === "nu_intra" &&
+                        (lucrare as any).tehnicianGarantieNuIntraMotiv ? (
+                          <p className="text-xs text-yellow-900 mt-2 whitespace-pre-wrap">
+                            <span className="font-medium">Motiv: </span>
+                            {(lucrare as any).tehnicianGarantieNuIntraMotiv}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-yellow-700 mt-1">
+                            {(lucrare as any).tehnicianGarantieDecizie &&
+                            isTehnicianGarantieDecizie(String((lucrare as any).tehnicianGarantieDecizie)) ? (
+                              (lucrare as any).tehnicianGarantieDecizie === "confirma" ? (
+                                <>Tehnicianul a confirmat că intervenția face obiectul garanției.</>
+                              ) : (lucrare as any).tehnicianGarantieDecizie === "dupa_atelier" ? (
+                                <>Se va stabili după constatarea în atelier.</>
+                              ) : (lucrare as any).tehnicianGarantieDecizie === "nu_intra" ? (
+                                <>Intervenția a fost considerată că nu face obiectul garanției.</>
+                              ) : null
+                            ) : (
+                              <>
+                                Tehnicianul a verificat fizic echipamentul și a{" "}
+                                {lucrare.tehnicianConfirmaGarantie ? "confirmat" : "infirmat"} că este în
+                                garanție.
+                              </>
+                            )}
+                          </p>
+                        )}
                       </div>
-                    )}
+                    ) : null}
 
                     {/* Verificări garanție de către tehnician (câmpuri vechi pentru compatibilitate) */}
                     {lucrare.garantieVerificata !== undefined && (

@@ -188,7 +188,12 @@ export interface Lucrare {
   lucrareOriginala?: string       // ID-ul lucrării originale în caz de reatribuire
   mesajReatribuire?: string       // Mesajul de reatribuire (ex: "reintervenită în urma lucrării x")
   // CÂMP NOU PENTRU CONFIRMAREA GARANȚIEI DE CĂTRE TEHNICIAN - BACKWARD COMPATIBLE
-  tehnicianConfirmaGarantie?: boolean  // Confirmarea tehnicianului la fața locului despre garanție (doar pentru "Intervenție în garanție")
+  /** Păstrat derivat: true când `tehnicianGarantieDecizie === "confirma"`. */
+  tehnicianConfirmaGarantie?: boolean
+  /** Alegere explicită a tehnicianului (Intervenție în garanție). */
+  tehnicianGarantieDecizie?: "confirma" | "nu_intra" | "dupa_atelier"
+  /** Justificare obligatorie când `tehnicianGarantieDecizie === "nu_intra"`. */
+  tehnicianGarantieNuIntraMotiv?: string
   statusOferta?: "NU" | "DA" | "OFERTAT" // Nou câmp pentru managementul statusului ofertei
   // CÂMP NOU PENTRU NUMĂRUL FACTURII - BACKWARD COMPATIBLE
   numarFactura?: string // Numărul facturii (opțional, pentru lucrările facturate)

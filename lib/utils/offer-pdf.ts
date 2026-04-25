@@ -196,11 +196,13 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   y += 6 + Math.max(prestLeftLines.length, prestRightLines.length)*5 + 6
 
   y += 14
-  // Intro paragraph
+  // Intro paragraph (displayWorkId already includes e.g. #OP.26 — avoid "nr." + "#" redundancy)
   doc.setFontSize(10).setFont("NotoSans", "normal")
   const equip = input.equipmentName ? `, echipament ${input.equipmentName}` : ""
-  const loc = input.locationName ? ` din locatia ${input.locationName}` : ""
-  const intro = normalizeForPdf(`Referitor la lucrarea nr. ${displayWorkId}${equip}${loc} vă facem cunoscute costurile aferente pieselor de schimb și serviciilor necesare remedierii după cum urmează:`)
+  const loc = input.locationName ? `, la locația ${input.locationName}` : ""
+  const intro = normalizeForPdf(
+    `Referitor la lucrarea ${displayWorkId}${equip}${loc} vă facem cunoscute costurile aferente pieselor de schimb și serviciilor necesare remedierii, după cum urmează:`,
+  )
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {
     checkPage(6)

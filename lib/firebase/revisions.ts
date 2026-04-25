@@ -26,6 +26,8 @@ export interface EquipmentRevisionDoc {
   sections: RevisionChecklistSection[]
   photos?: RevisionPhotoMeta[]
   internalNote?: string
+  /** Observații generale la finalul fișei (distincte de obs. per punct de control). */
+  finalObservations?: string
   completedAt?: any
   completedBy?: string
   overallState?: "functional" | "nefunctional" | "na"

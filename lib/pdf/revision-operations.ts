@@ -32,6 +32,7 @@ type RevisionDoc = {
   revision?: any
   dynamicSettings?: Record<string, any>
   sections?: RevisionSection[]
+  finalObservations?: string
 }
 
 type RevisionSheetContext = {
@@ -404,6 +405,47 @@ function drawChecklistTableHeader(pdf: jsPDF, startY: number, layout: ChecklistL
   return startY + layout.rowH
 }
 
+/** Bloc final „Observații” (rubrica generală); skip dacă nu există text. */
+function drawFinalObservationsSection(
+  pdf: jsPDF,
+  startY: number,
+  finalObservations: string | undefined,
+  checkBreak: (need: number) => void
+): number {
+  const raw = String(finalObservations || "").trim()
+  if (!raw) return startY
+  const t = normalizeTextForPdf(raw)
+  const bodyW = CONTENT_WIDTH - 4
+  try {
+    pdf.setFont("NotoSans", "normal")
+  } catch {}
+  pdf.setFontSize(9)
+  const bodyLines = pdf.splitTextToSize(t, bodyW)
+  const lineH = 4.2
+  const titleBlockH = 7
+  const gapAfterTitle = 2
+  const topPad = 4
+  const bottomPad = 3
+  const blockH = topPad + titleBlockH + gapAfterTitle + bodyLines.length * lineH + bottomPad
+  checkBreak(blockH)
+  let y = startY + topPad
+  try {
+    pdf.setFont("NotoSans", "bold")
+  } catch {}
+  pdf.setFontSize(10).setTextColor(0, 0, 0)
+  pdf.text(normalizeTextForPdf("Observații"), MARGIN + 2, y + 4)
+  y += titleBlockH + gapAfterTitle
+  try {
+    pdf.setFont("NotoSans", "normal")
+  } catch {}
+  pdf.setFontSize(9)
+  for (const line of bodyLines) {
+    pdf.text(line, MARGIN + 2, y + 4)
+    y += lineH
+  }
+  return startY + blockH
+}
+
 async function loadLiveClientData(work: any): Promise<any | null> {
   const clientId = firstNonEmpty([
     work?.clientId,
@@ -579,6 +621,8 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
       }
     }
 
+    currentY = drawFinalObservationsSection(doc, currentY, rev.finalObservations, checkBreak)
+
     // Footer per page
     drawFooter(doc)
     if (idx < revisions.length - 1) {
@@ -739,6 +783,8 @@ export async function generateRevisionEquipmentPDF(
       currentY += heightNeeded
     }
   }
+
+  currentY = drawFinalObservationsSection(js, currentY, rev.finalObservations, checkBreak)
 
   drawFooter(js)
   return js.output("blob")

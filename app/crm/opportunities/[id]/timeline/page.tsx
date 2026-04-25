@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Panel } from "@/components/crm"
 import { getDateValue, listCrmActivity } from "@/lib/crm/activity"
 import { listCrmClientContacts, listCrmUsers } from "@/lib/crm/opportunities"
-import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
+import { getCrmFileDownloadPath, getCrmFileOpenUrl, isCrmFileDownloadOnly } from "@/lib/crm/file-preview"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { CRM_PIPELINE_STAGE_LABELS, CRM_PRIORITY_LABELS, CRM_WORK_STATUS_LABELS } from "@/lib/crm/constants"
 import type { CrmActivityLog } from "@/lib/crm/types"
@@ -248,17 +248,38 @@ function renderActivityContent(
             {renderKeyValueRow("Dimensiune", file.size ? `${Number(file.size).toLocaleString("ro-RO")} B` : "-")}
             {file.url ? (
               <p className="text-sm text-blue-700">
-                <a
-                  href={getCrmFileOpenUrl({
-                    url: String(file.url),
-                    mime: String(file.mime || ""),
-                  })}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:underline"
-                >
-                  Deschide fișier
-                </a>
+                {(() => {
+                  const mime = String(file.mime || "")
+                  const filename = String(file.filename || "")
+                  const url = String(file.url)
+                  const fileId = typeof file.id === "string" ? file.id : ""
+                  const downloadOnly = isCrmFileDownloadOnly(mime, filename)
+                  const openUrl = getCrmFileOpenUrl({ url, mime, filename })
+                  if (downloadOnly) {
+                    const apiPath = fileId ? getCrmFileDownloadPath(fileId) : ""
+                    return (
+                      <a
+                        href={apiPath || url}
+                        {...(apiPath ? {} : { download: filename || true })}
+                        rel="noreferrer"
+                        className="hover:underline"
+                      >
+                        Descarcă
+                      </a>
+                    )
+                  }
+                  if (!openUrl) return null
+                  return (
+                    <a
+                      href={openUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:underline"
+                    >
+                      Deschide fișier
+                    </a>
+                  )
+                })()}
               </p>
             ) : null}
           </div>

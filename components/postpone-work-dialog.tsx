@@ -131,7 +131,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
           size="sm"
         >
           <Clock className="h-4 w-4 mr-2" />
-          Amână lucrarea
+          Amână intervenția
         </Button>
       </DialogTrigger>
       
@@ -139,10 +139,10 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-orange-600" />
-            Amână lucrarea
+            Amână intervenția
           </DialogTitle>
           <DialogDescription>
-            Lucrarea va fi amânată și va dispărea din lista ta de lucrări. 
+            Intervenția va fi amânată; tichetul va dispărea din lista ta de tichete.
           </DialogDescription>
         </DialogHeader>
 
