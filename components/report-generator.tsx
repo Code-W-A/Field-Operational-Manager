@@ -189,12 +189,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         console.log("❄️ PRIMA GENERARE - ÎNGHEȚEAZĂ DATELE")
         console.log("⏰ Creez date noi pentru plecare și durată")
         const now = new Date()
-        const timpPlecare = now.toISOString()
-        const dataPlecare = formatDate(now)
-        const oraPlecare = formatTime(now)
+        const savedDeparture = lucrare.timpPlecare ? new Date(lucrare.timpPlecare) : null
+        const departureDate =
+          savedDeparture && !Number.isNaN(savedDeparture.getTime()) ? savedDeparture : now
+        const timpPlecare = departureDate.toISOString()
+        const dataPlecare = lucrare.dataPlecare || formatDate(departureDate)
+        const oraPlecare = lucrare.oraPlecare || formatTime(departureDate)
         // Folosim mereu cele mai recente produse venite prin props (din pagina),
         // iar dacă nu există acolo, cădem înapoi pe state-ul intern.
-        const currentProducts = (lucrare?.products && lucrare.products.length > 0) ? lucrare.products : products
+        const currentProducts = Array.isArray(lucrare?.products) ? lucrare.products : products
         
         // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpPlecare
         console.log("🕐 SETARE timpPlecare la generarea raportului (PRIMA GENERARE):")
@@ -210,8 +213,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           console.log("🚨 ALERTĂ: Data generată pentru timpPlecare (PRIMA GENERARE) este în viitor!")
           console.log("🚨 Aceasta este o problemă critică la generarea raportului!")
         }
-        let durataInterventie = "-"
-        if (lucrare.timpSosire) {
+        let durataInterventie = lucrare.durataInterventie || "-"
+        if (lucrare.timpSosire && (!durataInterventie || durataInterventie === "-")) {
           durataInterventie = calculateDuration(lucrare.timpSosire, timpPlecare)
         }
 
@@ -659,7 +662,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       // Use the products from the snapshot if available, otherwise fallback to current products
       const productsToUse = (lucrareForPDF.raportSnapshot?.products && lucrareForPDF.raportSnapshot.products.length > 0)
         ? lucrareForPDF.raportSnapshot.products
-        : (lucrareForPDF.products && lucrareForPDF.products.length > 0)
+        : Array.isArray(lucrareForPDF.products)
           ? lucrareForPDF.products
           : products
 

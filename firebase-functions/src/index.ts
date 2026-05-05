@@ -11,6 +11,7 @@ const db = getFirestore()
 const REGION = "europe-west1"
 const TIMEZONE = "Europe/Bucharest"
 const MAX_WORKS_PER_RUN = 200
+const RECENT_REVISION_BLOCK_DAYS = 30
 
 type CrmTaskNotifyEventType = "assigned" | "reassigned" | "reminder_15m"
 type CrmInternalNoteNotifyEventType = "created" | "overdue_daily"
@@ -1765,6 +1766,130 @@ async function getNextReportNumberAdmin(): Promise<string> {
   }
 }
 
+function parseWorkDate(value: any): Date | null {
+  if (!value) return null
+  try {
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+    if (typeof value?.toDate === "function") {
+      const d = value.toDate()
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    if (typeof value?.seconds === "number") {
+      const d = new Date(value.seconds * 1000)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    if (typeof value === "number") {
+      const d = new Date(value)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const raw = String(value || "").trim()
+    if (!raw) return null
+    const direct = new Date(raw)
+    if (!Number.isNaN(direct.getTime())) return direct
+    const match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
+    if (match) {
+      const d = new Date(
+        Number(match[3]),
+        Number(match[2]) - 1,
+        Number(match[1]),
+        Number(match[4] || 0),
+        Number(match[5] || 0),
+      )
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function getRevisionDateForEquipment(work: any, equipmentId: string): Date | null {
+  const times = work?.revisionEquipmentTimes
+  const equipmentTime = times && typeof times === "object" ? times[equipmentId] : null
+  const candidates = [
+    equipmentTime?.endIso,
+    equipmentTime?.startIso,
+    work?.raportSnapshot?.dataGenerare,
+    work?.timpPlecare,
+    work?.dataInterventie,
+    work?.updatedAt,
+    work?.createdAt,
+  ]
+  for (const candidate of candidates) {
+    const d = parseWorkDate(candidate)
+    if (d) return d
+  }
+  return null
+}
+
+function isRevisionCompletedForEquipment(work: any, equipmentId: string): boolean {
+  const statusByEquipment = work?.revision?.equipmentStatus
+  if (statusByEquipment && typeof statusByEquipment === "object") {
+    if (String(statusByEquipment[equipmentId] || "").toLowerCase() === "done") return true
+  }
+  const status = String(work?.statusLucrare || "").toLowerCase()
+  return status === "finalizat" || status === "arhivată" || Boolean(work?.raportGenerat)
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
+async function filterRecentlyReviewedEquipmentIds(params: {
+  equipmentIds: string[]
+  clientId?: string
+  clientName?: string
+  locationId?: string
+  locationName?: string
+}): Promise<{ allowed: string[]; blocked: string[] }> {
+  const ids = Array.from(new Set(params.equipmentIds.map((id) => String(id || "").trim()).filter(Boolean)))
+  if (ids.length === 0) return { allowed: [], blocked: [] }
+
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - RECENT_REVISION_BLOCK_DAYS * 24 * 60 * 60 * 1000)
+  const blocked = new Set<string>()
+  const idSet = new Set(ids)
+  const seenWorkIds = new Set<string>()
+
+  for (const part of chunks(ids, 10)) {
+    const snap = await db.collection("lucrari").where("equipmentIds", "array-contains-any", part).get()
+    for (const docSnap of snap.docs) {
+      if (seenWorkIds.has(docSnap.id)) continue
+      seenWorkIds.add(docSnap.id)
+      const work: any = { id: docSnap.id, ...docSnap.data() }
+      if (String(work?.tipLucrare || "").toLowerCase() !== "revizie") continue
+
+      const workClientId = String(work?.clientId || work?.clientInfo?.id || "").trim()
+      const workClientName = String(work?.client || "").trim()
+      if (params.clientId && workClientId && workClientId !== String(params.clientId).trim()) continue
+      if (!params.clientId && params.clientName && workClientName && workClientName !== String(params.clientName).trim()) continue
+
+      const workLocationId = String(work?.locationId || work?.clientInfo?.locationId || work?.clientInfo?.locatieId || "").trim()
+      const workLocationName = String(work?.locatie || work?.locationName || "").trim()
+      if (params.locationId && workLocationId && workLocationId !== String(params.locationId).trim()) continue
+      if (!params.locationId && params.locationName && workLocationName && workLocationName !== String(params.locationName).trim()) continue
+
+      const workEquipmentIds = Array.isArray(work?.equipmentIds)
+        ? work.equipmentIds.map((id: any) => String(id || "").trim()).filter(Boolean)
+        : []
+      for (const equipmentId of workEquipmentIds) {
+        if (!idSet.has(equipmentId)) continue
+        if (!isRevisionCompletedForEquipment(work, equipmentId)) continue
+        const revisionDate = getRevisionDateForEquipment(work, equipmentId)
+        if (!revisionDate || revisionDate < cutoff || revisionDate > now) continue
+        blocked.add(equipmentId)
+      }
+    }
+  }
+
+  return {
+    allowed: ids.filter((id) => !blocked.has(id)),
+    blocked: Array.from(blocked),
+  }
+}
+
 function createWorkPayload(params: {
   contract: Contract
   clientName?: string
@@ -1966,6 +2091,32 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
           continue
         }
 
+        const recentRevisionFilter = await filterRecentlyReviewedEquipmentIds({
+          equipmentIds: normalizedEquipmentIdsForWork,
+          clientId: contract.clientId,
+          clientName: clientPayload.name,
+          locationId: entry.locationId,
+          locationName: entry.locationName,
+        })
+        if (recentRevisionFilter.blocked.length > 0) {
+          console.log("generateRevisionWorks: skipped recently reviewed equipments", {
+            contractId: contract.id,
+            locationId: entry.locationId,
+            locationName: entry.locationName,
+            scheduledIso,
+            blocked: recentRevisionFilter.blocked,
+          })
+        }
+        if (recentRevisionFilter.allowed.length === 0) {
+          console.warn("generateRevisionWorks: skip create because all equipments were reviewed recently", {
+            contractId: contract.id,
+            locationId: entry.locationId,
+            locationName: entry.locationName,
+            scheduledIso,
+          })
+          continue
+        }
+
         const payload = createWorkPayload({
           contract,
           clientName: clientPayload.name,
@@ -1974,7 +2125,7 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
           locationName: entry.locationName,
           scheduledDate: entry.scheduledAt,
           nrLucrare,
-          equipmentIds: normalizedEquipmentIdsForWork,
+          equipmentIds: recentRevisionFilter.allowed,
         })
 
       // Safety net: chiar dacă o altă bucată de cod ar crea prematur, UI va ascunde lucrarea până la generateAt.

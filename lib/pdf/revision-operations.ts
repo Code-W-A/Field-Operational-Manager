@@ -33,11 +33,14 @@ type RevisionDoc = {
   dynamicSettings?: Record<string, any>
   sections?: RevisionSection[]
   finalObservations?: string
+  durationText?: string
+  durationMinutes?: number
 }
 
 type RevisionSheetContext = {
   client: string
   location: string
+  durationText?: string
   equipment: {
     name: string
     code: string
@@ -149,6 +152,13 @@ function sanitizeEquipmentDisplayValue(value: string): string {
   return cleaned
 }
 
+function formatDurationFromMinutes(minutes: unknown): string {
+  const n = Number(minutes)
+  if (!Number.isFinite(n) || n < 0) return ""
+  const wholeMinutes = Math.floor(n)
+  return `${Math.floor(wholeMinutes / 60)}h ${wholeMinutes % 60}m`
+}
+
 function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: string, clientData?: any): RevisionSheetContext {
   const client = firstNonEmpty([
     work?.client,
@@ -180,6 +190,17 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
       .map(normalizeSearchKey)
       .filter(Boolean),
   )
+
+  const revisionEquipmentTimes = work?.revisionEquipmentTimes && typeof work.revisionEquipmentTimes === "object"
+    ? work.revisionEquipmentTimes
+    : {}
+  const equipmentTime = Object.entries(revisionEquipmentTimes).find(([key]) => targetKeys.has(normalizeSearchKey(key)))?.[1] as any
+  const durationText = firstNonEmpty([
+    rev?.durationText,
+    equipmentTime?.durationText,
+    formatDurationFromMinutes(rev?.durationMinutes),
+    formatDurationFromMinutes(equipmentTime?.durationMinutes),
+  ])
 
   const revisionEquipmentList = Array.isArray(work?.revision?.equipment) ? work.revision.equipment : []
   const revisionEquipmentMatch = revisionEquipmentList.find((item: any) => {
@@ -306,6 +327,7 @@ function resolveRevisionContext(work: any, rev: any, fallbackEquipmentId?: strin
   return {
     client,
     location,
+    durationText,
     equipment: {
       name: equipmentName,
       code: equipmentCode,
@@ -351,6 +373,7 @@ function drawRevisionContextBlock(pdf: jsPDF, startY: number, context: RevisionS
     ...splitTextToSizeClamped(pdf, `Nume echipament: ${context.equipment.name}`, usableWidth),
     ...splitTextToSizeClamped(pdf, `Cod unic: ${context.equipment.code}`, usableWidth),
     ...splitTextToSizeClamped(pdf, `Model: ${context.equipment.model}`, usableWidth),
+    ...(context.durationText ? splitTextToSizeClamped(pdf, `Timp lucru: ${context.durationText}`, usableWidth) : []),
   ]
 
   const linesByCol = [

@@ -46,7 +46,28 @@ export function ProductTableForm({
   const isMobile = useIsMobile()
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState<ProductItem | null>(null)
+  const [numberDrafts, setNumberDrafts] = React.useState<Record<string, string>>({})
   const lastFocusedFieldIdRef = React.useRef<string | null>(null)
+
+  const normalizeDecimalInput = (value: string) =>
+    value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+
+  const parseDecimalInput = (value: string) => {
+    const normalized = normalizeDecimalInput(value)
+    return normalized === "" ? undefined : parseFloat(normalized)
+  }
+
+  const numberDraftKey = (id: string, field: "price" | "quantity") => `${id}:${field}`
+
+  const clearNumberDraft = (id: string, field: "price" | "quantity") => {
+    const key = numberDraftKey(id, field)
+    setNumberDrafts((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
 
   React.useEffect(() => {
     const handleWindowFocus = () => {
@@ -123,15 +144,10 @@ export function ProductTableForm({
   // Calculăm totalul general
   const totalWithoutVAT = products.reduce((sum, product) => sum + (Number(product.total) || 0), 0)
   const totalWithVAT = totalWithoutVAT * 1.21 // Presupunem TVA 21%
-const handleNumberChange = (
-  id: string,
-  field: "price" | "quantity",
-) => (e: React.ChangeEvent<HTMLInputElement>) => {
-  const raw = e.target.value           // string
-  const parsed = raw === "" ? undefined : parseFloat(raw)
-
-  updateProduct(id, field, parsed ?? 0) // păstrăm 0 doar când vrem noi
-}
+  const handleNumberChange = (id: string, field: "price" | "quantity", rawValue: string) => {
+    const parsed = parseDecimalInput(rawValue)
+    updateProduct(id, field, parsed ?? 0)
+  }
 
   const hasValidationError = (p: ProductItem) => {
     const nameOk = (p.name || "").trim().length > 0
@@ -212,6 +228,8 @@ const handleNumberChange = (
             ) : (
               products.map((p, idx) => {
                 const invalid = hasValidationError(p)
+                const priceKey = numberDraftKey(p.id, "price")
+                const quantityKey = numberDraftKey(p.id, "quantity")
                 return (
                   <tr key={p.id} className={cn("border-b border-neutral-100", invalid ? "bg-red-50" : "hover:bg-neutral-50/80")}>
                     <td className="px-2 py-2.5 align-top text-center text-sm text-muted-foreground">{idx + 1}</td>
@@ -232,15 +250,20 @@ const handleNumberChange = (
                         id={`price-${p.id}`}
                         type="text"
                         inputMode="decimal"
-                        value={p.price === 0 ? "" : String(p.price)}
+                        value={numberDrafts[priceKey] ?? (p.price === 0 ? "" : String(p.price))}
                         onChange={(e) => {
-                          const norm = e.target.value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
-                          handleNumberChange(p.id, "price")({ ...e, target: { ...e.target, value: norm } } as any)
+                          const norm = normalizeDecimalInput(e.target.value)
+                          setNumberDrafts((prev) => ({ ...prev, [priceKey]: norm }))
+                          handleNumberChange(p.id, "price", norm)
                         }}
                         onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
                         className="h-9 text-right text-sm tabular-nums"
-                      onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
+                        onFocus={(e) => {
+                          lastFocusedFieldIdRef.current = e.currentTarget.id
+                          setNumberDrafts((prev) => ({ ...prev, [priceKey]: p.price === 0 ? "" : String(p.price) }))
+                        }}
+                        onBlur={() => clearNumberDraft(p.id, "price")}
                       />
                     </td>
                     <td className="w-24 shrink-0 px-2 py-2.5 align-top">
@@ -249,17 +272,22 @@ const handleNumberChange = (
                         type="text"
                         inputMode={allowDecimalQuantity ? "decimal" : "numeric"}
                         pattern={allowDecimalQuantity ? "[0-9]+([.,][0-9]+)?" : "[0-9]*"}
-                        value={p.quantity === 0 ? "" : String(p.quantity)}
+                        value={numberDrafts[quantityKey] ?? (p.quantity === 0 ? "" : String(p.quantity))}
                         onChange={(e) => {
                           const normalized = allowDecimalQuantity
-                            ? e.target.value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+                            ? normalizeDecimalInput(e.target.value)
                             : e.target.value.replace(/\D+/g, "")
-                          handleNumberChange(p.id, "quantity")({ ...e, target: { ...e.target, value: normalized } } as any)
+                          setNumberDrafts((prev) => ({ ...prev, [quantityKey]: normalized }))
+                          handleNumberChange(p.id, "quantity", normalized)
                         }}
                         onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                         disabled={disabled}
                         className="h-9 text-right text-sm tabular-nums"
-                      onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
+                        onFocus={(e) => {
+                          lastFocusedFieldIdRef.current = e.currentTarget.id
+                          setNumberDrafts((prev) => ({ ...prev, [quantityKey]: p.quantity === 0 ? "" : String(p.quantity) }))
+                        }}
+                        onBlur={() => clearNumberDraft(p.id, "quantity")}
                       />
                     </td>
                     <td className="w-28 shrink-0 px-2 py-2.5 align-top text-right text-sm font-semibold tabular-nums text-neutral-900">
@@ -352,13 +380,15 @@ const handleNumberChange = (
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Buc</label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode={allowDecimalQuantity ? "decimal" : "numeric"}
+                  pattern={allowDecimalQuantity ? "[0-9]+([.,][0-9]+)?" : "[0-9]*"}
                   min={allowDecimalQuantity ? "0.01" : "1"}
                   step={allowDecimalQuantity ? "0.01" : "1"}
                   value={draft?.quantity === undefined || draft?.quantity === null ? "" : String(draft.quantity)}
                   onChange={(e) => {
-                    const v = e.target.value
-                    setDraft((d) => ({ ...(d as ProductItem), quantity: v === "" ? (undefined as unknown as number) : Number(v) }))
+                    const v = allowDecimalQuantity ? normalizeDecimalInput(e.target.value) : e.target.value.replace(/\D+/g, "")
+                    setDraft((d) => ({ ...(d as ProductItem), quantity: v === "" ? (undefined as unknown as number) : (v as unknown as number) }))
                   }}
                   disabled={disabled}
                 />
@@ -368,13 +398,15 @@ const handleNumberChange = (
               <div className="grid gap-2">
                 <label className="text-sm font-medium">PU (lei)</label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]+([.,][0-9]+)?"
                   min="0"
                   step="0.01"
                   value={draft?.price === undefined || draft?.price === null ? "" : String(draft.price)}
                   onChange={(e) => {
-                    const v = e.target.value
-                    setDraft((d) => ({ ...(d as ProductItem), price: v === "" ? (undefined as unknown as number) : parseFloat(v) }))
+                    const v = normalizeDecimalInput(e.target.value)
+                    setDraft((d) => ({ ...(d as ProductItem), price: v === "" ? (undefined as unknown as number) : (v as unknown as number) }))
                   }}
                   disabled={disabled}
                 />

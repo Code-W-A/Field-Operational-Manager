@@ -234,7 +234,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
           durationMinutes: minutes,
           durationText: `${hours}h ${mins}m`,
         }
-        await updateLucrare(workId, { revisionEquipmentTimes: times })
+        await updateLucrare(workId, { revisionEquipmentTimes: times } as any)
         setEquipmentTimes(times)
         console.log("✅ Durată echipament salvată", { equipmentId, ...times[equipmentId] })
       } catch (e) {
@@ -362,6 +362,32 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     })
   }
 
+  const ensureEquipmentDuration = async () => {
+    const work = await getLucrareById(workId)
+    if (work?.tipLucrare !== "Revizie") return null
+
+    const times = { ...((work as any)?.revisionEquipmentTimes || {}) }
+    const existing = times[equipmentId] || {}
+    const end = existing.endIso ? new Date(existing.endIso) : new Date()
+    const start = existing.startIso ? new Date(existing.startIso) : end
+    const ms = Math.max(0, end.getTime() - start.getTime())
+    const minutes = Math.floor(ms / 60000)
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+
+    times[equipmentId] = {
+      ...existing,
+      startIso: existing.startIso || start.toISOString(),
+      endIso: existing.endIso || end.toISOString(),
+      durationMinutes: existing.durationMinutes ?? minutes,
+      durationText: existing.durationText || `${hours}h ${mins}m`,
+    }
+
+    await updateLucrare(workId, { revisionEquipmentTimes: times } as any)
+    setEquipmentTimes(times)
+    return times[equipmentId]
+  }
+
   const handleSave = async () => {
     if (!allCompleted) {
       setError("Completați starea pentru toate punctele de control.")
@@ -389,6 +415,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       }))
       
       console.log("📝 Pas 1: Salvare document revizie...")
+      const savedEquipmentTime = await ensureEquipmentDuration()
       await upsertRevisionDoc(workId, equipmentId, {
         equipmentId,
         equipmentName,
@@ -398,6 +425,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         completedAt: new Date().toISOString(),
         completedBy: userData?.uid || "unknown",
         qrVerified: verified,
+        ...(savedEquipmentTime ? { durationText: savedEquipmentTime.durationText, durationMinutes: savedEquipmentTime.durationMinutes } : {}),
       })
       console.log("✅ Pas 1 completat: Document revizie salvat")
       
@@ -589,7 +617,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                                 ...existing,
                                 startIso: now.toISOString(),
                               }
-                              await updateLucrare(workId, { revisionEquipmentTimes: times })
+                              await updateLucrare(workId, { revisionEquipmentTimes: times } as any)
                               setEquipmentTimes(times)
                             }
 

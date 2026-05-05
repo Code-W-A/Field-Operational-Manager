@@ -1,6 +1,7 @@
 "use client"
 import { Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { useEffect, useRef, useState } from "react"
@@ -16,6 +17,7 @@ interface TimeSelectorProps {
 export function TimeSelector({ value, onChange, label, id, hasError = false }: TimeSelectorProps) {
   // State to control the popover
   const [open, setOpen] = useState(false)
+  const [useNativeMobileTime, setUseNativeMobileTime] = useState(false)
 
   // Generate hours (00-23)
   const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"))
@@ -25,6 +27,7 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
 
   // Split the current value into hours and minutes
   const [hour, minute] = value.split(":")
+  const nativeValue = /^\d{2}:\d{2}$/.test(value) ? value : "00:00"
 
   // References to the selected hour and minute elements
   const selectedHourRef = useRef<HTMLDivElement>(null)
@@ -33,6 +36,19 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
   // Container refs for scrolling
   const hoursContainerRef = useRef<HTMLDivElement>(null)
   const minutesContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const mq = window.matchMedia("(max-width: 768px), (pointer: coarse)")
+    const update = () => setUseNativeMobileTime(mq.matches)
+    update()
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", update)
+      return () => mq.removeEventListener("change", update)
+    }
+    mq.addListener(update)
+    return () => mq.removeListener(update)
+  }, [])
 
   // Scroll to the selected hour and minute when the popover opens
   useEffect(() => {
@@ -70,6 +86,25 @@ export function TimeSelector({ value, onChange, label, id, hasError = false }: T
     onChange(`${newHour}:${newMinute}`)
     // Close the popover after selection
     setTimeout(() => setOpen(false), 100)
+  }
+
+  if (useNativeMobileTime) {
+    return (
+      <div className="relative flex items-center w-full">
+        <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 z-10" />
+        <Input
+          id={id}
+          type="time"
+          value={nativeValue}
+          min="00:00"
+          max="23:55"
+          step={300}
+          onChange={(e) => onChange(e.target.value || "00:00")}
+          aria-label={label}
+          className={cn("w-full pl-10", hasError && "border-red-500 focus-visible:ring-red-500")}
+        />
+      </div>
+    )
   }
 
   return (

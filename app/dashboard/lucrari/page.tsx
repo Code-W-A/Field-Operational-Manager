@@ -32,6 +32,11 @@ import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
+import {
+  buildRecentRevisionBlockMessage,
+  findRecentCompletedRevisionHits,
+  RECENT_REVISION_BLOCK_DAYS,
+} from "@/lib/utils/revision-recent-lock"
 import { cn } from "@/lib/utils"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -1501,6 +1506,34 @@ export default function Lucrari() {
         })
         setIsSubmitting(false)
         return
+      }
+
+      if (formData.tipLucrare === "Revizie") {
+        const equipmentRefs = (formData.equipmentIds || [])
+          .map((id: string) => ({ id: String(id || "").trim() }))
+          .filter((ref: { id: string }) => ref.id)
+        const recentHitsByEquipment = await findRecentCompletedRevisionHits({
+          equipmentRefs,
+          clientId: formData.clientId,
+          clientName: formData.client,
+          locationId: formData.locationId,
+          locationName: formData.locatie,
+        })
+        const blocked = Object.values(recentHitsByEquipment)
+        if (blocked.length > 0) {
+          const message =
+            buildRecentRevisionBlockMessage(blocked) ||
+            `Există echipamente cu revizie efectuată în ultimele ${RECENT_REVISION_BLOCK_DAYS} zile.`
+          setFieldErrors((prev) => (prev.includes("equipmentIds") ? prev : [...prev, "equipmentIds"]))
+          setError(message)
+          toast({
+            title: "Revizie blocată",
+            description: message,
+            variant: "destructive",
+          })
+          setIsSubmitting(false)
+          return
+        }
       }
 
       if (!validateForm()) {

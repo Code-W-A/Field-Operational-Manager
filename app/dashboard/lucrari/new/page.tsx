@@ -17,6 +17,11 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Check, Mail, AlertCircle, RefreshCw } from "lucide-react"
 import { WORK_STATUS, INVOICE_STATUS } from "@/lib/utils/constants"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
+import {
+  buildRecentRevisionBlockMessage,
+  findRecentCompletedRevisionHits,
+  RECENT_REVISION_BLOCK_DAYS,
+} from "@/lib/utils/revision-recent-lock"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getRevisionChecklistOnce } from "@/lib/revisions/checklist"
 import type { WorkRevisionMeta } from "@/types/revision"
@@ -244,6 +249,31 @@ export default function NewLucrarePage() {
         })
         return
       }
+
+      if (newWorkOrderData.tipLucrare === "Revizie") {
+        const equipmentRefs = (newWorkOrderData.equipmentIds || [])
+          .map((id: string) => ({ id: String(id || "").trim() }))
+          .filter((ref: { id: string }) => ref.id)
+        const recentHitsByEquipment = await findRecentCompletedRevisionHits({
+          equipmentRefs,
+          clientId: newWorkOrderData.clientId,
+          clientName: newWorkOrderData.client,
+          locationId: newWorkOrderData.locationId,
+          locationName: newWorkOrderData.locatie,
+        })
+        const blocked = Object.values(recentHitsByEquipment)
+        if (blocked.length > 0) {
+          toast({
+            title: "Revizie blocată",
+            description:
+              buildRecentRevisionBlockMessage(blocked) ||
+              `Există echipamente cu revizie efectuată în ultimele ${RECENT_REVISION_BLOCK_DAYS} zile.`,
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
       // Revizie: setăm metadatele și lista de echipamente
       if (formData.tipLucrare === "Revizie") {
         const checklist = await getRevisionChecklistOnce()

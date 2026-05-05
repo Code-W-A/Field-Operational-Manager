@@ -52,6 +52,11 @@ import {
 import { INVOICE_STATUS_OPTIONS, WORK_TYPE_OPTIONS, WORK_TYPES } from "@/lib/utils/constants"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
+import {
+  findRecentCompletedRevisionHits,
+  RECENT_REVISION_BLOCK_DAYS,
+  type RecentRevisionHit,
+} from "@/lib/utils/revision-recent-lock"
 // Adăugăm importurile pentru calcularea garanției
 import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
@@ -335,6 +340,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // State pentru validarea echipamentelor duplicate
     const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<ActiveWorkSummary[]>([])
     const [checkingEquipment, setCheckingEquipment] = useState(false)
+    const [recentRevisionHits, setRecentRevisionHits] = useState<Record<string, RecentRevisionHit>>({})
+    const [loadingRecentRevisionHits, setLoadingRecentRevisionHits] = useState(false)
 
     useEffect(() => {
       if (!onActiveWorkChange) return
@@ -345,8 +352,40 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Revizie – filtrare și selecție multi-echipament
     const [equipSearch, setEquipSearch] = useState("")
     const selectedRevizieIds = (formData.equipmentIds || []) as string[]
+    const initialRevizieKeys = useMemo(() => {
+      if (!isEdit || !initialData) return new Set<string>()
+      return new Set(
+        (Array.isArray((initialData as any)?.equipmentIds) ? (initialData as any).equipmentIds : [])
+          .map((id: any) => String(id || "").trim())
+          .filter(Boolean),
+      )
+    }, [isEdit, initialData])
+    const isExistingEditedRevisionEquipment = useCallback(
+      (id: string) => {
+        const cleanId = String(id || "").trim()
+        if (!cleanId || !isEdit) return false
+        if (initialRevizieKeys.has(cleanId)) return true
+        const equipment = availableEquipments.find((item) => String(item?.id || "").trim() === cleanId)
+        const code = String(equipment?.cod || "").trim()
+        return Boolean(code && initialRevizieKeys.has(code))
+      },
+      [isEdit, initialRevizieKeys, availableEquipments],
+    )
+    const isRecentRevisionBlocked = useCallback(
+      (id: string) => Boolean(recentRevisionHits[id]) && !isExistingEditedRevisionEquipment(id),
+      [recentRevisionHits, isExistingEditedRevisionEquipment],
+    )
     const toggleEquipmentId = (id: string) => {
       if (!handleCustomChange) return
+      const recentHit = recentRevisionHits[id]
+      if (recentHit && isRecentRevisionBlocked(id)) {
+        toast({
+          title: "Revizie deja efectuată",
+          description: `Echipamentul are revizie efectuată pe ${recentHit.dateLabel} (${recentHit.nrDisplay}). Blocarea este activă ${RECENT_REVISION_BLOCK_DAYS} zile.`,
+          variant: "destructive",
+        })
+        return
+      }
       const exists = selectedRevizieIds.includes(id)
       const next = exists ? selectedRevizieIds.filter((x) => x !== id) : [...selectedRevizieIds, id]
       handleCustomChange("equipmentIds", next)
@@ -357,10 +396,77 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         handleCustomChange("equipmentIds", [])
         return
       }
-      const allIds = availableEquipments.map((e) => e.id!).filter(Boolean)
+      const allIds = availableEquipments
+        .map((e) => e.id!)
+        .filter((id) => Boolean(id) && !isRecentRevisionBlocked(id))
       const isAll = allIds.every((id) => selectedRevizieIds.includes(id))
       handleCustomChange("equipmentIds", isAll ? [] : allIds)
     }
+
+    const revisionEquipmentRefs = useMemo(
+      () =>
+        (availableEquipments || [])
+          .map((equipment) => ({
+            id: String(equipment?.id || "").trim(),
+            cod: String(equipment?.cod || "").trim(),
+            name: String(equipment?.nume || "").trim(),
+          }))
+          .filter((equipment) => equipment.id),
+      [availableEquipments],
+    )
+
+    useEffect(() => {
+      if (formData.tipLucrare !== "Revizie" || revisionEquipmentRefs.length === 0) {
+        setRecentRevisionHits({})
+        setLoadingRecentRevisionHits(false)
+        return
+      }
+
+      let cancelled = false
+      setLoadingRecentRevisionHits(true)
+      findRecentCompletedRevisionHits({
+        equipmentRefs: revisionEquipmentRefs,
+        clientId: formData.clientId,
+        clientName: formData.client,
+        locationId: formData.locationId,
+        locationName: formData.locatie,
+        excludeWorkId: currentWorkOrderId,
+      })
+        .then((hits) => {
+          if (cancelled) return
+          setRecentRevisionHits(hits)
+        })
+        .catch((error) => {
+          if (cancelled) return
+          console.warn("Nu s-au putut încărca reviziile recente pentru echipamente:", error)
+          setRecentRevisionHits({})
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingRecentRevisionHits(false)
+        })
+
+      return () => {
+        cancelled = true
+      }
+    }, [
+      formData.tipLucrare,
+      formData.clientId,
+      formData.client,
+      formData.locationId,
+      formData.locatie,
+      revisionEquipmentRefs,
+      currentWorkOrderId,
+    ])
+
+    useEffect(() => {
+      if (formData.tipLucrare !== "Revizie" || !handleCustomChange) return
+      const selected = (formData.equipmentIds || []) as string[]
+      if (selected.length === 0) return
+      const allowed = selected.filter((id) => !isRecentRevisionBlocked(id))
+      if (allowed.length !== selected.length) {
+        handleCustomChange("equipmentIds", allowed)
+      }
+    }, [formData.tipLucrare, formData.equipmentIds, isRecentRevisionBlocked, handleCustomChange])
 
     // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
@@ -1575,6 +1681,28 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         return
       }
 
+      if (formData.tipLucrare === "Revizie") {
+        const blocked = ((formData as any).equipmentIds || [])
+          .filter((id: string) => isRecentRevisionBlocked(String(id || "").trim()))
+          .map((id: string) => recentRevisionHits[id])
+          .filter(Boolean) as RecentRevisionHit[]
+        if (blocked.length > 0) {
+          setError(`Există echipamente cu revizie efectuată în ultimele ${RECENT_REVISION_BLOCK_DAYS} zile.`)
+          if (setFieldErrors) {
+            const next = Array.from(new Set([...(fieldErrors || []), "equipmentIds"]))
+            setFieldErrors(next)
+          }
+          toast({
+            title: "Revizie blocată",
+            description: `Nu puteți emite revizia pentru echipamente revizuite recent: ${blocked
+              .map((hit) => `${hit.nrDisplay} (${hit.dateLabel})`)
+              .join(", ")}.`,
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
       // Guard (safety): dacă avem ID de echipament, acesta trebuie să fie valid în locația curentă.
       if (formData.tipLucrare !== "Revizie" && formData.echipamentId) {
         const match = availableEquipments.find((e) => e.id === formData.echipamentId)
@@ -2351,15 +2479,23 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                       onChange={(e) => setEquipSearch(e.target.value)}
                     />
                     <Button type="button" variant="outline" onClick={toggleAllEquipments}>
-                      {availableEquipments.length &&
-                      availableEquipments
-                        .map((e) => e.id!)
-                        .filter(Boolean)
-                        .every((id) => (formData.equipmentIds || []).includes(id))
-                        ? "Deselectează toate"
-                        : "Selectează toate"}
+                      {(() => {
+                        const selectableIds = availableEquipments
+                          .map((e) => e.id!)
+                          .filter((id) => Boolean(id) && !isRecentRevisionBlocked(id))
+                        return selectableIds.length > 0 &&
+                          selectableIds.every((id) => (formData.equipmentIds || []).includes(id))
+                          ? "Deselectează toate"
+                          : "Selectează toate"
+                      })()}
                     </Button>
                   </div>
+                  {loadingRecentRevisionHits && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Verificăm reviziile efectuate recent...</span>
+                    </div>
+                  )}
                   <div className="max-h-56 overflow-auto border rounded-md p-2 bg-muted/30">
                     {(availableEquipments || [])
                       .filter((e) => {
@@ -2373,17 +2509,41 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                       })
                       .map((e) => {
                         const checked = (formData.equipmentIds || []).includes(e.id || "")
+                        const recentHit = e.id ? recentRevisionHits[e.id] : undefined
+                        const locked = Boolean(e.id && isRecentRevisionBlocked(e.id))
                         return (
-                          <label key={e.id} className="flex items-center gap-2 p-1 rounded hover:bg-white">
+                          <label
+                            key={e.id}
+                            className={`flex items-start gap-2 rounded border p-2 transition-colors ${
+                              recentHit
+                                ? "border-green-200 bg-green-50"
+                                : "border-transparent hover:bg-white"
+                            } ${locked ? "cursor-not-allowed opacity-90" : ""}`}
+                          >
                             <Checkbox
                               checked={checked}
+                              disabled={locked}
                               onCheckedChange={() => e.id && toggleEquipmentId(e.id)}
                             />
-                            <div className="text-sm">
-                              <div className="font-medium">{e.nume}</div>
+                            <div className="min-w-0 flex-1 text-sm">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium">{e.nume}</span>
+                                {recentHit && (
+                                  <Badge className="bg-green-600 text-white hover:bg-green-600">
+                                    Revizie efectuată
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="text-xs text-muted-foreground">
                                 {e.cod} {e.model ? `• ${e.model}` : ""}
                               </div>
+                              {recentHit && (
+                                <div className="mt-1 text-xs text-green-800">
+                                  Ultima revizie: {recentHit.dateLabel}
+                                  {recentHit.nrDisplay ? `, tichet ${recentHit.nrDisplay}` : ""}
+                                  {locked ? ` - blocat ${RECENT_REVISION_BLOCK_DAYS} zile` : ""}
+                                </div>
+                              )}
                             </div>
                           </label>
                         )

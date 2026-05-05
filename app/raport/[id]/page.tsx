@@ -247,9 +247,20 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             }
           }
 
-          // If the work has products, load them from snapshot first, then from main data
-          const productsSource = processedData.raportSnapshot?.products || processedData.products || []
-          if (productsSource && productsSource.length > 0) {
+          // If the work has products, load them from a locked snapshot only after report generation.
+          // For "Semnează mai târziu" the report is not locked, so the editable products remain
+          // the source of truth.
+          const snapshotProducts = Array.isArray(processedData.raportSnapshot?.products)
+            ? processedData.raportSnapshot.products
+            : []
+          const mainProducts = Array.isArray(processedData.products) ? processedData.products : []
+          const productsSource =
+            processedData.raportDataLocked && snapshotProducts.length > 0
+              ? snapshotProducts
+              : mainProducts.length > 0
+                ? mainProducts
+                : snapshotProducts
+          if (productsSource.length > 0) {
             // Convert products to the expected format for the form
             const convertedProducts = productsSource.map((product: any, index: number) => ({
               id: product.id || index.toString(),
@@ -260,7 +271,9 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
               total: (product.quantity || product.cantitate || 0) * (product.price || product.pretUnitar || 0),
             }))
             setProducts(convertedProducts)
-            console.log("📦 Produse încărcate din", processedData.raportSnapshot?.products ? "snapshot" : "date principale", ":", convertedProducts.length, "elemente")
+            console.log("📦 Produse încărcate din", processedData.raportDataLocked && snapshotProducts.length > 0 ? "snapshot" : "date principale", ":", convertedProducts.length, "elemente")
+          } else {
+            setProducts([])
           }
 
           // If the work has an email address, load it
@@ -988,6 +1001,7 @@ FOM by NRG`,
         dataPlecare,
         oraPlecare,
         durataInterventie,
+        products,
       }
 
       if (String(tichet?.tipLucrare || "") === "Intervenție în garanție") {
