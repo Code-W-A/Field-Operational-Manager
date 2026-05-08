@@ -578,61 +578,40 @@ export function TehnicianInterventionForm({
 
             {/* Secțiunea pentru informațiile de garanție */}
             {isWarrantyWork && (
-              <div className="border p-4 rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">G</span>
-                  </div>
-                  <Label className="font-medium text-blue-900">Informații Garanție Echipament</Label>
-                </div>
-
-                {/* Informații despre garanție calculate automat */}
-                {warrantyInfo && (
-                  <div className="p-3 bg-white rounded-md border mb-3">
-                    <h4 className="font-medium text-sm mb-2">Calculul automat al garanției:</h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-gray-600">Status:</span>
-                        <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
-                          {warrantyInfo.statusText}
-                        </Badge>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Zile rămase:</span>
-                        <span className={`ml-1 font-medium ${warrantyInfo.isInWarranty ? 'text-green-600' : 'text-red-600'}`}>
-                          {warrantyInfo.isInWarranty ? warrantyInfo.daysRemaining : 0} zile
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Data instalării:</span>
-                        <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Expiră la:</span>
-                        <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
-                      </div>
+              <div className="space-y-3">
+                <div className="border p-4 rounded-md bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">G</span>
                     </div>
-                    <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
+                    <Label className="font-medium text-blue-900">Informații Garanție Echipament</Label>
                   </div>
-                )}
 
-                {/* Informații despre echipamentul verificat */}
-                <div className="space-y-3">
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Badge className="bg-green-100 text-green-800 border-green-200">
-                        ✓ Echipament verificat
-                      </Badge>
-                      <span className="text-xs text-gray-600">prin scanarea QR code</span>
+                  {/* Informații despre garanție calculate automat */}
+                  {warrantyInfo && (
+                    <div className="p-3 bg-white rounded-md border mb-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-600">Status:</span>
+                          <Badge className={warrantyInfo.statusBadgeClass + " ml-1"}>
+                            {warrantyInfo.statusText}
+                          </Badge>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Data instalării:</span>
+                          <span className="ml-1">{warrantyInfo.installationDate || "Nedefinită"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Expiră la:</span>
+                          <span className="ml-1">{warrantyInfo.warrantyExpires || "Nedefinită"}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-2">{warrantyInfo.warrantyMessage}</p>
                     </div>
-                    <p className="text-xs text-green-700">
-                      Echipamentul a fost verificat în tabul "Verificare Echipament". 
-                      Informațiile de garanție de mai sus sunt calculate automat pe baza datelor echipamentului.
-                    </p>
-                  </div>
+                  )}
 
                   {/* Confirmarea garanției de către tehnician */}
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md space-y-3">
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md space-y-3">
                     <Label className="font-medium text-sm text-yellow-800 block" htmlFor="tehnician-garantie-decizie">
                       Confirmarea tehnicianului la fața locului:
                     </Label>
@@ -672,6 +651,15 @@ export function TehnicianInterventionForm({
                         />
                       </div>
                     )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <div className="flex items-center space-x-2">
+                    <Badge className="bg-green-100 text-green-800 border-green-200">
+                      ✓ Echipament verificat
+                    </Badge>
+                    <span className="text-xs text-green-700">prin scanare QR</span>
                   </div>
                 </div>
               </div>
