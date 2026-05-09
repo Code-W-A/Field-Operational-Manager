@@ -4729,6 +4729,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   necesitaOferta: lucrare.necesitaOferta,
                   comentariiOferta: lucrare.comentariiOferta,
                   statusEchipament: lucrare.statusEchipament,
+                  cauzaPrincipalaDefectId: (lucrare as any).cauzaPrincipalaDefectId,
+                  cauzaPrincipalaDefect: (lucrare as any).cauzaPrincipalaDefect,
                   // Adăugăm câmpurile pentru garanție
                   tipLucrare: lucrare.tipLucrare,
                   echipamentCod: lucrare.echipamentCod,

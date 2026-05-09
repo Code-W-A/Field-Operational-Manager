@@ -227,6 +227,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           products: [...currentProducts], // copie a produselor (cele mai recente din props sau state)
           constatareLaLocatie: lucrare.constatareLaLocatie,
           descriereInterventie: lucrare.descriereInterventie,
+          cauzaPrincipalaDefectId: (lucrare as any).cauzaPrincipalaDefectId,
+          cauzaPrincipalaDefect: (lucrare as any).cauzaPrincipalaDefect,
           semnaturaTehnician: lucrare.semnaturaTehnician,
           semnaturaBeneficiar: lucrare.semnaturaBeneficiar,
           numeTehnician: lucrare.numeTehnician,
@@ -283,6 +285,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             products: lucrare.raportSnapshot.products,
             constatareLaLocatie: lucrare.raportSnapshot.constatareLaLocatie,
             descriereInterventie: lucrare.raportSnapshot.descriereInterventie,
+            cauzaPrincipalaDefectId: (lucrare.raportSnapshot as any).cauzaPrincipalaDefectId || (lucrare as any).cauzaPrincipalaDefectId,
+            cauzaPrincipalaDefect: (lucrare.raportSnapshot as any).cauzaPrincipalaDefect || (lucrare as any).cauzaPrincipalaDefect,
             semnaturaTehnician: lucrare.raportSnapshot.semnaturaTehnician,
             semnaturaBeneficiar: lucrare.raportSnapshot.semnaturaBeneficiar,
             numeTehnician: lucrare.raportSnapshot.numeTehnician,
@@ -654,6 +658,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       }
 
       addTextSection("Defect reclamat", lucrareForPDF.defectReclamat)
+      addTextSection("Cauza principala defect", (lucrareForPDF as any).cauzaPrincipalaDefect)
       addTextSection("Constatare la locatie", lucrareForPDF.constatareLaLocatie)
       addTextSection("Descriere interventie", lucrareForPDF.descriereInterventie)
       
@@ -1002,6 +1007,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               dataPlecare: lucrareForPDF.dataPlecare,
               oraPlecare: lucrareForPDF.oraPlecare,
               durataInterventie: lucrareForPDF.durataInterventie,
+              cauzaPrincipalaDefectId: (lucrareForPDF as any).cauzaPrincipalaDefectId,
+              cauzaPrincipalaDefect: (lucrareForPDF as any).cauzaPrincipalaDefect,
               statusFinalizareInterventie: "FINALIZAT",
               ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
               ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),

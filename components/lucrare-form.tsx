@@ -57,6 +57,12 @@ import {
   RECENT_REVISION_BLOCK_DAYS,
   type RecentRevisionHit,
 } from "@/lib/utils/revision-recent-lock"
+import {
+  SIMILAR_CAUSE_SCORE_THRESHOLD,
+  filterRecentCompletedInterventions,
+  getEquipmentLookupKeys,
+  type RecentInterventionSuggestion,
+} from "@/lib/utils/reintervention-suggestion"
 // Adăugăm importurile pentru calcularea garanției
 import { calculateWarranty, getWarrantyDisplayInfo, updateWorkOrderWarrantyInfo } from "@/lib/utils/warranty-calculator"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
@@ -340,6 +346,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // State pentru validarea echipamentelor duplicate
     const [existingWorkOnEquipment, setExistingWorkOnEquipment] = useState<ActiveWorkSummary[]>([])
     const [checkingEquipment, setCheckingEquipment] = useState(false)
+    const [recentInterventionSourceWorks, setRecentInterventionSourceWorks] = useState<any[]>([])
+    const [recentInterventionSuggestions, setRecentInterventionSuggestions] = useState<RecentInterventionSuggestion[]>([])
+    const [checkingRecentInterventions, setCheckingRecentInterventions] = useState(false)
     const [recentRevisionHits, setRecentRevisionHits] = useState<Record<string, RecentRevisionHit>>({})
     const [loadingRecentRevisionHits, setLoadingRecentRevisionHits] = useState(false)
 
@@ -826,6 +835,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         // Resetăm acordeonul doar dacă clientul s-a schimbat
         setShowContactAccordion(false)
+        setExistingWorkOnEquipment([])
+        setRecentInterventionSuggestions([])
       }
 
       // Actualizăm starea pentru clientul selectat
@@ -866,6 +877,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         
         // Resetăm și lista de lucrări existente
         setExistingWorkOnEquipment([])
+        setRecentInterventionSuggestions([])
         setSelectedEquipment(null)
         setWarrantyInfo(null)
       }
@@ -995,6 +1007,76 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
     }
 
+    const checkRecentCompletedInterventions = async (equipment: Echipament) => {
+      if (isEdit || formData.tipLucrare === "Revizie") {
+        setRecentInterventionSourceWorks([])
+        setRecentInterventionSuggestions([])
+        return [] as RecentInterventionSuggestion[]
+      }
+
+      setCheckingRecentInterventions(true)
+      try {
+        const lookupKeys = getEquipmentLookupKeys({
+          id: equipment?.id,
+          cod: equipment?.cod,
+          nume: equipment?.nume,
+        })
+
+        let docs: any[] = []
+        for (const lookup of lookupKeys) {
+          const snap = await getDocs(query(collection(db, "lucrari"), where(lookup.field, "==", lookup.value)))
+          docs = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+          if (docs.length > 0) break
+        }
+
+        setRecentInterventionSourceWorks(docs)
+        const suggestions = filterRecentCompletedInterventions(docs, {
+          excludeWorkId: currentWorkOrderId,
+          currentDefectText: formData.defectReclamat,
+          similarScoreThreshold: SIMILAR_CAUSE_SCORE_THRESHOLD,
+        })
+        setRecentInterventionSuggestions(suggestions)
+        return suggestions
+      } catch (error) {
+        console.error("Eroare la verificarea intervențiilor recente:", error)
+        setRecentInterventionSourceWorks([])
+        setRecentInterventionSuggestions([])
+        return [] as RecentInterventionSuggestion[]
+      } finally {
+        setCheckingRecentInterventions(false)
+      }
+    }
+
+    useEffect(() => {
+      if (isEdit || formData.tipLucrare === "Revizie") {
+        if (recentInterventionSuggestions.length > 0) {
+          setRecentInterventionSuggestions([])
+        }
+        if (recentInterventionSourceWorks.length > 0) {
+          setRecentInterventionSourceWorks([])
+        }
+        return
+      }
+      if (recentInterventionSourceWorks.length === 0) {
+        if (recentInterventionSuggestions.length > 0) {
+          setRecentInterventionSuggestions([])
+        }
+        return
+      }
+      const rescored = filterRecentCompletedInterventions(recentInterventionSourceWorks, {
+        excludeWorkId: currentWorkOrderId,
+        currentDefectText: formData.defectReclamat,
+        similarScoreThreshold: SIMILAR_CAUSE_SCORE_THRESHOLD,
+      })
+      setRecentInterventionSuggestions(rescored)
+    }, [
+      currentWorkOrderId,
+      formData.defectReclamat,
+      formData.tipLucrare,
+      isEdit,
+      recentInterventionSourceWorks,
+    ])
+
     // Adăugăm funcție pentru selectarea echipamentului
     // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
     const handleEquipmentSelect = async (equipmentId: string, equipment: Echipament) => {
@@ -1017,6 +1099,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       
       // Verificăm dacă există lucrări active pe acest echipament
       await checkExistingWorkOrders(equipmentId, equipment.cod)
+      await checkRecentCompletedInterventions(equipment)
       
       // Calculăm informațiile de garanție pentru echipamentul selectat
       if (formData.tipLucrare === "Intervenție în garanție") {
@@ -2389,6 +2472,68 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   {availableEquipments.length} echipamente disponibile pentru această locație
                 </p>
               )}
+
+              {!isEdit && recentInterventionSuggestions.length > 0 && (
+                <Alert className="mt-3 border-amber-200 bg-amber-50">
+                  <LightbulbIcon className="h-4 w-4 text-amber-600" />
+                  <AlertDescription>
+                    <div className="space-y-2 text-amber-900">
+                      <p className="font-semibold">Posibilă reintervenție pe acest echipament</p>
+                      <p className="text-sm">
+                        Echipamentul are {recentInterventionSuggestions.length} intervenție/intervenții finalizate în ultimele 90 de zile.
+                        Verificați istoricul înainte de salvare.
+                      </p>
+                      <div className="space-y-1">
+                        {recentInterventionSuggestions.slice(0, 3).map((work) => (
+                          <div key={work.id} className="rounded border border-amber-200 bg-white/70 p-2 text-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="font-medium">
+                                  {work.nrDisplay} · {safeFormatUiDate(work.date)}
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    work.matchType === "same_cause"
+                                      ? "border-red-300 bg-red-50 text-red-700"
+                                      : work.matchType === "similar_cause"
+                                        ? "border-amber-300 bg-amber-100 text-amber-800"
+                                        : "border-slate-300 bg-slate-50 text-slate-700"
+                                  }
+                                >
+                                  {work.matchType === "same_cause"
+                                    ? "Aceeași cauză"
+                                    : work.matchType === "similar_cause"
+                                      ? `Cauză similară (${Math.round(work.matchScore * 100)}%)`
+                                      : "Intervenție recentă"}
+                                </Badge>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => router.push(`/dashboard/lucrari/${work.id}`)}
+                              >
+                                Deschide tichet
+                              </Button>
+                            </div>
+                            {work.matchReason && <div className="mt-1 text-xs text-amber-900">{work.matchReason}</div>}
+                            <div className="mt-1 text-xs">
+                              <span className="font-medium">Cauză:</span> {work.cauzaPrincipalaDefect || "nespecificată"}
+                            </div>
+                            {work.defectReclamat && (
+                              <div className="mt-1 line-clamp-2 text-xs text-amber-800">
+                                <span className="font-medium">Defect:</span> {work.defectReclamat}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
               
               {/* Avertisment pentru lucrări active existente */}
               {!isEdit && existingWorkOnEquipment.length > 0 && (
@@ -2441,6 +2586,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Verificăm echipamentul...</span>
+                </div>
+              )}
+              {checkingRecentInterventions && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Verificăm intervențiile recente...</span>
                 </div>
               )}
             </div>

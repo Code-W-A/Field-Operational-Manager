@@ -24,6 +24,8 @@ import { WORK_STATUS } from "@/lib/utils/constants"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
+import { useTargetList } from "@/hooks/use-settings"
+import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib/utils/failure-causes"
 
 export default function RaportPage({ params }: { params: Promise<{ id: string }> }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -74,6 +76,10 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   const [numeBeneficiar, setNumeBeneficiar] = useState("")
   const [clientRating, setClientRating] = useState<number | null>(null)
   const [clientReview, setClientReview] = useState<string>("")
+  const [cauzaPrincipalaDefectId, setCauzaPrincipalaDefectId] = useState("")
+  const [cauzaPrincipalaDefect, setCauzaPrincipalaDefect] = useState("")
+  const { items: failureCauseSettings } = useTargetList("works.create.failureCauses")
+  const failureCauseOptions = failureCauseOptionsFromSettings(failureCauseSettings)
 
   // State-uri pentru editarea manuală a timpului de plecare
   const [isEditingDepartureTime, setIsEditingDepartureTime] = useState(false)
@@ -329,6 +335,12 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             setClientRating(r ?? null)
             const rv = typeof snapReview === 'string' && snapReview.trim().length ? snapReview : (typeof docReview === 'string' ? docReview : '')
             setClientReview(rv || "")
+            setCauzaPrincipalaDefectId(
+              String((processedData as any)?.cauzaPrincipalaDefectId || (processedData as any)?.raportSnapshot?.cauzaPrincipalaDefectId || ""),
+            )
+            setCauzaPrincipalaDefect(
+              String((processedData as any)?.cauzaPrincipalaDefect || (processedData as any)?.raportSnapshot?.cauzaPrincipalaDefect || ""),
+            )
           } catch {}
         } else {
           setError("Lucrarea nu a fost găsită")
@@ -773,6 +785,20 @@ FOM by NRG`,
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
   const handleSubmit = useStableCallback(async () => {
+    const failureCauseLabel = resolveFailureCauseLabel(
+      failureCauseOptions,
+      cauzaPrincipalaDefectId,
+      cauzaPrincipalaDefect,
+    )
+    if (!cauzaPrincipalaDefectId || !failureCauseLabel) {
+      toast({
+        title: "Câmpuri obligatorii",
+        description: "Selectați cauza principală a defectului înainte de generarea raportului.",
+        variant: "destructive",
+      })
+      return
+    }
+
     console.log(`[RAPORT_FLOW ${paramsId}] handleSubmit() start`, {
       lucrareId: tichet?.id || paramsId,
       hasTechSig: Boolean(techSignatureData) || Boolean(techSignatureRef.current && !techSignatureRef.current.isEmpty()),
@@ -826,6 +852,8 @@ FOM by NRG`,
         numeTehnician,
         numeBeneficiar,
         products,
+        cauzaPrincipalaDefectId,
+        cauzaPrincipalaDefect: failureCauseLabel,
         emailDestinatar: manualEmails,
         ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
         ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
@@ -979,6 +1007,20 @@ FOM by NRG`,
 
       setIsFinalizingLater(true)
 
+      const failureCauseLabel = resolveFailureCauseLabel(
+        failureCauseOptions,
+        cauzaPrincipalaDefectId,
+        cauzaPrincipalaDefect,
+      )
+      if (!cauzaPrincipalaDefectId || !failureCauseLabel) {
+        toast({
+          title: "Câmpuri obligatorii",
+          description: "Selectați cauza principală a defectului înainte de închiderea intervenției.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const now = new Date()
       const timpPlecare = now.toISOString()
       const dataPlecare = formatDate(now)
@@ -990,6 +1032,8 @@ FOM by NRG`,
       const updateData: any = {
         constatareLaLocatie: tichet?.constatareLaLocatie || "",
         descriereInterventie: tichet?.descriereInterventie || "",
+        cauzaPrincipalaDefectId,
+        cauzaPrincipalaDefect: failureCauseLabel,
         statusEchipament: tichet?.statusEchipament || "Funcțional",
         necesitaOferta: Boolean(tichet?.necesitaOferta),
         comentariiOferta: tichet?.necesitaOferta ? tichet?.comentariiOferta || "" : "",
@@ -2161,6 +2205,13 @@ FOM by NRG`,
                   <p>{lucrare?.defectReclamat || "Nu a fost specificat"}</p>
                 </div>
 
+                <Separator />
+
+                <div>
+                  <h3 className="font-medium text-gray-500">Cauză principală defect</h3>
+                  <p>{lucrare?.raportSnapshot?.cauzaPrincipalaDefect || lucrare?.cauzaPrincipalaDefect || "Nu a fost specificată"}</p>
+                </div>
+
                 {lucrare?.textReinterventie && (
                   <>
                     <Separator />
@@ -2188,7 +2239,31 @@ FOM by NRG`,
                 <Separator />
 
         
-             
+                <div className="space-y-2">
+                  <Label htmlFor="cauzaPrincipalaDefect">Cauză principală defect *</Label>
+                  <Select
+                    value={cauzaPrincipalaDefectId}
+                    onValueChange={(value) => {
+                      setCauzaPrincipalaDefectId(value)
+                      setCauzaPrincipalaDefect(resolveFailureCauseLabel(failureCauseOptions, value))
+                    }}
+                    disabled={isSubmitting || lucrare?.raportDataLocked}
+                  >
+                    <SelectTrigger id="cauzaPrincipalaDefect">
+                      <SelectValue placeholder="Selectați cauza principală" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {failureCauseOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
                 <ProductTableForm 
                   products={products} 
                   onProductsChange={setProducts}

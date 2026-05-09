@@ -35,6 +35,14 @@ interface ProductTableFormProps {
   tableScrollClassName?: string
 }
 
+export const normalizeProductDecimalInput = (value: string) =>
+  value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+
+export const parseProductDecimalInput = (value: string) => {
+  const normalized = normalizeProductDecimalInput(value)
+  return normalized === "" ? undefined : parseFloat(normalized)
+}
+
 export function ProductTableForm({
   products,
   onProductsChange,
@@ -48,14 +56,6 @@ export function ProductTableForm({
   const [draft, setDraft] = React.useState<ProductItem | null>(null)
   const [numberDrafts, setNumberDrafts] = React.useState<Record<string, string>>({})
   const lastFocusedFieldIdRef = React.useRef<string | null>(null)
-
-  const normalizeDecimalInput = (value: string) =>
-    value.replace(",", ".").replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
-
-  const parseDecimalInput = (value: string) => {
-    const normalized = normalizeDecimalInput(value)
-    return normalized === "" ? undefined : parseFloat(normalized)
-  }
 
   const numberDraftKey = (id: string, field: "price" | "quantity") => `${id}:${field}`
 
@@ -145,7 +145,7 @@ export function ProductTableForm({
   const totalWithoutVAT = products.reduce((sum, product) => sum + (Number(product.total) || 0), 0)
   const totalWithVAT = totalWithoutVAT * 1.21 // Presupunem TVA 21%
   const handleNumberChange = (id: string, field: "price" | "quantity", rawValue: string) => {
-    const parsed = parseDecimalInput(rawValue)
+    const parsed = parseProductDecimalInput(rawValue)
     updateProduct(id, field, parsed ?? 0)
   }
 
@@ -252,7 +252,7 @@ export function ProductTableForm({
                         inputMode="decimal"
                         value={numberDrafts[priceKey] ?? (p.price === 0 ? "" : String(p.price))}
                         onChange={(e) => {
-                          const norm = normalizeDecimalInput(e.target.value)
+                          const norm = normalizeProductDecimalInput(e.target.value)
                           setNumberDrafts((prev) => ({ ...prev, [priceKey]: norm }))
                           handleNumberChange(p.id, "price", norm)
                         }}
@@ -275,7 +275,7 @@ export function ProductTableForm({
                         value={numberDrafts[quantityKey] ?? (p.quantity === 0 ? "" : String(p.quantity))}
                         onChange={(e) => {
                           const normalized = allowDecimalQuantity
-                            ? normalizeDecimalInput(e.target.value)
+                            ? normalizeProductDecimalInput(e.target.value)
                             : e.target.value.replace(/\D+/g, "")
                           setNumberDrafts((prev) => ({ ...prev, [quantityKey]: normalized }))
                           handleNumberChange(p.id, "quantity", normalized)
@@ -387,7 +387,7 @@ export function ProductTableForm({
                   step={allowDecimalQuantity ? "0.01" : "1"}
                   value={draft?.quantity === undefined || draft?.quantity === null ? "" : String(draft.quantity)}
                   onChange={(e) => {
-                    const v = allowDecimalQuantity ? normalizeDecimalInput(e.target.value) : e.target.value.replace(/\D+/g, "")
+                    const v = allowDecimalQuantity ? normalizeProductDecimalInput(e.target.value) : e.target.value.replace(/\D+/g, "")
                     setDraft((d) => ({ ...(d as ProductItem), quantity: v === "" ? (undefined as unknown as number) : (v as unknown as number) }))
                   }}
                   disabled={disabled}
@@ -405,7 +405,7 @@ export function ProductTableForm({
                   step="0.01"
                   value={draft?.price === undefined || draft?.price === null ? "" : String(draft.price)}
                   onChange={(e) => {
-                    const v = normalizeDecimalInput(e.target.value)
+                    const v = normalizeProductDecimalInput(e.target.value)
                     setDraft((d) => ({ ...(d as ProductItem), price: v === "" ? (undefined as unknown as number) : (v as unknown as number) }))
                   }}
                   disabled={disabled}

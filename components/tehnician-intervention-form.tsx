@@ -27,6 +27,8 @@ import type { Echipament } from "@/lib/firebase/firestore"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { useAuth } from "@/contexts/AuthContext"
+import { useTargetList } from "@/hooks/use-settings"
+import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib/utils/failure-causes"
 
 
 // First, let's update the interface to include statusEchipament
@@ -40,6 +42,8 @@ interface TehnicianInterventionFormProps {
     necesitaOferta?: boolean
     comentariiOferta?: string
     statusEchipament?: string
+    cauzaPrincipalaDefectId?: string
+    cauzaPrincipalaDefect?: string
     // Adăugăm câmpurile pentru garanție
     tipLucrare?: string
     echipamentData?: Echipament
@@ -87,6 +91,8 @@ export function TehnicianInterventionForm({
   const [constatareLaLocatie, setConstatareLaLocatie] = useState(initialData.constatareLaLocatie || "")
 
   const [statusEchipament, setStatusEchipament] = useState(initialData.statusEchipament || "Funcțional")
+  const [cauzaPrincipalaDefectId, setCauzaPrincipalaDefectId] = useState(initialData.cauzaPrincipalaDefectId || "")
+  const [cauzaPrincipalaDefect, setCauzaPrincipalaDefect] = useState(initialData.cauzaPrincipalaDefect || "")
   const [necesitaOferta, setNecesitaOferta] = useState(initialData.necesitaOferta || false)
   const [comentariiOferta, setComentariiOferta] = useState(initialData.comentariiOferta || "")
   const [formDisabled, setFormDisabled] = useState(isCompleted || initialData.raportGenerat)
@@ -138,6 +144,8 @@ export function TehnicianInterventionForm({
   
   // Verificăm dacă lucrarea este de tip "Intervenție în garanție"
   const isWarrantyWork = initialData.tipLucrare === "Intervenție în garanție"
+  const { items: failureCauseSettings } = useTargetList("works.create.failureCauses")
+  const failureCauseOptions = failureCauseOptionsFromSettings(failureCauseSettings)
 
   // Eliminat: status finalizare intervenție este setat automat la generarea raportului
 
@@ -191,6 +199,21 @@ export function TehnicianInterventionForm({
     return null
   }
 
+  const validateFailureCause = (): string | null => {
+    if (cauzaPrincipalaDefectId && resolveFailureCauseLabel(failureCauseOptions, cauzaPrincipalaDefectId, cauzaPrincipalaDefect)) {
+      return null
+    }
+    return "Selectați cauza principală a defectului."
+  }
+
+  const failureCausePayload = () => {
+    const label = resolveFailureCauseLabel(failureCauseOptions, cauzaPrincipalaDefectId, cauzaPrincipalaDefect)
+    return {
+      cauzaPrincipalaDefectId: cauzaPrincipalaDefectId || "",
+      cauzaPrincipalaDefect: label || "",
+    }
+  }
+
   const warrantyPayload = (): {
     tehnicianGarantieDecizie: TehnicianGarantieDecizie
     tehnicianGarantieNuIntraMotiv: string
@@ -241,6 +264,12 @@ export function TehnicianInterventionForm({
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
         notaInternaTehnician,
+      }
+
+      const selectedFailureCause = failureCausePayload()
+      if (selectedFailureCause.cauzaPrincipalaDefectId || selectedFailureCause.cauzaPrincipalaDefect) {
+        updateData.cauzaPrincipalaDefectId = selectedFailureCause.cauzaPrincipalaDefectId
+        updateData.cauzaPrincipalaDefect = selectedFailureCause.cauzaPrincipalaDefect
       }
 
       const w = warrantyPayload()
@@ -310,6 +339,11 @@ export function TehnicianInterventionForm({
       toast({ title: "Câmpuri obligatorii", description: wErr, variant: "destructive" })
       return
     }
+    const causeErr = validateFailureCause()
+    if (causeErr) {
+      toast({ title: "Câmpuri obligatorii", description: causeErr, variant: "destructive" })
+      return
+    }
 
     try {
       setIsGeneratingReport(true)
@@ -328,6 +362,7 @@ export function TehnicianInterventionForm({
         constatareLaLocatie,
         descriereInterventie,
         statusEchipament,
+        ...failureCausePayload(),
         necesitaOferta,
         comentariiOferta: necesitaOferta ? comentariiOferta : "", // Clear comments if necesitaOferta is false
         imaginiDefecte: allImages, // Includem toate imaginile (existente + noi)
@@ -572,6 +607,29 @@ export function TehnicianInterventionForm({
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="cauzaPrincipalaDefect">Cauză principală defect *</Label>
+              <Select
+                value={cauzaPrincipalaDefectId}
+                onValueChange={(value) => {
+                  setCauzaPrincipalaDefectId(value)
+                  setCauzaPrincipalaDefect(resolveFailureCauseLabel(failureCauseOptions, value))
+                }}
+                disabled={formDisabled}
+              >
+                <SelectTrigger id="cauzaPrincipalaDefect" className={formDisabled ? "opacity-70 cursor-not-allowed" : ""}>
+                  <SelectValue placeholder="Selectați cauza principală" />
+                </SelectTrigger>
+                <SelectContent>
+                  {failureCauseOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
 
 
             {/* Eliminat: dropdown pentru status finalizare intervenție */}
@@ -763,7 +821,7 @@ export function TehnicianInterventionForm({
                 <Button
                   type="button"
                   onClick={handleGenerateReport}
-                  disabled={isGeneratingReport || formDisabled || !descriereInterventie}
+                  disabled={isGeneratingReport || formDisabled || !descriereInterventie || !cauzaPrincipalaDefectId}
                   className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                 >
                   {isGeneratingReport ? (

@@ -59,6 +59,8 @@ export interface Lucrare {
   contractNumber?: string
   contractType?: string
   defectReclamat?: string
+  cauzaPrincipalaDefectId?: string
+  cauzaPrincipalaDefect?: string
   // Istoric defecte reclamate: [original, RE1, RE2, ...]
   defectReclamatHistory?: string[]
   // Text suplimentar specific reintervenției (doar pentru lucrări create ca reintervenție)
@@ -165,6 +167,8 @@ export interface Lucrare {
     products: ProductItem[]
     constatareLaLocatie?: string
     descriereInterventie?: string
+    cauzaPrincipalaDefectId?: string
+    cauzaPrincipalaDefect?: string
     semnaturaTehnician?: string
     semnaturaBeneficiar?: string
     numeTehnician?: string
