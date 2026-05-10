@@ -615,7 +615,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                   </div>
 
                                   {filteredEquipmentEntries.length > 0 ? (
-                                  <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                                  <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,min(100%,24rem)))]">
                                     {filteredEquipmentEntries.map(({ echipament, equipmentIndex }) => {
                                       // Calculăm informațiile de garanție pentru fiecare echipament
                                       const warrantyUi = getWarrantyUiInfo(echipament);
