@@ -97,7 +97,7 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
       }
 
       // Folosim sistemul robust de validare
-      const validation = await validateContractAssignment(selectedContract.number, clientId)
+      const validation = await validateContractAssignment(selectedContract.number, clientId, selectedContract.id)
       if (!validation.isValid) {
         toast({
           title: "Contract indisponibil",
@@ -167,7 +167,7 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
 
   if (loading) {
     return (
-      <Card>
+      <Card className="flex h-full flex-col">
         <CardHeader className="px-4 py-3">
           <CardTitle className="text-sm">Contracte Client</CardTitle>
           <CardDescription className="text-xs">Se încarcă contractele...</CardDescription>
@@ -178,7 +178,7 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
 
   return (
     <>
-      <Card>
+      <Card className="flex h-full flex-col">
         <CardHeader className="space-y-2 border-b px-4 py-3">
           <CardTitle className="text-sm">
             <span className="min-w-0 truncate">Contracte Client: {clientName}</span>
@@ -225,7 +225,7 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
             )}
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent className="flex-1 p-4">
           {clientContracts.length === 0 ? (
             <div className="py-4 text-center text-muted-foreground">
               <AlertTriangle className="mx-auto mb-2 h-7 w-7 opacity-40" />

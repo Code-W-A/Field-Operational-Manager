@@ -122,6 +122,60 @@ test("filterRecentCompletedInterventions excludes current work id", () => {
   assert.deepEqual(result, [])
 })
 
+test("filterRecentCompletedInterventions keeps only same client/location context", () => {
+  const now = new Date("2026-05-08T12:00:00.000Z")
+
+  const result = filterRecentCompletedInterventions(
+    [
+      {
+        id: "same-client-location",
+        statusLucrare: "Finalizat",
+        raportGenerat: true,
+        tipLucrare: "Intervenție",
+        dataInterventie: "2026-05-07T10:00:00.000Z",
+        clientId: "client-1",
+        locationId: "loc-1",
+        client: "Client Test",
+        locatie: "Depozit Nord",
+      },
+      {
+        id: "other-client",
+        statusLucrare: "Finalizat",
+        raportGenerat: true,
+        tipLucrare: "Intervenție",
+        dataInterventie: "2026-05-06T10:00:00.000Z",
+        clientId: "client-2",
+        locationId: "loc-1",
+        client: "Alt Client",
+        locatie: "Depozit Nord",
+      },
+      {
+        id: "other-location",
+        statusLucrare: "Finalizat",
+        raportGenerat: true,
+        tipLucrare: "Intervenție",
+        dataInterventie: "2026-05-05T10:00:00.000Z",
+        clientId: "client-1",
+        locationId: "loc-2",
+        client: "Client Test",
+        locatie: "Depozit Sud",
+      },
+    ],
+    {
+      now,
+      currentClientId: "client-1",
+      currentClientName: "Client Test",
+      currentLocationId: "loc-1",
+      currentLocationName: "Depozit Nord",
+    },
+  )
+
+  assert.deepEqual(
+    result.map((work) => work.id),
+    ["same-client-location"],
+  )
+})
+
 test("filterRecentCompletedInterventions classifies same/similar/recent and sorts by priority", () => {
   const now = new Date("2026-05-08T12:00:00.000Z")
 

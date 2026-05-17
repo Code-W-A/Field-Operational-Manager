@@ -98,6 +98,59 @@ function matchPriority(matchType: ReinterventionMatchType) {
   return 0
 }
 
+function normalizeForCompare(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function matchesClientContext(
+  work: any,
+  options?: {
+    currentClientId?: string
+    currentClientName?: string
+  },
+) {
+  const expectedId = String(options?.currentClientId || "").trim()
+  const expectedName = String(options?.currentClientName || "").trim()
+  if (!expectedId && !expectedName) return true
+
+  const workClientId = String(work?.clientId || "").trim()
+  if (expectedId && workClientId) return workClientId === expectedId
+
+  const workClientName = String(work?.client || work?.raportSnapshot?.client || "").trim()
+  if (expectedName && workClientName) {
+    return normalizeForCompare(workClientName) === normalizeForCompare(expectedName)
+  }
+
+  return false
+}
+
+function matchesLocationContext(
+  work: any,
+  options?: {
+    currentLocationId?: string
+    currentLocationName?: string
+  },
+) {
+  const expectedId = String(options?.currentLocationId || "").trim()
+  const expectedName = String(options?.currentLocationName || "").trim()
+  if (!expectedId && !expectedName) return true
+
+  const workLocationId = String(work?.locationId || "").trim()
+  if (expectedId && workLocationId) return workLocationId === expectedId
+
+  const workLocationName = String(work?.locatie || work?.raportSnapshot?.locatie || "").trim()
+  if (expectedName && workLocationName) {
+    return normalizeForCompare(workLocationName) === normalizeForCompare(expectedName)
+  }
+
+  return false
+}
+
 function getHistoricalComparisonText(work: RecentInterventionSuggestion) {
   return [work.defectReclamat, work.descriereInterventie, work.cauzaPrincipalaDefect].filter(Boolean).join(" ")
 }
@@ -168,6 +221,10 @@ export function filterRecentCompletedInterventions(
     currentDefectText?: string
     currentFailureCauseId?: string
     similarScoreThreshold?: number
+    currentClientId?: string
+    currentClientName?: string
+    currentLocationId?: string
+    currentLocationName?: string
   },
 ): RecentInterventionSuggestion[] {
   const now = options?.now || new Date()
@@ -181,6 +238,8 @@ export function filterRecentCompletedInterventions(
       if (!id || (excludeWorkId && id === excludeWorkId)) return null
       if (String(work?.tipLucrare || "").trim().toLowerCase() === "revizie") return null
       if (!isCompletedIntervention(work)) return null
+      if (!matchesClientContext(work, options)) return null
+      if (!matchesLocationContext(work, options)) return null
 
       const date = getCompletionDate(work)
       if (!date || date < cutoff || date > now) return null

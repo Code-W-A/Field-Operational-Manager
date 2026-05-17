@@ -22,6 +22,7 @@ import { getLucrareTitle } from "@/lib/utils/work-modifications-tracker"
 import type { WorkRevisionMeta } from "@/types/revision"
 import { deriveLegacyPrimaryClientContact, ensureClientContactIds } from "@/lib/client-contacts"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
+import { resolveDuplicateContractAssignmentConflict } from "@/lib/utils/contract-assignment-validation"
 
 export interface PersoanaContact {
   id?: string
@@ -1622,22 +1623,21 @@ export const validateContractAssignment = async (contractNumber: string, clientI
     if (duplicateCheck.isDuplicate) {
       const existingContract = duplicateCheck.existingContract
       const assignedClient = duplicateCheck.assignedClient
-      
-      // Dacă contractul existent este asignat unui alt client
-      if (existingContract.clientId && existingContract.clientId !== clientId) {
-        const clientName = assignedClient ? assignedClient.nume : "client necunoscut"
-        return {
-          isValid: false,
-          error: `Contractul "${contractNumber}" este deja asignat clientului: ${clientName}`
-        }
-      }
-      
-      // Dacă contractul existent nu este asignat, dar încercăm să-l asignăm
-      if (!existingContract.clientId && clientId) {
-        return {
-          isValid: false,
-          error: `Există deja un contract cu numărul "${contractNumber}" care nu este asignat. Asignați acel contract în loc să creați unul nou.`
-        }
+
+      const duplicateDecision = resolveDuplicateContractAssignmentConflict({
+        contractNumber,
+        clientId,
+        excludeContractId,
+        existingContract: existingContract
+          ? {
+              id: String(existingContract.id || ""),
+              clientId: existingContract.clientId ?? null,
+            }
+          : null,
+        assignedClientName: assignedClient?.nume,
+      })
+      if (!duplicateDecision.isValid) {
+        return duplicateDecision
       }
     }
     

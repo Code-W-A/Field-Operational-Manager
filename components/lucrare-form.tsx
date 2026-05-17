@@ -9,14 +9,16 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { format, startOfDay, isBefore } from "date-fns"
 import { ro } from "date-fns/locale"
-import { CalendarIcon, Loader2, Plus, Phone, Mail, Users, LightbulbIcon, AlertCircle } from "lucide-react"
+import { AlertCircle, CalendarIcon, Check, ChevronsUpDown, LightbulbIcon, Loader2, Mail, Phone, Plus, Users } from "lucide-react"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { orderBy, where, query, collection, onSnapshot, getDocs, getDoc, doc } from "firebase/firestore"
 import type { Client, PersoanaContact, Locatie, Echipament } from "@/lib/firebase/firestore"
 import { getClienti, getClientById } from "@/lib/firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { cn } from "@/lib/utils"
 // Importăm componenta ContractSelect
 import { ContractSelect } from "./contract-select"
 // Importăm componenta ClientForm
@@ -223,6 +225,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [tehnicieni, setTehnicieni] = useState<any[]>([])
     const [technicianGroups, setTechnicianGroups] = useState<TechnicianGroup[]>([])
     const [loadingTehnicieni, setLoadingTehnicieni] = useState(true)
+    const [technicianSelectOpen, setTechnicianSelectOpen] = useState(false)
     const [timeEmiterii, setTimeEmiterii] = useState<string>(
       dataEmiterii ? formatTime24(dataEmiterii) : formatTime24(new Date()),
     )
@@ -1034,6 +1037,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           excludeWorkId: currentWorkOrderId,
           currentDefectText: formData.defectReclamat,
           similarScoreThreshold: SIMILAR_CAUSE_SCORE_THRESHOLD,
+          currentClientId: String(selectedClient?.id || formData.clientId || "").trim(),
+          currentClientName: formData.client,
+          currentLocationId: String(formData.locationId || "").trim(),
+          currentLocationName: formData.locatie,
         })
         setRecentInterventionSuggestions(suggestions)
         return suggestions
@@ -1067,14 +1074,23 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         excludeWorkId: currentWorkOrderId,
         currentDefectText: formData.defectReclamat,
         similarScoreThreshold: SIMILAR_CAUSE_SCORE_THRESHOLD,
+        currentClientId: String(selectedClient?.id || formData.clientId || "").trim(),
+        currentClientName: formData.client,
+        currentLocationId: String(formData.locationId || "").trim(),
+        currentLocationName: formData.locatie,
       })
       setRecentInterventionSuggestions(rescored)
     }, [
       currentWorkOrderId,
+      formData.client,
+      formData.clientId,
       formData.defectReclamat,
+      formData.locatie,
+      formData.locationId,
       formData.tipLucrare,
       isEdit,
       recentInterventionSourceWorks,
+      selectedClient?.id,
     ])
 
     // Adăugăm funcție pentru selectarea echipamentului
@@ -2849,49 +2865,73 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 </Badge>
               ))}
             </div>
-            <Select onValueChange={handleTehnicieniChange}>
-              <SelectTrigger id="tehnicieni">
-                <SelectValue placeholder="Selectați tehnicienii" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[min(24rem,var(--radix-select-content-available-height))]">
-                {loadingTehnicieni ? (
-                  <div className="flex items-center justify-center p-2">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    <span>Se încarcă...</span>
-                  </div>
-                ) : tehnicieni.length > 0 ? (
-                  techniciansGroupedForSelect.sectionOrder.map((sectionKey) => (
-                    <SelectGroup key={sectionKey}>
-                      <SelectLabel className="px-2 pl-2.5 pr-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                        {techniciansGroupedForSelect.labelByKey.get(sectionKey) || sectionKey}
-                      </SelectLabel>
-                      {(techniciansGroupedForSelect.bucket.get(sectionKey) || []).map((tehnician: any) => {
-                        const rawIds = tehnician?.technicianGroupIds
-                        const gidCount = Array.isArray(rawIds) ? rawIds.length : 0
-                        const suffix =
-                          gidCount > 1
-                            ? ` (+${gidCount - 1} grup${gidCount - 1 === 1 ? "" : "uri"})`
-                            : ""
-                        const label = `${tehnician.displayName || ""}${suffix}`
-                        return (
-                          <SelectItem
-                            key={tehnician.id}
-                            value={tehnician.displayName || ""}
-                            className="pl-11 [&>span:first-child]:left-3.5"
-                          >
-                            {label}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectGroup>
-                  ))
-                ) : (
-                  <div className="p-2 text-center text-sm text-muted-foreground">
-                    Nu există tehnicieni disponibili
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
+            <Popover open={technicianSelectOpen} onOpenChange={setTechnicianSelectOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  id="tehnicieni"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={technicianSelectOpen}
+                  className="w-full justify-between"
+                >
+                  {formData.tehnicieni.length > 0
+                    ? `${formData.tehnicieni.length} tehnician${formData.tehnicieni.length === 1 ? "" : "i"} selectat${
+                        formData.tehnicieni.length === 1 ? "" : "i"
+                      }`
+                    : "Selectați tehnicienii"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput placeholder="Caută tehnician..." />
+                  <CommandList className="max-h-[min(24rem,var(--radix-popover-content-available-height))]">
+                    {loadingTehnicieni ? (
+                      <div className="flex items-center justify-center gap-2 p-3 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Se încarcă...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <CommandEmpty>Nu există tehnicieni disponibili.</CommandEmpty>
+                        {techniciansGroupedForSelect.sectionOrder.map((sectionKey) => {
+                          const sectionLabel = techniciansGroupedForSelect.labelByKey.get(sectionKey) || sectionKey
+                          const techniciansInSection = techniciansGroupedForSelect.bucket.get(sectionKey) || []
+                          if (techniciansInSection.length === 0) return null
+                          return (
+                            <CommandGroup key={sectionKey} heading={sectionLabel}>
+                              {techniciansInSection.map((tehnician: any) => {
+                                const displayName = String(tehnician?.displayName || "").trim()
+                                if (!displayName) return null
+                                const rawIds = tehnician?.technicianGroupIds
+                                const gidCount = Array.isArray(rawIds) ? rawIds.length : 0
+                                const suffix =
+                                  gidCount > 1
+                                    ? ` (+${gidCount - 1} grup${gidCount - 1 === 1 ? "" : "uri"})`
+                                    : ""
+                                const label = `${displayName}${suffix}`
+                                const isSelected = formData.tehnicieni.includes(displayName)
+
+                                return (
+                                  <CommandItem
+                                    key={tehnician.id}
+                                    value={`${displayName} ${sectionLabel}`}
+                                    onSelect={() => handleTehnicieniChange(displayName)}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                                  </CommandItem>
+                                )
+                              })}
+                            </CommandGroup>
+                          )
+                        })}
+                      </>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             <p className="text-xs text-muted-foreground">Puteți selecta mai mulți tehnicieni</p>
           </div>
 

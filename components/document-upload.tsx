@@ -651,15 +651,6 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           onClose={() => setIsNoInvoiceReasonDialogOpen(false)}
           onConfirm={async (reason) => {
             try {
-              if (reason === "Contract abonament" && lucrare?.tipLucrare !== "Intervenție în contract") {
-                toast({
-                  title: "Motiv invalid",
-                  description:
-                    "Motivul „Contract abonament” este permis doar pentru lucrări de tip „Intervenție în contract”.",
-                  variant: "destructive",
-                })
-                return
-              }
               // Setăm statusul și motivul împreună
               await updateLucrare(lucrareId, {
                 statusFacturare: "Nu se facturează",

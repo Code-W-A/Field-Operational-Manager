@@ -281,7 +281,6 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
           className="pb-3"
           heading={
             <span className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Client</span>
               <span className="min-w-0 truncate text-xl font-semibold leading-tight md:text-2xl">{client?.nume}</span>
               <Badge variant="secondary" className="text-xs">
                 CUI: {extractCUI(client)}
@@ -307,8 +306,8 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
 
         <div className="space-y-4 pb-12">
           {/* 1. Zona superioară */}
-          <section className="grid gap-3 lg:grid-cols-12">
-            <Card className="lg:col-span-4">
+          <section className="grid items-stretch gap-3 lg:grid-cols-12">
+            <Card className="flex h-full flex-col lg:col-span-4">
               <CardHeader className="border-b px-4 py-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -317,7 +316,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                   <span>Detalii despre client</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4">
+              <CardContent className="flex-1 p-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div className="flex items-start gap-2">
                     <Phone className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -692,7 +691,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                                     <span className="text-muted-foreground">Garanție:</span>
                                                     <span className="ml-1 font-medium">{warrantyInfo.warrantyMonths} luni</span>
                                                   </div>
-                                                  <div>
+                                                  <div className="text-right">
                                                     <span className="text-muted-foreground">Expiră:</span>
                                                     <span className="ml-1 font-medium">{(() => { try { return formatUiDate(toDateSafe(warrantyInfo.warrantyExpires)) } catch { return String(warrantyInfo.warrantyExpires || "-") } })()}</span>
                                                   </div>
