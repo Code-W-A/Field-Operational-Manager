@@ -320,7 +320,14 @@ export function TimesheetGrid({
                       })
                     }}
                   >
-                    {cellLabel(c, compact, defaultBreak)}
+                    {isActive && isEmpty ? (
+                      <div className="flex flex-col items-center leading-tight">
+                        <span className="inline-block h-2 w-2 rounded-full bg-emerald-700" />
+                        {!compact ? <span className="mt-0.5 text-[10px] font-bold">În lucru</span> : null}
+                      </div>
+                    ) : (
+                      cellLabel(c, compact, defaultBreak)
+                    )}
                   </button>
                 )
               })}
@@ -339,5 +346,4 @@ export function TimesheetGrid({
     </div>
   )
 }
-
 

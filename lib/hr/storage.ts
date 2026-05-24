@@ -22,6 +22,11 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { HR_SEED_EMPLOYEES, buildSeedTimesheets } from "./mock"
+import {
+  buildTimesheetCellForHrRequest,
+  daysByMonthFromRequest,
+  removeHrRequestFromTimesheetCell,
+} from "@/lib/hr/request-timesheet-sync"
 
 export type Unsubscribe = () => void
 
@@ -820,40 +825,19 @@ function enumerateDatesInclusiveISO(startDate: string, endDate: string): string[
   return dates
 }
 
-function hmToMinutes(v: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || "").trim())
-  if (!m) return null
-  const hh = Number(m[1])
-  const mm = Number(m[2])
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
-  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
-  return hh * 60 + mm
-}
+async function getEmployeeProgramEnd(employeeId: string): Promise<string> {
+  try {
+    const empSnap = await getDoc(doc(db, "hrEmployees", employeeId))
+    const empEnd = (empSnap.data() as any)?.programLucruEnd
+    if (typeof empEnd === "string" && empEnd.trim()) return empEnd.trim()
 
-function daysByMonthFromRequest(kind: HrRequestKind, payload: any): Record<TimesheetMonthKey, number[]> {
-  const map: Record<string, Set<number>> = {}
-  const add = (iso: string) => {
-    const s = String(iso || "")
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return
-    const mk = s.slice(0, 7) as TimesheetMonthKey
-    const day = Number(s.slice(8, 10))
-    if (!Number.isFinite(day) || day < 1 || day > 31) return
-    if (!map[mk]) map[mk] = new Set()
-    map[mk].add(day)
+    const defaultsSnap = await getDoc(doc(db, "hrSettings", "defaults"))
+    const defaultEnd = (defaultsSnap.data() as any)?.programLucruEnd
+    if (typeof defaultEnd === "string" && defaultEnd.trim()) return defaultEnd.trim()
+  } catch {
+    // Fall back to the standard program end; syncing the request should not fail because settings are missing.
   }
-
-  if (kind === "IN") {
-    add(String(payload?.date || ""))
-  } else if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
-    const start = String(payload?.startDate || "")
-    const end = String(payload?.endDate || "")
-    enumerateDatesInclusiveISO(start, end).forEach(add)
-  }
-
-  return Object.fromEntries(Object.entries(map).map(([mk, set]) => [mk, Array.from(set).sort((a, b) => a - b)])) as Record<
-    TimesheetMonthKey,
-    number[]
-  >
+  return "16:30"
 }
 
 /**
@@ -885,6 +869,7 @@ export async function syncHrRequestToTimesheets(params: {
     const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, monthKey))
     const newDays = new Set<number>(newByMonth[monthKey] ?? [])
     const oldDays = new Set<number>(oldByMonth[monthKey] ?? [])
+    const programEnd = params.kind === "ADD_OVERTIME" ? await getEmployeeProgramEnd(params.employeeId) : undefined
 
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(ref)
@@ -897,6 +882,19 @@ export async function syncHrRequestToTimesheets(params: {
       for (const d of Array.from(oldDays)) {
         if (newDays.has(d)) continue
         const existing = days[String(d)]
+        if (params.kind === "ADD_OVERTIME" || params.kind === "CORRECT_HOURS") {
+          const cleaned = removeHrRequestFromTimesheetCell(existing, params.requestId)
+          if (cleaned === null) {
+            updates[`days.${String(d)}`] = deleteField()
+            removed++
+          } else if (cleaned && cleaned !== existing) {
+            updates[`days.${String(d)}`] = cleaned
+            removed++
+          } else if (existing) {
+            skipped++
+          }
+          continue
+        }
         if (overwrite) {
           if (existing) {
             updates[`days.${String(d)}`] = deleteField()
@@ -914,8 +912,8 @@ export async function syncHrRequestToTimesheets(params: {
 
       // Apply new days.
       for (const d of Array.from(newDays)) {
+        const existing = days[String(d)]
         if (!overwrite) {
-          const existing = days[String(d)]
           const existingHasOtherSource = existing?.sourceRequestId && existing.sourceRequestId !== params.requestId
           const existingHasManual = existing && !existing.sourceRequestId && existing.code && existing.code !== "EMPTY"
           if (existingHasOtherSource || existingHasManual) {
@@ -924,18 +922,16 @@ export async function syncHrRequestToTimesheets(params: {
           }
         }
 
-        const cell: TimesheetCell = {
-          code: params.kind as any,
-          sourceRequestId: params.requestId,
-          sourceRequestKind: params.kind,
-        }
-
-        if (params.kind === "IN") {
-          const sm = hmToMinutes(String(params.payload?.startTime || ""))
-          const em = hmToMinutes(String(params.payload?.endTime || ""))
-          if (sm != null && em != null && em > sm) {
-            cell.hours = Math.round(((em - sm) / 60) * 100) / 100
-          }
+        const cell = buildTimesheetCellForHrRequest({
+          requestId: params.requestId,
+          kind: params.kind,
+          payload: params.payload,
+          existing,
+          programEnd,
+        })
+        if (!cell) {
+          skipped++
+          continue
         }
 
         updates[`days.${String(d)}`] = cell as any

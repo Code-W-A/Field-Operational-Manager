@@ -4,6 +4,7 @@ import { useMemo, useEffect, useState } from "react"
 import { Timestamp, where, orderBy, limit } from "firebase/firestore"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { WORK_STATUS, EQUIPMENT_STATUS } from "@/lib/utils/constants"
+import { selectLatestEquipmentStatusWinners } from "@/lib/utils/dashboard-equipment-status"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-settings"
@@ -108,14 +109,6 @@ function dateKeyFromAny(input: any | undefined): string | null {
 function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   const x = String(a || "").toLowerCase()
   return candidates.some((y) => x === String(y || "").toLowerCase())
-}
-
-function buildEquipmentKey(work: any): string | null {
-  const clientKey = String(work?.clientId || work?.client || "").trim().toLowerCase()
-  const locationKey = String(work?.locationId || work?.locatie || "").trim().toLowerCase()
-  const equipmentKey = String(work?.echipamentId || work?.echipamentCod || work?.echipament || "").trim().toLowerCase()
-  if (!equipmentKey) return null
-  return `${clientKey}|${locationKey}|${equipmentKey}`
 }
 
 function isOpenWorkStatus(status: string | undefined): boolean {
@@ -391,16 +384,6 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
     const todayAt18 = getTodayAt(18, 0)
     const endOfToday = getTodayAt(23, 59)
-    const openEquipmentKeys = new Set<string>()
-
-    // Pentru regula din dashboard: dacă există deja tichet deschis pe echipament,
-    // nu mai afișăm acel echipament în bucket-ul "Stare echipament" când e "Nefuncțional".
-    for (const work of activeLucrari) {
-      if (!isOpenWorkStatus((work as any)?.statusLucrare)) continue
-      const key = buildEquipmentKey(work)
-      if (key) openEquipmentKeys.add(key)
-    }
-
     // Build map pentru data amânării (ultima modificare cu newValue = "Amânată")
     const postponedDateByWork: Record<string, Date> = {}
     for (const m of modificariStatus || []) {
@@ -530,22 +513,15 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
         }
       }
 
-      // Stare echipament - sortate după data generării raportului
-      // Include doar Parțial funcțional și Nefuncțional (exclude Funcțional)
+      // Stare echipament:
+      // - un singur rând per echipament (deduplicare după equipmentKey)
+      // - se păstrează statusul cel mai recent (updatedAt, fallback createdAt)
+      // - includem doar Nefuncțional / Parțial funcțional, conform setărilor
       if (cfg.equipmentStatusEnabled) {
-      const statusEchipament = (l as any).statusEchipament
-        const isNonFunctional = eqInsensitive(statusEchipament, EQUIPMENT_STATUS.NON_FUNCTIONAL)
-        const isPartial = eqInsensitive(statusEchipament, EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL)
-        const shouldInclude =
-          (isNonFunctional && cfg.equipmentStatusIncludeNonFunctional) ||
-          (isPartial && cfg.equipmentStatusIncludePartiallyFunctional)
-        const equipmentKey = buildEquipmentKey(l)
-        const hasOpenTicketForEquipment = Boolean(equipmentKey && openEquipmentKeys.has(equipmentKey))
-        const shouldHideNonFunctional = isNonFunctional && hasOpenTicketForEquipment
-
-        if (shouldInclude && !shouldHideNonFunctional) {
-        res.equipmentStatus.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined, statusEchipament))
-        }
+        const winners = selectLatestEquipmentStatusWinners(activeLucrari, cfg)
+        res.equipmentStatus = winners.map((winner) =>
+          buildBubble(winner.work, undefined, winner.statusAt, winner.status),
+        )
       }
     }
 
@@ -632,5 +608,3 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
   return { buckets, personal, loading }
 }
-
-

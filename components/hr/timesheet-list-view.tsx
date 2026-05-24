@@ -155,7 +155,10 @@ export function TimesheetListView({
                         holidayLabel ? `Sărbătoare: ${holidayLabel}` : "",
                       ].filter(Boolean).join(" • ")}
                     >
-                      {d}
+                      <span className="inline-flex items-center gap-1">
+                        {isActive && !hasData ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" /> : null}
+                        {d}
+                      </span>
                     </button>
                   )
                 })}
@@ -167,4 +170,3 @@ export function TimesheetListView({
     </div>
   )
 }
-
