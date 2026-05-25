@@ -27,11 +27,13 @@ interface FieldCheckInCardProps {
   userId: string
   userName: string
   officeLocation?: OfficeLocation
+  disabled?: boolean
+  disabledReason?: string
 }
 
 type FlowState = "idle" | "selfie" | "processing"
 
-export function FieldCheckInCard({ userId, userName, officeLocation }: FieldCheckInCardProps) {
+export function FieldCheckInCard({ userId, userName, officeLocation, disabled = false, disabledReason }: FieldCheckInCardProps) {
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
   const [activeSession, setActiveSession] = useState<AttendanceSession | null>(null)
@@ -155,6 +157,14 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
   }
 
   const handleCheckIn = () => {
+    if (disabled) {
+      toast({
+        title: "Pontaj blocat",
+        description: disabledReason || "Pontajul este indisponibil momentan.",
+        variant: "destructive",
+      })
+      return
+    }
     setAction("check-in")
     setPendingAuditId(`selfie_checkin_${Date.now()}`)
     setShowFaceDialog(true)
@@ -162,6 +172,14 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
   }
 
   const handleCheckOut = async () => {
+    if (disabled) {
+      toast({
+        title: "Pontaj blocat",
+        description: disabledReason || "Pontajul este indisponibil momentan.",
+        variant: "destructive",
+      })
+      return
+    }
     // Double-check 1-minute rule
     if (activeSession) {
       const check = await canCheckOut(activeSession.id)
@@ -183,6 +201,14 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
   const handleCheckOutDebug = async (minutes: number) => {
     if (!debugEnabled) return
+    if (disabled) {
+      toast({
+        title: "Pontaj blocat",
+        description: disabledReason || "Pontajul este indisponibil momentan.",
+        variant: "destructive",
+      })
+      return
+    }
     if (!Number.isFinite(minutes) || minutes <= 0) return
     // Same 1-minute rule to keep behavior consistent.
     if (activeSession) {
@@ -354,6 +380,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
   const handleStartClientRoute = async () => {
     if (!activeSession) return
+    if (disabled) return
 
     try {
       await startExtraTimeLog({
@@ -401,6 +428,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
   const handleStartHomeRoute = async () => {
     if (!activeSession) return
+    if (disabled) return
 
     try {
       await startExtraTimeLog({
@@ -454,6 +482,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
 
   const isCheckedIn = activeSession && activeSession.status === "active"
   const isKioskStartedActive = activeSession?.status === "active" && activeSession?.deviceInfo?.type === "kiosk"
+  const actionsBlocked = Boolean(disabled)
 
   return (
     <>
@@ -491,7 +520,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                 <Button
                   className="w-full max-w-[200px] h-11 font-semibold shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl flex items-center justify-center gap-2 group"
                   onClick={handleCheckIn}
-                  disabled={flowState !== "idle"}
+                  disabled={actionsBlocked || flowState !== "idle"}
                 >
                   {flowState === "processing" && action === "check-in" ? (
                     <>
@@ -514,7 +543,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                       : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
                   )}
                   onClick={handleCheckOut}
-                  disabled={checkOutDisabled || flowState !== "idle"}
+                  disabled={actionsBlocked || checkOutDisabled || flowState !== "idle"}
                 >
                   {flowState === "processing" && action === "check-out" ? (
                     <>
@@ -538,7 +567,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                     variant="outline"
                     size="sm"
                     onClick={() => handleCheckOutDebug(120)}
-                    disabled={checkOutDisabled || flowState !== "idle"}
+                    disabled={actionsBlocked || checkOutDisabled || flowState !== "idle"}
                   >
                     Stop +2h (debug)
                   </Button>
@@ -547,7 +576,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                     variant="outline"
                     size="sm"
                     onClick={() => handleCheckOutDebug(420)}
-                    disabled={checkOutDisabled || flowState !== "idle"}
+                    disabled={actionsBlocked || checkOutDisabled || flowState !== "idle"}
                   >
                     Stop +7h (debug)
                   </Button>
@@ -575,12 +604,22 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                 </div>
               )}
 
+              {actionsBlocked && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 max-w-[420px] animate-in fade-in slide-in-from-top duration-300">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span className="font-medium">
+                    {disabledReason || "Pontajul este indisponibil momentan."}
+                  </span>
+                </div>
+              )}
+
               {/* Extra Time Buttons */}
               {(clientRouteActive || homeRouteActive) && (
                 <div className="flex gap-2 pt-1 animate-in fade-in slide-in-from-bottom duration-500">
                   {clientRouteActive && (
                     <Button
                       onClick={handleStartClientRoute}
+                      disabled={actionsBlocked}
                       className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm h-9 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
                       size="sm"
                     >
@@ -591,6 +630,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation }: FieldChec
                   {homeRouteActive && (
                     <Button
                       onClick={handleStartHomeRoute}
+                      disabled={actionsBlocked}
                       className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white text-sm h-9 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 group"
                       size="sm"
                     >

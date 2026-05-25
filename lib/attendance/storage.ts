@@ -241,6 +241,17 @@ async function getHrDefaults(): Promise<HrDefaults | null> {
   }
 }
 
+async function getUserRoleForAttendance(userId: string): Promise<string> {
+  try {
+    const snap = await getDoc(doc(db, "users", userId))
+    if (!snap.exists()) return ""
+    const role = (snap.data() as any)?.role
+    return role ? String(role) : ""
+  } catch {
+    return ""
+  }
+}
+
 function finalizeOpenExtraTimeLogs(params: {
   session: any
   now: number
@@ -289,6 +300,13 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
   const now = Date.now()
 
   const schedule = await getEmployeeScheduleForUser(request.userId, request.userName)
+  const userRole = await getUserRoleForAttendance(request.userId)
+  if ((userRole === "admin" || userRole === "dispecer") && !schedule?.employeeId) {
+    throw new Error(
+      "Contul tău nu este asociat cu un salariat HR. Mergi în Resurse Umane → Salariați și setează userUid."
+    )
+  }
+
   if (schedule?.employeeId) {
     const blocked = await checkApprovedLeaveBlock(schedule.employeeId, now)
     if (blocked) {
@@ -302,6 +320,7 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
 
   debugPontajLog("check-in:start", {
     userId: request.userId,
+    role: userRole || "unknown",
     employeeId: schedule?.employeeId,
     mode: request.mode,
     hasLocation: Boolean(request.location),

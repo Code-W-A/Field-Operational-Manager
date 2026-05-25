@@ -22,7 +22,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getNextReportNumber, type Lucrare } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { orderBy, where, collection, getDocs, serverTimestamp } from "firebase/firestore"
+import { orderBy, where, collection, getDocs, serverTimestamp, query } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type ActiveWorkSummary, type LucrareFormRef } from "@/components/lucrare-form"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
@@ -120,7 +120,14 @@ export default function Lucrari() {
   const reinterventionId = searchParams.get("reintervention")
   const { userData } = useAuth()
   const isTechnician = userData?.role === "tehnician"
+  const isAdmin = userData?.role === "admin"
+  const isDispatcher = userData?.role === "dispecer"
+  const canUsePersonalAttendance = isTechnician || isAdmin || isDispatcher
+  const needsHrLinkForAttendance = isAdmin || isDispatcher
   const canDeleteWorks = userData?.role === "admin"
+  const [attendanceHrLinkLoading, setAttendanceHrLinkLoading] = useState(false)
+  const [attendanceDisabled, setAttendanceDisabled] = useState(false)
+  const [attendanceDisabledReason, setAttendanceDisabledReason] = useState<string | undefined>(undefined)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editLucrareId, setEditLucrareId] = useState<string | null>(null)
@@ -223,6 +230,63 @@ export default function Lucrari() {
     setActiveFilters([])
     setSearchText("")
   }, [isTechnician])
+
+  // Admin/dispecer may use personal attendance only if linked to an HR employee profile.
+  useEffect(() => {
+    let cancelled = false
+
+    const verifyHrLinkForAttendance = async () => {
+      if (!canUsePersonalAttendance || !userData?.uid) {
+        if (!cancelled) {
+          setAttendanceDisabled(false)
+          setAttendanceDisabledReason(undefined)
+          setAttendanceHrLinkLoading(false)
+        }
+        return
+      }
+
+      if (!needsHrLinkForAttendance) {
+        if (!cancelled) {
+          setAttendanceDisabled(false)
+          setAttendanceDisabledReason(undefined)
+          setAttendanceHrLinkLoading(false)
+        }
+        return
+      }
+
+      try {
+        if (!cancelled) setAttendanceHrLinkLoading(true)
+        const q = query(collection(db, "hrEmployees"), where("userUid", "==", userData.uid))
+        const snap = await getDocs(q)
+        if (cancelled) return
+
+        if (snap.empty) {
+          setAttendanceDisabled(true)
+          setAttendanceDisabledReason(
+            "Contul tău nu este asociat cu un salariat HR. Mergi în Resurse Umane → Salariați și setează userUid."
+          )
+          return
+        }
+
+        setAttendanceDisabled(false)
+        setAttendanceDisabledReason(undefined)
+      } catch {
+        if (cancelled) return
+        setAttendanceDisabled(true)
+        setAttendanceDisabledReason(
+          "Nu am putut verifica asocierea HR. Încearcă din nou sau contactează un administrator."
+        )
+      } finally {
+        if (!cancelled) setAttendanceHrLinkLoading(false)
+      }
+    }
+
+    verifyHrLinkForAttendance()
+
+    return () => {
+      cancelled = true
+    }
+  }, [canUsePersonalAttendance, needsHrLinkForAttendance, userData?.uid])
 
   // Încărcăm numărul curent de raport la inițializare (doar pentru admin)
 
@@ -2927,12 +2991,18 @@ export default function Lucrari() {
   return (
     <TooltipProvider>
       <DashboardShell>
-      {/* Check-in card for technicians - appears BEFORE header */}
-      {isTechnician && userData?.uid && userData?.displayName && (
+      {/* Personal attendance card - appears BEFORE header */}
+      {canUsePersonalAttendance && userData?.uid && userData?.displayName && (
         <div className="mb-4">
           <FieldCheckInCard
             userId={userData.uid}
             userName={userData.displayName}
+            disabled={attendanceHrLinkLoading || attendanceDisabled}
+            disabledReason={
+              attendanceHrLinkLoading
+                ? "Verificăm asocierea HR pentru pontaj..."
+                : attendanceDisabledReason
+            }
           />
         </div>
       )}
