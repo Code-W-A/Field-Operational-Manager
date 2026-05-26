@@ -6,7 +6,8 @@ import { db } from "@/lib/firebase/config"
 import { KioskCheckIn, type KioskUser } from "@/components/attendance/kiosk-check-in"
 import { Loader2 } from "lucide-react"
 import type { OfficeLocation } from "@/lib/firebase/auth"
-import { getEmployeeFullName, type Employee } from "@/lib/hr/types"
+import type { Employee } from "@/lib/hr/types"
+import { buildKioskEligibleUsers } from "@/lib/attendance/kiosk-eligible-users"
 
 // Default office location (can be configured per deployment)
 const DEFAULT_OFFICE_LOCATION: OfficeLocation = {
@@ -21,14 +22,14 @@ export default function KioskOnlyPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadTechnicians()
+    loadEligibleUsers()
   }, [])
 
-  const loadTechnicians = async () => {
+  const loadEligibleUsers = async () => {
     try {
       setLoading(true)
 
-      // Load employees (Salariați) first, then join to tehnician users by employee.userUid.
+      // Load employees (Salariați) first, then join to eligible users by employee.userUid.
       // We avoid composite index requirements by ordering and filtering client-side.
       const employeesSnap = await getDocs(query(collection(db, "hrEmployees"), orderBy("nume", "asc")))
       const employees: Employee[] = employeesSnap.docs.map((d) => {
@@ -45,38 +46,27 @@ export default function KioskOnlyPage() {
         } as Employee
       })
 
-      // Load tehnician users to fetch email for password verification.
-      const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "tehnician")))
-      const usersByUid = new Map<string, { uid: string; email?: string; role?: string; displayName?: string }>()
-      for (const d of usersSnap.docs) {
+      // Load eligible users (tehnician/admin/dispecer) to fetch email for password verification.
+      const [techUsersSnap, adminUsersSnap, dispatcherUsersSnap] = await Promise.all([
+        getDocs(query(collection(db, "users"), where("role", "==", "tehnician"))),
+        getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
+        getDocs(query(collection(db, "users"), where("role", "==", "dispecer"))),
+      ])
+
+      const users = [...techUsersSnap.docs, ...adminUsersSnap.docs, ...dispatcherUsersSnap.docs].map((d) => {
         const data = d.data() as any
-        usersByUid.set(d.id, {
+        return {
           uid: d.id,
           email: data.email ? String(data.email) : undefined,
           role: data.role ? String(data.role) : undefined,
           displayName: data.displayName ? String(data.displayName) : undefined,
-        })
-      }
+        }
+      })
 
-      const loadedUsers: KioskUser[] = employees
-        .filter((e) => e.active)
-        .map((e) => {
-          const fullName = getEmployeeFullName(e) || "Salariat"
-          const userUid = e.userUid ? String(e.userUid) : ""
-          const matched = userUid ? usersByUid.get(userUid) : undefined
-
-          // Show ONLY employees linked to a valid tehnician user with email.
-          if (!matched?.uid || !matched.email) return null
-          return {
-            uid: matched.uid,
-            displayName: fullName,
-            role: "tehnician",
-            email: matched.email,
-            photoURL: e.photoURL,
-          } satisfies KioskUser
-        })
-        .filter((u): u is KioskUser => Boolean(u))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      const loadedUsers: KioskUser[] = buildKioskEligibleUsers({
+        employees,
+        users,
+      })
 
       setUsers(loadedUsers)
       setError(null)
@@ -105,7 +95,7 @@ export default function KioskOnlyPage() {
         <div className="text-center space-y-4">
           <div className="text-red-400 text-xl font-semibold">{error}</div>
           <button
-            onClick={loadTechnicians}
+            onClick={loadEligibleUsers}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             Încearcă din nou
@@ -119,7 +109,7 @@ export default function KioskOnlyPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center text-white">
-          <p className="text-xl">Nu sunt tehnicieni disponibili.</p>
+          <p className="text-xl">Nu sunt utilizatori eligibili disponibili.</p>
         </div>
       </div>
     )
@@ -127,4 +117,3 @@ export default function KioskOnlyPage() {
 
   return <KioskCheckIn users={users} officeLocation={DEFAULT_OFFICE_LOCATION} />
 }
-

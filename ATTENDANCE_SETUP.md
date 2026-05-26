@@ -26,7 +26,7 @@
 
 ### 2. Configure Office Location (2 minutes)
 
-1. Open `/app/dashboard/kiosk/page.tsx`
+1. Open `/app/kiosk/page.tsx`
 2. Update `DEFAULT_OFFICE_LOCATION`:
    ```typescript
    const DEFAULT_OFFICE_LOCATION: OfficeLocation = {
@@ -46,7 +46,7 @@
 ### 3. Setup Kiosk Device (3 minutes)
 
 1. Use a dedicated tablet or phone for office
-2. Open browser and go to: `https://yourapp.com/dashboard/kiosk`
+2. Open browser and go to: `https://yourapp.com/kiosk`
 3. Login with kiosk credentials (email/password from Step 1)
 4. Bookmark the page or add to home screen
 5. **Important**: The device will stay logged in (no auto-logout)
@@ -172,7 +172,7 @@ For the sync to work, employees must be linked to user accounts:
 ## Quick Reference
 
 ### URLs
-- Kiosk: `/dashboard/kiosk`
+- Kiosk: `/kiosk` (legacy `/dashboard/kiosk` redirects)
 - Dashboard: `/dashboard/resurse-umane/pontaj/dashboard`
 - Sync: `/dashboard/resurse-umane/pontaj/sync`
 - HR Timesheet: `/dashboard/resurse-umane/condica-prezenta`

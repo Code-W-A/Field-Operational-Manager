@@ -17,11 +17,12 @@ import { signOut } from "@/lib/firebase/auth"
 import { useRouter } from "next/navigation"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
+import type { KioskEligibleRole } from "@/lib/attendance/kiosk-eligible-users"
 
 export interface KioskUser {
   uid: string
   displayName: string
-  role: string
+  role: KioskEligibleRole
   email?: string
   photoURL?: string
   disabled?: boolean

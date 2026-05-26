@@ -13,7 +13,7 @@ This document describes the comprehensive attendance (pontaj) system implemented
 - No auto-logout for kiosk users
 - User selection interface before face recognition
 - Play/Stop buttons for check-in/out
-- Accessible at `/dashboard/kiosk`
+- Accessible at `/kiosk` (legacy `/dashboard/kiosk` redirects)
 
 #### Field Mode (In Car)
 - Available in the technician's FOM app after authentication
@@ -204,7 +204,7 @@ type UserRole = "admin" | "dispecer" | "tehnician" | "client" | "kiosk"
    - User will not be auto-logged out
 
 2. **Setup Office Location**:
-   - Edit `DEFAULT_OFFICE_LOCATION` in `/app/dashboard/kiosk/page.tsx`
+   - Edit `DEFAULT_OFFICE_LOCATION` in `/app/kiosk/page.tsx`
    - Set GPS coordinates and address
 
 3. **Monitor Attendance**:
@@ -217,10 +217,10 @@ type UserRole = "admin" | "dispecer" | "tehnician" | "client" | "kiosk"
    - Use single day sync for daily operations
    - Use range sync for backfilling or corrections
 
-### For Technicians
+### For Eligible Employees (Tehnician/Admin/Dispecer)
 
 1. **Check-In at Office**:
-   - Use kiosk device at `/dashboard/kiosk`
+   - Use kiosk device at `/kiosk`
    - Press "Start" button
    - Select your name
    - Complete face recognition
