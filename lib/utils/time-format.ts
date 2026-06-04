@@ -101,23 +101,19 @@ export function formatDateTimeSafe(val: any): string {
  * UI only: Formatează data ca "dd MMM yyyy" (ex: 29 Nov 2025).
  * Acceptă Date sau string; pentru Firestore Timestamp treceți .toDate() înainte.
  */
+const RO_MONTH_SHORT = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "nov", "dec"] as const
+
+/**
+ * UI: "dd mmm yyyy" (ex. 03 mar 2026). Folosește {@link toDateSafe} — nu `new Date("dd.MM.yyyy")`
+ * (V8 interpretează punctul ca MM.DD și inversează ziua/luna).
+ */
 export function formatUiDate(dateLike: any): string {
   try {
-    let d: Date
     if (!dateLike) return "-"
-    if (dateLike?.toDate && typeof dateLike.toDate === "function") {
-      d = dateLike.toDate()
-    } else if (typeof dateLike?.seconds === "number") {
-      d = new Date(dateLike.seconds * 1000)
-    } else if (dateLike instanceof Date) {
-      d = dateLike
-    } else {
-      d = new Date(dateLike)
-    }
-    if (isNaN(d.getTime())) return "-"
+    const d = toDateSafe(dateLike)
+    if (!d) return "-"
     const day = d.getDate().toString().padStart(2, "0")
-    // Romanian short month names, lowercase
-    const monthShort = ["ian","feb","mar","apr","mai","iun","iul","aug","sep","oct","nov","dec"][d.getMonth()]
+    const monthShort = RO_MONTH_SHORT[d.getMonth()] ?? "?"
     const year = d.getFullYear()
     return `${day} ${monthShort} ${year}`
   } catch {

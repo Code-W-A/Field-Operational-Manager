@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf"
 import { ensurePdfFont } from "@/lib/pdf/font-loader"
+import { formatUiDate } from "@/lib/utils/time-format"
 
 export interface OfferItem {
   name: string
@@ -46,37 +47,6 @@ function formatDisplayWorkId(input: OfferPdfInput): string {
   const value = String(input.numarRaport || "").trim()
   if (value) return value.startsWith("#") ? value : `#${value}`
   return `#${String(input.id)}`
-}
-
-function formatUiDate(val?: string | Date): string {
-  try {
-    let d: Date
-    if (!val) {
-      d = new Date()
-    } else if (val instanceof Date) {
-      d = val
-    } else {
-      const iso = new Date(val)
-      if (!Number.isNaN(iso.getTime())) {
-        d = iso
-      } else {
-        const parts = val.split(".")
-        if (parts.length === 3) {
-          const [dd, mm, yyyy] = parts.map((x) => Number.parseInt(x, 10))
-          d = new Date(yyyy, (mm || 1) - 1, dd || 1)
-        } else {
-          d = new Date()
-        }
-      }
-    }
-
-    if (Number.isNaN(d.getTime())) d = new Date()
-    const dd = String(d.getDate()).padStart(2, "0")
-    const monthShort = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "nov", "dec"][d.getMonth()]
-    return `${dd} ${monthShort} ${d.getFullYear()}`
-  } catch {
-    return "-"
-  }
 }
 
 async function getPdfLogoDataUrl(): Promise<string | null> {

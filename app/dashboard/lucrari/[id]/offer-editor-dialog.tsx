@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle } from "lucide-react"
+import { CheckCircle, Download, XCircle } from "lucide-react"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { updateLucrare, getLucrareById, getClientById, addUserLogEntry } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -14,11 +14,16 @@ import { useTargetList, useTargetValue } from "@/hooks/use-settings"
 import {
   blobToBase64,
   buildPricingConditions,
-  formatPreparedDate,
   normalizeEmail,
   resolveLocationForWork,
   resolveRecipientEmailForLocation,
+  triggerBlobDownload,
 } from "@/lib/work-documents/shared"
+import {
+  buildOfferPdfInput,
+  offerPdfAttachmentFileName,
+  offerPdfPreviewFileName,
+} from "@/lib/work-documents/offer-pdf-input"
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -45,6 +50,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [baselineProducts, setBaselineProducts] = useState<ProductItem[]>(initialProducts)
   const [initialVersionsCount, setInitialVersionsCount] = useState(0)
   const [canSendOffer, setCanSendOffer] = useState(false)
+  const [previewingPdf, setPreviewingPdf] = useState(false)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
   const [acceptedSavedAt, setAcceptedSavedAt] = useState<string | null>(null)
@@ -277,12 +283,57 @@ useEffect(() => {
 
   const canEditOffer = isPickedUp && statusOferta !== "OFERTAT"
   const effectiveDisabled = !canEditOffer && !editingNewVersion
+  const canPreviewOfferPdf =
+    isPickedUp && (statusOferta !== "OFERTAT" || editingNewVersion) && products.length > 0
   const startNewVersion = () => {
     const last = versions && versions.length ? versions[versions.length - 1] : undefined
     const seed = last?.products?.length ? last.products : products
     setProducts(seed)
     setEditingNewVersion(true)
     setCanSendOffer(false)
+  }
+
+  const handleDownloadOfferPreview = async () => {
+    if (!products.length) {
+      toast({
+        title: "Previzualizare indisponibilă",
+        description: "Adăugați cel puțin un produs în ofertă.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setPreviewingPdf(true)
+      const freshWork = await getLucrareById(lucrareId)
+      if (!freshWork) throw new Error("Nu s-au putut încărca datele lucrării.")
+
+      const { generateOfferPdf } = await import("@/lib/utils/offer-pdf")
+      const input = buildOfferPdfInput({
+        lucrareId,
+        work: freshWork,
+        fallbackWork: currentWork,
+        products,
+        vatPercent,
+        adjustmentPercent,
+        preparedByFallback: userData?.displayName || userData?.email,
+      })
+      const blob = await generateOfferPdf(input)
+      triggerBlobDownload(
+        blob,
+        offerPdfPreviewFileName(freshWork, lucrareId),
+      )
+      toast({
+        title: "Previzualizare descărcată",
+        description: "Același PDF ca atașamentul din email la trimitere.",
+      })
+    } catch (e) {
+      console.warn("Previzualizare PDF ofertă eșuată", e)
+      const msg = e instanceof Error ? e.message : "Nu s-a putut genera PDF-ul."
+      toast({ title: "Eroare previzualizare", description: msg, variant: "destructive" })
+    } finally {
+      setPreviewingPdf(false)
+    }
   }
 
   const handleSendOffer = async () => {
@@ -451,36 +502,21 @@ useEffect(() => {
       try {
         const currentProducts = products || []
         if (currentProducts.length) {
-          const { generateOfferPdf } = await import('@/lib/utils/offer-pdf')
-          const blob = await generateOfferPdf({
-            id: String(lucrareId),
-            numarRaport: String(currentWork?.numarRaport || ''),
-            offerNumber: Number((freshWork as any)?.offerSendCount || 0) + 1,
-            client: freshWork?.client || "",
-            attentionTo: freshWork?.persoanaContact || "",
-            fromCompany: "NRG Access Systems SRL",
-            products: currentProducts.map((p: any) => ({ name: p?.name || '', quantity: Number(p?.quantity||0), price: Number(p?.price||0) })),
-            offerVAT: Number(vatPercent) || 0,
-            adjustmentPercent: Number(adjustmentPercent) || 0,
-            damages: [],
-            conditions: Array.isArray((freshWork as any)?.conditiiOferta) ? (freshWork as any).conditiiOferta : undefined,
-            equipmentName: String((freshWork as any)?.echipament || ''),
-            locationName: String((freshWork as any)?.locatie || ''),
-            // Cerință: pe PDF să apară dispecerul/adminul care a preluat lucrarea (preluatDe),
-            // nu neapărat utilizatorul curent care trimite oferta.
-            preparedBy: String((freshWork as any)?.preluatDe || (currentWork as any)?.preluatDe || userData?.displayName || userData?.email || ''),
-            preparedAt: formatPreparedDate(new Date()),
-            beneficiar: {
-              name: String((freshWork as any)?.client || (freshWork as any)?.clientInfo?.nume || ''),
-              cui: String((freshWork as any)?.clientInfo?.cui || ''),
-              reg: String((freshWork as any)?.clientInfo?.rc || ''),
-              address: String((freshWork as any)?.clientInfo?.adresa || ''),
-            },
-          } as any)
+          const { generateOfferPdf } = await import("@/lib/utils/offer-pdf")
+          const input = buildOfferPdfInput({
+            lucrareId,
+            work: freshWork,
+            fallbackWork: currentWork,
+            products: currentProducts,
+            vatPercent,
+            adjustmentPercent,
+            preparedByFallback: userData?.displayName || userData?.email,
+          })
+          const blob = await generateOfferPdf(input)
 
           const base64 = await blobToBase64(blob)
           attachmentData = [{ 
-            filename: `oferta_${String(currentWork?.numarRaport || currentWork?.id)}.pdf`, 
+            filename: offerPdfAttachmentFileName(currentWork || freshWork, lucrareId), 
             content: base64, 
             encoding: 'base64', 
             contentType: 'application/pdf',
@@ -760,17 +796,41 @@ useEffect(() => {
             </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2">
-              {(!isPickedUp || statusOferta === "OFERTAT") && (
-                <span className="text-xs text-muted-foreground mr-auto">{!isPickedUp ? "Editorul este disponibil după preluarea tichetului de către dispecer." : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}</span>
-              )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <div className="mr-auto space-y-1">
+                {(!isPickedUp || statusOferta === "OFERTAT") && (
+                  <span className="text-xs text-muted-foreground block">
+                    {!isPickedUp
+                      ? "Editorul este disponibil după preluarea tichetului de către dispecer."
+                      : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}
+                  </span>
+                )}
+                {canPreviewOfferPdf && (
+                  <span className="text-xs text-muted-foreground block">
+                    PDF-ul descărcat este generat cu aceleași date ca atașamentul din email.
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
               {statusOferta === "OFERTAT" && !editingNewVersion ? (
-                <Button onClick={startNewVersion} disabled={saving}>Începe versiune nouă</Button>
+                <Button onClick={startNewVersion} disabled={saving || previewingPdf}>Începe versiune nouă</Button>
               ) : (
-                <Button onClick={handleSave} disabled={saving || products.length === 0 || (!isPickedUp && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
+                <Button onClick={handleSave} disabled={saving || previewingPdf || products.length === 0 || (!isPickedUp && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
               )}
-              <Button onClick={handleSendOffer} disabled={saving || !canSendOffer}>Trimite ofertă</Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="ml-2">Închide</Button>
+              {canPreviewOfferPdf && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadOfferPreview}
+                  disabled={saving || previewingPdf}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {previewingPdf ? "Se generează..." : "Descarcă previzualizare PDF"}
+                </Button>
+              )}
+              <Button onClick={handleSendOffer} disabled={saving || previewingPdf || !canSendOffer}>Trimite ofertă</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || previewingPdf} className="ml-2">Închide</Button>
+              </div>
             </div>
           </div>
           <div className="space-y-3 p-6 overflow-y-auto max-h-[calc(95vh-8rem)]">

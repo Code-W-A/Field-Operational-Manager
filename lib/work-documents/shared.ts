@@ -1,5 +1,7 @@
 "use client"
 
+import { toDateSafe } from "@/lib/utils/time-format"
+
 export function normalizeEmail(raw?: any): string {
   let value = String(raw ?? "")
   try {
@@ -94,6 +96,17 @@ export function buildPricingConditions(payment: string, delivery: string, instal
   return [`Plata: ${payment}`, `Livrare: ${delivery}`, `Instalare: ${installation}`]
 }
 
+export function triggerBlobDownload(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -112,20 +125,14 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 
 export function formatPreparedDate(value?: any): string {
   try {
-    if (!value) {
-      return new Date().toISOString().slice(0, 10).split("-").reverse().join(".")
+    const resolved = (value ? toDateSafe(value) : null) ?? new Date()
+    if (Number.isNaN(resolved.getTime())) {
+      const now = new Date()
+      return `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`
     }
-    const date =
-      typeof value?.toDate === "function"
-        ? value.toDate()
-        : value instanceof Date
-          ? value
-          : new Date(value)
-    if (Number.isNaN(date.getTime())) {
-      return new Date().toISOString().slice(0, 10).split("-").reverse().join(".")
-    }
-    return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}.${date.getFullYear()}`
+    return `${String(resolved.getDate()).padStart(2, "0")}.${String(resolved.getMonth() + 1).padStart(2, "0")}.${resolved.getFullYear()}`
   } catch {
-    return new Date().toISOString().slice(0, 10).split("-").reverse().join(".")
+    const now = new Date()
+    return `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`
   }
 }
