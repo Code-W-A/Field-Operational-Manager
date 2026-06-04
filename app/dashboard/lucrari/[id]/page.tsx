@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { formatDate, formatTime, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
+import { ensureAutoCheckInFromFirstQr } from "@/lib/attendance/auto-pontaj"
 // Adăugăm importurile pentru calculul garanției
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import type { Echipament } from "@/lib/firebase/firestore"
@@ -1602,6 +1603,23 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           console.log("🚨 Anul curent:", currentYear)
           console.log("🚨 Anul timpSosire:", sosireYear)
           console.log("🚨 Această problemă va corupe datele în Firestore!")
+        }
+
+        if (role === "tehnician" && userData?.uid) {
+          void ensureAutoCheckInFromFirstQr({
+            userId: userData.uid,
+            userName: userData.displayName,
+            atMs: now.getTime(),
+          }).then((res) => {
+            if (res.ok) {
+              toast({
+                title: "Pontaj pornit automat",
+                description: "Primul QR al zilei — ora pontajului este ora scanării.",
+              })
+            } else if (!res.ok && !res.skipped) {
+              console.warn("Pontaj automat (primul QR) eșuat:", res.error)
+            }
+          })
         }
         
         await updateLucrare(lucrare.id, updateData)

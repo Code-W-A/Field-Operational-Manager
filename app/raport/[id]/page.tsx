@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
 import { useTargetList } from "@/hooks/use-settings"
 import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib/utils/failure-causes"
+import { ensureAutoCheckOut } from "@/lib/attendance/auto-pontaj"
 
 export default function RaportPage({ params }: { params: Promise<{ id: string }> }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -984,6 +985,27 @@ FOM by NRG`,
 
       // LOG DEBUG – confirmare după updateWorkOrderStatus
       console.log("🔍 updateWorkOrderStatus – raportGenerat:true, statusLucrare:Finalizat, preluatDispecer:false")
+
+      if (userData?.role === "tehnician" && userData.uid && updatedLucrare?.semnaturaBeneficiar) {
+        void ensureAutoCheckOut({
+          userId: userData.uid,
+          userName: userData.displayName,
+          atMs: Date.now(),
+          reason: "report_signed",
+          technicianDisplayName: userData.displayName,
+        }).then((res) => {
+          if (res.ok) {
+            toast({
+              title: "Depontare automată",
+              description: "Pontajul a fost oprit după raportul semnat de beneficiar.",
+            })
+          } else if (!res.ok && res.skipped && res.reason === "open_ticket_in_progress") {
+            console.log("Depontare automată amânată: există alt tichet în lucru.")
+          } else if (!res.ok && !res.skipped) {
+            console.warn("Depontare automată eșuată:", res.error)
+          }
+        })
+      }
     } catch (error) {
       console.error("Eroare la actualizarea statusului lucrării:", error)
       toast({

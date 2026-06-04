@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 
 import { selectLatestEquipmentStatusWinners } from "@/lib/utils/dashboard-equipment-status"
 
-test("smoke: equipment status bucket reflects latest status, deduplicates, and respects toggles", () => {
+test("smoke: equipment status bucket reflects latest ticket by createdAt, deduplicates, and respects toggles", () => {
   const works = [
     {
       id: "w1-old",

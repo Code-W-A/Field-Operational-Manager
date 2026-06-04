@@ -178,6 +178,20 @@ export const PREDEFINED_SETTINGS: PredefinedSetting[] = [
     defaultValue: true,
     valueType: "boolean",
   },
+  {
+    id: "dashboard_necesita_oferta_require_report_generated",
+    name: "Dashboard: Necesită ofertă - necesită raport generat",
+    description: "Dacă este activ, doar lucrările cu raportGenerat=true intră în Necesită ofertă (după finalizarea intervenției).",
+    defaultValue: true,
+    valueType: "boolean",
+  },
+  {
+    id: "dashboard_necesita_oferta_require_picked_up",
+    name: "Dashboard: Necesită ofertă - necesită preluare dispecer",
+    description: "Dacă este activ, doar lucrările preluate de dispecer intră în Necesită ofertă (după ce ies din Nepreluate).",
+    defaultValue: true,
+    valueType: "boolean",
+  },
 
   {
     id: "dashboard_ofertate_enabled",

@@ -1,3 +1,7 @@
+/**
+ * Regresii critice pentru Stare echipament pe dashboard.
+ * Suitea completă: lib/utils/dashboard-equipment-status.test.ts
+ */
 import test from "node:test"
 import assert from "node:assert/strict"
 
@@ -9,68 +13,57 @@ const baseCfg = {
   equipmentStatusIncludePartiallyFunctional: true,
 } as const
 
-test("unit: keeps one row per equipment using latest status timestamp (updatedAt > createdAt)", () => {
+test("regression: updatedAt trap — older bad ticket with fresh updatedAt cannot block newer Functional", () => {
   const winners = selectLatestEquipmentStatusWinners(
     [
       {
-        id: "w-old",
+        id: "w-old-bad",
         clientId: "c1",
         locationId: "l1",
         echipamentId: "e1",
-        locatie: "Loc 1",
-        echipament: "Compresor A",
         statusEchipament: "Nefuncțional",
         createdAt: "2026-05-01T08:00:00.000Z",
-        updatedAt: "2026-05-01T09:00:00.000Z",
+        updatedAt: "2026-05-20T12:00:00.000Z",
       },
       {
-        id: "w-new",
+        id: "w-new-good",
         clientId: "c1",
         locationId: "l1",
         echipamentId: "e1",
-        locatie: "Loc 1",
-        echipament: "Compresor A",
-        statusEchipament: "Parțial funcțional",
-        createdAt: "2026-05-02T08:00:00.000Z",
-        updatedAt: "2026-05-02T10:00:00.000Z",
+        statusEchipament: "Funcțional",
+        createdAt: "2026-05-05T08:00:00.000Z",
+        updatedAt: "2026-05-05T09:00:00.000Z",
       },
     ],
     baseCfg,
   )
 
-  assert.equal(winners.length, 1)
-  assert.equal(winners[0].work.id, "w-new")
-  assert.equal(winners[0].status, "Parțial funcțional")
+  assert.deepEqual(winners, [])
 })
 
-test("unit: excludes equipment when latest status becomes Functional", () => {
-  const winners = selectLatestEquipmentStatusWinners(
-    [
-      {
-        id: "w-nonfunctional",
-        clientId: "c1",
-        locationId: "l1",
-        echipamentId: "e1",
-        locatie: "Loc 1",
-        echipament: "Pompa A",
-        statusEchipament: "Nefuncțional",
-        createdAt: "2026-05-01T08:00:00.000Z",
-        updatedAt: "2026-05-01T09:00:00.000Z",
-      },
-      {
-        id: "w-functional",
-        clientId: "c1",
-        locationId: "l1",
-        echipamentId: "e1",
-        locatie: "Loc 1",
-        echipament: "Pompa A",
-        statusEchipament: "Funcțional",
-        createdAt: "2026-05-03T08:00:00.000Z",
-        updatedAt: "2026-05-03T09:00:00.000Z",
-      },
-    ],
-    baseCfg,
-  )
+test("regression: archived Functional counts when merged like useDashboardStatus", () => {
+  const activeLucrari = [
+    {
+      id: "w-active",
+      clientId: "c1",
+      locationId: "l1",
+      echipamentId: "e1",
+      statusEchipament: "Nefuncțional",
+      createdAt: "2026-05-01T08:00:00.000Z",
+    },
+  ]
+  const lucrariArhivate = [
+    {
+      id: "w-archived",
+      clientId: "c1",
+      locationId: "l1",
+      echipamentId: "e1",
+      statusLucrare: "Arhivată",
+      statusEchipament: "Funcțional",
+      createdAt: "2026-05-08T08:00:00.000Z",
+    },
+  ]
 
+  const winners = selectLatestEquipmentStatusWinners([...activeLucrari, ...lucrariArhivate], baseCfg)
   assert.deepEqual(winners, [])
 })

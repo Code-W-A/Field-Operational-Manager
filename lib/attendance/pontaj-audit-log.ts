@@ -37,9 +37,12 @@ export function logPontajPlay(params: {
   employeeId?: string
   sessionId: string
   sessionStartMs: number
+  auto?: boolean
+  reason?: string
 }): void {
   const day = localDateLabel(params.sessionStartMs)
-  const detalii = `Play • sesiune ${params.sessionId} • zi ${day}`
+  const autoSuffix = params.auto ? ` • automat${params.reason ? ` (${params.reason})` : ""}` : ""
+  const detalii = `Play${autoSuffix} • sesiune ${params.sessionId} • zi ${day}`
   void addUserLogEntry({
     utilizator: params.userDisplayName,
     utilizatorId: params.userId,
@@ -56,6 +59,8 @@ export function logPontajPlay(params: {
       sessionId: params.sessionId,
       day,
       sessionStartMs: params.sessionStartMs,
+      auto: params.auto ?? false,
+      autoReason: params.reason ?? null,
     },
   })
 }
@@ -67,9 +72,12 @@ export function logPontajStop(params: {
   sessionId: string
   sessionStartMs: number
   sessionEndMs: number
+  auto?: boolean
+  reason?: string
 }): void {
   const day = localDateLabel(params.sessionStartMs)
-  const detalii = `Stop • sesiune ${params.sessionId} • zi ${day}`
+  const autoSuffix = params.auto ? ` • automat${params.reason ? ` (${params.reason})` : ""}` : ""
+  const detalii = `Stop${autoSuffix} • sesiune ${params.sessionId} • zi ${day}`
   void addUserLogEntry({
     utilizator: params.userDisplayName,
     utilizatorId: params.userId,
@@ -87,6 +95,8 @@ export function logPontajStop(params: {
       day,
       sessionStartMs: params.sessionStartMs,
       sessionEndMs: params.sessionEndMs,
+      auto: params.auto ?? false,
+      autoReason: params.reason ?? null,
     },
   })
 }

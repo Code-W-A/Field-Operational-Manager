@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:crm-file-preview": "tsx --test lib/crm/file-preview.test.ts",
+    "test:equipment-status": "npx tsx --test lib/utils/dashboard-equipment-status.test.ts hooks/use-dashboard-status.equipment-status.test.ts hooks/use-dashboard-status.equipment-status.smoke.test.ts",
+    "test:auto-pontaj": "npx tsx --test lib/attendance/auto-pontaj.test.ts",
     "seed:crm": "node scripts/seed-crm.mjs",
     "seed:hr-reminder-test": "tsx scripts/seed-hr-reminder-test.ts",
     "logs:functions": "firebase functions:log --limit 100",

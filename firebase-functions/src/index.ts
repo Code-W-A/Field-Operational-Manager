@@ -2162,9 +2162,124 @@ export const generateScheduledWorks = functions
     return null
   })
 
+const DEPONTAJ_AUTO_GRACE_MINUTES = 30
+const DEFAULT_PROGRAM_END_ATTENDANCE = "16:30"
+const WORK_STATUS_IN_PROGRESS = "În lucru"
+
+function parseHHmmAttendance(value: string | undefined, fallback: { h: number; m: number }) {
+  if (!value) return fallback
+  const [hStr, mStr] = String(value).trim().split(":")
+  const h = Number(hStr)
+  const m = Number(mStr)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return fallback
+  return { h, m }
+}
+
+function timeOnSameDayMsAttendance(ts: number, hhmm: string | undefined, fallback: { h: number; m: number } = { h: 16, m: 30 }) {
+  const d = new Date(ts)
+  const { h, m } = parseHHmmAttendance(hhmm, fallback)
+  d.setHours(h, m, 0, 0)
+  return d.getTime()
+}
+
+function scheduleGraceThresholdMsAttendance(nowMs: number, programLucruEnd: string | undefined) {
+  const endMs = timeOnSameDayMsAttendance(nowMs, programLucruEnd ?? DEFAULT_PROGRAM_END_ATTENDANCE)
+  return endMs + DEPONTAJ_AUTO_GRACE_MINUTES * 60 * 1000
+}
+
+async function technicianHasOpenInProgressTicket(displayName: string | null): Promise<boolean> {
+  const name = typeof displayName === "string" ? displayName.trim() : ""
+  if (!name) return false
+  const snap = await db
+    .collection("lucrari")
+    .where("tehnicieni", "array-contains", name)
+    .where("statusLucrare", "==", WORK_STATUS_IN_PROGRESS)
+    .limit(1)
+    .get()
+  return !snap.empty
+}
+
+function buildAutoCheckoutPatch(data: any, endMs: number, opts: { reason: string; forceEndOfDay?: boolean }) {
+  const extraTimeLogs = Array.isArray(data?.extraTimeLogs) ? data.extraTimeLogs : null
+  let nextExtraTimeLogs: any[] | null = null
+  if (extraTimeLogs) {
+    let changed = false
+    nextExtraTimeLogs = extraTimeLogs.map((log: any) => {
+      if (!log || typeof log !== "object") return log
+      if (log.endTime) return log
+      changed = true
+      return {
+        ...log,
+        endTime: endMs,
+        minutesEligible: Number.isFinite(Number(log.minutesEligible)) ? Number(log.minutesEligible) : 0,
+      }
+    })
+    if (!changed) nextExtraTimeLogs = null
+  }
+
+  return {
+    status: "completed",
+    sessionEnd: Timestamp.fromMillis(endMs),
+    checkOutMode: data?.mode ?? null,
+    checkOutLocation: data?.location ?? null,
+    checkOutDeviceInfo: {
+      type: "auto",
+      userAgent: opts.forceEndOfDay ? "auto-stop-23:59" : "auto-schedule-grace",
+      reason: opts.reason,
+    },
+    checkOutAuto: true,
+    checkOutAutoReason: opts.reason,
+    ...(opts.forceEndOfDay ? { autoStopped: true, autoStoppedAt: FieldValue.serverTimestamp() } : {}),
+    ...(nextExtraTimeLogs ? { extraTimeLogs: nextExtraTimeLogs } : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  }
+}
+
+/**
+ * Auto check-out at program end + grace (default 30 min), if no ticket „În lucru”.
+ */
+export const autoCheckOutScheduleGrace = functions
+  .region(REGION)
+  .pubsub.schedule("*/15 17-18 * * *")
+  .timeZone(TIMEZONE)
+  .onRun(async () => {
+    const nowMs = Date.now()
+    let totalStopped = 0
+
+    try {
+      const snap = await db.collection("attendance").where("status", "==", "active").get()
+      if (snap.empty) {
+        console.log("autoCheckOutScheduleGrace: no active sessions")
+        return null
+      }
+
+      for (const d of snap.docs) {
+        const data = d.data() as any
+        const userId = String(data?.userId || "")
+        const programEnd = data?.programLucruEnd ? String(data.programLucruEnd) : DEFAULT_PROGRAM_END_ATTENDANCE
+        const threshold = scheduleGraceThresholdMsAttendance(nowMs, programEnd)
+        if (nowMs < threshold) continue
+
+        const user = userId ? await getUserEmail(userId) : { email: null, displayName: null }
+        if (await technicianHasOpenInProgressTicket(user.displayName)) {
+          continue
+        }
+
+        await d.ref.update(buildAutoCheckoutPatch(data, nowMs, { reason: "schedule_grace" }))
+        totalStopped += 1
+      }
+
+      console.log("autoCheckOutScheduleGrace completed", { totalStopped })
+    } catch (e) {
+      console.error("autoCheckOutScheduleGrace failed", e)
+    }
+
+    return null
+  })
+
 /**
  * Safety net: auto-stop any active attendance sessions at end of day (23:59 local time).
- * This prevents "forgot to stop" cases from spanning into the next day.
+ * Forces checkout even when a ticket is still „În lucru”.
  */
 export const autoStopAttendanceSessions = functions
   .region(REGION)
@@ -2190,34 +2305,10 @@ export const autoStopAttendanceSessions = functions
           const data = d.data() as any
           if (String(data?.status || "") !== "active") continue
 
-          const extraTimeLogs = Array.isArray(data?.extraTimeLogs) ? data.extraTimeLogs : null
-          let nextExtraTimeLogs: any[] | null = null
-          if (extraTimeLogs) {
-            let changed = false
-            nextExtraTimeLogs = extraTimeLogs.map((log: any) => {
-              if (!log || typeof log !== "object") return log
-              if (log.endTime) return log
-              changed = true
-              return {
-                ...log,
-                endTime: endMs,
-                minutesEligible: Number.isFinite(Number(log.minutesEligible)) ? Number(log.minutesEligible) : 0,
-              }
-            })
-            if (!changed) nextExtraTimeLogs = null
-          }
-
-          batch.update(d.ref, {
-            status: "completed",
-            sessionEnd: Timestamp.fromMillis(endMs),
-            checkOutMode: data?.mode ?? null,
-            checkOutLocation: data?.location ?? null,
-            checkOutDeviceInfo: { type: "system", userAgent: "auto-stop-23:59" },
-            ...(nextExtraTimeLogs ? { extraTimeLogs: nextExtraTimeLogs } : {}),
-            autoStopped: true,
-            autoStoppedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          })
+          batch.update(
+            d.ref,
+            buildAutoCheckoutPatch(data, endMs, { reason: "eod_force", forceEndOfDay: true }),
+          )
           totalStopped += 1
         }
 

@@ -239,6 +239,12 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     limit(500),
   ])
 
+  // Archived works — used only for Stare echipament (latest ticket by createdAt may be archived)
+  const { data: lucrariArhivate, loading: loadingLucrariArhivate } = useFirebaseCollection<Lucrare>("lucrari", [
+    where("statusLucrare", "==", WORK_STATUS.ARCHIVED),
+    limit(500),
+  ])
+
   // Contracts (for revision schedule preview / programator revizii)
   const { data: contracts, loading: loadingContracts } = useFirebaseCollection<any>("contracts", [limit(500)])
 
@@ -276,6 +282,12 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       return status !== WORK_STATUS.ARCHIVED.toLowerCase()
     })
   }, [lucrari])
+
+  const lucrariForEquipmentStatus = useMemo(() => {
+    const active = Array.isArray(activeLucrari) ? activeLucrari : []
+    const archived = Array.isArray(lucrariArhivate) ? lucrariArhivate : []
+    return [...active, ...archived]
+  }, [activeLucrari, lucrariArhivate])
 
   const buckets: DashboardBuckets = useMemo(() => {
     const cfg = config || DEFAULT_DASHBOARD_STATUS_CONFIG
@@ -378,6 +390,15 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       }
 
       res.programatorRevizii = sortByDate(res.programatorRevizii)
+    }
+
+    // Stare echipament: ultimul tichet emis (createdAt) per echipament; dispare când câștigătorul e Funcțional.
+    // Include tichete active + arhivate; updatedAt nu contează.
+    if (cfg.equipmentStatusEnabled) {
+      const winners = selectLatestEquipmentStatusWinners(lucrariForEquipmentStatus, cfg)
+      res.equipmentStatus = winners.map((winner) =>
+        buildBubble(winner.work, undefined, winner.ticketCreatedAt, winner.status),
+      )
     }
 
     if (!Array.isArray(activeLucrari) || activeLucrari.length === 0) return res
@@ -513,16 +534,6 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
         }
       }
 
-      // Stare echipament:
-      // - un singur rând per echipament (deduplicare după equipmentKey)
-      // - se păstrează statusul cel mai recent (updatedAt, fallback createdAt)
-      // - includem doar Nefuncțional / Parțial funcțional, conform setărilor
-      if (cfg.equipmentStatusEnabled) {
-        const winners = selectLatestEquipmentStatusWinners(activeLucrari, cfg)
-        res.equipmentStatus = winners.map((winner) =>
-          buildBubble(winner.work, undefined, winner.statusAt, winner.status),
-        )
-      }
     }
 
     // Sortăm toate bucket-urile după sortDate
@@ -538,7 +549,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     res.equipmentStatus = sortByDate(res.equipmentStatus)
 
     return res
-  }, [activeLucrari, contracts, modificariAtribuire, modificariStatus, startOfToday, config])
+  }, [activeLucrari, lucrariForEquipmentStatus, contracts, modificariAtribuire, modificariStatus, startOfToday, config])
 
   const personal: PersonalBoard = useMemo(() => {
     const active = activeLucrari || []
@@ -604,7 +615,13 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     }
   }, [activeLucrari, users, modificariAtribuire])
 
-  const loading = loadingLucrari || loadingContracts || loadingModificari || loadingStatusModificari || loadingUsers
+  const loading =
+    loadingLucrari ||
+    loadingLucrariArhivate ||
+    loadingContracts ||
+    loadingModificari ||
+    loadingStatusModificari ||
+    loadingUsers
 
   return { buckets, personal, loading }
 }

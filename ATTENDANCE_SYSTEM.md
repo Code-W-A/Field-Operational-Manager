@@ -41,7 +41,22 @@ This document describes the comprehensive attendance (pontaj) system implemented
 - Active for max 1 hour after work end
 - Tracks paid extra time for commute home
 
-### 4. Safety Features
+### 4. Automatic Pontaj / Depontaj (tehnicieni)
+
+Conform regulilor de business (primul QR, raport semnat, program + 30 min, 23:59):
+
+| Trigger | Comportament |
+|---------|----------------|
+| **Primul QR al zilei** | Pontaj automat (`field`, `checkInAuto`, motiv `first_qr`) la ora scanării, **doar** dacă nu există deja pontaj în ziua curentă (manual sau auto) și nu există sesiune activă. Doar rol `tehnician`. |
+| **Raport cu semnătură beneficiar** | Depontare automată (`report_signed`) după finalizarea tichetului, **dacă** nu mai există alt tichet „În lucru” pentru tehnician. |
+| **Program + 30 min** | Cloud Function `autoCheckOutScheduleGrace` (17:30 / 18:00 RO pentru program 17:00): depontare `schedule_grace` dacă încă e pontat și **fără** tichet în lucru. |
+| **23:59** | `autoStopAttendanceSessions` forțează depontarea (`eod_force`), **inclusiv** cu tichet deschis; păstrează `autoStopped`. |
+
+Implementare: `lib/attendance/auto-pontaj.ts`, extensii `lib/attendance/storage.ts`, audit în `pontaj-audit-log.ts`. Regula de 60s la Stop este **sărită** pentru depontările automate (`skipMinimumDurationCheck`).
+
+Teste: `npm run test:auto-pontaj`
+
+### 5. Safety Features
 
 #### 1-Minute Rule
 - After pressing "Play", "Stop" cannot be pressed for 60 seconds
@@ -55,7 +70,7 @@ This document describes the comprehensive attendance (pontaj) system implemented
 - Reverse geocoding for human-readable addresses
 - 50-meter radius for office detection
 
-### 5. Face Recognition
+### 6. Face Recognition
 - Mock implementation ready for production integration
 - 3-second countdown before capture
 - Success/failure animations
@@ -63,7 +78,7 @@ This document describes the comprehensive attendance (pontaj) system implemented
 - Confidence scoring
 - Face ID storage for audit trail
 
-### 6. HR System Integration
+### 7. HR System Integration
 
 #### Automatic Sync
 - Daily sync of attendance sessions to HR timesheet (condică)
@@ -78,7 +93,7 @@ This document describes the comprehensive attendance (pontaj) system implemented
 - Sync status verification
 - Detailed sync logs
 
-### 7. Admin Dashboard
+### 8. Admin Dashboard
 - Real-time attendance monitoring at `/dashboard/resurse-umane/pontaj/dashboard`
 - Date-based filtering
 - Statistics cards (total sessions, active now, hours worked, extra hours)

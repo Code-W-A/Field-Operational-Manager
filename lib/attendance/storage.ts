@@ -297,7 +297,7 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
   }
 
   const sessionId = `att_${request.userId}_${Date.now()}`
-  const now = Date.now()
+  const now = request.sessionStartMs ?? Date.now()
 
   const schedule = await getEmployeeScheduleForUser(request.userId, request.userName)
   const userRole = await getUserRoleForAttendance(request.userId)
@@ -347,6 +347,7 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     deviceInfo: request.deviceInfo,
     programLucruStart: scheduledStart,
     programLucruEnd: schedule?.programLucruEnd ?? DEFAULT_PROGRAM_END,
+    ...(request.checkInAuto ? { checkInAuto: true, checkInAutoReason: request.checkInAutoReason } : {}),
     createdAt: now,
     updatedAt: now,
   }
@@ -377,6 +378,8 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     employeeId: schedule?.employeeId,
     sessionId,
     sessionStartMs: now,
+    auto: request.checkInAuto,
+    reason: request.checkInAutoReason,
   })
 
   return sessionId
@@ -412,6 +415,9 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
   }
 
   const now = (() => {
+    if (request.sessionEndMs != null && Number.isFinite(request.sessionEndMs)) {
+      return request.sessionEndMs
+    }
     const baseNow = Date.now()
     const mins = request.debugSimulatedDurationMinutes
     if (!debugEnabled || !mins || !Number.isFinite(mins) || mins <= 0) return baseNow
@@ -433,8 +439,8 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
 
   const elapsedSeconds = (now - sessionStart) / 1000
 
-  // 1-minute rule: must wait at least 60 seconds before checking out
-  if (elapsedSeconds < 60) {
+  // 1-minute rule: must wait at least 60 seconds before checking out (skipped for auto depontaj)
+  if (!request.skipMinimumDurationCheck && elapsedSeconds < 60) {
     const remainingSeconds = Math.ceil(60 - elapsedSeconds)
     throw new Error(`Te rugăm să mai aștepți ${remainingSeconds} secunde înainte de a opri pontajul.`)
   }
@@ -458,6 +464,10 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
       checkOutSelfiePath: request.checkOutSelfiePath ?? null,
       checkOutSelfieStatus: request.checkOutSelfieStatus ?? null,
       checkOutDeviceInfo: request.deviceInfo,
+      ...(request.checkOutAuto
+        ? { checkOutAuto: true, checkOutAutoReason: request.checkOutAutoReason ?? null }
+        : {}),
+      ...(request.autoStopped ? { autoStopped: true, autoStoppedAt: serverTimestamp() } : {}),
       ...(extraTimeLogs ? { extraTimeLogs } : {}),
       updatedAt: serverTimestamp(),
     }) as any,
@@ -479,6 +489,8 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     sessionId: request.sessionId,
     sessionStartMs: sessionStart,
     sessionEndMs: now,
+    auto: request.checkOutAuto,
+    reason: request.checkOutAutoReason,
   })
 
   // Immediately update HR timesheet so condica reflects the Stop without extra steps.

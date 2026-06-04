@@ -28,6 +28,8 @@ export type DashboardStatusConfig = {
   necesitaOfertaEnabled: boolean
   necesitaOfertaRequireFlag: boolean
   necesitaOfertaRequireNoResponse: boolean
+  necesitaOfertaRequireReportGenerated: boolean
+  necesitaOfertaRequirePickedUp: boolean
 
   ofertateEnabled: boolean
   ofertateRequireHasOffer: boolean
@@ -69,6 +71,8 @@ const DEFAULTS: DashboardStatusConfig = {
   necesitaOfertaEnabled: true,
   necesitaOfertaRequireFlag: true,
   necesitaOfertaRequireNoResponse: true,
+  necesitaOfertaRequireReportGenerated: true,
+  necesitaOfertaRequirePickedUp: true,
 
   ofertateEnabled: true,
   ofertateRequireHasOffer: true,
@@ -121,6 +125,8 @@ export function useDashboardStatusSettings() {
           necesitaOfertaEnabled,
           necesitaOfertaRequireFlag,
           necesitaOfertaRequireNoResponse,
+          necesitaOfertaRequireReportGenerated,
+          necesitaOfertaRequirePickedUp,
 
           ofertateEnabled,
           ofertateRequireHasOffer,
@@ -160,6 +166,8 @@ export function useDashboardStatusSettings() {
           getPredefinedSettingValue("dashboard_necesita_oferta_enabled"),
           getPredefinedSettingValue("dashboard_necesita_oferta_require_flag"),
           getPredefinedSettingValue("dashboard_necesita_oferta_require_no_response"),
+          getPredefinedSettingValue("dashboard_necesita_oferta_require_report_generated"),
+          getPredefinedSettingValue("dashboard_necesita_oferta_require_picked_up"),
 
           getPredefinedSettingValue("dashboard_ofertate_enabled"),
           getPredefinedSettingValue("dashboard_ofertate_require_has_offer"),
@@ -203,6 +211,8 @@ export function useDashboardStatusSettings() {
           necesitaOfertaEnabled: Boolean(necesitaOfertaEnabled),
           necesitaOfertaRequireFlag: Boolean(necesitaOfertaRequireFlag),
           necesitaOfertaRequireNoResponse: Boolean(necesitaOfertaRequireNoResponse),
+          necesitaOfertaRequireReportGenerated: Boolean(necesitaOfertaRequireReportGenerated),
+          necesitaOfertaRequirePickedUp: Boolean(necesitaOfertaRequirePickedUp),
 
           ofertateEnabled: Boolean(ofertateEnabled),
           ofertateRequireHasOffer: Boolean(ofertateRequireHasOffer),

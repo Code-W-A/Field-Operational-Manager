@@ -20,6 +20,8 @@ export interface AttendanceLocation {
 export interface DeviceInfo {
   type: string
   userAgent: string
+  /** Auto pontaj/depontaj motive (ex. first_qr, report_signed). */
+  reason?: string
 }
 
 export interface AttendanceSession {
@@ -60,6 +62,15 @@ export interface AttendanceSession {
   checkOutSelfiePath?: string
   checkOutSelfieStatus?: "ok" | "missing" | "error"
   checkOutDeviceInfo?: DeviceInfo
+  /** Auto check-in (primul QR al zilei). */
+  checkInAuto?: boolean
+  checkInAutoReason?: string
+  /** Auto check-out (raport, program+grace, 23:59). */
+  checkOutAuto?: boolean
+  checkOutAutoReason?: string
+  /** Legacy end-of-day stop; kept for backward compatibility. */
+  autoStopped?: boolean
+  autoStoppedAt?: number
   status: AttendanceStatus
   deviceInfo: DeviceInfo
   createdAt: number
@@ -74,6 +85,8 @@ export interface FaceRecognitionResult {
   processingTime?: number
 }
 
+export type AutoPontajReason = "first_qr" | "report_signed" | "schedule_grace" | "eod_force"
+
 export interface CheckInRequest {
   userId: string
   userName?: string
@@ -84,6 +97,10 @@ export interface CheckInRequest {
   checkInSelfiePath?: string
   checkInSelfieStatus?: "ok" | "missing" | "error"
   deviceInfo: DeviceInfo
+  /** Override session start (ex. ora scanării QR). */
+  sessionStartMs?: number
+  checkInAuto?: boolean
+  checkInAutoReason?: AutoPontajReason | string
 }
 
 export interface CheckOutRequest {
@@ -95,6 +112,11 @@ export interface CheckOutRequest {
   checkOutSelfiePath?: string
   checkOutSelfieStatus?: "ok" | "missing" | "error"
   deviceInfo: DeviceInfo
+  sessionEndMs?: number
+  skipMinimumDurationCheck?: boolean
+  checkOutAuto?: boolean
+  checkOutAutoReason?: AutoPontajReason | string
+  autoStopped?: boolean
   /**
    * DEBUG ONLY: simulate longer sessions without waiting.
    * Only honored when NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true".

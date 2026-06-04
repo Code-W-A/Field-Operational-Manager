@@ -9,7 +9,7 @@ export type EquipmentStatusSettings = {
 export type EquipmentStatusWinner = {
   work: any
   status: string
-  statusAt: Date
+  ticketCreatedAt: Date
 }
 
 function toDate(input: any | undefined): Date | null {
@@ -42,27 +42,46 @@ function buildEquipmentKey(work: any): string | null {
   return `${clientKey}|${locationKey}|${equipmentKey}`
 }
 
+function isNewerEquipmentStatusTicket(
+  work: any,
+  ticketCreatedAt: Date,
+  prev: EquipmentStatusWinner | undefined,
+): boolean {
+  if (!prev) return true
+  const t = ticketCreatedAt.getTime()
+  const pt = prev.ticketCreatedAt.getTime()
+  if (t !== pt) return t > pt
+  return String(work?.id || "") > String(prev.work?.id || "")
+}
+
+/**
+ * Ultimul tichet emis (createdAt) per echipament determină starea afișată.
+ * Dispare din dashboard când câștigătorul are statusEchipament = Funcțional.
+ * Include tichete active și arhivate — updatedAt nu influențează câștigătorul.
+ */
 export function selectLatestEquipmentStatusWinners(
-  activeLucrari: any[],
+  lucrariForEquipmentStatus: any[],
   cfg: EquipmentStatusSettings,
 ): EquipmentStatusWinner[] {
-  if (!cfg.equipmentStatusEnabled || !Array.isArray(activeLucrari) || activeLucrari.length === 0) return []
+  if (!cfg.equipmentStatusEnabled || !Array.isArray(lucrariForEquipmentStatus) || lucrariForEquipmentStatus.length === 0) {
+    return []
+  }
 
   const latestStatusByEquipment: Record<string, EquipmentStatusWinner> = {}
 
-  for (const work of activeLucrari) {
+  for (const work of lucrariForEquipmentStatus) {
     const equipmentKey = buildEquipmentKey(work)
     if (!equipmentKey) continue
 
     const statusEchipament = String((work as any).statusEchipament || "").trim()
     if (!statusEchipament) continue
 
-    const statusAt = toDate((work as any).updatedAt) || toDate((work as any).createdAt)
-    if (!statusAt) continue
+    const ticketCreatedAt = toDate((work as any).createdAt)
+    if (!ticketCreatedAt) continue
 
     const prev = latestStatusByEquipment[equipmentKey]
-    if (!prev || statusAt > prev.statusAt) {
-      latestStatusByEquipment[equipmentKey] = { work, status: statusEchipament, statusAt }
+    if (isNewerEquipmentStatusTicket(work, ticketCreatedAt, prev)) {
+      latestStatusByEquipment[equipmentKey] = { work, status: statusEchipament, ticketCreatedAt }
     }
   }
 
@@ -75,6 +94,5 @@ export function selectLatestEquipmentStatusWinners(
         (isPartial && cfg.equipmentStatusIncludePartiallyFunctional)
       )
     })
-    .sort((a, b) => a.statusAt.getTime() - b.statusAt.getTime())
+    .sort((a, b) => a.ticketCreatedAt.getTime() - b.ticketCreatedAt.getTime())
 }
-
