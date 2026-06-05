@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useFirebaseCollection } from "./use-firebase-collection"
 import { where, orderBy, limit } from "firebase/firestore"
 import type { Lucrare } from "@/lib/firebase/firestore"
+import { toDateSafe } from "@/lib/utils/time-format"
 
 interface LucrareNotification {
   id: string
@@ -199,18 +200,9 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
           (lucrare.statusLucrare === 'Atribuită' || lucrare.statusLucrare === 'În lucru') &&
           !lucrare.archivedAt) {
         
-        let dataInterventie: Date
-        
-        // Parsăm data intervenției din diferite formate
-        if (typeof lucrare.dataInterventie === 'string') {
-          // Format: "dd.MM.yyyy HH:mm"
-          const [datePart, timePart] = lucrare.dataInterventie.split(' ')
-          const [day, month, year] = datePart.split('.')
-          const [hour, minute] = (timePart || '00:00').split(':')
-          dataInterventie = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
-        } else {
-          dataInterventie = new Date(lucrare.dataInterventie)
-        }
+        const parsed = toDateSafe(lucrare.dataInterventie)
+        if (!parsed) return
+        const dataInterventie = parsed
 
         // Verificăm dacă data de intervenție a trecut
         if (dataInterventie < today) {

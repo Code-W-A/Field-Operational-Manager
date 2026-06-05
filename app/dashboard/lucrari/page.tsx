@@ -3345,20 +3345,16 @@ export default function Lucrari() {
                 dataInterventieText = formatUiDate(toDateSafe((lucrare as any).dataInterventie))
               } catch {
                 try {
-                  const v: any = (lucrare as any).dataEmiterii
-                  const d = typeof v?.toDate === "function"
-                    ? v.toDate()
-                    : (typeof v?.seconds === "number" ? new Date(v.seconds * 1000) : (typeof v === "string" ? new Date(v) : null))
-                  dataEmiteriiText = d && !isNaN(d.getTime()) ? format(d, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataEmiterii || "")
+                  const { toDateSafe: parseRoDate } = require("@/lib/utils/time-format")
+                  const d = parseRoDate((lucrare as any).dataEmiterii)
+                  dataEmiteriiText = d ? format(d, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataEmiterii || "")
                 } catch {
                   dataEmiteriiText = String((lucrare as any).dataEmiterii || "")
                 }
                 try {
-                  const v2: any = (lucrare as any).dataInterventie
-                  const d2 = typeof v2?.toDate === "function"
-                    ? v2.toDate()
-                    : (typeof v2?.seconds === "number" ? new Date(v2.seconds * 1000) : (typeof v2 === "string" ? new Date(v2) : null))
-                  dataInterventieText = d2 && !isNaN(d2.getTime()) ? format(d2, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataInterventie || "")
+                  const { toDateSafe: parseRoDate } = require("@/lib/utils/time-format")
+                  const d2 = parseRoDate((lucrare as any).dataInterventie)
+                  dataInterventieText = d2 ? format(d2, "dd.MM.yyyy HH:mm") : String((lucrare as any).dataInterventie || "")
                 } catch {
                   dataInterventieText = String((lucrare as any).dataInterventie || "")
                 }

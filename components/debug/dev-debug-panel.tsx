@@ -9,18 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bug, Copy } from "lucide-react"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { useAuth } from "@/contexts/AuthContext"
+import { toDateSafe } from "@/lib/utils/time-format"
 
 function toDate(input: any | undefined): Date | null {
-  if (!input) return null
-  try {
-    if (input instanceof Date) return input
-    if (typeof input?.toDate === "function") return input.toDate()
-    if (typeof input?.seconds === "number") return new Date(input.seconds * 1000)
-    const d = new Date(input)
-    return isNaN(d.getTime()) ? null : d
-  } catch {
-    return null
-  }
+  return toDateSafe(input)
 }
 
 function getTodayAt(h: number, m: number) {

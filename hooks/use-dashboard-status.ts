@@ -8,6 +8,7 @@ import { selectLatestEquipmentStatusWinners } from "@/lib/utils/dashboard-equipm
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-settings"
+import { toDateSafe } from "@/lib/utils/time-format"
 
 export interface DashboardBubbleItem {
   id: string
@@ -71,24 +72,9 @@ function getTodayAt(hour: number, minute = 0): Date {
   return d
 }
 
+/** Firestore Timestamp, ISO sau DD.MM.YYYY — folosește toDateSafe (evită MM.DD la new Date("04.06.2026")). */
 function toDate(input: any | undefined): Date | null {
-  if (!input) return null
-  // Firestore Timestamp or ISO or "dd.MM.yyyy HH:mm"
-  try {
-    if (typeof (input as any)?.toDate === "function") return (input as any).toDate()
-  } catch {}
-  if (typeof input === "string") {
-    // try ISO first
-    const dIso = new Date(input)
-    if (!isNaN(dIso.getTime())) return dIso
-    // fallback dd.MM.yyyy or dd.MM.yyyy HH:mm
-    const [datePart, timePart = "00:00"] = input.split(" ")
-    const [dd, mm, yyyy] = datePart.split(".")
-    const [HH, MM] = timePart.split(":")
-    const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(HH), Number(MM))
-    return isNaN(d.getTime()) ? null : d
-  }
-  return null
+  return toDateSafe(input)
 }
 
 function dateKeyFromAny(input: any | undefined): string | null {

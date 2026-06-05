@@ -1784,17 +1784,20 @@ function parseWorkDate(value: any): Date | null {
     }
     const raw = String(value || "").trim()
     if (!raw) return null
-    const direct = new Date(raw)
-    if (!Number.isNaN(direct.getTime())) return direct
-    const match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
-    if (match) {
+    const roMatch = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
+    if (roMatch) {
       const d = new Date(
-        Number(match[3]),
-        Number(match[2]) - 1,
-        Number(match[1]),
-        Number(match[4] || 0),
-        Number(match[5] || 0),
+        Number(roMatch[3]),
+        Number(roMatch[2]) - 1,
+        Number(roMatch[1]),
+        Number(roMatch[4] || 0),
+        Number(roMatch[5] || 0),
       )
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const isIsoLike = /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2})?/.test(raw)
+    if (isIsoLike) {
+      const d = new Date(raw)
       return Number.isNaN(d.getTime()) ? null : d
     }
   } catch {

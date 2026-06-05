@@ -68,12 +68,13 @@ test("Revizie: QR starts timing, completion saves duration, PDF displays it", ()
   assert.match(pdf, /Timp lucru: \$\{context\.durationText\}/)
 })
 
-test("HR requests: dispatcher has HR creation path, but Cererile mele menu remains technician-only", () => {
+test("HR requests: dispatcher and technician can access Cererile mele self-service", () => {
   const nav = read("lib/navigation/nav-items.ts")
   const hrLayout = read("app/dashboard/resurse-umane/layout.tsx")
   const condica = read("app/dashboard/resurse-umane/condica-prezenta/condica-page.tsx")
 
   assert.match(hrLayout, /allowedRoles=\{\["admin", "dispecer"\]\}/)
   assert.match(condica, /<CreateLeaveRequestDialog/)
-  assert.match(nav, /id: "cererile-mele"[\s\S]*visible: \(\) => isTechnician/)
+  assert.match(condica, /getEmployeeByUserUid/)
+  assert.match(nav, /id: "cererile-mele"[\s\S]*isTechnician \|\| flags\.isAdminOrDispatcher/)
 })

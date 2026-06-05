@@ -27,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/firebase"
 import { formatDate } from "@/lib/utils/date-formatter"
-import { formatDateTime } from "@/lib/utils/time-format"
+import { formatDateTime, toDateSafe } from "@/lib/utils/time-format"
 import { getWorkStatusClass } from "@/lib/utils/status-classes"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { updateLucrare, type Lucrare } from "@/lib/firebase/firestore"
@@ -512,8 +512,8 @@ export default function LucrariArhivate() {
       enableHiding: true,
       cell: ({ row }: { row: any }) => formatDate(row.original.dataInterventie),
       sortingFn: (rowA: any, rowB: any) => {
-        const dateA = new Date(rowA.original.dataInterventie).getTime()
-        const dateB = new Date(rowB.original.dataInterventie).getTime()
+        const dateA = toDateSafe(rowA.original.dataInterventie)?.getTime() ?? 0
+        const dateB = toDateSafe(rowB.original.dataInterventie)?.getTime() ?? 0
         return dateA - dateB
       },
     },

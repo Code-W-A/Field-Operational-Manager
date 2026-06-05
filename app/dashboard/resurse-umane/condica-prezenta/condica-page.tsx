@@ -28,6 +28,7 @@ import {
   daysInMonth,
   getCurrentMonthKey,
   seedHrIfEmpty,
+  getEmployeeByUserUid,
   subscribeEmployees,
   subscribeDepartments,
   subscribeHrDefaults,
@@ -312,6 +313,7 @@ export default function CondicaPrezentaPage() {
     return false
   })
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
+  const [myEmployeeId, setMyEmployeeId] = useState<string | undefined>(undefined)
   const [legendOpen, setLegendOpen] = useState(false)
   const [holidaysOpen, setHolidaysOpen] = useState(false)
   const [holidays, setHolidays] = useState<HrHoliday[]>([])
@@ -431,6 +433,20 @@ export default function CondicaPrezentaPage() {
     })
     return () => unsub?.()
   }, [monthKey])
+
+  useEffect(() => {
+    let mounted = true
+    if (!user?.uid) {
+      setMyEmployeeId(undefined)
+      return
+    }
+    void getEmployeeByUserUid(user.uid).then((emp) => {
+      if (mounted) setMyEmployeeId(emp?.id)
+    })
+    return () => {
+      mounted = false
+    }
+  }, [user?.uid])
 
   // Save compact mode preference to localStorage
   useEffect(() => {
@@ -1950,7 +1966,9 @@ export default function CondicaPrezentaPage() {
         open={leaveDialogOpen}
         onOpenChange={setLeaveDialogOpen}
         employees={employees}
-        defaultEmployeeId={employeeFilter !== "all" ? employeeFilter : undefined}
+        defaultEmployeeId={
+          employeeFilter !== "all" ? employeeFilter : myEmployeeId
+        }
         requesterUid={user?.uid ?? ""}
         departments={departments}
       />

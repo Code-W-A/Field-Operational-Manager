@@ -76,7 +76,7 @@ export default function CereriTehnicianPage() {
             Cererile mele
           </span>
         }
-        text="Creează și urmărește cererile tale (concedii, învoiri, delegații, corectări de ore)."
+        text="Creează și urmărește cererile tale (concedii, învoiri, delegații, corectări de ore). Disponibil pentru salariații cu cont legat în HR."
         headerAction={
           <Button size="sm" onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />

@@ -1,6 +1,7 @@
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { toDateSafe } from "@/lib/utils/time-format"
 
 export const RECENT_REVISION_BLOCK_DAYS = 30
 
@@ -22,44 +23,7 @@ export type RecentRevisionHit = {
 
 const normalize = (value: unknown) => String(value ?? "").trim()
 
-const toDate = (value: any): Date | null => {
-  if (!value) return null
-  try {
-    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
-    if (typeof value?.toDate === "function") {
-      const d = value.toDate()
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-    if (typeof value?.seconds === "number") {
-      const d = new Date(value.seconds * 1000)
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-    if (typeof value === "number") {
-      const d = new Date(value)
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-
-    const raw = String(value || "").trim()
-    if (!raw) return null
-
-    const direct = new Date(raw)
-    if (!Number.isNaN(direct.getTime())) return direct
-
-    const match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
-    if (match) {
-      const day = Number(match[1])
-      const month = Number(match[2]) - 1
-      const year = Number(match[3])
-      const hour = Number(match[4] || 0)
-      const minute = Number(match[5] || 0)
-      const d = new Date(year, month, day, hour, minute)
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-  } catch {
-    return null
-  }
-  return null
-}
+const toDate = (value: any): Date | null => toDateSafe(value)
 
 const formatDateRo = (date: Date) => {
   const dd = String(date.getDate()).padStart(2, "0")

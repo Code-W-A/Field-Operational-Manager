@@ -158,7 +158,10 @@ export function buildNav(ctx: NavCtx): NavNode[] {
       href: "/dashboard/cereri",
       icon: FileText,
       activeMatch: "prefix",
-      visible: () => isTechnician,
+      visible: ({ role }) => {
+        const flags = getRoleFlags({ role })
+        return flags.isTechnician || flags.isAdminOrDispatcher
+      },
     },
     {
       type: "group",

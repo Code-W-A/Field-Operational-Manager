@@ -1,3 +1,5 @@
+import { toDateSafe } from "@/lib/utils/time-format"
+
 export const RECENT_INTERVENTION_WINDOW_DAYS = 90
 export const SIMILAR_CAUSE_SCORE_THRESHOLD = 0.6
 
@@ -38,14 +40,7 @@ export function getEquipmentLookupKeys(equipment: {
 }
 
 function toDate(value: any): Date | null {
-  if (!value) return null
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
-  if (typeof value?.toDate === "function") {
-    const date = value.toDate()
-    return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null
-  }
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
+  return toDateSafe(value)
 }
 
 function getCompletionDate(work: any): Date | null {

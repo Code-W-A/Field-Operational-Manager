@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { formatDate, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { formatPreparedDate } from "@/lib/work-documents/shared"
 
 test("V8 new Date() mis-parses DD.MM.YYYY with dots as MM.DD (bug Alin)", () => {
@@ -49,4 +49,24 @@ test("offer PDF line: March 6 RO string stays 6 martie", () => {
 
 test("formatUiDate rejects swapping 3 March into 6 March via 03.06 string", () => {
   assert.notEqual(formatUiDate("03.06.2026"), "06 mar 2026")
+})
+
+test("toDateSafe: 04.06.2026 dataInterventie is 4 June not 6 April (dashboard întârziate)", () => {
+  const d = toDateSafe("04.06.2026")
+  assert.ok(d)
+  assert.equal(d!.getDate(), 4)
+  assert.equal(d!.getMonth(), 5)
+  assert.equal(d!.getFullYear(), 2026)
+})
+
+test("naive new Date would misread 04.06.2026 as April 6", () => {
+  const naive = new Date("04.06.2026")
+  assert.equal(naive.getMonth(), 3)
+  assert.equal(naive.getDate(), 6)
+  const safe = toDateSafe("04.06.2026")
+  assert.notEqual(safe?.getMonth(), naive.getMonth())
+})
+
+test("formatDate: 04.06.2026 => 04.06.2026 (not swapped to 06.04.2026)", () => {
+  assert.equal(formatDate("04.06.2026"), "04.06.2026")
 })

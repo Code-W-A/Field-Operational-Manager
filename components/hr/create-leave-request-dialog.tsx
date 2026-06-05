@@ -93,6 +93,15 @@ export function CreateLeaveRequestDialog({
   
   const [employeeId, setEmployeeId] = useState<string>(defaultEmployeeId || sortedEmployees[0]?.id || "")
   const [startDate, setStartDate] = useState("")
+
+  useEffect(() => {
+    if (!open) return
+    if (defaultEmployeeId && sortedEmployees.some((e) => e.id === defaultEmployeeId)) {
+      setEmployeeId(defaultEmployeeId)
+    } else if (sortedEmployees.length === 1) {
+      setEmployeeId(sortedEmployees[0].id)
+    }
+  }, [open, defaultEmployeeId, sortedEmployees])
   const [endDate, setEndDate] = useState("")
   const [type, setType] = useState<"CO" | "CFP" | "CM" | "DEL">("CO")
   const [reason, setReason] = useState("")

@@ -137,9 +137,8 @@ export default function ClientPortalPage() {
     const asDate = (v: any): number => {
       if (!v) return 0
       try {
-        if (v?.toDate) return v.toDate().getTime()
-        if (typeof v?.seconds === "number") return new Date(v.seconds * 1000).getTime()
-        return new Date(v).getTime() || 0
+        const { toDateSafe } = require("@/lib/utils/time-format")
+        return toDateSafe(v)?.getTime() ?? 0
       } catch { return 0 }
     }
     const list = [...visible]

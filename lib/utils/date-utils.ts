@@ -91,30 +91,30 @@ export function parseRomanianDateTime(dateString: string): Date | null {
   try {
     if (!dateString) return null
 
-    // If the date is already in a different format, try to parse it
-    if (!dateString.includes(".") || !dateString.includes(":")) {
-      return new Date(dateString)
+    if (dateString.includes(".")) {
+      const [datePart, timePart] = dateString.trim().split(" ")
+      if (!datePart) return null
+      const [day, month, year] = datePart.split(".")
+      const [hour, minute] = (timePart || "00:00").split(":")
+      if (day && month && year) {
+        const d = new Date(
+          Number.parseInt(year),
+          Number.parseInt(month) - 1,
+          Number.parseInt(day),
+          Number.parseInt(hour) || 0,
+          Number.parseInt(minute) || 0,
+        )
+        return Number.isNaN(d.getTime()) ? null : d
+      }
     }
 
-    // Split the date and time parts
-    const [datePart, timePart] = dateString.split(" ")
+    const isIsoLike = /^\d{4}-\d{2}-\d{2}/.test(dateString)
+    if (isIsoLike) {
+      const d = new Date(dateString)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
 
-    if (!datePart) return null
-
-    // Split the date components
-    const [day, month, year] = datePart.split(".")
-    const [hour, minute] = timePart ? timePart.split(":") : ["00", "00"]
-
-    if (!day || !month || !year) return null
-
-    // Create a date object
-    return new Date(
-      Number.parseInt(year),
-      Number.parseInt(month) - 1,
-      Number.parseInt(day),
-      Number.parseInt(hour),
-      Number.parseInt(minute),
-    )
+    return null
   } catch (error) {
     console.error("Error parsing date:", error)
     return null
