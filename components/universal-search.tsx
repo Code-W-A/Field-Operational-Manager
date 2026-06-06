@@ -8,6 +8,7 @@ interface UniversalSearchProps {
   placeholder?: string
   initialValue?: string
   className?: string
+  dataTestId?: string
 }
 
 export function UniversalSearch({
@@ -15,6 +16,7 @@ export function UniversalSearch({
   placeholder = "Caută în toate coloanele...",
   initialValue = "",
   className = "",
+  dataTestId,
 }: UniversalSearchProps) {
   const [searchText, setSearchText] = useState(initialValue)
 
@@ -45,6 +47,7 @@ export function UniversalSearch({
         placeholder={placeholder}
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
+        data-testid={dataTestId}
         className="w-full h-10 pl-8 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {searchText && (

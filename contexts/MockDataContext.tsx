@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { isPreviewEnvironment } from "@/lib/utils/environment"
+import { isE2eTestMode, isPreviewEnvironment } from "@/lib/utils/environment"
 
 // Date mock pentru utilizatori
 const mockUsers = [
@@ -187,11 +187,12 @@ export const useMockData = () => useContext(MockDataContext)
 
 // Provider pentru datele mock
 export function MockDataProvider({ children }: { children: ReactNode }) {
-  const [isPreview, setIsPreview] = useState(false)
-  const [currentUser, setCurrentUser] = useState<(typeof mockUsers)[0] | null>(null)
+  const [isPreview, setIsPreview] = useState(() => isPreviewEnvironment())
+  const [currentUser, setCurrentUser] = useState<(typeof mockUsers)[0] | null>(() =>
+    isE2eTestMode() ? (mockUsers.find((u) => u.role === "admin") ?? null) : null,
+  )
 
   useEffect(() => {
-    // Verificăm dacă suntem în mediul de preview
     setIsPreview(isPreviewEnvironment())
   }, [])
 

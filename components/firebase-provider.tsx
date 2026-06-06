@@ -12,7 +12,7 @@ import { reportToSentry } from "@/lib/sentry/report-error"
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
-  const [isPreview, setIsPreview] = useState(false)
+  const [isPreview, setIsPreview] = useState(() => isPreviewEnvironment())
   const pathname = usePathname()
 
   useEffect(() => {

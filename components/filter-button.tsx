@@ -6,11 +6,18 @@ import { Button } from "@/components/ui/button"
 interface FilterButtonProps {
   onClick: () => void
   activeFilters?: number
+  dataTestId?: string
 }
 
-export function FilterButton({ onClick, activeFilters = 0 }: FilterButtonProps) {
+export function FilterButton({ onClick, activeFilters = 0, dataTestId }: FilterButtonProps) {
   return (
-    <Button variant="outline" size="sm" className="h-10 px-3 flex items-center gap-2" onClick={onClick}>
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-10 px-3 flex items-center gap-2"
+      onClick={onClick}
+      data-testid={dataTestId}
+    >
       <Filter className="h-4 w-4" />
       <span>Filtrare</span>
       {activeFilters > 0 && (

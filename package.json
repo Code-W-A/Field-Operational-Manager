@@ -12,6 +12,11 @@
     "test:auto-pontaj": "npx tsx --test lib/attendance/auto-pontaj.test.ts",
     "test:offer-dates": "npx tsx --test lib/utils/time-format.ro-date.test.ts",
     "test:offer-pdf-input": "npx tsx --test lib/work-documents/offer-pdf-input.test.ts",
+    "test:contract-filters": "npx tsx --test lib/contracts/contract-filters.test.ts lib/contracts/contract-filters.smoke.test.ts",
+    "test:revision-calendar": "npx tsx --test lib/contracts/revision-calendar.test.ts lib/contracts/revision-calendar.smoke.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:contracte": "playwright test e2e/contracte-filters.spec.ts",
+    "test:e2e:install": "playwright install chromium",
     "seed:crm": "node scripts/seed-crm.mjs",
     "seed:hr-reminder-test": "tsx scripts/seed-hr-reminder-test.ts",
     "logs:functions": "firebase functions:log --limit 100",
@@ -98,6 +103,7 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

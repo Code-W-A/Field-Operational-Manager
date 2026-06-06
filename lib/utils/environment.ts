@@ -1,10 +1,17 @@
 // Funcție pentru a detecta dacă suntem în mediul de preview v0
 export function isPreviewEnvironment(): boolean {
+  if (isE2eTestMode()) return true
+
   // Verificăm dacă suntem pe client
   if (typeof window === "undefined") return false
 
   // Verificăm dacă suntem în mediul de preview v0
   return window.location.hostname.includes("v0.dev") || window.location.hostname.includes("vercel-v0.app")
+}
+
+/** Playwright E2E: date fixture + auth mock, fără Firestore live. */
+export function isE2eTestMode(): boolean {
+  return process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true"
 }
 
 // Funcție pentru a verifica dacă Firebase este disponibil

@@ -165,6 +165,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Simulăm un timp de încărcare
       const timer = setTimeout(() => {
         setUserData(currentUser as UserData)
+        // Preview/E2E: ProtectedRoute verifică `user`; folosim un stub minimal.
+        if (currentUser) {
+          setUser({ uid: currentUser.uid } as User)
+        } else {
+          setUser(null)
+        }
         console.log("Preview mode: Setting mock user data", currentUser)
         setLoading(false)
         
@@ -180,7 +186,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           scheduleAutoLogout()
           setupDailyLogoutCheck()
         }
-      }, 1000)
+      }, process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true" ? 50 : 1000)
 
       return () => {
         clearTimeout(timer)

@@ -98,7 +98,7 @@ export function FilterModal({
   const applyHierarchicalClears = (draft: FilterOption[], changedId: string, nextValue: any) => {
     // Istoric intervenții (and similar screens): if "client" is cleared, dependent filters must be cleared too.
     // This avoids stale selections (locație/echipament) continuing to filter after client deselection.
-    if (changedId === "client") {
+    if (changedId === "client" || changedId === "clienti") {
       const hasClient =
         Array.isArray(nextValue) ? nextValue.map((x) => String(x || "").trim()).filter(Boolean).length > 0 : !!nextValue
 

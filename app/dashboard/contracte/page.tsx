@@ -13,7 +13,18 @@ import { DataTable } from "@/components/data-table/data-table"
 type ExtendedColumnDef<T> = ColumnDef<T> & {
   enableFiltering?: boolean
 }
-import { EnhancedFilterSystem } from "@/components/data-table/enhanced-filter-system"
+import { FilterButton } from "@/components/filter-button"
+import { FilterModal, type FilterOption } from "@/components/filter-modal"
+import {
+  buildContractFilterOptions,
+  countActiveContractFilters,
+  filterContracts,
+  normalizeActiveContractFilters,
+  shouldShowFilteredEmptyState,
+  type ActiveContractFilter,
+} from "@/lib/contracts/contract-filters"
+import { E2E_CONTRACT_CLIENTS, E2E_CONTRACTS } from "@/lib/contracts/e2e-fixtures"
+import { isE2eTestMode } from "@/lib/utils/environment"
 import { Badge } from "@/components/ui/badge"
 import { ColumnDef } from "@tanstack/react-table"
 import {
@@ -29,7 +40,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { addUserLogEntry } from "@/lib/firebase/firestore"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign, Zap } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign, Zap, Calendar } from "lucide-react"
 import { getFunctions, httpsCallable } from "firebase/functions"
 import app from "@/lib/firebase/config"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -71,81 +82,19 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { CustomDatePicker } from "@/components/custom-date-picker"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/contexts/AuthContext"
-
-const SCHEDULE_MONTHS_AHEAD = 48
-const MAX_PREVIEW_OCCURRENCES = 2000
-
-const addMonths = (date: Date, months: number) => {
-  const d = new Date(date)
-  d.setMonth(d.getMonth() + months)
-  return d
-}
-
-const addDays = (date: Date, days: number) => {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-type RevisionSchedulePreview = {
-  scheduledIso: string
-  generateIso: string
-  locationId?: string
-  locationName?: string
-}
-
-const computeRevisionSchedulePreview = (params: {
-  startDate?: string
-  recurrenceInterval?: number
-  recurrenceUnit?: "zile" | "luni"
-  daysBeforeWork?: number
-  locationIds?: string[]
-  locationNames?: string[]
-  locationId?: string
-  locationName?: string
-}): RevisionSchedulePreview[] => {
-  if (!params.startDate || !params.recurrenceInterval || !params.recurrenceUnit) return []
-  const start = new Date(params.startDate)
-  if (Number.isNaN(start.getTime())) return []
-
-  const interval = Math.max(1, params.recurrenceInterval)
-  const lead = params.daysBeforeWork ?? 0
-  const horizon =
-    params.recurrenceUnit === "luni"
-      ? addMonths(start, SCHEDULE_MONTHS_AHEAD)
-      : addDays(start, SCHEDULE_MONTHS_AHEAD * 30)
-
-  const locations =
-    (params.locationIds?.length ?? 0) > 0
-      ? (params.locationIds || []).map((id, idx) => ({
-          id,
-          name: params.locationNames?.[idx],
-        }))
-      : [{ id: params.locationId || "", name: params.locationName }]
-
-  const occurrences: RevisionSchedulePreview[] = []
-  let occ = start
-
-  while (occ <= horizon && occurrences.length < MAX_PREVIEW_OCCURRENCES) {
-    const scheduledAt = new Date(occ)
-    const generateAt = addDays(scheduledAt, -lead)
-    const scheduledIso = scheduledAt.toISOString()
-    const generateIso = generateAt.toISOString()
-
-    for (const loc of locations) {
-      occurrences.push({
-        scheduledIso,
-        generateIso,
-        locationId: loc.id || undefined,
-        locationName: loc.name || undefined,
-      })
-    }
-
-    occ = params.recurrenceUnit === "luni" ? addMonths(occ, interval) : addDays(occ, interval)
-  }
-
-  return occurrences
-}
+import {
+  addMonthsDate,
+  buildCalendarEventsFromContracts,
+  buildEditDialogCalendarEvents,
+  canOpenRevisionCalendar,
+  computeRevisionSchedulePreview,
+  filterCalendarEventsByContractId,
+  getDefaultCalendarRange,
+  resolveEditDialogCalendarPreview,
+  startOfMonth,
+  type CalendarEvent,
+  type RevisionSchedulePreview,
+} from "@/lib/contracts/revision-calendar"
 
 interface Contract {
   id: string
@@ -175,15 +124,6 @@ interface Client {
   nume: string
 }
 
-type CalendarEvent = {
-  id: string
-  date: Date
-  contractId: string
-  contractName: string
-  contractNumber?: string
-  locationName?: string
-}
-
 const COLORS = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#b45309", "#ea580c"]
 
 const getColorForId = (id: string) => {
@@ -197,12 +137,6 @@ const getColorForId = (id: string) => {
   return COLORS[idx]
 }
 
-const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1)
-const addMonthsDate = (d: Date, count: number) => {
-  const nd = new Date(d)
-  nd.setMonth(nd.getMonth() + count)
-  return nd
-}
 const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate()
 
 export default function ContractsPage() {
@@ -281,10 +215,14 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
   const [table, setTable] = useState<any>(null)
   const [tableSorting, setTableSorting] = useState([{ id: "createdAt", desc: true }])
   const [searchText, setSearchText] = useState("")
-  const [activeFilters, setActiveFilters] = useState<any[]>([])
+  const [activeFilters, setActiveFilters] = useState<ActiveContractFilter[]>([])
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list")
   const [calendarMode, setCalendarMode] = useState<"year" | "month" | "week">("month")
+  const [calendarContractFilterId, setCalendarContractFilterId] = useState<string | null>(null)
+  const [calendarFilterContractName, setCalendarFilterContractName] = useState<string | null>(null)
+  const [calendarFilteredEvents, setCalendarFilteredEvents] = useState<CalendarEvent[] | null>(null)
   const [selectedDayEvents, setSelectedDayEvents] = useState<CalendarEvent[]>([])
   const [selectedDayDate, setSelectedDayDate] = useState<Date | null>(null)
   const [isDayPanelOpen, setIsDayPanelOpen] = useState(false)
@@ -551,8 +489,6 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     }
   }
 
-  // Handler-ele pentru filtre au fost eliminate - EnhancedFilterSystem gestionează persistența automat
-
   // Sortăm datele pe partea de client după încărcare
   const sortedContracts = useMemo(() => {
     if (!contracts.length || !tableSorting.length) return contracts
@@ -592,43 +528,134 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     })
   }, [contracts, tableSorting])
 
-  // Calendar data (12 luni începând cu luna curentă)
-  const calendarStart = useMemo(() => startOfMonth(new Date()), [])
-  const calendarEnd = useMemo(() => addMonthsDate(calendarStart, 12), [calendarStart])
+  const clientLookups = useMemo(
+    () => clients.map((c) => ({ id: String(c.id || ""), nume: String(c.nume || "") })),
+    [clients],
+  )
+
+  const filterOptions = useMemo(
+    () => buildContractFilterOptions(contracts, clientLookups),
+    [contracts, clientLookups],
+  )
+
+  const filteredContracts = useMemo(
+    () => filterContracts(sortedContracts, activeFilters, searchText, clientLookups),
+    [sortedContracts, activeFilters, searchText, clientLookups],
+  )
+
+  const activeFilterCount = useMemo(
+    () => countActiveContractFilters(activeFilters, searchText),
+    [activeFilters, searchText],
+  )
+
+  const showFilteredEmptyState = useMemo(
+    () => shouldShowFilteredEmptyState(contracts.length, filteredContracts.length),
+    [contracts.length, filteredContracts.length],
+  )
+
+  const handleApplyFilters = (filters: FilterOption[]) => {
+    const normalized = normalizeActiveContractFilters(filters)
+    setActiveFilters(normalized)
+    saveFilters(normalized)
+  }
+
+  const handleResetFilters = () => {
+    setActiveFilters([])
+    saveFilters([])
+  }
+
+  const handleResetAllFiltersAndSearch = () => {
+    handleResetFilters()
+    handleSearchChange("")
+  }
+
+  const { start: calendarStart, end: calendarEnd } = useMemo(() => getDefaultCalendarRange(), [])
+
+  const allCalendarEvents = useMemo(
+    () => buildCalendarEventsFromContracts(contracts, calendarStart, calendarEnd),
+    [contracts, calendarStart, calendarEnd],
+  )
 
   const calendarEvents = useMemo(() => {
-    const events: CalendarEvent[] = []
+    if (calendarFilteredEvents) return calendarFilteredEvents
+    if (calendarContractFilterId) {
+      return filterCalendarEventsByContractId(allCalendarEvents, calendarContractFilterId)
+    }
+    return allCalendarEvents
+  }, [allCalendarEvents, calendarFilteredEvents, calendarContractFilterId])
 
-    contracts.forEach((contract) => {
-      const preview = (contract as any)?.revisionSchedulePreview
-      if (!Array.isArray(preview)) return
+  const clearCalendarContractFilter = useCallback(() => {
+    setCalendarContractFilterId(null)
+    setCalendarFilterContractName(null)
+    setCalendarFilteredEvents(null)
+  }, [])
 
-      preview.forEach((item: any, idx: number) => {
-        const raw = item?.scheduledIso || item?.scheduledAt || item?.scheduledDate
-        const date =
-          raw?.toDate?.() instanceof Date
-            ? raw.toDate()
-            : raw && typeof raw.seconds === "number"
-              ? new Date(raw.seconds * 1000)
-              : raw
-              ? new Date(raw)
-              : null
-        if (!date || Number.isNaN(date.getTime())) return
-        if (date < calendarStart || date >= calendarEnd) return
+  const getEditFormRevisionParams = useCallback(
+    () => ({
+      startDate: newContractStartDate,
+      recurrenceInterval: newContractRecurrenceInterval,
+      recurrenceUnit: newContractRecurrenceUnit,
+      daysBeforeWork: newContractDaysBeforeWork,
+      locationIds: newContractLocationIds,
+      locationNames: newContractLocationNames,
+      locationId: newContractLocationId,
+      locationName: newContractLocationName,
+    }),
+    [
+      newContractStartDate,
+      newContractRecurrenceInterval,
+      newContractRecurrenceUnit,
+      newContractDaysBeforeWork,
+      newContractLocationIds,
+      newContractLocationNames,
+      newContractLocationId,
+      newContractLocationName,
+    ],
+  )
 
-        events.push({
-          id: `${contract.id}-${idx}-${date.toISOString()}`,
-          date,
-          contractId: contract.id,
-          contractName: contract.name,
-          contractNumber: contract.number,
-          locationName: item?.locationName,
-        })
+  const handleViewRevisionCalendarFromEdit = useCallback(() => {
+    if (!selectedContract?.id) return
+
+    const preview = resolveEditDialogCalendarPreview(
+      getEditFormRevisionParams(),
+      selectedContract.revisionSchedulePreview,
+    )
+
+    if (!canOpenRevisionCalendar(preview)) {
+      toast({
+        title: "Calendar indisponibil",
+        description: "Setați data de început și recurența reviziilor pentru a vedea calendarul.",
+        variant: "destructive",
       })
-    })
+      return
+    }
 
-    return events.sort((a, b) => a.date.getTime() - b.date.getTime())
-  }, [contracts, calendarStart, calendarEnd])
+    const events = buildEditDialogCalendarEvents(
+      getEditFormRevisionParams(),
+      {
+        id: selectedContract.id,
+        name: newContractName || selectedContract.name,
+        number: newContractNumber || selectedContract.number,
+      },
+      selectedContract.revisionSchedulePreview,
+      calendarStart,
+      calendarEnd,
+    )
+
+    setCalendarContractFilterId(selectedContract.id)
+    setCalendarFilterContractName(newContractName || selectedContract.name)
+    setCalendarFilteredEvents(events)
+    setIsEditDialogOpen(false)
+    setViewMode("calendar")
+    setCalendarMode("month")
+  }, [
+    selectedContract,
+    getEditFormRevisionParams,
+    newContractName,
+    newContractNumber,
+    calendarStart,
+    calendarEnd,
+  ])
 
   const calendarMonths = useMemo(() => {
     return Array.from({ length: 12 }).map((_, idx) => {
@@ -684,27 +711,6 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     return arr
   }, [calendarEvents, showWeekStrip])
 
-  // Setăm search-ul global în tabel când se schimbă searchText
-  useEffect(() => {
-    if (table && searchText !== undefined) {
-      table.setGlobalFilter(searchText)
-    }
-  }, [table, searchText])
-
-  // Forțăm aplicarea search-ului când table-ul devine disponibil și avem searchText salvat
-  useEffect(() => {
-    if (table && searchText.trim() && !loading) {
-      // Mic delay pentru a se asigura că table-ul este complet inițializat
-      const timeoutId = setTimeout(() => {
-        table.setGlobalFilter(searchText)
-      }, 100)
-
-      return () => clearTimeout(timeoutId)
-    }
-  }, [table, searchText, loading])
-
-  // Persistența filtrelor este acum gestionată automat de EnhancedFilterSystem
-
   // Generăm coloanele dinamice bazate pe câmpurile din setări
   const dynamicColumns = useMemo(() => {
     const cols: ExtendedColumnDef<Contract>[] = []
@@ -721,7 +727,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
           header: parent.name,
           enableHiding: true,
           enableSorting: true,
-          enableFiltering: true,
+          enableFiltering: false,
           cell: ({ row }) => {
             const value = (row.original as any).customFields?.[parent.id]
             if (!value) return <span className="text-gray-400">-</span>
@@ -754,7 +760,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       header: "Nume Contract",
       enableHiding: true,
       enableSorting: true,
-      enableFiltering: true,
+      enableFiltering: false,
       cell: ({ row }) => (
         <div className="font-medium">
           {row.original.name}
@@ -766,7 +772,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       header: "Număr Contract",
       enableHiding: true,
       enableSorting: true,
-      enableFiltering: true,
+      enableFiltering: false,
       cell: ({ row }) => (
         <div className="font-mono text-sm">
           {row.original.number}
@@ -832,7 +838,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       header: "Client Asignat",
       enableHiding: true,
       enableSorting: true,
-      enableFiltering: true,
+      enableFiltering: false,
       cell: ({ row }) => {
         const clientId = row.original.clientId
         const client = clients.find(c => c.id === clientId)
@@ -857,7 +863,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       header: "Locație",
       enableHiding: true,
       enableSorting: true,
-      enableFiltering: true,
+      enableFiltering: false,
       cell: ({ row }) => {
         const locatie = (row.original as any).locationNames?.length
           ? (row.original as any).locationNames.join(", ")
@@ -883,7 +889,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       header: "Data Adăugării",
       enableHiding: true,
       enableSorting: true,
-      enableFiltering: true,
+      enableFiltering: false,
       cell: ({ row }) => {
         const date = row.original.createdAt
         if (!date) return "N/A"
@@ -953,8 +959,16 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     },
   ], [clients, dynamicColumns, isReadOnlyDispatcher])
 
-  // Încărcăm contractele și clienții din Firestore
+  // Încărcăm contractele și clienții din Firestore (sau fixture E2E)
   useEffect(() => {
+    if (isE2eTestMode()) {
+      setClients(E2E_CONTRACT_CLIENTS)
+      setContracts(E2E_CONTRACTS as Contract[])
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true)
@@ -1607,7 +1621,10 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setViewMode("calendar")}
+                onClick={() => {
+                  clearCalendarContractFilter()
+                  setViewMode("calendar")
+                }}
               >
                 Calendar revizii
               </Button>
@@ -1644,10 +1661,23 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       ) : (
         <div className="space-y-4">
           {viewMode === "calendar" ? (
-            <div className="space-y-4 pb-12">
+            <div className="space-y-4 pb-12" data-testid="contract-calendar-view">
               {/* Header compact în stil Planado */}
               <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-slate-200">
-                <h1 className="text-xl font-bold text-slate-800">Calendar</h1>
+                <h1 className="text-xl font-bold text-slate-800">
+                  {calendarFilterContractName ? `Calendar — ${calendarFilterContractName}` : "Calendar"}
+                </h1>
+                {calendarContractFilterId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-blue-700"
+                    data-testid="contract-calendar-clear-filter"
+                    onClick={clearCalendarContractFilter}
+                  >
+                    Toate contractele
+                  </Button>
+                )}
                 
                 <div className="flex items-center gap-1 border-r pr-4">
                   <Button
@@ -1704,8 +1734,12 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setViewMode("list")}
+                    onClick={() => {
+                      clearCalendarContractFilter()
+                      setViewMode("list")
+                    }}
                     className="h-8"
+                    data-testid="contract-calendar-back-to-list"
                   >
                     Contracte
                   </Button>
@@ -1751,7 +1785,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
          
 
               {calendarEvents.length === 0 ? (
-                <Card className="border-2 border-dashed">
+                <Card className="border-2 border-dashed" data-testid="contract-calendar-empty">
                   <CardContent className="py-16 text-center">
                     <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
                       <FileText className="h-10 w-10 text-slate-400" />
@@ -2263,16 +2297,48 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                   onSearch={handleSearchChange} 
                   initialValue={searchText}
                   className="flex-1"
-                  placeholder="Căutare contracte..."
+                  placeholder="Căutare contracte (nume, număr, client, locație)..."
+                  dataTestId="contract-search"
                 />
-                {/* EnhancedFilterSystem se va randa cu propriul său buton de filtrare */}
-                {table && <EnhancedFilterSystem table={table} persistenceKey="contracte" />}
+                <FilterButton
+                  onClick={() => setIsFilterModalOpen(true)}
+                  activeFilters={activeFilterCount}
+                  dataTestId="contract-filter-button"
+                />
+                {activeFilterCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-10"
+                    onClick={handleResetAllFiltersAndSearch}
+                    data-testid="contract-reset-all"
+                  >
+                    Resetează tot
+                  </Button>
+                )}
               </div>
-              
-              {/* Tabelul de contracte */}
+
+              <div className="text-sm text-muted-foreground" data-testid="contract-results-count">
+                Afișate {filteredContracts.length} din {contracts.length} contracte
+              </div>
+
+              {showFilteredEmptyState ? (
+                <div
+                  className="text-center py-12 border rounded-lg bg-muted/20"
+                  data-testid="contract-empty-filtered"
+                >
+                  <p className="text-muted-foreground">
+                    Niciun contract nu corespunde filtrelor sau căutării curente.
+                  </p>
+                  <Button variant="outline" className="mt-4" onClick={handleResetAllFiltersAndSearch}>
+                    Resetează filtrele și căutarea
+                  </Button>
+                </div>
+              ) : (
+              <div data-testid="contract-table">
               <DataTable
                 columns={columns}
-                data={sortedContracts}
+                data={filteredContracts}
                 defaultSort={{ id: "createdAt", desc: true }}
                 sorting={tableSorting}
                 onSortingChange={handleSortingChange}
@@ -2286,10 +2352,22 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                 showFilters={false}
                 persistenceKey="contracte"
               />
+              </div>
+              )}
             </>
           )}
         </div>
       )}
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        title="Filtrare contracte"
+        filterOptions={filterOptions}
+        activeFilters={activeFilters as FilterOption[]}
+        onApplyFilters={handleApplyFilters}
+        onResetFilters={handleResetAllFiltersAndSearch}
+      />
 
       {/* Panou detalii zi */}
       <Dialog open={isDayPanelOpen} onOpenChange={setIsDayPanelOpen}>
@@ -3042,7 +3120,18 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
               }}
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleViewRevisionCalendarFromEdit}
+              data-testid="contract-edit-view-calendar"
+              className="w-full sm:w-auto"
+            >
+              <Calendar className="mr-2 h-4 w-4" />
+              Vezi calendar revizii
+            </Button>
+            <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
             <Button variant="outline" onClick={() => handleCloseDialog("edit")}>
               Anulează
             </Button>
@@ -3058,6 +3147,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                 "Salvează"
               )}
             </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
