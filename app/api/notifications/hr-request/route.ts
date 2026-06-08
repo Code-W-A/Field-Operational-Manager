@@ -5,6 +5,7 @@ import { getEmailFrom } from "@/lib/email/from"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 import { logError, logInfo, logWarning } from "@/lib/utils/logging-service"
+import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import { formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server"
 import { canGenerateHrRequestDocx, generateHrRequestDocxBuffer } from "@/lib/hr/request-docx.server"
@@ -99,8 +100,14 @@ function statusLabel(status: string) {
 
 function requestDateLabel(req: any) {
   const p: any = req?.payload ?? {}
+  const kind = String(req?.kind || "")
   if (p?.startDate && p?.endDate) return `${formatRomanianDateDotsISO(p.startDate)} → ${formatRomanianDateDotsISO(p.endDate)}`
   if (p?.date && p?.startTime && p?.endTime) return `${formatRomanianDateDotsISO(p.date)} • ${p.startTime}–${p.endTime}`
+  if (kind === "ADD_OVERTIME" && p?.date) {
+    const dateLabel = formatRomanianDateDotsISO(p.date) || String(p.date)
+    const duration = formatOvertimeDuration(p.overtimeHours)
+    return duration !== "—" ? `${dateLabel} • ${duration}` : dateLabel
+  }
   if (p?.date) return formatRomanianDateDotsISO(p.date) || String(p.date)
   return "—"
 }

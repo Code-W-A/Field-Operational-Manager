@@ -23,6 +23,7 @@ import type { TimesheetExtraColumn } from "@/components/hr/timesheet-grid"
 import type { Department, Employee, HrRequest, HrRequestKind, TimesheetCell, TimesheetCode, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { hrRequestKindLabel } from "@/lib/hr/hr-requests"
+import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import {
   deleteTimesheetRange,
   daysInMonth,
@@ -824,7 +825,7 @@ export default function CondicaPrezentaPage() {
     const inRange = (start: string, end: string) => start <= date && date <= end
     for (const r of approved) {
       const p: any = r.payload as any
-      if (r.kind === "IN") {
+      if (r.kind === "IN" || r.kind === "ADD_OVERTIME" || r.kind === "CORRECT_HOURS") {
         if (String(p?.date || "") === date) return r
         continue
       }
@@ -843,6 +844,15 @@ export default function CondicaPrezentaPage() {
     const p: any = r.payload as any
     if (r.kind === "IN") {
       return `${hrRequestKindLabel(r.kind)} • ${String(p?.date || "—")} • ${String(p?.startTime || "—")}–${String(p?.endTime || "—")}`
+    }
+    if (r.kind === "ADD_OVERTIME") {
+      const duration = formatOvertimeDuration(p?.overtimeHours)
+      return duration !== "—"
+        ? `${hrRequestKindLabel(r.kind)} • ${duration}`
+        : hrRequestKindLabel(r.kind)
+    }
+    if (r.kind === "CORRECT_HOURS") {
+      return `${hrRequestKindLabel(r.kind)} • ${String(p?.date || "—")}`
     }
     if (r.kind === "CO" || r.kind === "CFP" || r.kind === "CM" || r.kind === "DEL") {
       return `${hrRequestKindLabel(r.kind)} • ${String(p?.startDate || "—")} → ${String(p?.endDate || "—")}`

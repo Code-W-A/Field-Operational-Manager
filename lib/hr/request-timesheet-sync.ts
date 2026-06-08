@@ -1,5 +1,6 @@
 import type { HrRequestKind, TimesheetCell, TimesheetMonthKey } from "./types"
 import { calcEffectiveMinutes } from "./time-calc"
+import { normalizeOvertimeHoursValue } from "./overtime-duration"
 
 function enumerateDatesInclusiveISO(startDate: string, endDate: string): string[] {
   const start = new Date(startDate)
@@ -139,8 +140,8 @@ export function buildTimesheetCellForHrRequest(params: {
   }
 
   if (kind === "ADD_OVERTIME") {
-    const overtimeHours = Number(p.overtimeHours ?? 0)
-    if (!Number.isFinite(overtimeHours) || overtimeHours <= 0) return null
+    const overtimeHours = normalizeOvertimeHoursValue(p.overtimeHours ?? 0)
+    if (overtimeHours <= 0) return null
 
     const programEnd = params.programEnd ?? "16:30"
     const startM = parseHM(programEnd) ?? 16 * 60 + 30

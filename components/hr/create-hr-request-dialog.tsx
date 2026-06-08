@@ -18,11 +18,12 @@ import { DateInput } from "@/components/ui/date-input"
 import { formatISODate } from "@/lib/utils/date-utils"
 import { uploadFile } from "@/lib/firebase/storage"
 import { TimeSelector } from "@/components/time-selector"
-
-function asNumber(v: string) {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : 0
-}
+import { OvertimeDurationFields } from "@/components/hr/overtime-duration-fields"
+import {
+  isValidOvertimeDuration,
+  overtimeHoursFromParts,
+  type OvertimeDurationParts,
+} from "@/lib/hr/overtime-duration"
 
 const BLOCKED_OVERLAP_KINDS: HrRequestKind[] = ["CO", "CFP", "CM", "DEL", "IN"]
 
@@ -95,8 +96,8 @@ export function CreateHrRequestDialog({
   ])
   const [breaks, setBreaks] = useState<Array<{ start: string; end: string }>>([{ start: "12:00", end: "12:30" }])
 
-  // Overtime
-  const [overtimeHours, setOvertimeHours] = useState("1")
+  // Overtime (ore + minute, granularitate 30 min)
+  const [overtimeDuration, setOvertimeDuration] = useState<OvertimeDurationParts>({ hours: 1, minutes: 0 })
 
   const [submitting, setSubmitting] = useState(false)
   const [existingRequests, setExistingRequests] = useState<HrRequest[]>([])
@@ -155,7 +156,7 @@ export function CreateHrRequestDialog({
     if (kind === "CM") return !!startDate && !!endDate && !!medicalDocumentFile
     if (kind === "IN") return !!date && !!startTime && !!endTime
     if (kind === "CORRECT_HOURS") return !!date && entries.some((e) => e.start && e.end)
-    if (kind === "ADD_OVERTIME") return !!date && asNumber(overtimeHours) > 0
+    if (kind === "ADD_OVERTIME") return !!date && isValidOvertimeDuration(overtimeHoursFromParts(overtimeDuration.hours, overtimeDuration.minutes))
     return false
   }, [
     sectorId,
@@ -168,7 +169,7 @@ export function CreateHrRequestDialog({
     startTime,
     endTime,
     entries,
-    overtimeHours,
+    overtimeDuration,
     medicalDocumentFile,
   ])
 
@@ -209,7 +210,7 @@ export function CreateHrRequestDialog({
     setEndTime("16:00")
     setEntries([{ start: "08:00", end: "16:00" }])
     setBreaks([{ start: "12:00", end: "12:30" }])
-    setOvertimeHours("1")
+    setOvertimeDuration({ hours: 1, minutes: 0 })
   }
 
   const submit = async () => {
@@ -278,7 +279,12 @@ export function CreateHrRequestDialog({
         }
       } else {
         if (!date) throw new Error("Completează data.")
-        payload = { kind, date, overtimeHours: asNumber(overtimeHours), reason: reason.trim() || undefined }
+        payload = {
+          kind,
+          date,
+          overtimeHours: overtimeHoursFromParts(overtimeDuration.hours, overtimeDuration.minutes),
+          reason: reason.trim() || undefined,
+        }
       }
 
       setSubmitting(true)
@@ -455,14 +461,8 @@ export function CreateHrRequestDialog({
                 <DateInput value={date} onChange={setDate} />
               </div>
               <div className="grid gap-2">
-                <Label>Ore suplimentare *</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.25"
-                  value={overtimeHours}
-                  onChange={(e) => setOvertimeHours(e.target.value)}
-                />
+                <Label>Durată ore suplimentare *</Label>
+                <OvertimeDurationFields value={overtimeDuration} onChange={setOvertimeDuration} />
               </div>
             </div>
           )}

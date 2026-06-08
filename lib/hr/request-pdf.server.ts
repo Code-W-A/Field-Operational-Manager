@@ -1,6 +1,7 @@
 import jsPDF from "jspdf"
 import type { HrRequest } from "@/lib/hr/types"
 import { hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import { formatRomanianDateDotsISO, formatRomanianDateTime } from "@/lib/utils/date-utils"
 
 const COMPANY_NAME = "NRG Access Systems SRL"
@@ -12,6 +13,11 @@ function requestDateLabelDots(req: HrRequest) {
   }
   if (p?.date && p?.startTime && p?.endTime) {
     return `${formatRomanianDateDotsISO(p.date)} • ${p.startTime}–${p.endTime}`
+  }
+  if (req.kind === "ADD_OVERTIME" && p?.date) {
+    const dateLabel = formatRomanianDateDotsISO(p.date) || String(p.date)
+    const duration = formatOvertimeDuration(p.overtimeHours)
+    return duration !== "—" ? `${dateLabel} • ${duration}` : dateLabel
   }
   if (p?.date) return formatRomanianDateDotsISO(p.date) || String(p.date)
   return "—"
@@ -45,6 +51,10 @@ export function generateHrRequestPdfBuffer(
   lines.push(`Angajat: ${request.employeeName || request.employeeId}`)
   lines.push(`Departament: ${opts?.departmentName || request.sectorId || "—"}`)
   lines.push(`Perioadă/zi: ${requestDateLabelDots(request)}`)
+  if (request.kind === "ADD_OVERTIME") {
+    const duration = formatOvertimeDuration((request.payload as any)?.overtimeHours)
+    if (duration !== "—") lines.push(`Ore suplimentare: ${duration}`)
+  }
   lines.push(`Status: ${hrRequestStatusLabel(request.status)}`)
 
   const payloadReason = (request.payload as any)?.reason

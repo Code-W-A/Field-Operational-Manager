@@ -17,6 +17,40 @@ test("daysByMonthFromRequest includes single-day overtime and corrections", () =
   })
 })
 
+test("ADD_OVERTIME — 30 min (0.5h) adaugă interval de 30 minute", () => {
+  const next = buildTimesheetCellForHrRequest({
+    requestId: "req-overtime-30m",
+    kind: "ADD_OVERTIME",
+    payload: { date: "2026-05-18", overtimeHours: 0.5 },
+    existing: { code: "WORK", entries: [{ start: "08:00", end: "16:30", project: "Pontaj" }] },
+    programEnd: "16:30",
+  })
+
+  assert.ok(next)
+  assert.deepEqual(next.entries?.find((e: any) => e.sourceRequestId === "req-overtime-30m"), {
+    start: "16:30",
+    end: "17:00",
+    project: "Ore suplimentare",
+    methodStart: "Aprobat cerere",
+    methodEnd: "Aprobat cerere",
+    sourceRequestId: "req-overtime-30m",
+    sourceRequestKind: "ADD_OVERTIME",
+  })
+})
+
+test("ADD_OVERTIME — corectează cereri vechi cu 30 introdus ca ore (minute)", () => {
+  const next = buildTimesheetCellForHrRequest({
+    requestId: "req-overtime-legacy-30",
+    kind: "ADD_OVERTIME",
+    payload: { date: "2026-05-18", overtimeHours: 30 },
+    existing: { code: "WORK", entries: [{ start: "08:00", end: "16:30", project: "Pontaj" }] },
+    programEnd: "16:30",
+  })
+
+  assert.ok(next)
+  assert.deepEqual(next.entries?.find((e: any) => e.sourceRequestId === "req-overtime-legacy-30")?.end, "17:00")
+})
+
 test("ADD_OVERTIME appends one traceable interval and preserves existing pontaj", () => {
   const existing: TimesheetCell = {
     code: "WORK",

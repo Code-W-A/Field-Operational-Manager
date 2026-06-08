@@ -32,6 +32,12 @@ import {
 } from "@/lib/hr/hr-requests"
 import { toast } from "@/hooks/use-toast"
 import { generateHrRequestDOCX } from "@/lib/hr/request-docx-generator"
+import { OvertimeDurationFields } from "@/components/hr/overtime-duration-fields"
+import {
+  formatOvertimeDuration,
+  overtimeHoursFromParts,
+  overtimePartsFromHours,
+} from "@/lib/hr/overtime-duration"
 
 function canEditPayload(kind: HrRequestKind) {
   // for now allow editing payload fields for all kinds
@@ -44,9 +50,7 @@ function clonePayload(payload: HrRequestPayload): HrRequestPayload {
 
 function formatOvertimeHoursForDetail(payload: HrRequestPayload): string {
   const raw = payload.kind === "ADD_OVERTIME" ? payload.overtimeHours : (payload as { overtimeHours?: unknown }).overtimeHours
-  const n = typeof raw === "number" ? raw : Number(raw)
-  if (!Number.isFinite(n)) return "—"
-  return `${new Intl.NumberFormat("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)} h`
+  return formatOvertimeDuration(raw)
 }
 
 export default function CereriAprobariPage() {
@@ -658,13 +662,15 @@ export default function CereriAprobariPage() {
                     <Input type="date" value={editPayload.date} onChange={(e) => setEditPayload({ ...editPayload, date: e.target.value } as any)} />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Ore suplimentare</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.25"
-                      value={editPayload.overtimeHours}
-                      onChange={(e) => setEditPayload({ ...editPayload, overtimeHours: Number(e.target.value) } as any)}
+                    <Label>Durată ore suplimentare</Label>
+                    <OvertimeDurationFields
+                      value={overtimePartsFromHours(editPayload.overtimeHours)}
+                      onChange={(parts) =>
+                        setEditPayload({
+                          ...editPayload,
+                          overtimeHours: overtimeHoursFromParts(parts.hours, parts.minutes),
+                        })
+                      }
                     />
                   </div>
                 </div>

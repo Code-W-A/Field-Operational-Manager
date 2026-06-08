@@ -14,6 +14,7 @@
     "test:offer-pdf-input": "npx tsx --test lib/work-documents/offer-pdf-input.test.ts",
     "test:contract-filters": "npx tsx --test lib/contracts/contract-filters.test.ts lib/contracts/contract-filters.smoke.test.ts",
     "test:revision-calendar": "npx tsx --test lib/contracts/revision-calendar.test.ts lib/contracts/revision-calendar.smoke.test.ts",
+    "test:overtime-duration": "npx tsx --test lib/hr/overtime-duration.test.ts lib/hr/hr-requests.test.ts lib/hr/request-timesheet-sync.test.ts lib/hr/request-timesheet-sync.smoke.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:contracte": "playwright test e2e/contracte-filters.spec.ts",
     "test:e2e:install": "playwright install chromium",

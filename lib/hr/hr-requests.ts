@@ -1,4 +1,5 @@
 import type { HrRequest, HrRequestKind } from "@/lib/hr/types"
+import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import { formatRomanianDateISO } from "@/lib/utils/date-utils"
 
 export function hrRequestKindLabel(kind: HrRequestKind) {
@@ -35,6 +36,11 @@ export function hrRequestDateLabel(req: HrRequest) {
   }
   if (p?.date && p?.startTime && p?.endTime) {
     return `${formatRomanianDateISO(p.date)} • ${p.startTime}–${p.endTime}`
+  }
+  if (req.kind === "ADD_OVERTIME" && p?.date) {
+    const dateLabel = formatRomanianDateISO(p.date) || String(p.date)
+    const duration = formatOvertimeDuration(p.overtimeHours)
+    return duration !== "—" ? `${dateLabel} • ${duration}` : dateLabel
   }
   if (p?.date) return formatRomanianDateISO(p.date) || String(p.date)
   return "—"

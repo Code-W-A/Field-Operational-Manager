@@ -1577,8 +1577,12 @@ function buildTimesheetCellForRequest(params: {
   }
 
   if (kind === "ADD_OVERTIME") {
-    const overtimeHours = Number(p.overtimeHours ?? 0)
-    if (!Number.isFinite(overtimeHours) || overtimeHours <= 0) return null
+    const rawOvertime = Number(p.overtimeHours ?? 0)
+    let overtimeHours = Number.isFinite(rawOvertime) ? rawOvertime : 0
+    if (Number.isInteger(overtimeHours) && (overtimeHours === 15 || overtimeHours === 30 || overtimeHours === 45)) {
+      overtimeHours = Math.round((overtimeHours / 60) * 100) / 100
+    }
+    if (overtimeHours <= 0) return null
     const programEnd = params.programEnd ?? "16:30"
     const startM = parseHM(programEnd) ?? 16 * 60 + 30
     const endM = Math.min(23 * 60 + 59, startM + Math.round(overtimeHours * 60))
