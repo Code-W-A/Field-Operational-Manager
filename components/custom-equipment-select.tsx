@@ -237,17 +237,7 @@ export function CustomEquipmentSelect({
 
           {filteredEquipments.length > 0 ? (
             <ScrollArea className="h-[250px]">
-              <div 
-                className="p-1"
-                onWheel={(e) => {
-                  // Permite scroll cu roata mouse-ului
-                  const scrollContainer = e.currentTarget.closest('[data-radix-scroll-area-viewport]');
-                  if (scrollContainer) {
-                    scrollContainer.scrollTop += e.deltaY;
-                    e.preventDefault();
-                  }
-                }}
-              >
+              <div className="p-1">
                 {filteredEquipments.map((equipment) => (
                   <EquipmentItem
                     key={equipment.id || `eq-${equipment.cod}`}

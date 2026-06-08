@@ -8,6 +8,7 @@ import { FirebaseCheck } from "@/components/firebase-check"
 import { MockDataProvider } from "@/contexts/MockDataContext"
 import { NotificationsProvider } from "@/components/notifications-provider"
 import { SentryErrorBoundary } from "@/components/sentry-error-boundary"
+import { OverlayScrollFix } from "@/components/overlay-scroll-fix"
 import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -28,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="ro" suppressHydrationWarning>
       <body className={inter.className}>
+        <OverlayScrollFix />
         <MockDataProvider>
           <FirebaseProvider>
             <FirebaseCheck />
