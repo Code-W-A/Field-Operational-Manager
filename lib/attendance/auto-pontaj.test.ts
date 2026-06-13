@@ -8,6 +8,7 @@ import {
   isAtOrPastScheduleGrace,
   timeOnSameDayMs,
 } from "@/lib/attendance/auto-pontaj-schedule"
+import { technicianHasUnfinishedWorkToday } from "@/lib/attendance/remaining-work"
 
 test("DEPONTAJ_AUTO_GRACE_MINUTES defaults to 30", () => {
   assert.equal(DEPONTAJ_AUTO_GRACE_MINUTES, 30)
@@ -49,14 +50,30 @@ test("timeOnSameDayMs parses HH:mm on same calendar day", () => {
   assert.equal(timeOnSameDayMs(base, "08:15"), new Date(2026, 2, 10, 8, 15, 0, 0).getTime())
 })
 
-test("canAutoCheckOut policy: open ticket blocks unless forceEndOfDay", () => {
-  const forceEndOfDay = true
-  const hasOpenTicket = true
-  const blocked = !forceEndOfDay && hasOpenTicket
-  const allowedEod = forceEndOfDay || !hasOpenTicket
-  assert.equal(blocked, false)
-  assert.equal(allowedEod, true)
+test("canAutoCheckOut policy (report_signed): lucrări rămase azi blochează, forceEndOfDay ignoră", () => {
+  // Oglindește logica din canAutoCheckOut: la report_signed (forceEndOfDay=false)
+  // depontarea e blocată dacă mai există lucrări neterminate azi.
+  const decide = (hasRemainingWorkToday: boolean, forceEndOfDay: boolean) =>
+    !forceEndOfDay && hasRemainingWorkToday ? "blocked" : "allowed"
 
-  const blockedGrace = !false && hasOpenTicket
-  assert.equal(blockedGrace, true)
+  // report_signed cu lucrări rămase => blocat (fix-ul pentru reclamație)
+  assert.equal(decide(true, false), "blocked")
+  // report_signed fără lucrări rămase (ultima lucrare) => permis
+  assert.equal(decide(false, false), "allowed")
+  // 23:59 forțat => permis chiar dacă mai sunt lucrări
+  assert.equal(decide(true, true), "allowed")
+  assert.equal(decide(false, true), "allowed")
+})
+
+test("canAutoCheckOut policy: regula folosește technicianHasUnfinishedWorkToday", () => {
+  const now = new Date(2026, 5, 13, 12, 0, 0).getTime()
+  const todayAssigned = [
+    { statusLucrare: "Atribuită", interventionMs: new Date(2026, 5, 13, 16, 0, 0).getTime() },
+  ]
+  const allDone = [{ statusLucrare: "Finalizat", interventionMs: new Date(2026, 5, 13, 10, 0, 0).getTime() }]
+
+  // report_signed => blocat când mai are lucrări azi
+  assert.equal(!false && technicianHasUnfinishedWorkToday(todayAssigned, now), true)
+  // report_signed => permis când totul e finalizat
+  assert.equal(!false && technicianHasUnfinishedWorkToday(allDone, now), false)
 })

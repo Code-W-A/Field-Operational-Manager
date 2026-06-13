@@ -101,6 +101,41 @@ export function logPontajStop(params: {
   })
 }
 
+/**
+ * Audit pentru depontarea automată SĂRITĂ (ex. la raport semnat, dar tehnicianul mai are lucrări azi).
+ * Oferă vizibilitate în `/dashboard/loguri` (tab Pontaj) de ce NU s-a depontat automat.
+ */
+export function logPontajAutoStopSkipped(params: {
+  userId: string
+  userDisplayName?: string
+  reason: string
+  triggerReason?: string
+}): void {
+  const reasonLabels: Record<string, string> = {
+    remaining_work_today: "mai există lucrări neterminate azi",
+    open_ticket_in_progress: "există alt tichet în lucru",
+    no_active_session: "nu există sesiune activă",
+    not_allowed: "nepermis",
+  }
+  const label = reasonLabels[params.reason] || params.reason
+  const triggerSuffix = params.triggerReason ? ` • declanșator ${params.triggerReason}` : ""
+  void addUserLogEntry({
+    utilizator: params.userDisplayName,
+    utilizatorId: params.userId,
+    actiune: "Pontaj depontare automată sărită",
+    detalii: `Depontare automată sărită • ${label}${triggerSuffix}`,
+    tip: "Informație",
+    categorie: "Pontaj",
+    actionOutcome: "skipped",
+    entityType: "AttendanceSession",
+    metadata: {
+      userId: params.userId,
+      reason: params.reason,
+      triggerReason: params.triggerReason ?? null,
+    },
+  })
+}
+
 /** Apelat la fiecare ieșire din syncAttendanceUserDayToTimesheet (sursă unică pentru condică). */
 export function logPontajCondicaSync(
   userId: string,

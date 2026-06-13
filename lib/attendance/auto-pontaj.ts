@@ -10,52 +10,43 @@ import {
 } from "@/lib/attendance/storage"
 import { getCurrentLocation } from "@/lib/attendance/location"
 import { localDayBounds } from "@/lib/attendance/auto-pontaj-schedule"
+import { technicianHasUnfinishedWorkToday, type RemainingWorkTicket } from "@/lib/attendance/remaining-work"
+import { toDateSafe } from "@/lib/utils/time-format"
 import type { AttendanceLocation, AutoPontajReason } from "@/types/attendance"
-import { WORK_STATUS } from "@/lib/utils/constants"
 
 export type AutoPontajResult =
   | { ok: true; sessionId?: string; action: "check_in" | "check_out" }
   | { ok: false; skipped: true; reason: string }
   | { ok: false; skipped: false; error: string }
 
-function isMissingIndexError(error: unknown) {
-  const msg = (error as any)?.message || ""
-  const code = (error as any)?.code || ""
-  return code === "failed-precondition" && String(msg).toLowerCase().includes("requires an index")
-}
-
-async function fallbackHasOpenInProgressTicket(displayName: string): Promise<boolean> {
-  const snap = await getDocs(
-    query(
-      collection(db, "lucrari"),
-      where("tehnicieni", "array-contains", displayName),
-      where("statusLucrare", "==", WORK_STATUS.IN_PROGRESS),
-    ),
-  )
-  return !snap.empty
-}
-
 /**
- * Există cel puțin un tichet „În lucru” pentru tehnician (după displayName din tichete).
+ * Tehnicianul mai are cel puțin o lucrare neterminată programată AZI (după displayName din tichete).
+ * Folosit pentru a NU deponta automat la primul raport semnat când mai sunt lucrări de făcut în ziua curentă.
+ *
+ * Notă: Firestore nu permite `array-contains` + `in` în aceeași interogare, așa că filtrăm statusurile
+ * și data client-side prin `technicianHasUnfinishedWorkToday` (interogarea folosește doar `array-contains`,
+ * deci nu necesită index compus).
  */
-export async function hasOpenInProgressTicketForTechnician(
-  _userId: string,
+export async function hasUnfinishedWorkForTechnicianToday(
   displayName: string,
+  nowMs: number = Date.now(),
 ): Promise<boolean> {
   const name = String(displayName || "").trim()
   if (!name) return false
-  try {
-    const q = query(
-      collection(db, "lucrari"),
-      where("tehnicieni", "array-contains", name),
-      where("statusLucrare", "==", WORK_STATUS.IN_PROGRESS),
-    )
-    const snap = await getDocs(q)
-    return !snap.empty
-  } catch (error) {
-    if (!isMissingIndexError(error)) throw error
-    return fallbackHasOpenInProgressTicket(name)
-  }
+
+  const snap = await getDocs(
+    query(collection(db, "lucrari"), where("tehnicieni", "array-contains", name)),
+  )
+
+  const tickets: RemainingWorkTicket[] = snap.docs.map((d) => {
+    const data = d.data() as any
+    return {
+      statusLucrare: String(data?.statusLucrare ?? ""),
+      interventionMs: toDateSafe(data?.dataInterventie)?.getTime() ?? null,
+    }
+  })
+
+  return technicianHasUnfinishedWorkToday(tickets, nowMs)
 }
 
 /** Pontaj în ziua locală curentă (activ sau completed). */
@@ -126,15 +117,15 @@ export async function ensureAutoCheckInFromFirstQr(params: {
 
 export async function canAutoCheckOut(
   userId: string,
-  options: { forceEndOfDay?: boolean; technicianDisplayName?: string } = {},
+  options: { forceEndOfDay?: boolean; technicianDisplayName?: string; atMs?: number } = {},
 ): Promise<{ allowed: boolean; reason?: string; sessionId?: string }> {
   const active = await getActiveSession(userId)
   if (!active) return { allowed: false, reason: "no_active_session" }
 
   if (!options.forceEndOfDay) {
     const name = String(options.technicianDisplayName || "").trim()
-    if (name && (await hasOpenInProgressTicketForTechnician(userId, name))) {
-      return { allowed: false, reason: "open_ticket_in_progress", sessionId: active.id }
+    if (name && (await hasUnfinishedWorkForTechnicianToday(name, options.atMs ?? Date.now()))) {
+      return { allowed: false, reason: "remaining_work_today", sessionId: active.id }
     }
   }
 
@@ -153,6 +144,7 @@ export async function ensureAutoCheckOut(params: {
   const gate = await canAutoCheckOut(params.userId, {
     forceEndOfDay: params.forceEndOfDay,
     technicianDisplayName: params.technicianDisplayName,
+    atMs,
   })
   if (!gate.allowed || !gate.sessionId) {
     return { ok: false, skipped: true, reason: gate.reason || "not_allowed" }

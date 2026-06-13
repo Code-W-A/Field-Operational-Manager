@@ -27,6 +27,7 @@ import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
 import { useTargetList } from "@/hooks/use-settings"
 import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib/utils/failure-causes"
 import { ensureAutoCheckOut } from "@/lib/attendance/auto-pontaj"
+import { logPontajAutoStopSkipped } from "@/lib/attendance/pontaj-audit-log"
 
 export default function RaportPage({ params }: { params: Promise<{ id: string }> }) {
   const SIG_HEIGHT = 160 // px – lasă-l fix
@@ -999,8 +1000,16 @@ FOM by NRG`,
               title: "Depontare automată",
               description: "Pontajul a fost oprit după raportul semnat de beneficiar.",
             })
-          } else if (!res.ok && res.skipped && res.reason === "open_ticket_in_progress") {
-            console.log("Depontare automată amânată: există alt tichet în lucru.")
+          } else if (!res.ok && res.skipped && res.reason === "remaining_work_today") {
+            console.log("Depontare automată amânată: tehnicianul mai are lucrări neterminate azi.")
+            if (userData?.uid) {
+              logPontajAutoStopSkipped({
+                userId: userData.uid,
+                userDisplayName: userData.displayName,
+                reason: res.reason,
+                triggerReason: "report_signed",
+              })
+            }
           } else if (!res.ok && !res.skipped) {
             console.warn("Depontare automată eșuată:", res.error)
           }
