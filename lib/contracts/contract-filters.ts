@@ -22,6 +22,7 @@ export type ContractFilterRecord = {
   }>
   customFields?: Record<string, string>
   createdAt?: unknown
+  status?: "active" | "suspended"
 }
 
 export type ClientLookup = {

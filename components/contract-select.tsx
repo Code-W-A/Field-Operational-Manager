@@ -22,6 +22,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 import { useTargetList } from "@/hooks/use-settings"
+import { isContractSuspended } from "@/lib/contracts/contract-status"
 
 // Modificăm interfața pentru a include proprietatea type
 interface ContractSelectProps {
@@ -142,6 +143,7 @@ export function ContractSelect({
 
   // Filtrăm tipurile (include/exclude)
   const allowedContracts = contractsForClient.filter((c) => {
+    if (isContractSuspended(c)) return false
     const t =
       ((resolveContractType(c) || c.type || "") as string).toString().trim().toLowerCase()
     if (normalizedIncluded.length > 0 && !normalizedIncluded.includes(t)) return false
@@ -237,6 +239,19 @@ export function ContractSelect({
   // Găsim contractul selectat pentru afișare (doar dacă nu este exclus)
   const selectedContract = filteredByAssignment.find((contract) => contract.id === value)
 
+  useEffect(() => {
+    if (!value || loading) return
+    const currentContract = contracts.find((contract) => contract.id === value)
+    if (currentContract && isContractSuspended(currentContract)) {
+      onChange("", "", "")
+      toast({
+        title: "Contract suspendat",
+        description: "Contractul selectat a fost suspendat și nu mai poate fi folosit pentru tichete noi.",
+        variant: "destructive",
+      })
+    }
+  }, [contracts, loading, onChange, value])
+
   // Funcție pentru deschiderea dialogului de selecție
   const handleOpenSelectDialog = () => {
     setIsSelectDialogOpen(true)
@@ -294,6 +309,7 @@ export function ContractSelect({
         name: newContractName,
         number: newContractNumber,
         type: newContractType, // Adăugăm tipul contractului
+        status: "active",
         createdAt: serverTimestamp(),
       }
       

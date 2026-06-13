@@ -23,6 +23,7 @@ import type { WorkRevisionMeta } from "@/types/revision"
 import { deriveLegacyPrimaryClientContact, ensureClientContactIds } from "@/lib/client-contacts"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import { resolveDuplicateContractAssignmentConflict } from "@/lib/utils/contract-assignment-validation"
+import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts/contract-status"
 
 export interface PersoanaContact {
   id?: string
@@ -1145,6 +1146,14 @@ export const addLucrare = async (lucrare: Lucrare) => {
   })
   if (!equipmentValidation.valid) {
     throw new Error(equipmentValidation.message)
+  }
+
+  const contractId = String(lucrare?.contract || "").trim()
+  if (contractId) {
+    const contractSnapshot = await getDoc(doc(db, "contracts", contractId))
+    if (contractSnapshot.exists() && isContractSuspended(contractSnapshot.data())) {
+      throw new Error(SUSPENDED_CONTRACT_MESSAGE)
+    }
   }
 
   const lucrariCollection = collection(db, "lucrari")

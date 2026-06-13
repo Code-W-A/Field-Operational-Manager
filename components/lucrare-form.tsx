@@ -75,6 +75,7 @@ import {
   subscribeTechnicianGroups,
   type TechnicianGroup,
 } from "@/lib/firebase/technician-groups"
+import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts/contract-status"
 
 // Define the Lucrare type
 interface Lucrare {
@@ -1863,6 +1864,15 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           const contractDoc = await getDoc(doc(db, "contracts", formData.contract))
           if (contractDoc.exists()) {
             const contractData = contractDoc.data()
+            if (isContractSuspended(contractData)) {
+              setError(SUSPENDED_CONTRACT_MESSAGE)
+              toast({
+                title: "Contract suspendat",
+                description: SUSPENDED_CONTRACT_MESSAGE,
+                variant: "destructive",
+              })
+              return
+            }
             const contractLocation = contractData.locatie
             
             // Dacă contractul are o locație specificată, verificăm că locația lucrării este aceeași

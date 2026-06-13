@@ -40,13 +40,13 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { addUserLogEntry } from "@/lib/firebase/firestore"
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign, Zap, Calendar } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, MoreHorizontal, FileText, DollarSign, Zap, Calendar, PauseCircle, PlayCircle } from "lucide-react"
 import { getFunctions, httpsCallable } from "firebase/functions"
 import app from "@/lib/firebase/config"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/hooks/use-toast"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
-import { format } from "date-fns"
+import { addDays, format } from "date-fns"
 import { ro } from "date-fns/locale"
 import {
   AlertDialog,
@@ -95,6 +95,7 @@ import {
   type CalendarEvent,
   type RevisionSchedulePreview,
 } from "@/lib/contracts/revision-calendar"
+import { isContractSuspended, type ContractStatus } from "@/lib/contracts/contract-status"
 
 interface Contract {
   id: string
@@ -117,6 +118,16 @@ interface Contract {
   customFields?: Record<string, any> // Câmpuri dinamice din setări
   createdAt: any
   revisionSchedulePreview?: RevisionSchedulePreview[]
+  status?: ContractStatus
+  statusUpdatedAt?: any
+  statusUpdatedBy?: string
+  statusUpdatedByName?: string
+  lastSuspendedAt?: any
+  lastSuspendedBy?: string
+  lastSuspendedByName?: string
+  lastReactivatedAt?: any
+  lastReactivatedBy?: string
+  lastReactivatedByName?: string
 }
 
 interface Client {
@@ -152,6 +163,7 @@ export default function ContractsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
 
   const [newContractName, setNewContractName] = useState("")
   const [newContractNumber, setNewContractNumber] = useState("")
@@ -885,6 +897,21 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       },
     },
     {
+      accessorKey: "status",
+      header: "Status",
+      enableHiding: true,
+      enableSorting: true,
+      enableFiltering: false,
+      cell: ({ row }) => {
+        const suspended = isContractSuspended(row.original)
+        return (
+          <Badge variant={suspended ? "destructive" : "secondary"}>
+            {suspended ? "Suspendat" : "Activ"}
+          </Badge>
+        )
+      },
+    },
+    {
       accessorKey: "createdAt",
       header: "Data Adăugării",
       enableHiding: true,
@@ -1151,6 +1178,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       const contractData: any = {
         name: newContractName,
         number: newContractNumber,
+        status: "active",
         createdAt: serverTimestamp(),
         ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
@@ -1427,6 +1455,91 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     } catch (error) {
       console.error("Eroare la actualizarea contractului:", error)
       setError("Nu s-a putut actualiza contractul. Vă rugăm să încercați din nou.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleContractStatusChange = async () => {
+    if (!selectedContract || isReadOnlyDispatcher) return
+
+    const currentlySuspended = isContractSuspended(selectedContract)
+    const nextStatus: ContractStatus = currentlySuspended ? "active" : "suspended"
+    const actorId = String(userData?.uid || "")
+    const actorName = String(userData?.displayName || userData?.email || "Utilizator necunoscut")
+
+    try {
+      setIsSubmitting(true)
+      const localTimestamp = new Date().toISOString()
+      const statusData: Record<string, any> = {
+        status: nextStatus,
+        statusUpdatedAt: serverTimestamp(),
+        statusUpdatedBy: actorId,
+        statusUpdatedByName: actorName,
+        updatedAt: serverTimestamp(),
+      }
+
+      if (nextStatus === "suspended") {
+        statusData.lastSuspendedAt = serverTimestamp()
+        statusData.lastSuspendedBy = actorId
+        statusData.lastSuspendedByName = actorName
+      } else {
+        statusData.lastReactivatedAt = serverTimestamp()
+        statusData.lastReactivatedBy = actorId
+        statusData.lastReactivatedByName = actorName
+        statusData.lastAutoWorkGenerated = localTimestamp
+      }
+
+      if (isE2eTestMode()) {
+        setContracts((current) =>
+          current.map((contract) =>
+            contract.id === selectedContract.id
+              ? {
+                  ...contract,
+                  ...statusData,
+                  statusUpdatedAt: localTimestamp,
+                  ...(nextStatus === "suspended"
+                    ? { lastSuspendedAt: localTimestamp }
+                    : { lastReactivatedAt: localTimestamp }),
+                }
+              : contract,
+          ),
+        )
+      } else {
+        await updateDoc(doc(db, "contracts", selectedContract.id), statusData)
+      }
+
+      const updatedContract = {
+        ...selectedContract,
+        status: nextStatus,
+        statusUpdatedAt: localTimestamp,
+        ...(nextStatus === "suspended"
+          ? { lastSuspendedAt: localTimestamp }
+          : { lastReactivatedAt: localTimestamp }),
+      }
+      setSelectedContract(updatedContract)
+      setIsStatusDialogOpen(false)
+
+      void addUserLogEntry({
+        actiune: nextStatus === "suspended" ? "Suspendare contract" : "Reactivare contract",
+        detalii: `ID: ${selectedContract.id}; număr: ${selectedContract.number}; status: ${nextStatus}`,
+        categorie: "Contracte",
+      })
+
+      toast({
+        title: nextStatus === "suspended" ? "Contract suspendat" : "Contract reactivat",
+        description:
+          nextStatus === "suspended"
+            ? "Contractul nu mai poate fi folosit pentru tichete noi."
+            : "Contractul poate fi folosit din nou pentru tichete noi.",
+      })
+    } catch (error) {
+      console.error("Eroare la schimbarea statusului contractului:", error)
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza statusul contractului.",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -2338,7 +2451,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
               <div data-testid="contract-table">
               <DataTable
                 columns={columns}
-                data={filteredContracts}
+                data={filteredContracts as Contract[]}
                 defaultSort={{ id: "createdAt", desc: true }}
                 sorting={tableSorting}
                 onSortingChange={handleSortingChange}
@@ -2801,6 +2914,22 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
             <DialogTitle>Editează Contract</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <Alert className={isContractSuspended(selectedContract) ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}>
+              {isContractSuspended(selectedContract) ? (
+                <PauseCircle className="h-4 w-4 text-red-600" />
+              ) : (
+                <PlayCircle className="h-4 w-4 text-green-600" />
+              )}
+              <AlertDescription
+                className={isContractSuspended(selectedContract) ? "text-red-800" : "text-green-800"}
+                data-testid="contract-edit-status"
+              >
+                Status contract: <strong>{isContractSuspended(selectedContract) ? "Suspendat" : "Activ"}</strong>
+                {isContractSuspended(selectedContract)
+                  ? ". Emiterea tichetelor noi și generarea automată a reviziilor sunt blocate."
+                  : ". Contractul poate fi folosit pentru tichete noi și revizii automate."}
+              </AlertDescription>
+            </Alert>
             {/* Rândul 1: Nume și Număr Contract pe 2 coloane */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -3121,16 +3250,33 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
             />
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleViewRevisionCalendarFromEdit}
-              data-testid="contract-edit-view-calendar"
-              className="w-full sm:w-auto"
-            >
-              <Calendar className="mr-2 h-4 w-4" />
-              Vezi calendar revizii
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleViewRevisionCalendarFromEdit}
+                data-testid="contract-edit-view-calendar"
+                className="w-full sm:w-auto"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Vezi calendar revizii
+              </Button>
+              <Button
+                type="button"
+                variant={isContractSuspended(selectedContract) ? "outline" : "destructive"}
+                onClick={() => setIsStatusDialogOpen(true)}
+                data-testid="contract-edit-toggle-status"
+                disabled={isSubmitting}
+                className="w-full sm:w-auto"
+              >
+                {isContractSuspended(selectedContract) ? (
+                  <PlayCircle className="mr-2 h-4 w-4" />
+                ) : (
+                  <PauseCircle className="mr-2 h-4 w-4" />
+                )}
+                {isContractSuspended(selectedContract) ? "Reactivează contractul" : "Suspendă contractul"}
+              </Button>
+            </div>
             <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
             <Button variant="outline" onClick={() => handleCloseDialog("edit")}>
               Anulează
@@ -3151,6 +3297,35 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isContractSuspended(selectedContract) ? "Reactivați contractul?" : "Suspendați contractul?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isContractSuspended(selectedContract)
+                ? "Contractul va putea fi folosit din nou pentru tichete noi și pentru generarea viitoare a reviziilor."
+                : "Nu se vor mai putea emite tichete noi pe acest contract, iar reviziile automate viitoare nu vor fi generate. Tichetele existente rămân neschimbate."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Anulează</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                void handleContractStatusChange()
+              }}
+              disabled={isSubmitting}
+              data-testid="contract-confirm-toggle-status"
+              className={isContractSuspended(selectedContract) ? "" : "bg-red-600 hover:bg-red-700"}
+            >
+              {isSubmitting ? "Se procesează..." : isContractSuspended(selectedContract) ? "Reactivează" : "Suspendă"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog pentru ștergerea unui contract */}
       <Dialog

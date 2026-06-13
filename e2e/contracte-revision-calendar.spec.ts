@@ -8,6 +8,24 @@ async function openEditDialog(page: import("@playwright/test").Page, contractId:
 }
 
 test.describe("Contracte — calendar revizii din edit", () => {
+  test("suspendă și reactivează contractul din dialogul de editare", async ({ page }) => {
+    await openEditDialog(page, "sm-1")
+
+    await expect(page.getByTestId("contract-edit-status")).toContainText("Activ")
+    await page.getByTestId("contract-edit-toggle-status").click()
+    await expect(page.getByRole("alertdialog")).toContainText("Suspendați contractul?")
+    await page.getByTestId("contract-confirm-toggle-status").click()
+
+    await expect(page.getByTestId("contract-edit-status")).toContainText("Suspendat")
+    await expect(page.getByTestId("contract-edit-toggle-status")).toContainText("Reactivează contractul")
+
+    await page.getByTestId("contract-edit-toggle-status").click()
+    await expect(page.getByRole("alertdialog")).toContainText("Reactivați contractul?")
+    await page.getByTestId("contract-confirm-toggle-status").click()
+
+    await expect(page.getByTestId("contract-edit-status")).toContainText("Activ")
+  })
+
   test("deschide calendar filtrat pe contract din dialogul de editare", async ({ page }) => {
     await openEditDialog(page, "sm-1")
 
@@ -33,7 +51,7 @@ test.describe("Contracte — calendar revizii din edit", () => {
     await openEditDialog(page, "sm-5")
 
     await page.getByTestId("contract-edit-view-calendar").click()
-    await expect(page.getByText("Calendar indisponibil")).toBeVisible()
+    await expect(page.getByText("Calendar indisponibil", { exact: true })).toBeVisible()
     await expect(page.getByRole("dialog", { name: "Editează Contract" })).toBeVisible()
   })
 

@@ -1694,6 +1694,11 @@ type Contract = {
   daysBeforeWork?: number
   lastAutoWorkGenerated?: string
   revisionSchedulePreview?: RevisionPreview[]
+  status?: "active" | "suspended"
+}
+
+function isContractSuspended(contract: Contract): boolean {
+  return String(contract.status || "").trim().toLowerCase() === "suspended"
 }
 
 type Client = {
@@ -1994,6 +1999,10 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
 
     for (const contract of contracts) {
     if (created >= MAX_WORKS_PER_RUN) break
+      if (isContractSuspended(contract)) {
+        console.log("generateRevisionWorks: skipped suspended contract", { contractId: contract.id })
+        continue
+      }
       if (!contract.revisionSchedulePreview || !Array.isArray(contract.revisionSchedulePreview)) continue
 
       const clientPayload = await fetchClient(contract.clientId)
