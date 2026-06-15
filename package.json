@@ -18,6 +18,7 @@
     "test:revision-calendar": "npx tsx --test lib/contracts/revision-calendar.test.ts lib/contracts/revision-calendar.smoke.test.ts",
     "test:overtime-duration": "npx tsx --test lib/hr/overtime-duration.test.ts lib/hr/hr-requests.test.ts lib/hr/request-timesheet-sync.test.ts lib/hr/request-timesheet-sync.smoke.test.ts",
     "test:overtime-report": "npx tsx --test lib/hr/overtime-report.test.ts",
+    "test:auto-checkout-disabled": "npx tsx --test lib/attendance/auto-pontaj.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:contracte": "playwright test e2e/contracte-filters.spec.ts",
     "test:e2e:install": "playwright install chromium",

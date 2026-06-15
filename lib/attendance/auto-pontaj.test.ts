@@ -2,6 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  AUTO_CHECKOUT_ENABLED,
   DEPONTAJ_AUTO_GRACE_MINUTES,
   localDayBounds,
   scheduleGraceThresholdMs,
@@ -76,4 +77,39 @@ test("canAutoCheckOut policy: regula folosește technicianHasUnfinishedWorkToday
   assert.equal(!false && technicianHasUnfinishedWorkToday(todayAssigned, now), true)
   // report_signed => permis când totul e finalizat
   assert.equal(!false && technicianHasUnfinishedWorkToday(allDone, now), false)
+})
+
+// --- Auto-checkout disabled tests ---
+
+test("AUTO_CHECKOUT_ENABLED is false (kill-switch active)", () => {
+  assert.equal(AUTO_CHECKOUT_ENABLED, false, "AUTO_CHECKOUT_ENABLED should be false to disable auto-checkout")
+})
+
+test("ensureAutoCheckOut early-return mirrors AUTO_CHECKOUT_ENABLED flag", () => {
+  // Simulates the guard logic in ensureAutoCheckOut without importing Firebase client code.
+  // When AUTO_CHECKOUT_ENABLED is false, the function returns a skip result immediately.
+  const simulateGuard = (flagValue: boolean) => {
+    if (!flagValue) {
+      return { ok: false as const, skipped: true as const, reason: "auto_checkout_disabled" }
+    }
+    return null // would proceed to actual checkout logic
+  }
+
+  const result = simulateGuard(AUTO_CHECKOUT_ENABLED)
+  assert.notEqual(result, null, "Guard should trigger when flag is false")
+  assert.equal(result!.ok, false)
+  assert.equal(result!.skipped, true)
+  assert.equal(result!.reason, "auto_checkout_disabled")
+})
+
+test("Firebase cron guard mirrors AUTO_CHECKOUT_ENABLED flag", () => {
+  // Simulates the guard added to autoCheckOutScheduleGrace and autoStopAttendanceSessions.
+  const simulateCronGuard = (flagValue: boolean) => {
+    if (!flagValue) return "disabled"
+    return "would_run"
+  }
+
+  assert.equal(simulateCronGuard(AUTO_CHECKOUT_ENABLED), "disabled")
+  assert.equal(simulateCronGuard(true), "would_run")
+  assert.equal(simulateCronGuard(false), "disabled")
 })

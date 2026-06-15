@@ -1,3 +1,9 @@
+/**
+ * Global kill-switch for automatic checkout (depontare automată).
+ * Set to `true` to re-enable auto-checkout after root-cause is fixed.
+ */
+export const AUTO_CHECKOUT_ENABLED = false
+
 /** Minutes after programLucruEnd before auto depontaj (ex. 17:00 + 30 = 17:30). */
 export const DEPONTAJ_AUTO_GRACE_MINUTES = 30
 

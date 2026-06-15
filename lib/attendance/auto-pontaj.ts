@@ -9,7 +9,7 @@ import {
   getSessionsForDateRange,
 } from "@/lib/attendance/storage"
 import { getCurrentLocation } from "@/lib/attendance/location"
-import { localDayBounds } from "@/lib/attendance/auto-pontaj-schedule"
+import { AUTO_CHECKOUT_ENABLED, localDayBounds } from "@/lib/attendance/auto-pontaj-schedule"
 import { technicianHasUnfinishedWorkToday, type RemainingWorkTicket } from "@/lib/attendance/remaining-work"
 import { toDateSafe } from "@/lib/utils/time-format"
 import type { AttendanceLocation, AutoPontajReason } from "@/types/attendance"
@@ -140,6 +140,10 @@ export async function ensureAutoCheckOut(params: {
   technicianDisplayName?: string
   forceEndOfDay?: boolean
 }): Promise<AutoPontajResult> {
+  if (!AUTO_CHECKOUT_ENABLED) {
+    return { ok: false, skipped: true, reason: "auto_checkout_disabled" }
+  }
+
   const atMs = params.atMs ?? Date.now()
   const gate = await canAutoCheckOut(params.userId, {
     forceEndOfDay: params.forceEndOfDay,

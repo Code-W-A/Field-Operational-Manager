@@ -2178,6 +2178,13 @@ export const generateScheduledWorks = functions
     return null
   })
 
+/**
+ * Global kill-switch for automatic checkout (depontare automată).
+ * Mirror of AUTO_CHECKOUT_ENABLED in lib/attendance/auto-pontaj-schedule.ts.
+ * Set to `true` to re-enable auto-checkout after root-cause is fixed.
+ */
+const AUTO_CHECKOUT_ENABLED = false
+
 const DEPONTAJ_AUTO_GRACE_MINUTES = 30
 const DEFAULT_PROGRAM_END_ATTENDANCE = "16:30"
 const WORK_STATUS_IN_PROGRESS = "În lucru"
@@ -2259,6 +2266,11 @@ export const autoCheckOutScheduleGrace = functions
   .pubsub.schedule("*/15 17-18 * * *")
   .timeZone(TIMEZONE)
   .onRun(async () => {
+    if (!AUTO_CHECKOUT_ENABLED) {
+      console.log("autoCheckOutScheduleGrace: disabled via AUTO_CHECKOUT_ENABLED flag")
+      return null
+    }
+
     const nowMs = Date.now()
     let totalStopped = 0
 
@@ -2302,6 +2314,11 @@ export const autoStopAttendanceSessions = functions
   .pubsub.schedule("59 23 * * *")
   .timeZone(TIMEZONE)
   .onRun(async () => {
+    if (!AUTO_CHECKOUT_ENABLED) {
+      console.log("autoStopAttendanceSessions: disabled via AUTO_CHECKOUT_ENABLED flag")
+      return null
+    }
+
     const endMs = Date.now()
     let totalStopped = 0
 
