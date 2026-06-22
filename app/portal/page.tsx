@@ -17,6 +17,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, LayoutGrid, Table as TableIcon, Calend
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
+import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 
 export default function ClientPortalPage() {
   const { userData } = useAuth()
@@ -313,10 +314,15 @@ export default function ClientPortalPage() {
             <Card key={w.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = `/portal/${w.id}`}>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">{w.client}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-lg">{w.client}</h3>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Emitent: {getTicketEmitent(w as any)}
+                      </div>
+                    </div>
                     {(() => { const b = getStatusBadge(w.statusLucrare); return (
-                      <Badge className={b.className}>{b.label}</Badge>
+                      <Badge className={`${b.className} shrink-0`}>{b.label}</Badge>
                     )})()}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">

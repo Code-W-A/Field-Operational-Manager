@@ -54,6 +54,19 @@ Conform regulilor de business (primul QR, raport semnat, program + 30 min, 23:59
 
 Implementare: `lib/attendance/auto-pontaj.ts`, extensii `lib/attendance/storage.ts`, audit în `pontaj-audit-log.ts`. Regula de 60s la Stop este **sărită** pentru depontările automate (`skipMinimumDurationCheck`).
 
+#### Politica actuală a depontării automate (kill-switches)
+
+Pentru a evita acumularea de ore la sesiunile uitate deschise (reclamații „li se adună ore”, „în lucru pe 16/19”) avem două comutatoare în `lib/attendance/auto-pontaj-schedule.ts` (oglindite în `firebase-functions/src/index.ts`):
+
+- `AUTO_CHECKOUT_ENABLED = false` — depontarea **agresivă din timpul zilei** (program + 30 min `schedule_grace` și `report_signed`) rămâne **oprită** (poate închide pe cineva încă în lucru).
+- `AUTO_EOD_STOP_ENABLED = true` — **plasa de siguranță la 23:59** (`autoStopAttendanceSessions`) este **activă**: închide orice sesiune rămasă deschisă la final de zi, deci nicio sesiune nu poate traversa mai multe zile.
+
+**Clamp anti-corupere salarii** (`clampSessionEndMs`): o sesiune nu poate înregistra niciodată mai mult decât ziua ei de start. Stop-ul în aceeași zi rămâne neschimbat (inclusiv ture târzii ca 18:00); o sesiune uitată peste noapte se facturează la **ora de final a programului din ziua de start** (fallback 23:59 doar pentru turele care încep după programul de lucru). Aplicat atât în clientul `createCheckOut`, cât și în cron-ul de 23:59.
+
+**Punte de sincronizare** (`onAttendanceCheckoutSync`, Cloud Function `onUpdate` pe `attendance/{id}`): sesiunile închise **automat** (cron) ajung în condică (sincronizarea normală se face doar în client). Idempotentă pentru închiderile manuale. Oglindește `syncAttendanceUserDayToTimesheet` — orice modificare de algoritm trebuie reflectată în ambele locuri.
+
+Teste: `npm run test:auto-pontaj` (include `lib/attendance/clamp-session-end.test.ts`).
+
 Teste: `npm run test:auto-pontaj`
 
 ### 5. Safety Features

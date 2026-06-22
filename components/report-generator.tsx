@@ -233,6 +233,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           semnaturaBeneficiar: lucrare.semnaturaBeneficiar,
           numeTehnician: lucrare.numeTehnician,
           numeBeneficiar: lucrare.numeBeneficiar,
+          // Înghețăm fotografiile defectelor pentru consistență la regenerare
+          imaginiDefecte: (lucrare as any).imaginiDefecte || [],
           dataGenerare: now.toISOString(),
           ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
           ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {})
@@ -798,8 +800,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         currentY += 4 // Redus de la 8 la 4
       }
 
-      // SECȚIUNE ATAȘAMENTE - dezactivată temporar
-      const includeAttachments = false
+      // SECȚIUNE ATAȘAMENTE - fotografiile defectelor adăugate de tehnician
+      const includeAttachments = true
       const imaginiDefecte = includeAttachments ? (lucrareForPDF.imaginiDefecte || []) : []
       if (includeAttachments && imaginiDefecte.length > 0) {
         currentY += 8
@@ -814,20 +816,22 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         doc.line(M, currentY + attachBarH, M + W, currentY + attachBarH)
         doc.setTextColor(sectionTitleColor[0], sectionTitleColor[1], sectionTitleColor[2])
         doc.setFont("NotoSans", "bold").setFontSize(10)
-        doc.text(normalize("Atasamente"), M + 2, currentY + 5)
+        doc.text(normalize("Atasamente - fotografii interventie"), M + 2, currentY + 5)
         currentY += attachBarH + 2
         
         // Calculăm dimensiunile imaginilor
         const imagesPerRow = 4
         const imageGap = 2
+        const captionH = 4 // spațiu sub imagine pentru linkul "Click pentru marire"
         const imageWidth = (W - (imageGap * (imagesPerRow - 1))) / imagesPerRow
         const imageHeight = imageWidth * 0.75 // aspect ratio 4:3
+        const linkColor: [number, number, number] = [37, 99, 235] // albastru pentru link
         
         // Încărcăm și adăugăm imaginile
         let imageIndex = 0
         for (const img of imaginiDefecte) {
           try {
-            checkPageBreak(imageHeight + 10)
+            checkPageBreak(imageHeight + captionH + 10)
             
             // Calculăm poziția X pentru imagine
             const col = imageIndex % imagesPerRow
@@ -835,7 +839,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             
             // Dacă este prima imagine a unui rând nou
             if (col === 0 && imageIndex > 0) {
-              currentY += imageHeight + imageGap + 2
+              currentY += imageHeight + captionH + imageGap + 2
             }
             
             // Adăugăm imaginea
@@ -846,8 +850,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               doc.setLineWidth(0.3)
               doc.rect(xPos, currentY, imageWidth, imageHeight)
               
-              // Încărcăm imaginea
-              const response = await fetch(img.url)
+              // Încărcăm imaginea (mode cors – la fel ca în image-defect-viewer)
+              const response = await fetch(img.url, { mode: "cors" })
               const blob = await response.blob()
               const reader = new FileReader()
               const dataUrl: string = await new Promise((resolve) => {
@@ -858,6 +862,19 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               // Adăugăm imaginea în PDF
               const fmt = (blob.type && blob.type.toLowerCase().includes("png")) ? "PNG" : "JPEG"
               doc.addImage(dataUrl, fmt as any, xPos + 0.5, currentY + 0.5, imageWidth - 1, imageHeight - 1)
+              
+              // Hotspot click peste imagine -> deschide poza mărită în browser
+              doc.link(xPos, currentY, imageWidth, imageHeight, { url: img.url })
+              
+              // Link vizibil sub imagine ("Click pentru marire")
+              const caption = normalize("Click pentru marire")
+              doc.setFont("NotoSans", "normal").setFontSize(7)
+              doc.setTextColor(linkColor[0], linkColor[1], linkColor[2])
+              const capW = doc.getTextWidth(caption)
+              const capX = xPos + Math.max(0, (imageWidth - capW) / 2)
+              const capY = currentY + imageHeight + 3
+              doc.textWithLink(caption, capX, capY, { url: img.url })
+              doc.setTextColor(0, 0, 0)
             }
             
             imageIndex++
@@ -868,8 +885,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         }
         
         // Ajustăm currentY după ultimul rând de imagini
-        const lastRowCount = imageIndex % imagesPerRow || imagesPerRow
-        currentY += imageHeight + 8
+        currentY += imageHeight + captionH + 8
       }
 
       // Înainte de semnături: pentru lucrările tip Revizie listăm echipamentele procesate

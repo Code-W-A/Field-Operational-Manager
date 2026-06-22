@@ -2185,9 +2185,54 @@ export const generateScheduledWorks = functions
  */
 const AUTO_CHECKOUT_ENABLED = false
 
+/**
+ * Plasă de siguranță de sfârșit de zi (23:59). Mirror al `AUTO_EOD_STOP_ENABLED`
+ * din lib/attendance/auto-pontaj-schedule.ts. Sigură: nu închide pe nimeni în
+ * timpul programului, doar sesiunile rămase deschise la final de zi.
+ */
+const AUTO_EOD_STOP_ENABLED = true
+
 const DEPONTAJ_AUTO_GRACE_MINUTES = 30
 const DEFAULT_PROGRAM_END_ATTENDANCE = "16:30"
 const WORK_STATUS_IN_PROGRESS = "În lucru"
+
+function toMillisSafeAttendance(value: any): number | null {
+  if (value == null) return null
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (value instanceof Timestamp) return value.toMillis()
+  if (typeof value?.toMillis === "function") {
+    const ms = Number(value.toMillis())
+    return Number.isFinite(ms) ? ms : null
+  }
+  return null
+}
+
+function endOfLocalDayMsAttendance(referenceMs: number): number {
+  const d = new Date(referenceMs)
+  d.setHours(23, 59, 59, 999)
+  return d.getTime()
+}
+
+/**
+ * Mirror al `forgottenSessionEndMs` din client: ora de final facturată pentru o
+ * sesiune lăsată deschisă peste ziua ei = ora de final a programului din ziua de start.
+ */
+function forgottenSessionEndMsAttendance(sessionStartMs: number, programLucruEnd: string | undefined): number {
+  const programEnd = timeOnSameDayMsAttendance(sessionStartMs, programLucruEnd ?? DEFAULT_PROGRAM_END_ATTENDANCE)
+  if (programEnd > sessionStartMs) return programEnd
+  return endOfLocalDayMsAttendance(sessionStartMs)
+}
+
+/** Mirror al `clampSessionEndMs` din client. */
+function clampSessionEndMsAttendance(
+  sessionStartMs: number,
+  requestedEndMs: number,
+  programLucruEnd: string | undefined,
+): number {
+  if (!Number.isFinite(requestedEndMs)) return forgottenSessionEndMsAttendance(sessionStartMs, programLucruEnd)
+  if (requestedEndMs <= endOfLocalDayMsAttendance(sessionStartMs)) return requestedEndMs
+  return forgottenSessionEndMsAttendance(sessionStartMs, programLucruEnd)
+}
 
 function parseHHmmAttendance(value: string | undefined, fallback: { h: number; m: number }) {
   if (!value) return fallback
@@ -2314,12 +2359,12 @@ export const autoStopAttendanceSessions = functions
   .pubsub.schedule("59 23 * * *")
   .timeZone(TIMEZONE)
   .onRun(async () => {
-    if (!AUTO_CHECKOUT_ENABLED) {
-      console.log("autoStopAttendanceSessions: disabled via AUTO_CHECKOUT_ENABLED flag")
+    if (!AUTO_EOD_STOP_ENABLED) {
+      console.log("autoStopAttendanceSessions: disabled via AUTO_EOD_STOP_ENABLED flag")
       return null
     }
 
-    const endMs = Date.now()
+    const nowMs = Date.now()
     let totalStopped = 0
 
     try {
@@ -2338,9 +2383,17 @@ export const autoStopAttendanceSessions = functions
           const data = d.data() as any
           if (String(data?.status || "") !== "active") continue
 
+          // Facturăm pe ziua de start a sesiunii (nu „acum”), ca să nu acumulăm zile
+          // pentru sesiunile uitate (ex. încă active din 16 sau 19). Stop uitat => ora de final program.
+          const startMs = toMillisSafeAttendance(data?.sessionStart)
+          const programEnd = data?.programLucruEnd ? String(data.programLucruEnd) : DEFAULT_PROGRAM_END_ATTENDANCE
+          const billedEnd = startMs
+            ? clampSessionEndMsAttendance(startMs, nowMs, programEnd)
+            : nowMs
+
           batch.update(
             d.ref,
-            buildAutoCheckoutPatch(data, endMs, { reason: "eod_force", forceEndOfDay: true }),
+            buildAutoCheckoutPatch(data, billedEnd, { reason: "eod_force", forceEndOfDay: true }),
           )
           totalStopped += 1
         }
@@ -2353,6 +2406,311 @@ export const autoStopAttendanceSessions = functions
       console.error("autoStopAttendanceSessions failed", e)
     }
 
+    return null
+  })
+
+/**
+ * Punte de sincronizare Pontaj -> Condică pentru sesiunile închise AUTOMAT (cron 23:59),
+ * care altfel nu ar ajunge în condică (sincronizarea normală se face doar în clientul
+ * `createCheckOut`). Idempotentă: pentru închiderile manuale recalculează același rezultat.
+ *
+ * NOTĂ: oglindește `syncAttendanceUserDayToTimesheet` din lib/attendance/sync-timesheet.ts.
+ * Orice schimbare în algoritmul de calcul trebuie reflectată în ambele locuri.
+ */
+type HMRangeA = { start: string; end: string }
+
+function parseHMminutesA(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim())
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return hh * 60 + mm
+}
+
+function isValidHMRangeA(r: HMRangeA | null | undefined): r is HMRangeA {
+  if (!r) return false
+  const s = parseHMminutesA(r.start)
+  const e = parseHMminutesA(r.end)
+  return s != null && e != null && e > s
+}
+
+function normalizeRangesA(ranges: HMRangeA[]): Array<{ start: number; end: number }> {
+  const items = ranges
+    .map((r) => {
+      const s = parseHMminutesA(r.start)
+      const e = parseHMminutesA(r.end)
+      if (s == null || e == null || e <= s) return null
+      return { start: s, end: e }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number }>
+  if (items.length <= 1) return items
+  items.sort((a, b) => a.start - b.start || a.end - b.end)
+  const merged: Array<{ start: number; end: number }> = []
+  for (const it of items) {
+    const last = merged[merged.length - 1]
+    if (!last || it.start >= last.end) {
+      merged.push({ start: it.start, end: it.end })
+      continue
+    }
+    last.end = Math.max(last.end, it.end)
+  }
+  return merged
+}
+
+function overlapMinutesA(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+  return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart))
+}
+
+function calcEffectiveMinutesA(params: { entries: HMRangeA[]; breaks?: HMRangeA[] | null; defaultBreak?: HMRangeA | null }): number {
+  const entryRanges = normalizeRangesA(params.entries || [])
+  if (!entryRanges.length) return 0
+  const entryMinutes = entryRanges.reduce((sum, r) => sum + (r.end - r.start), 0)
+  const manualBreaks = normalizeRangesA(Array.isArray(params.breaks) ? params.breaks : [])
+  const breaksToUse =
+    manualBreaks.length > 0
+      ? manualBreaks
+      : isValidHMRangeA(params.defaultBreak ?? undefined)
+        ? normalizeRangesA([params.defaultBreak as HMRangeA])
+        : []
+  if (!breaksToUse.length) return entryMinutes
+  let breakOverlap = 0
+  for (const b of breaksToUse) {
+    for (const e of entryRanges) {
+      breakOverlap += overlapMinutesA(e.start, e.end, b.start, b.end)
+    }
+  }
+  return Math.max(0, entryMinutes - breakOverlap)
+}
+
+function normalizeNonOverlappingEntriesA(entries: any[]): any[] {
+  const withRanges = entries
+    .map((e) => {
+      const s = parseHMminutesA(e.start)
+      const en = parseHMminutesA(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { entry: e, start: s, end: en }
+    })
+    .filter(Boolean) as Array<{ entry: any; start: number; end: number }>
+  if (withRanges.length <= 1) return withRanges.map((r) => r.entry)
+  withRanges.sort((a, b) => a.start - b.start || a.end - b.end)
+  const result: typeof withRanges = []
+  for (const item of withRanges) {
+    const last = result[result.length - 1]
+    if (!last || item.start >= last.end) result.push(item)
+  }
+  return result.map((r) => r.entry)
+}
+
+function filterOverlappingEntriesA(existing: any[], incoming: any[]): any[] {
+  const existingRanges = existing
+    .map((e) => {
+      const s = parseHMminutesA(e.start)
+      const en = parseHMminutesA(e.end)
+      if (s == null || en == null || s >= en) return null
+      return { start: s, end: en }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number }>
+  if (!existingRanges.length) return incoming
+  return incoming.filter((e) => {
+    const s = parseHMminutesA(e.start)
+    const en = parseHMminutesA(e.end)
+    if (s == null || en == null || s >= en) return false
+    return !existingRanges.some((ex) => s < ex.end && ex.start < en)
+  })
+}
+
+function formatTimeHMA(ms: number): string {
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+function normalizeNameA(input: string): string {
+  return String(input || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+async function getEmployeeIdForUserA(userId: string, opts?: { userName?: string; employeeId?: string }): Promise<string | null> {
+  try {
+    if (opts?.employeeId) return String(opts.employeeId)
+    const byUid = await db.collection("hrEmployees").where("userUid", "==", userId).limit(1).get()
+    if (!byUid.empty) return byUid.docs[0].id
+    let displayName = String(opts?.userName || "").trim()
+    if (!displayName) {
+      const u = await db.collection("users").doc(userId).get()
+      if (u.exists) displayName = String((u.data() as any)?.displayName || "").trim()
+    }
+    if (!displayName) return null
+    const target = normalizeNameA(displayName)
+    if (!target) return null
+    const all = await db.collection("hrEmployees").get()
+    for (const emp of all.docs) {
+      const d = emp.data() as any
+      const fullName = `${d.prenume || ""} ${d.nume || ""}`.trim()
+      const rev = `${d.nume || ""} ${d.prenume || ""}`.trim()
+      const legacy = String(d.fullName || "").trim()
+      if ([fullName, rev, legacy].filter(Boolean).some((c) => normalizeNameA(c) === target)) return emp.id
+    }
+    return null
+  } catch (e) {
+    console.error("getEmployeeIdForUserA failed", e)
+    return null
+  }
+}
+
+async function getEmployeeDefaultBreakA(employeeId: string): Promise<HMRangeA | null> {
+  let defStart: string | undefined
+  let defEnd: string | undefined
+  try {
+    const s = await db.collection("hrSettings").doc("defaults").get()
+    if (s.exists) {
+      const d = s.data() as any
+      defStart = d?.pauzaStart ? String(d.pauzaStart) : undefined
+      defEnd = d?.pauzaEnd ? String(d.pauzaEnd) : undefined
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const e = await db.collection("hrEmployees").doc(employeeId).get()
+    const d = e.exists ? (e.data() as any) : null
+    const r = { start: String(d?.pauzaStart || defStart || "").trim(), end: String(d?.pauzaEnd || defEnd || "").trim() }
+    return isValidHMRangeA(r) ? r : null
+  } catch {
+    const r = { start: String(defStart || "").trim(), end: String(defEnd || "").trim() }
+    return isValidHMRangeA(r) ? r : null
+  }
+}
+
+async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hints: { employeeId?: string; userName?: string }): Promise<void> {
+  const date = new Date(dayRefMs)
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(date)
+  end.setHours(23, 59, 59, 999)
+  const day = date.getDate()
+  const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+  const dayKey = String(day)
+
+  const snap = await db
+    .collection("attendance")
+    .where("userId", "==", userId)
+    .where("sessionStart", ">=", Timestamp.fromDate(start))
+    .where("sessionStart", "<=", Timestamp.fromDate(end))
+    .where("status", "==", "completed")
+    .get()
+
+  const sessions = snap.docs
+    .map((d) => {
+      const data = d.data() as any
+      return {
+        id: d.id,
+        ...data,
+        sessionStart: toMillisSafeAttendance(data.sessionStart) ?? 0,
+        sessionEnd: toMillisSafeAttendance(data.sessionEnd) ?? undefined,
+      }
+    })
+    .filter((s) => Boolean(s.sessionEnd))
+    .sort((a, b) => a.sessionStart - b.sessionStart)
+
+  if (!sessions.length) return
+
+  const employeeId = await getEmployeeIdForUserA(userId, {
+    employeeId: hints.employeeId || (sessions[0] as any)?.employeeId,
+    userName: hints.userName || (sessions[0] as any)?.userName,
+  })
+  if (!employeeId) {
+    console.warn("syncAttendanceUserDayAdmin: no employee for", userId)
+    return
+  }
+
+  const ref = db.collection("hrTimesheets").doc(`${employeeId}_${monthKey}`)
+  const existingSnap = await ref.get()
+  const existingDay = existingSnap.exists ? ((existingSnap.data() as any)?.days?.[dayKey]) : undefined
+  const existingCode = existingDay?.code as string | undefined
+  if (existingCode === "CO" || existingCode === "CFP" || existingCode === "CM" || existingCode === "IN") {
+    console.log("syncAttendanceUserDayAdmin: protected day, skip", { employeeId, dayKey, existingCode })
+    return
+  }
+
+  const computedEntries: any[] = []
+  for (const s of sessions) {
+    if (!s.sessionEnd) continue
+    computedEntries.push({
+      start: formatTimeHMA(s.sessionStart),
+      end: formatTimeHMA(s.sessionEnd),
+      methodStart: `Play (${s.mode})`,
+      methodEnd: `Stop (${s.checkOutMode || s.mode})`,
+      project: "Pontaj",
+      attendanceSessionId: s.id,
+      ...(s.checkInSelfieUrl ? { selfieStartUrl: s.checkInSelfieUrl } : {}),
+      ...(s.checkOutSelfieUrl ? { selfieEndUrl: s.checkOutSelfieUrl } : {}),
+      ...(Number(s.lateStartMinutes) ? { lateStartMinutes: Number(s.lateStartMinutes) } : {}),
+    })
+    for (const log of s.extraTimeLogs || []) {
+      if (!log?.endTime) continue
+      computedEntries.push({
+        start: formatTimeHMA(log.startTime),
+        end: formatTimeHMA(log.endTime),
+        methodStart: "Extra",
+        methodEnd: "Extra",
+        project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
+      })
+    }
+  }
+
+  const pontajProjects = new Set(["Pontaj", "Traseu către client", "Traseu către casă"])
+  const preservedEntries = (existingDay?.entries ?? []).filter((e: any) => !pontajProjects.has(String(e.project ?? "")))
+  const normalizedComputed = normalizeNonOverlappingEntriesA(computedEntries)
+  const safeComputed = filterOverlappingEntriesA(preservedEntries, normalizedComputed)
+  const defaultBreak = await getEmployeeDefaultBreakA(employeeId)
+  const totalMinutesEffective = calcEffectiveMinutesA({
+    entries: safeComputed as any,
+    breaks: (existingDay?.breaks ?? null) as any,
+    defaultBreak,
+  })
+  const totalHours = Math.round((totalMinutesEffective / 60) * 100) / 100
+  const code = existingCode === "DEL" || existingCode === "WE" || existingCode === "SL" ? existingCode : "WORK"
+  const cell: any = {
+    code,
+    hours: totalHours,
+    entries: [...preservedEntries, ...safeComputed],
+    ...(existingDay?.breaks ? { breaks: existingDay.breaks } : {}),
+  }
+
+  await ref.set(
+    { employeeId, monthKey, updatedAt: FieldValue.serverTimestamp(), days: { [dayKey]: cell } },
+    { merge: true },
+  )
+  console.log("syncAttendanceUserDayAdmin: synced", { employeeId, monthKey, day, sessions: sessions.length, totalHours })
+}
+
+export const onAttendanceCheckoutSync = functions
+  .region(REGION)
+  .firestore.document("attendance/{sessionId}")
+  .onUpdate(async (change) => {
+    try {
+      const before = change.before.data() as any
+      const after = change.after.data() as any
+      if (!after) return null
+      const becameCompleted = String(before?.status || "") !== "completed" && String(after?.status || "") === "completed"
+      if (!becameCompleted) return null
+      const userId = String(after?.userId || "")
+      if (!userId) return null
+      const startMs = toMillisSafeAttendance(after?.sessionStart)
+      if (!startMs) return null
+      await syncAttendanceUserDayAdmin(userId, startMs, {
+        employeeId: after?.employeeId ? String(after.employeeId) : undefined,
+        userName: after?.userName ? String(after.userName) : undefined,
+      })
+    } catch (e) {
+      console.error("onAttendanceCheckoutSync failed", e)
+    }
     return null
   })
 

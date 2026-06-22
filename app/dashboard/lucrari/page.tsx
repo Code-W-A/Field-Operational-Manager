@@ -67,6 +67,7 @@ import {
   getWorkTypeClass,
   getEquipmentStatusClass,
 } from "@/lib/utils/constants"
+import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
@@ -2596,6 +2597,16 @@ export default function Lucrari() {
       },
     },
     {
+      id: "emitent",
+      accessorFn: (row) => getTicketEmitent(row),
+      header: "Emitent",
+      enableHiding: true,
+      enableFiltering: true,
+      cell: ({ row }) => (
+        <span className="text-sm">{getTicketEmitent(row.original)}</span>
+      ),
+    },
+    {
       accessorKey: "statusLucrare",
       header: "Status Tichet",
       enableHiding: true,
@@ -3418,8 +3429,15 @@ export default function Lucrari() {
                     <div className="md:hidden p-4 space-y-3">
                       {/* Header: Client + Status Badges (ascuns pentru tehnician) */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="text-lg font-bold text-gray-900 line-clamp-2">
-                          {lucrare.client || "-"}
+                        <div className="min-w-0">
+                          <div className="text-lg font-bold text-gray-900 line-clamp-2">
+                            {lucrare.client || "-"}
+                          </div>
+                          {!isTechnician && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Emitent: {getTicketEmitent(lucrare)}
+                            </div>
+                          )}
                         </div>
                         {!isTechnician && (
                           <div className="flex flex-col gap-1.5 items-end shrink-0">
@@ -3503,8 +3521,15 @@ export default function Lucrari() {
                     <div className="hidden md:block p-4 space-y-3">
                       {/* Header: Client + Status Badges (ascuns pentru tehnician) */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="text-lg font-bold text-gray-900 line-clamp-2">
-                          {lucrare.client || "-"}
+                        <div className="min-w-0">
+                          <div className="text-lg font-bold text-gray-900 line-clamp-2">
+                            {lucrare.client || "-"}
+                          </div>
+                          {!isTechnician && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Emitent: {getTicketEmitent(lucrare)}
+                            </div>
+                          )}
                         </div>
                         {!isTechnician && (
                           <div className="flex flex-col gap-1.5 items-end shrink-0">

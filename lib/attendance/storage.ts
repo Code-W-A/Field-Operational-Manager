@@ -27,6 +27,7 @@ import type {
 } from "@/types/attendance"
 import type { Employee, HrDefaults } from "@/lib/hr/types"
 import { calculateHomeRouteMinutes } from "@/lib/attendance/extra-time"
+import { clampSessionEndMs } from "@/lib/attendance/auto-pontaj-schedule"
 import { syncAttendanceUserDayToTimesheet, type UserDaySyncResult } from "@/lib/attendance/sync-timesheet"
 import { logPontajCondicaSyncError, logPontajPlay, logPontajStop } from "@/lib/attendance/pontaj-audit-log"
 
@@ -447,7 +448,12 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
 
   const programLucruStart = raw.programLucruStart ? String(raw.programLucruStart) : DEFAULT_PROGRAM_START
   const programLucruEnd = raw.programLucruEnd ? String(raw.programLucruEnd) : DEFAULT_PROGRAM_END
-  const extraTimeLogs = finalizeOpenExtraTimeLogs({ session: raw, now, programLucruStart, programLucruEnd })
+
+  // Anti-corupere salarii: o sesiune uitată deschisă peste ziua ei nu poate înregistra
+  // mai mult decât ziua de start. Pentru astfel de sesiuni facturăm la ora de final a programului.
+  const effectiveEnd = clampSessionEndMs(sessionStart, now, programLucruEnd)
+
+  const extraTimeLogs = finalizeOpenExtraTimeLogs({ session: raw, now: effectiveEnd, programLucruStart, programLucruEnd })
 
   const withoutUndefined = (obj: Record<string, any>) =>
     Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
@@ -455,7 +461,7 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
   await updateDoc(
     sessionRef,
     withoutUndefined({
-      sessionEnd: Timestamp.fromMillis(now),
+      sessionEnd: Timestamp.fromMillis(effectiveEnd),
       status: "completed",
       checkOutMode: request.mode,
       checkOutLocation: request.location,
@@ -478,7 +484,9 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     userId: sessionData.userId,
     employeeId: (sessionData as any)?.employeeId,
     sessionStart,
-    sessionEnd: now,
+    sessionEnd: effectiveEnd,
+    requestedEnd: now,
+    clamped: effectiveEnd !== now,
     extraTimeLogs: Array.isArray(extraTimeLogs) ? extraTimeLogs.length : 0,
   })
 
@@ -488,7 +496,7 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     employeeId: (sessionData as any)?.employeeId,
     sessionId: request.sessionId,
     sessionStartMs: sessionStart,
-    sessionEndMs: now,
+    sessionEndMs: effectiveEnd,
     auto: request.checkOutAuto,
     reason: request.checkOutAutoReason,
   })

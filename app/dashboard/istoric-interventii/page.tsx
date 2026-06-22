@@ -18,6 +18,7 @@ import { ClampedText } from "@/components/history/clamped-text"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
+import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { FilterButton } from "@/components/filter-button"
@@ -45,6 +46,7 @@ type HistoryRow = {
   constatareLaLocatie?: string
   descriereInterventie?: string
   durataInterventie?: string
+  emitent?: string
 }
 
 const extractNr = (value?: string | null) => {
@@ -132,6 +134,7 @@ function buildHistorySearchHaystack(row: HistoryRow) {
     row.locatie,
     equipmentText,
     row.client,
+    row.emitent,
     (row.tehnicieni || []).join(" "),
     row.defectReclamat,
     row.constatareLaLocatie,
@@ -258,6 +261,7 @@ export default function IstoricInterventiiPage() {
         constatareLaLocatie: w.constatareLaLocatie,
         descriereInterventie: w.descriereInterventie,
         durataInterventie: durata,
+        emitent: getTicketEmitent(w),
       }
     })
 
@@ -579,6 +583,17 @@ export default function IstoricInterventiiPage() {
         meta: {
           thClassName: "w-[170px] max-w-[170px] px-2",
           tdClassName: "w-[170px] max-w-[170px] px-2",
+        },
+      },
+      {
+        accessorKey: "emitent",
+        header: "Emitent",
+        cell: ({ row }) => (
+          <ClampedText text={row.original.emitent || "Necunoscut"} lines={2} className="max-w-full" />
+        ),
+        meta: {
+          thClassName: "w-[140px] max-w-[140px] px-2",
+          tdClassName: "w-[140px] max-w-[140px] px-2",
         },
       },
       {
@@ -957,7 +972,10 @@ export default function IstoricInterventiiPage() {
               tableClassName="table-fixed w-full"
               enablePagination={true}
               initialPageSize={10}
-              onRowClick={(row) => setSelectedId((row as any)?.id || null)}
+              onRowClick={(row) => {
+                const id = (row as any)?.id
+                if (id) router.push(`/dashboard/lucrari/${id}`)
+              }}
               getRowClassName={(row) =>
                 selectedId && (row as any)?.id === selectedId
                   ? "bg-blue-50 border-l-4 border-blue-600"
@@ -1001,7 +1019,11 @@ export default function IstoricInterventiiPage() {
             </div>
 
             {pagedCardRows.map((r) => (
-              <Card key={r.id} className="border-gray-200">
+              <Card
+                key={r.id}
+                className="border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => router.push(`/dashboard/lucrari/${r.id}`)}
+              >
                 <CardHeader className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1028,8 +1050,11 @@ export default function IstoricInterventiiPage() {
                       <div className="text-sm text-gray-900">
                         <span className="font-medium">Tehnicieni:</span> {(r.tehnicieni || []).join(", ") || "-"}
                       </div>
+                      <div className="text-sm text-gray-900">
+                        <span className="font-medium">Emitent:</span> {r.emitent || "Necunoscut"}
+                      </div>
                     </div>
-                    <Button asChild size="sm" variant="outline" className="shrink-0">
+                    <Button asChild size="sm" variant="outline" className="shrink-0" onClick={(e) => e.stopPropagation()}>
                       <Link href={`/dashboard/lucrari/${r.id}`}>Vezi tichetul</Link>
                     </Button>
                   </div>

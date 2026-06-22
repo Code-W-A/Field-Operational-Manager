@@ -90,6 +90,7 @@ import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
 import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
 import { generateDevizPdf } from "@/lib/utils/offer-pdf"
+import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 
 const debugClient = (...args: any[]) => {
   // eslint-disable-next-line no-console
@@ -3823,7 +3824,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   {role !== "tehnician" && (
     <div className="mb-4">
       <div className="text-base font-semibold mb-2">Statusuri</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 w-full">
+        <div className="flex flex-col">
+          <span className="text-xs text-muted-foreground">Emitent:</span>
+          <span className="mt-0.5">
+            <Badge variant="outline" className="rounded-md">
+              {getTicketEmitent(lucrare)}
+            </Badge>
+          </span>
+        </div>
         <div className="flex flex-col">
           <span className="text-xs text-muted-foreground">Tichet:</span>
           {role === "admin" ? (

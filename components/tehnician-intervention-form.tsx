@@ -520,9 +520,10 @@ export function TehnicianInterventionForm({
         if (imageToDelete?.url) {
           try {
             // Extragem path-ul din URL pentru ștergere din Storage
-            const pathMatch = imageToDelete.url.match(/lucrari%2F[^?]+/)
+            // Upload-ul folosește `tichete/{id}/imagini_defecte/...`; acceptăm și `lucrari/` ca fallback pt date vechi
+            const pathMatch = imageToDelete.url.match(/(?:tichete|lucrari)%2F[^?]+/)
             if (pathMatch) {
-              const storagePath = decodeURIComponent(pathMatch[0].replace(/%2F/g, '/'))
+              const storagePath = decodeURIComponent(pathMatch[0])
               await deleteFile(storagePath)
               console.log(`🗑️ Șters din Storage: ${imageToDelete.fileName}`)
             }

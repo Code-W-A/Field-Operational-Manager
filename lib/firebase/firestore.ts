@@ -175,6 +175,13 @@ export interface Lucrare {
     semnaturaBeneficiar?: string
     numeTehnician?: string
     numeBeneficiar?: string
+    imaginiDefecte?: Array<{
+      url: string
+      fileName: string
+      uploadedAt: string
+      uploadedBy: string
+      compressed: boolean
+    }>
     dataGenerare: string // când a fost generat prima dată
     // Feedback client înghețat în snapshot
     clientRating?: number
