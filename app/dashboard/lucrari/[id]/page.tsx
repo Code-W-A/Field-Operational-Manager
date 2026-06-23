@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -56,6 +56,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
+import { ReportGenerator } from "@/components/report-generator"
 import { ImageDefectViewer } from "@/components/image-defect-viewer"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
@@ -1224,6 +1225,34 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     [router],
   )
 
+  const reportGeneratorRef = useRef<HTMLButtonElement>(null)
+
+  const handleReportPdfDownload = useCallback(
+    (blob: Blob) => {
+      const url = URL.createObjectURL(blob)
+      const fileName = `Raport_${lucrare?.nrLucrare || lucrare?.numarRaport || lucrare?.id || "tichet"}.pdf`
+      const a = document.createElement("a")
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    },
+    [lucrare?.id, lucrare?.nrLucrare, lucrare?.numarRaport],
+  )
+
+  /** Descarcă raportul generat — același mecanism ca butonul din secțiunea „Documente PDF”. */
+  const handleDownloadReport = useCallback(() => {
+    if (!lucrare?.raportGenerat || !lucrare?.id) return
+    reportGeneratorRef.current?.click()
+    toast({
+      title: "Descărcare raport",
+      description: "Raportul se va descărca automat...",
+      variant: "default",
+    })
+  }, [lucrare?.id, lucrare?.raportGenerat, toast])
+
   // Modificăm funcția handleGenerateReport pentru a descărca direct raportul dacă este generat
   const handleGenerateReport = useCallback(() => {
     if (!lucrare?.id) {
@@ -1258,27 +1287,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       return
     }
 
-    // Dacă raportul este deja generat, deschidem direct într-un tab nou (mai fiabil pentru download)
-    const downloadUrl = `/raport/${lucrare.id}?autoDownload=true`
-    try {
-      window.open(downloadUrl, "_blank", "noopener")
-    } catch {
-      // fallback ancoră
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.target = '_blank'
-      link.rel = 'noopener'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
-    
-    toast({
-      title: "Descărcare raport",
-      description: "Raportul se va descărca automat...",
-      variant: "default",
-    })
-  }, [router, lucrare, toast, revizieEquipmentIds])
+    // Raport deja generat: descărcare în pagină (ReportGenerator ascuns), ca în „Documente PDF”.
+    handleDownloadReport()
+  }, [router, lucrare, toast, revizieEquipmentIds, handleDownloadReport])
 
   // Funcție pentru a reîncărca datele lucrării
   // Important UX: toast "Actualizat" doar pentru acțiuni explicite (ex: salvare), nu la refresh automat (ex: focus).
@@ -1792,17 +1803,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   // --- UTILITARE DESCĂRCĂRI CLIENT ---
   const handleClientDownloadReport = useCallback(() => {
-    if (!lucrare?.raportGenerat || !lucrare?.id) return
-    const url = `/raport/${lucrare.id}?autoDownload=true`
-    try {
-      // IMPORTANT: nu folosim atributul `download` pe un URL care servește HTML,
-      // altfel browserul va descărca pagina ca .html în loc să ruleze JS-ul care generează PDF-ul.
-      window.open(url, "_blank", "noopener")
-    } catch {
-      window.open(url, "_blank", "noopener")
-    }
-    toast({ title: "Descărcare raport", description: "Raportul se va descărca automat..." })
-  }, [lucrare?.id, lucrare?.raportGenerat, toast])
+    handleDownloadReport()
+  }, [handleDownloadReport])
 
   const handleClientDownloadEquipmentSheet = useCallback(
     async (equipmentId: string, equipmentLabel?: string, headerOverride?: string) => {
@@ -2065,6 +2067,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   return (
     <TooltipProvider>
       <DashboardShell>
+        {/* Generator ascuns — descărcare raport fără navigare (folosit de butonul de sus și de client). */}
+        {lucrare?.raportGenerat && (
+          <div className="hidden" aria-hidden="true">
+            <ReportGenerator
+              lucrare={lucrare as any}
+              onGenerate={handleReportPdfDownload}
+              ref={reportGeneratorRef}
+            />
+          </div>
+        )}
+
         {/* Dialog debug: doar admin */}
         {isAdmin && revizieReportDebug && (
           <Dialog open={isRevizieDebugDialogOpen} onOpenChange={setIsRevizieDebugDialogOpen}>
@@ -2135,23 +2148,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
           {/* Raport: ascuns pentru rol client (au secțiune dedicată mai jos) */}
           {lucrare.raportGenerat && role !== "client" && (
-            <Button
-              onClick={() => {
-                const url = `/raport/${lucrare.id}?autoDownload=true`
-                try {
-                  window.open(url, "_blank", "noopener")
-                } catch {
-                  const a = document.createElement("a")
-                  a.href = url
-                  a.target = "_blank"
-                  a.rel = "noopener"
-                  document.body.appendChild(a)
-                  a.click()
-                  document.body.removeChild(a)
-                }
-                toast({ title: "Descărcare raport", description: "Raportul se va descărca automat..." })
-              }}
-            >
+            <Button onClick={handleDownloadReport}>
               <FileText className="mr-2 h-4 w-4" /> Descarcă raport
             </Button>
           )}

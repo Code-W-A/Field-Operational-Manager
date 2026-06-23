@@ -1187,6 +1187,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       })
       
       onGenerate?.(blob)
+      // Raport deja existent: permite descărcări repetate (buton „Descarcă raport”).
+      if (lucrare.raportGenerat) {
+        setHasGenerated(false)
+      }
       return blob
     } catch (e) {
       console.error("Error generating PDF:", e)
