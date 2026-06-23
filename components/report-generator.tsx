@@ -37,6 +37,78 @@ const formatRomanianVat = (raw?: string) => {
   return `RO${rest}`
 }
 
+/**
+ * Încarcă o imagine (URL Firebase Storage) și o normalizează la un dataURL JPEG,
+ * potrivit pentru `jsPDF.addImage`.
+ *
+ * De ce așa:
+ * - Trecem prin proxy-ul same-origin `/api/image-proxy` ca să evităm erorile CORS
+ *   (cauza cadrelor goale din raport când bucket-ul nu trimite anteturi CORS).
+ * - Desenăm pe canvas și exportăm JPEG, ca jsPDF să primească mereu un format
+ *   suportat (rezolvă și pozele webp/heic făcute de telefoane).
+ *
+ * Întoarce `null` dacă imaginea chiar nu poate fi încărcată (apelantul desenează un fallback).
+ */
+async function loadImageAsJpegDataUrl(rawUrl: string): Promise<string | null> {
+  if (!rawUrl) return null
+
+  // Dacă deja avem un dataURL (ex. semnături), îl folosim direct.
+  if (rawUrl.startsWith("data:")) return rawUrl
+
+  const proxied = `/api/image-proxy?url=${encodeURIComponent(rawUrl)}`
+
+  const fetchBlob = async (src: string): Promise<Blob | null> => {
+    try {
+      const res = await fetch(src, { cache: "no-store" })
+      if (!res.ok) return null
+      const blob = await res.blob()
+      if (!blob || !blob.type.startsWith("image/")) return null
+      return blob
+    } catch {
+      return null
+    }
+  }
+
+  // 1) proxy same-origin; 2) fallback direct (în caz că bucket-ul are totuși CORS).
+  const blob = (await fetchBlob(proxied)) || (await fetchBlob(rawUrl))
+  if (!blob) return null
+
+  const objectUrl = URL.createObjectURL(blob)
+  try {
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      const image = new Image()
+      // blob: este same-origin, deci canvas-ul NU devine "tainted".
+      image.onload = () => {
+        try {
+          const naturalW = image.naturalWidth || image.width
+          const naturalH = image.naturalHeight || image.height
+          if (!naturalW || !naturalH) return resolve(null)
+          // Limităm dimensiunea ca să nu umflăm PDF-ul (max ~1000px pe latura mare).
+          const maxSide = 1000
+          const scale = Math.min(1, maxSide / Math.max(naturalW, naturalH))
+          const canvas = document.createElement("canvas")
+          canvas.width = Math.max(1, Math.round(naturalW * scale))
+          canvas.height = Math.max(1, Math.round(naturalH * scale))
+          const ctx = canvas.getContext("2d")
+          if (!ctx) return resolve(null)
+          // Fundal alb pentru transparență (PNG) -> JPEG fără negru.
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+          resolve(canvas.toDataURL("image/jpeg", 0.85))
+        } catch {
+          resolve(null)
+        }
+      }
+      image.onerror = () => resolve(null)
+      image.src = objectUrl
+    })
+    return dataUrl
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
 // A4 portrait: 210×297 mm
 const M = 7 // page margin (reduced for more content space)
 const W = 210 - 2 * M // content width
@@ -849,37 +921,42 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
               doc.setDrawColor(0, 0, 0)
               doc.setLineWidth(0.3)
               doc.rect(xPos, currentY, imageWidth, imageHeight)
-              
-              // Încărcăm imaginea (mode cors – la fel ca în image-defect-viewer)
-              const response = await fetch(img.url, { mode: "cors" })
-              const blob = await response.blob()
-              const reader = new FileReader()
-              const dataUrl: string = await new Promise((resolve) => {
-                reader.onload = () => resolve(reader.result as string)
-                reader.readAsDataURL(blob)
-              })
-              
-              // Adăugăm imaginea în PDF
-              const fmt = (blob.type && blob.type.toLowerCase().includes("png")) ? "PNG" : "JPEG"
-              doc.addImage(dataUrl, fmt as any, xPos + 0.5, currentY + 0.5, imageWidth - 1, imageHeight - 1)
-              
-              // Hotspot click peste imagine -> deschide poza mărită în browser
-              doc.link(xPos, currentY, imageWidth, imageHeight, { url: img.url })
-              
-              // Link vizibil sub imagine ("Click pentru marire")
-              const caption = normalize("Click pentru marire")
-              doc.setFont("NotoSans", "normal").setFontSize(7)
-              doc.setTextColor(linkColor[0], linkColor[1], linkColor[2])
-              const capW = doc.getTextWidth(caption)
-              const capX = xPos + Math.max(0, (imageWidth - capW) / 2)
-              const capY = currentY + imageHeight + 3
-              doc.textWithLink(caption, capX, capY, { url: img.url })
-              doc.setTextColor(0, 0, 0)
+
+              // Încărcăm și normalizăm imaginea la JPEG (gestionează CORS + formate webp/heic).
+              const jpegDataUrl = await loadImageAsJpegDataUrl(img.url)
+              if (jpegDataUrl) {
+                // Adăugăm imaginea în PDF
+                doc.addImage(jpegDataUrl, "JPEG", xPos + 0.5, currentY + 0.5, imageWidth - 1, imageHeight - 1)
+
+                // Hotspot click peste imagine -> deschide poza mărită în browser
+                doc.link(xPos, currentY, imageWidth, imageHeight, { url: img.url })
+
+                // Link vizibil sub imagine ("Click pentru marire")
+                const caption = normalize("Click pentru marire")
+                doc.setFont("NotoSans", "normal").setFontSize(7)
+                doc.setTextColor(linkColor[0], linkColor[1], linkColor[2])
+                const capW = doc.getTextWidth(caption)
+                const capX = xPos + Math.max(0, (imageWidth - capW) / 2)
+                const capY = currentY + imageHeight + 3
+                doc.textWithLink(caption, capX, capY, { url: img.url })
+                doc.setTextColor(0, 0, 0)
+              } else {
+                // Fallback grafic: dacă imaginea chiar nu poate fi încărcată, marcăm vizibil cadrul
+                // și păstrăm linkul, ca raportul să nu pară "gol".
+                doc.setFont("NotoSans", "normal").setFontSize(7)
+                doc.setTextColor(120, 120, 120)
+                const fb = normalize("Imagine indisponibila - deschide online")
+                const fbLines = doc.splitTextToSize(fb, imageWidth - 2)
+                doc.text(fbLines, xPos + imageWidth / 2, currentY + imageHeight / 2, { align: "center" })
+                doc.link(xPos, currentY, imageWidth, imageHeight, { url: img.url })
+                doc.setTextColor(0, 0, 0)
+              }
             }
             
             imageIndex++
           } catch (error) {
             console.error("Error loading image:", error)
+            imageIndex++
             // Continuăm cu următoarea imagine
           }
         }
