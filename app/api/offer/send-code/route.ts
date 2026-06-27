@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server"
 import nodemailer from "nodemailer"
 import { adminDb } from "@/lib/firebase/admin"
 import { getEmailFrom } from "@/lib/email/from"
+import { logEmailEventServer } from "@/lib/email/email-events.server"
+import { hashOfferEmailBody, logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
@@ -281,6 +283,36 @@ export async function POST(req: NextRequest) {
       details: "Codul de verificare a fost trimis.",
       meta: { route: "/api/offer/send-code", version: txResult.version },
     })
+
+    let emailEventId: string | null = null
+    try {
+      emailEventId = await logEmailEventServer({
+        type: "OFFER_CODE",
+        lucrareId: workId,
+        to: [cleanEmail],
+        subject,
+        status: "sent",
+        provider: "smtp",
+        meta: { route: "/api/offer/send-code", version: txResult.version },
+      })
+    } catch {
+      /* non-blocking */
+    }
+
+    await logOfferEvent(
+      {
+        type: "OFFER_CODE_SENT",
+        source: "lucrari",
+        status: "sent",
+        lucrareId: workId,
+        actorType: "portal_client",
+        email: cleanEmail,
+        token: providedToken,
+        emailBodyHtml: html,
+        payload: { version: txResult.version, emailEventId, emailBodyHash: await hashOfferEmailBody(html) },
+      },
+      req,
+    )
 
     return NextResponse.json({
       status: "sent",

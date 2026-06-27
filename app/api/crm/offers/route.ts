@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin"
 import { logFirestoreIndexHintIfPresent } from "@/lib/firebase/firestore-index-hint.server"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
 import { hasOpportunityEditAccess, hasOpportunityViewAccess } from "@/lib/crm/access"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import type { CrmOfferProduct, CrmOfferSnapshot } from "@/lib/crm/types"
 
 function normalizeString(value: unknown) {
@@ -294,6 +295,18 @@ export async function POST(request: NextRequest) {
         { merge: true }
       )
 
+      await logOfferEvent({
+        type: "OFFER_PREPARED",
+        source: "crm",
+        status: "draft_saved",
+        offerId,
+        opportunityId,
+        actorId: session.uid,
+        actorType: "staff",
+        snapshot,
+        payload: { version: Math.max(1, Number(offerData.version || 0)) },
+      })
+
       return NextResponse.json({
         ok: true,
         offerId,
@@ -316,6 +329,18 @@ export async function POST(request: NextRequest) {
       createdById,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
+    })
+
+    await logOfferEvent({
+      type: "OFFER_PREPARED",
+      source: "crm",
+      status: "draft_created",
+      offerId: newOfferRef.id,
+      opportunityId,
+      actorId: createdById,
+      actorType: "staff",
+      snapshot,
+      payload: { version },
     })
 
     return NextResponse.json({ ok: true, offerId: newOfferRef.id, version })

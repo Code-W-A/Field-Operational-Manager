@@ -28,8 +28,8 @@ import { collection, query, where, orderBy, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/firebase"
 import { formatDate } from "@/lib/utils/date-formatter"
 import { formatDateTime, toDateSafe } from "@/lib/utils/time-format"
-import { getWorkStatusClass } from "@/lib/utils/status-classes"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { getLucrareDisplayStatus, getLucrareStatusClass, isLucrareAnulata } from "@/lib/utils/work-canceled"
 import { updateLucrare, type Lucrare } from "@/lib/firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -402,6 +402,16 @@ export default function LucrariArhivate() {
 
   // Funcție pentru dezarhivare
   const handleDezarhivare = async (lucrareId: string) => {
+    const lucrare = lucrariArhivate.find((l) => l.id === lucrareId)
+    if (lucrare && isLucrareAnulata(lucrare)) {
+      toast({
+        title: "Dezarhivare indisponibilă",
+        description: "Tichetele anulate nu pot fi dezarhivate.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       // Eliminăm statusul de arhivare și câmpurile asociate
       await updateLucrare(lucrareId, { 
@@ -586,6 +596,7 @@ export default function LucrariArhivate() {
             </Tooltip>
           </TooltipProvider>
 
+          {!isLucrareAnulata(row.original) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -600,6 +611,7 @@ export default function LucrariArhivate() {
               <TooltipContent>Dezarhivează tichetul</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          )}
 
           {row.raportGenerat && (
             <TooltipProvider>
@@ -848,8 +860,8 @@ export default function LucrariArhivate() {
                             {lucrare.locatie}
                           </CardDescription>
                         </div>
-                        <Badge className={getWorkStatusClass(lucrare.statusLucrare)}>
-                          {lucrare.statusLucrare === "Finalizat" ? "Raport generat" : lucrare.statusLucrare}
+                        <Badge className={getLucrareStatusClass(lucrare)}>
+                          {getLucrareDisplayStatus(lucrare)}
                         </Badge>
                       </div>
                     </CardHeader>
@@ -891,6 +903,12 @@ export default function LucrariArhivate() {
                         </div>
                       )}
 
+                      {isLucrareAnulata(lucrare) && (lucrare as any).motivAnulare && (
+                        <p className="text-sm text-red-700 line-clamp-2">
+                          Motiv anulare: {(lucrare as any).motivAnulare}
+                        </p>
+                      )}
+
                       <div className="flex items-center justify-between pt-2 border-t">
                         <div className="flex space-x-2">
                           <TooltipProvider>
@@ -908,6 +926,7 @@ export default function LucrariArhivate() {
                             </Tooltip>
                           </TooltipProvider>
 
+                          {!isLucrareAnulata(lucrare) && (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -922,6 +941,7 @@ export default function LucrariArhivate() {
                               <TooltipContent>Dezarhivează tichetul</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
+                          )}
                         </div>
 
                         {lucrare.raportGenerat && (

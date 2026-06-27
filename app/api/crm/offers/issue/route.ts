@@ -4,6 +4,7 @@ import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
 import { adminDb } from "@/lib/firebase/admin"
 import { logFirestoreIndexHintIfPresent } from "@/lib/firebase/firestore-index-hint.server"
 import { CRM_COLLECTIONS, CRM_PIPELINE_STAGE_LABELS, isPipelineStageAllowedForOpportunityType } from "@/lib/crm/constants"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { hasOpportunityEditAccess } from "@/lib/crm/access"
 import { getEmailFrom } from "@/lib/email/from"
 import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server"
@@ -343,6 +344,19 @@ export async function POST(request: NextRequest) {
       opportunityType: String(opportunity.data.opportunityType || ""),
       actorId,
       toStage: "OFERTA_TRANSMISA",
+    })
+
+    await logOfferEvent({
+      type: "OFFER_TOKEN_MINTED",
+      source: "crm",
+      status: "ok",
+      offerId,
+      opportunityId,
+      actorId,
+      actorType: "staff",
+      token,
+      snapshot,
+      payload: { expiresAt: expiresAt.toISOString(), version },
     })
 
     return NextResponse.json({

@@ -256,6 +256,12 @@ export interface Lucrare {
   // CÂMPURI NOI PENTRU ARHIVAREA LUCRĂRII - BACKWARD COMPATIBLE
   archivedAt?: Timestamp   // Data și ora când lucrarea a fost arhivată
   archivedBy?: string      // Cine a arhivat lucrarea (admin/dispecer)
+  // CÂMPURI PENTRU ANULAREA TICHETULUI - BACKWARD COMPATIBLE
+  anulat?: boolean
+  motivAnulare?: string
+  anulatAt?: Timestamp
+  anulatDe?: string
+  anulatDeId?: string
   // CÂMPURI NOI PENTRU MOTIVELE REINTERVENȚIEI - BACKWARD COMPATIBLE
   reinterventieMotiv?: {
     remediereNeconforma?: boolean     // Remediere neconformă
@@ -310,6 +316,7 @@ export interface EmailEvent {
   type:
     | "REPORT"
     | "OFFER"
+    | "OFFER_CODE"
     | "DEVIZ"
     | "GENERIC"
     | "TECH_NOTIFY"

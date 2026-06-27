@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bug, Copy } from "lucide-react"
 import { WORK_STATUS } from "@/lib/utils/constants"
+import { isLucrareAnulata } from "@/lib/utils/work-canceled"
 import { useAuth } from "@/contexts/AuthContext"
 import { toDateSafe } from "@/lib/utils/time-format"
 
@@ -99,7 +100,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const raportGenerat = Boolean(l.raportGenerat)
     const preluatDispecer = Boolean(l.preluatDispecer)
     const hasPostponeContext = Boolean((l as any)?.motivAmanare || (l as any)?.dataAmanare || (l as any)?.amanataDe)
-    const isCanceled = eqInsensitive(status, WORK_STATUS.CANCELED) || status === WORK_STATUS.CANCELED
+    const isCanceled = isLucrareAnulata(l)
 
     // "Preluare" (dispatcher/admin pickup) visibility rules are implemented in multiple places.
     // Keep the debug mirror explicit so admins can copy/paste reasons.

@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { to, subject, content, html, attachments, type } = body || {}
+    const explicitLucrareId = typeof body?.lucrareId === "string" ? body.lucrareId.trim() : ""
     if (!to || !Array.isArray(to) || to.length === 0) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
     }
@@ -35,6 +36,8 @@ export async function POST(request: NextRequest) {
       html,
       attachments,
       type,
+      lucrareId: explicitLucrareId || undefined,
+      source: explicitLucrareId ? "lucrari" : undefined,
       route: "/api/users/invite",
       flow: String(type || "invite").toLowerCase(),
       actorUserId: session.uid,
@@ -43,21 +46,25 @@ export async function POST(request: NextRequest) {
 
     // mark sent on lucrare (portal offer/deviz)
     try {
-      const lucrareId = (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
+      const lucrareId =
+        explicitLucrareId || (Array.isArray((attachments as any)) && (attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
         const emailStatusField =
           String(type || "").toUpperCase() === "DEVIZ" ? "lastDevizEmail" : "lastOfferEmail"
-        await adminDb.collection("lucrari").doc(String(lucrareId)).set(
-          {
-            [emailStatusField]: {
-              sentAt: new Date().toISOString(),
-              to: (to as string[]) || [],
-              status: "sent",
-              messageId,
-            },
+        const patch: Record<string, unknown> = {
+          [emailStatusField]: {
+            sentAt: new Date().toISOString(),
+            to: (to as string[]) || [],
+            status: "sent",
+            messageId,
           },
-          { merge: true },
-        )
+        }
+        if (String(type || "").toUpperCase() === "OFFER") {
+          const workSnap = await adminDb.collection("lucrari").doc(String(lucrareId)).get()
+          const currentCount = Number((workSnap.data() as any)?.offerSendCount || 0)
+          patch.offerSendCount = currentCount + 1
+        }
+        await adminDb.collection("lucrari").doc(String(lucrareId)).set(patch, { merge: true })
       }
     } catch (error) {
       console.error("Eroare la logging eveniment email sent:", error)
@@ -97,7 +104,9 @@ export async function POST(request: NextRequest) {
       errorTo = Array.isArray(body?.to) ? body.to : []
       errorSubject = body?.subject || "Email – FOM"
 
-      const lucrareId = (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined
+      const explicitLucrareId = typeof body?.lucrareId === "string" ? body.lucrareId.trim() : ""
+      const lucrareId =
+        explicitLucrareId || (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined
       if (lucrareId) {
         const emailStatusField =
           String(body?.type || "").toUpperCase() === "DEVIZ" ? "lastDevizEmail" : "lastOfferEmail"
@@ -130,7 +139,10 @@ export async function POST(request: NextRequest) {
                 : String(body?.type || "").toUpperCase() === "DEVIZ"
                   ? "DEVIZ"
                   : "INVITE",
-          lucrareId: (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) || undefined,
+          lucrareId:
+            (typeof body?.lucrareId === "string" && body.lucrareId.trim()) ||
+            (Array.isArray((body?.attachments as any)) && (body?.attachments as any)[0]?.lucrareId) ||
+            undefined,
           to: errorTo,
           subject: errorSubject,
           status: "failed",

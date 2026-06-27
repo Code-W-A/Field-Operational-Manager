@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 
 const DEFAULT_MAX_VERIFY_ATTEMPTS = 5
 const DEFAULT_LOCK_DURATION_MS = 15 * 60 * 1000
@@ -164,6 +165,34 @@ export async function POST(request: NextRequest) {
         { status: txResult.statusCode }
       )
     }
+
+    let msSinceCodeSent: number | null = null
+    let opportunityId = ""
+    try {
+      const offerSnap = await offerRef.get()
+      const offerData = offerSnap.data() as Record<string, unknown>
+      opportunityId = String(offerData?.opportunityId || "")
+      const verification = (offerData?.verification || {}) as Record<string, unknown>
+      const codeSentAt = toDate(verification?.codeSentAt)
+      if (codeSentAt) msSinceCodeSent = Date.now() - codeSentAt.getTime()
+    } catch {
+      /* non-blocking */
+    }
+
+    await logOfferEvent(
+      {
+        type: "OFFER_CODE_VERIFIED",
+        source: "crm",
+        status: "verified",
+        offerId,
+        opportunityId: opportunityId || null,
+        actorType: "portal_client",
+        email: txResult.email,
+        token,
+        payload: { msSinceCodeSent },
+      },
+      request,
+    )
 
     return NextResponse.json({
       status: "verified",

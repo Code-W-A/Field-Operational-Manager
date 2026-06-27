@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -209,6 +210,30 @@ export async function POST(req: NextRequest) {
       details: "Cod validat cu succes.",
       meta: { route: "/api/offer/verify-code" },
     })
+
+    let msSinceCodeSent: number | null = null
+    try {
+      const workSnap = await adminDb.collection("lucrari").doc(workId).get()
+      const verification = (workSnap.data() as any)?.offerActionVerification || {}
+      const codeSentAt = toDate(verification?.codeSentAt)
+      if (codeSentAt) msSinceCodeSent = Date.now() - codeSentAt.getTime()
+    } catch {
+      /* non-blocking */
+    }
+
+    await logOfferEvent(
+      {
+        type: "OFFER_CODE_VERIFIED",
+        source: "lucrari",
+        status: "verified",
+        lucrareId: workId,
+        actorType: "portal_client",
+        email: cleanEmail,
+        token: providedToken,
+        payload: { msSinceCodeSent },
+      },
+      req,
+    )
     return NextResponse.json({ status: "verified", email: txResult.email, verificationProof: txResult.verificationProof })
   } catch (error: any) {
     await logOfferPortalEvent({

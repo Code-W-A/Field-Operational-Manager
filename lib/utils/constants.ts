@@ -155,6 +155,16 @@ export function getWorkStatusRowClass(lucrare: any): string {
     return "bg-red-100 border-l-4 border-red-500"
   }
 
+  // Tichet anulat (status legacy sau arhivat cu metadata anulare)
+  if (
+    lucrare.anulat === true ||
+    lucrare.motivAnulare ||
+    lucrare.anulatAt ||
+    String(lucrare.statusLucrare || "").toLowerCase() === WORK_STATUS.CANCELED.toLowerCase()
+  ) {
+    return "bg-red-50"
+  }
+
   // PRIORITATE SECUNDARĂ: Colorarea normală pe baza statusului lucrării
   switch (lucrare.statusLucrare.toLowerCase()) {
     case WORK_STATUS.LISTED.toLowerCase():

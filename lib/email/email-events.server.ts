@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin"
 export type EmailEventType =
   | "REPORT"
   | "OFFER"
+  | "OFFER_CODE"
   | "DEVIZ"
   | "GENERIC"
   | "TECH_NOTIFY"

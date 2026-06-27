@@ -31,6 +31,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
+import { isLucrareAnulata } from "@/lib/utils/work-canceled"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import {
   buildRecentRevisionBlockMessage,
@@ -446,7 +447,7 @@ export default function Lucrari() {
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
         const isPostponed = lucrare.statusLucrare === WORK_STATUS.POSTPONED
-        const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
+        const isCanceled = isLucrareAnulata(lucrare)
 
         // Pentru tehnician:
         // - lucrarea amânată rămâne vizibilă până este preluată (preluatDispecer === true)
@@ -463,7 +464,7 @@ export default function Lucrari() {
 
       return filteredList
     }
-    return lucrari
+    return lucrari.filter((lucrare) => !isLucrareAnulata(lucrare))
   }, [lucrari, userData?.role, userData?.displayName])
 
   const getRevisionEquipmentIds = useCallback((work: any): string[] => {
@@ -883,9 +884,9 @@ export default function Lucrari() {
             case "anulat":
               if (!filter.value || filter.value.length === 0) return true
               return filter.value.some((val) => {
-                const isCanceled = item.statusLucrare === WORK_STATUS.CANCELED || item.statusLucrare === "Anulat"
-                if (val === "da") return isCanceled
-                if (val === "nu") return !isCanceled
+                const canceled = isLucrareAnulata(item)
+                if (val === "da") return canceled
+                if (val === "nu") return !canceled
                 return false
               })
 

@@ -12,7 +12,6 @@ import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
 import { uploadFile } from "@/lib/firebase/storage"
-import { getClientById } from "@/lib/firebase/firestore"
 
 export default function OfferActionPage() {
   const { id } = useParams<{ id: string }>()
@@ -498,28 +497,6 @@ export default function OfferActionPage() {
         throw new Error(json?.message || "Eroare la procesare pe server")
       }
 
-      const resolveRecipientEmailForLocation = (client: any, work: any): string | null => {
-        const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(e || "")
-        const norm = (s?: string) =>
-          String(s || "")
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/\p{Diacritic}/gu, "")
-            .trim()
-
-        const locatii = Array.isArray(client?.locatii) ? client.locatii : []
-        const targetName = norm(work?.locatie || work?.clientInfo?.locationName)
-        const targetAddr = norm(work?.clientInfo?.locationAddress)
-        const targetContactName = norm(work?.persoanaContact)
-
-        const loc = locatii.find((l: any) => norm(l?.nume) === targetName || norm(l?.adresa) === targetAddr)
-        if (!loc) return null
-
-        const exact = (loc.persoaneContact || []).find((c: any) => norm(c?.nume) === targetContactName)
-        const email = exact?.email
-        return isValid(email) ? String(email) : null
-      }
-
       try {
         const ref = doc(db, "lucrari", id)
         const snap = await getDoc(ref)
@@ -603,55 +580,11 @@ export default function OfferActionPage() {
                   numarOferta: (fresh as any)?.numarOferta || "",
                   dataOferta: new Date().toISOString().slice(0, 10),
                 },
-                offerSendCount: Number((fresh as any)?.offerSendCount || 0) + 1,
               })
             }
           }
 
-          let clientData: any = null
-          try {
-            const cid = fresh?.clientInfo?.id
-            if (cid) clientData = await getClientById(cid)
-          } catch {}
-          const recipient = resolveRecipientEmailForLocation(clientData, fresh)
-
-          if (recipient) {
-            const to = [recipient]
-            const subject = `${
-              finalAction === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"
-            } – tichet ${fresh?.numarRaport || String(id)}`
-            const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")
-            const downloadLink = ofertaUrl
-              ? `${base}/api/download?lucrareId=${encodeURIComponent(String(id))}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(String(recipient))}`
-              : ""
-
-            const messageParagraph =
-              finalAction === "accept"
-                ? "Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
-                : "Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
-
-            const linkSection =
-              finalAction === "accept" && downloadLink
-                ? `<p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>`
-                : ""
-
-            const html = `
-                <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-                  <p>${messageParagraph}</p>
-                  ${linkSection}
-                </div>
-              `
-
-            try {
-              await fetch("/api/users/invite", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ to, subject, html }),
-              })
-            } catch (e) {
-              console.warn("Trimitere email confirmare ofertă eșuată (non-blocant):", e)
-            }
-          }
+          // Emailul de confirmare post-răspuns este trimis și auditat server-side în /api/offer/respond.
         }
       } catch (e) {
         console.warn("Post-response email or attachment handling failed (non-blocant):", e)

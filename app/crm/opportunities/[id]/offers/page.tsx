@@ -6,6 +6,7 @@ import { useParams } from "next/navigation"
 import { AlertCircle, Download, ExternalLink, Mail, Save, Send, TableProperties } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Panel } from "@/components/crm"
+import { OfferEvidencePanel } from "@/components/offer/offer-evidence-panel"
 import { ProductTableForm, type ProductItem } from "@/components/product-table-form"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -70,6 +71,7 @@ export default function OpportunityOffersPage() {
   const [crmClient, setCrmClient] = useState<CrmClient | null>(null)
   const [contacts, setContacts] = useState<CrmClientContact[]>([])
   const [offerEditorOpen, setOfferEditorOpen] = useState(false)
+  const [dossierOfferId, setDossierOfferId] = useState<string | null>(null)
 
   const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()])
   const [vatPercent, setVatPercent] = useState("21")
@@ -614,6 +616,21 @@ export default function OpportunityOffersPage() {
           </DialogContent>
         </Dialog>
 
+        {offers.some((offer) => offer.status !== "DRAFT") ? (
+          <OfferEvidencePanel mode="crm-opportunity" entityId={opportunityId} className="mb-4" />
+        ) : null}
+
+        <Dialog open={Boolean(dossierOfferId)} onOpenChange={(open) => !open && setDossierOfferId(null)}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Dosar ofertă</DialogTitle>
+            </DialogHeader>
+            {dossierOfferId ? (
+              <OfferEvidencePanel mode="crm-offer" entityId={dossierOfferId} title={`Dosar ofertă #${dossierOfferId.slice(0, 8)}`} />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
         <div className="p-3 border rounded-md bg-white mb-4">
           <div className="flex items-center justify-between gap-2 mb-3">
             <p className="text-sm font-semibold text-neutral-900">Istoric oferte</p>
@@ -678,7 +695,11 @@ export default function OpportunityOffersPage() {
                           >
                             Încarcă draft
                           </Button>
-                        ) : null}
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => setDossierOfferId(offer.id)}>
+                            Dosar
+                          </Button>
+                        )}
                       </div>
                     </div>
                     <p className="mt-1 text-sm text-neutral-500">

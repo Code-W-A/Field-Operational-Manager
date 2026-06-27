@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 
 function toDate(value: any): Date | null {
@@ -121,6 +122,18 @@ export async function GET(req: NextRequest) {
       details: message || "Link valid.",
       meta: { route: "/api/offer" },
     })
+    await logOfferEvent(
+      {
+        type: "OFFER_LINK_OPENED",
+        source: "lucrari",
+        status,
+        lucrareId: workId,
+        actorType: "portal_client",
+        token: providedToken,
+        payload: { pageStatus: status, message: message || null },
+      },
+      req,
+    )
 
     return NextResponse.json(payload)
   } catch (e: any) {
@@ -162,6 +175,17 @@ export async function POST(req: NextRequest) {
       updateData.offerActionVersionSavedAt = snapshot.savedAt || new Date().toISOString()
     }
     await workRef.update(updateData)
+
+    await logOfferEvent({
+      type: "OFFER_TOKEN_MINTED",
+      source: "lucrari",
+      status: "ok",
+      lucrareId: String(lucrareId),
+      actorType: "staff",
+      token,
+      snapshot: snapshot && typeof snapshot === "object" ? snapshot : null,
+      payload: { expiresAt: expiresAt.toISOString() },
+    })
 
     // Build absolute base URL for email links (works on server): prefer env, then headers
     const envBase = process.env.NEXT_PUBLIC_APP_URL

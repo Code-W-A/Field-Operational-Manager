@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 
 function toDate(value: unknown): Date | null {
   if (!value) return null
@@ -60,6 +61,20 @@ export async function GET(request: NextRequest) {
         message = "Link expirat. Contactați operatorul pentru o ofertă nouă."
       }
     }
+
+    await logOfferEvent(
+      {
+        type: "OFFER_LINK_OPENED",
+        source: "crm",
+        status,
+        offerId,
+        opportunityId: String(data.opportunityId || "") || null,
+        actorType: "portal_client",
+        token,
+        payload: { message: message || null },
+      },
+      request,
+    )
 
     return NextResponse.json({
       status,

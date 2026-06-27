@@ -4,6 +4,7 @@ import { useMemo, useEffect, useState } from "react"
 import { Timestamp, where, orderBy, limit } from "firebase/firestore"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { WORK_STATUS, EQUIPMENT_STATUS } from "@/lib/utils/constants"
+import { isLucrareAnulata } from "@/lib/utils/work-canceled"
 import { selectLatestEquipmentStatusWinners } from "@/lib/utils/dashboard-equipment-status"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -264,6 +265,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
   const activeLucrari = useMemo(() => {
     if (!Array.isArray(lucrari)) return []
     return lucrari.filter((l) => {
+      if (isLucrareAnulata(l)) return false
       const status = String(l.statusLucrare || "").toLowerCase()
       return status !== WORK_STATUS.ARCHIVED.toLowerCase()
     })
@@ -404,6 +406,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     for (const l of activeLucrari) {
       const id = String(l.id || "")
       const status = String(l.statusLucrare || "")
+      if (isLucrareAnulata(l)) continue
       const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
 
       // Intarziate – logic refăcut:

@@ -15,6 +15,7 @@ import { OfferEditorDialog } from "./offer-editor-dialog"
 import { DevizEditorDialog } from "./deviz-editor-dialog"
 import { LucrareForm } from "@/components/lucrare-form"
 import { DownloadHistory } from "@/components/download-history"
+import { OfferEvidencePanel } from "@/components/offer/offer-evidence-panel"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -48,6 +49,7 @@ import { format } from "date-fns"
 import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
 import { subscribeDocumentatiiFiles, type DocumentatiiFile } from "@/lib/firebase/documentatii"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
+import { isLucrareAnulata } from "@/lib/utils/work-canceled"
 import {
   isTehnicianGarantieDecizie,
   TEHNICIAN_GARANTIE_DECIZIE_LABELS,
@@ -1747,22 +1749,33 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
     try {
       setIsCancelling(true)
-      await updateLucrare(lucrare.id, {
-        statusLucrare: WORK_STATUS.CANCELED,
-        motivAnulare: cancelReason.trim(),
-        anulatAt: serverTimestamp(),
-        anulatDe: userData?.displayName || userData?.email || "Dispecer",
-        anulatDeId: userData?.uid || "",
-      } as any)
+      const archivedBy = userData?.displayName || userData?.email || "Dispecer"
+      await updateLucrare(
+        lucrare.id,
+        {
+          statusLucrare: WORK_STATUS.ARCHIVED,
+          archivedAt: serverTimestamp(),
+          archivedBy,
+          anulat: true,
+          motivAnulare: cancelReason.trim(),
+          anulatAt: serverTimestamp(),
+          anulatDe: archivedBy,
+          anulatDeId: userData?.uid || "",
+        } as any,
+        userData?.uid,
+        archivedBy,
+      )
 
       setLucrare((prev) =>
         prev
           ? {
               ...prev,
-              statusLucrare: WORK_STATUS.CANCELED,
+              statusLucrare: WORK_STATUS.ARCHIVED,
+              archivedBy,
+              anulat: true,
               motivAnulare: cancelReason.trim(),
               anulatAt: new Date().toISOString(),
-              anulatDe: userData?.displayName || userData?.email || "Dispecer",
+              anulatDe: archivedBy,
               anulatDeId: userData?.uid || "",
             }
           : null,
@@ -1771,8 +1784,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       setCancelReason("")
       toast({
         title: "Tichet anulat",
-        description: "Tichetul a fost marcat ca anulat.",
+        description: "Tichetul a fost anulat și arhivat.",
       })
+      router.push(`/dashboard/arhivate/${lucrare.id}`)
     } catch (error) {
       console.error("Eroare la anularea tichetului:", error)
       toast({
@@ -1882,7 +1896,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   const hasPostponeContext = Boolean(lucrare?.motivAmanare || lucrare?.dataAmanare || lucrare?.amanataDe)
   const isCompletedWithReport = isFinalizatByReport && lucrare.raportGenerat === true
-  const isCanceled = lucrare.statusLucrare === WORK_STATUS.CANCELED
+  const isCanceled = isLucrareAnulata(lucrare)
   const offerResponseStatus = (lucrare as any)?.offerResponse?.status as "accept" | "reject" | undefined
   const offerResponseReason = String((lucrare as any)?.offerResponse?.reason || "").trim()
   const offerResponseVerifiedEmail = String((lucrare as any)?.offerResponse?.verifiedEmail || "").trim()
@@ -2001,7 +2015,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return Boolean(
       lucrare?.preluatDispecer === true &&
       (lucrare?.raportGenerat === true || hasWorkPostponeContext) &&
-      lucrare?.statusLucrare !== WORK_STATUS.CANCELED
+      !isLucrareAnulata(lucrare)
     )
   }
   
@@ -2125,7 +2139,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
             </Button>
 
-            {isAdminOrDispatcher && lucrare.statusLucrare !== WORK_STATUS.CANCELED && lucrare.statusLucrare !== WORK_STATUS.ARCHIVED && (
+            {isAdminOrDispatcher && !isCanceled && (
               <Button
                 variant="destructive"
                 onClick={() => setIsCancelDialogOpen(true)}
@@ -2674,7 +2688,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   )}
                 </div>
 
-                {lucrare.statusLucrare === WORK_STATUS.CANCELED && (
+                {isLucrareAnulata(lucrare) && (
                   <Alert variant="destructive" className="mt-3">
                     <AlertTitle>Tichet anulat</AlertTitle>
                     <AlertDescription>
@@ -4251,6 +4265,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       ) : null}
                     </div>
                   </div>
+                )}
+                {role !== "client" && hasOfferHistory && lucrare.id && (
+                  <OfferEvidencePanel mode="lucrari" entityId={lucrare.id} className="mb-4" />
                 )}
                 {role !== "client" && hasOfferHistory && (
                   <div className="p-3 border rounded-md bg-white mb-4">

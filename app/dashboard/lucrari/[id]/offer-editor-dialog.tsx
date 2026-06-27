@@ -260,6 +260,16 @@ useEffect(() => {
       setCanSendOffer(true)
       // clear draft after successful save
       try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
+      void fetch(`/api/lucrari/${encodeURIComponent(lucrareId)}/offer-prepared`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          snapshot: { savedAt: version.savedAt, savedBy: version.savedBy, total: version.total, products: version.products },
+          savedAt: version.savedAt,
+          savedBy: version.savedBy,
+          total: version.total,
+        }),
+      }).catch(() => {})
     } finally {
       setSaving(false)
     }
@@ -316,7 +326,7 @@ useEffect(() => {
         products,
         vatPercent,
         adjustmentPercent,
-        preparedByFallback: userData?.displayName || userData?.email,
+        preparedByFallback: userData?.displayName || userData?.email || undefined,
       })
       const blob = await generateOfferPdf(input)
       triggerBlobDownload(
@@ -510,7 +520,7 @@ useEffect(() => {
             products: currentProducts,
             vatPercent,
             adjustmentPercent,
-            preparedByFallback: userData?.displayName || userData?.email,
+            preparedByFallback: userData?.displayName || userData?.email || undefined,
           })
           const blob = await generateOfferPdf(input)
 
@@ -529,7 +539,7 @@ useEffect(() => {
       const resp = await fetch('/api/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: [recipient], subject, html, attachments: attachmentData, type: "OFFER" })
+        body: JSON.stringify({ to: [recipient], subject, html, attachments: attachmentData, type: "OFFER", lucrareId })
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))

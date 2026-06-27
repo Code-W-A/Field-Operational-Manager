@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 
 function toDate(value: any): Date | null {
@@ -25,17 +27,124 @@ type RespondTxResult =
       message: string
     }
 
+function resolveBaseUrl(req: NextRequest) {
+  const envBase = process.env.NEXT_PUBLIC_APP_URL
+  const proto = req.headers.get("x-forwarded-proto") || "https"
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || ""
+  const rawBase = envBase || (host ? `${proto}://${host}` : "")
+  if (!rawBase) return ""
+  return rawBase.startsWith("http://") || rawBase.startsWith("https://") ? rawBase : `https://${rawBase}`
+}
+
+async function sendResponseConfirmation(params: {
+  req: NextRequest
+  lucrareId: string
+  action: "accept" | "reject"
+  work: Record<string, any>
+}) {
+  const email =
+    String(params.work?.offerResponse?.verifiedEmail || params.work?.offerActionVerification?.email || "").trim().toLowerCase()
+  if (!email) {
+    await logOfferEvent(
+      {
+        type: "OFFER_CONFIRMATION_SENT",
+        source: "lucrari",
+        status: "skipped",
+        lucrareId: params.lucrareId,
+        actorType: "system",
+        payload: { responseAction: params.action, reason: "missing_verified_email" },
+        integrityWarning: "Confirmarea post-răspuns nu a fost trimisă: lipsește emailul verificat.",
+      },
+      params.req,
+    )
+    return
+  }
+
+  const subject = `${
+    params.action === "accept" ? "Confirmare acceptare ofertă" : "Confirmare răspuns – refuz ofertă"
+  } – tichet ${params.work?.numarRaport || params.lucrareId}`
+  const base = resolveBaseUrl(params.req)
+  const ofertaUrl = typeof params.work?.ofertaDocument?.url === "string" ? params.work.ofertaDocument.url : ""
+  const downloadLink =
+    params.action === "accept" && base && ofertaUrl
+      ? `${base}/api/download?lucrareId=${encodeURIComponent(params.lucrareId)}&type=oferta&url=${encodeURIComponent(ofertaUrl)}&recipient=${encodeURIComponent(email)}`
+      : ""
+  const messageParagraph =
+    params.action === "accept"
+      ? "Va multumim pentru acceptarea ofertei noastre. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
+      : "Va multumim pentru raspunsul dvs. In continuare veti fi contactat de un reprezentant NRG pt a stabili urmatorii pasi."
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
+      <p>${messageParagraph}</p>
+      ${
+        downloadLink
+          ? `<p style="margin:12px 0"><a href="${downloadLink}" style="background:#2563eb;border-radius:6px;color:#ffffff;display:inline-block;font-weight:600;padding:10px 14px;text-decoration:none">Descarcă oferta</a></p>`
+          : ""
+      }
+    </div>
+  `
+
+  try {
+    const sent = await sendInviteStyleEmail({
+      to: [email],
+      subject,
+      html,
+      content: messageParagraph,
+      type: "GENERIC",
+      lucrareId: params.lucrareId,
+      source: "lucrari",
+      route: "/api/offer/respond",
+      flow: "offer_confirmation",
+    })
+    await logOfferEvent(
+      {
+        type: "OFFER_CONFIRMATION_SENT",
+        source: "lucrari",
+        status: "sent",
+        lucrareId: params.lucrareId,
+        actorType: "system",
+        email,
+        messageId: sent.messageId,
+        emailBodyHtml: html,
+        payload: { responseAction: params.action, subject, emailEventId: sent.emailEventId, hasDownloadLink: Boolean(downloadLink) },
+      },
+      params.req,
+    )
+  } catch (error) {
+    await logOfferEvent(
+      {
+        type: "OFFER_CONFIRMATION_SENT",
+        source: "lucrari",
+        status: "failed",
+        lucrareId: params.lucrareId,
+        actorType: "system",
+        email,
+        emailBodyHtml: html,
+        payload: {
+          responseAction: params.action,
+          subject,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        integrityWarning: "Confirmarea post-răspuns nu a putut fi trimisă; acceptul/refuzul rămâne înregistrat.",
+      },
+      params.req,
+    )
+  }
+}
+
 export async function POST(req: NextRequest) {
   let workId = ""
   let providedToken = ""
   let proof = ""
+  let reason = ""
   let finalAction: "accept" | "reject" | undefined
   try {
-    const { lucrareId, token, action, reason, verificationProof } = await req.json()
-    workId = String(lucrareId || "").trim()
-    providedToken = String(token || "").trim()
-    finalAction = action as "accept" | "reject"
-    proof = String(verificationProof || "").trim()
+    const body = await req.json()
+    workId = String(body.lucrareId || "").trim()
+    providedToken = String(body.token || "").trim()
+    finalAction = body.action as "accept" | "reject"
+    reason = String(body.reason || "").trim()
+    proof = String(body.verificationProof || "").trim()
 
     if (!workId || !providedToken || !finalAction || (finalAction !== "accept" && finalAction !== "reject")) {
       await logOfferPortalEvent({
@@ -200,6 +309,33 @@ export async function POST(req: NextRequest) {
       token: providedToken,
       details: txResult.action === "accept" ? "Oferta acceptată." : "Oferta refuzată.",
       meta: { route: "/api/offer/respond" },
+    })
+
+    const workSnapAfter = await adminDb.collection("lucrari").doc(workId).get()
+    const workDataAfter = workSnapAfter.data() as any
+    await logOfferEvent(
+      {
+        type: txResult.action === "accept" ? "OFFER_ACCEPTED" : "OFFER_REJECTED",
+        source: "lucrari",
+        status: "success",
+        lucrareId: workId,
+        actorType: "portal_client",
+        email: workDataAfter?.offerResponse?.verifiedEmail || workDataAfter?.offerActionVerification?.email || null,
+        token: providedToken,
+        snapshot: txResult.action === "accept" ? workDataAfter?.acceptedOfferSnapshot || workDataAfter?.offerActionSnapshot : null,
+        payload: {
+          versionSavedAt: workDataAfter?.offerResponse?.versionSavedAt || null,
+          reason: safeFinalAction === "reject" ? reason || null : null,
+        },
+      },
+      req,
+    )
+
+    await sendResponseConfirmation({
+      req,
+      lucrareId: workId,
+      action: txResult.action,
+      work: workDataAfter || {},
     })
 
     return NextResponse.json({

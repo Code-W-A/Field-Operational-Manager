@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS, CRM_PIPELINE_STAGE_LABELS, isPipelineStageAllowedForOpportunityType } from "@/lib/crm/constants"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 
 function toDate(value: unknown): Date | null {
   if (!value) return null
@@ -201,6 +202,30 @@ export async function POST(request: NextRequest) {
         createdAt: FieldValue.serverTimestamp(),
       })
     }
+
+    const offerSnapAfter = await adminDb.collection(CRM_COLLECTIONS.offers).doc(txResult.offerId).get()
+    const offerDataAfter = (offerSnapAfter.data() || {}) as Record<string, unknown>
+    await logOfferEvent(
+      {
+        type: txResult.action === "accept" ? "OFFER_ACCEPTED" : "OFFER_REJECTED",
+        source: "crm",
+        status: "success",
+        offerId: txResult.offerId,
+        opportunityId: txResult.opportunityId,
+        actorType: "portal_client",
+        email:
+          String((offerDataAfter.response as Record<string, unknown> | undefined)?.verifiedEmail || "") ||
+          String((offerDataAfter.verification as Record<string, unknown> | undefined)?.email || "") ||
+          null,
+        token,
+        snapshot: txResult.action === "accept" ? offerDataAfter.snapshot : null,
+        payload: {
+          version: txResult.version,
+          reason: txResult.action === "reject" ? reason || null : null,
+        },
+      },
+      request,
+    )
 
     return NextResponse.json({
       status: "success",

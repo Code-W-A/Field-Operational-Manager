@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const REISSUE_IDEMPOTENCY_WINDOW_MS = 30 * 1000
@@ -112,6 +113,23 @@ export async function POST(req: NextRequest) {
     const base = buildBaseUrl(req)
     const acceptUrl = `${base}/offer/${encodeURIComponent(workId)}?t=${encodeURIComponent(txResult.token)}&action=accept`
     const rejectUrl = `${base}/offer/${encodeURIComponent(workId)}?t=${encodeURIComponent(txResult.token)}&action=reject`
+
+    if (txResult.kind === "reissued") {
+      const workSnap = await workRef.get()
+      const reissueCount = Number((workSnap.data() as any)?.offerActionReissueCount || 0)
+      await logOfferEvent(
+        {
+          type: "OFFER_TOKEN_REISSUED",
+          source: "lucrari",
+          status: "reissued",
+          lucrareId: workId,
+          actorType: "portal_client",
+          token: txResult.token,
+          payload: { reissueCount, expiresAt: txResult.expiresAt.toISOString() },
+        },
+        req,
+      )
+    }
 
     return NextResponse.json({
       acceptUrl,

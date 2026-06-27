@@ -2,6 +2,7 @@ import nodemailer from "nodemailer"
 import type { EmailEventType } from "@/lib/email/email-events.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
+import { hashOfferEmailBody, logOfferEvent } from "@/lib/offer/offer-events.server"
 import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
@@ -73,6 +74,8 @@ export type SendInviteStyleEmailParams = {
   html?: string
   attachments?: InviteStyleAttachmentInput[]
   type?: string
+  lucrareId?: string
+  source?: "lucrari" | "crm"
   /** Logged + passed to IMAP context */
   route: string
   /** Lowercase flow label for Sent folder copy (e.g. invite, crm_offer_issue) */
@@ -91,14 +94,16 @@ export type SendInviteStyleEmailParams = {
 export async function sendInviteStyleEmail(
   params: SendInviteStyleEmailParams,
 ): Promise<{ messageId: string; emailEventId: string | null }> {
-  const { to, subject, content, html, attachments, type, route, flow, replyTo, metaExtra, actorUserId } =
+  const { to, subject, content, html, attachments, type, lucrareId, source, route, flow, replyTo, metaExtra, actorUserId } =
     params
 
   const resolved = await resolveMailTransport(actorUserId ?? null)
 
   const normalizedType = String(type || "").toUpperCase()
   const inferredLucrareId =
-    (Array.isArray(attachments) && attachments[0]?.lucrareId) || undefined
+    (typeof lucrareId === "string" && lucrareId.trim()) ||
+    (Array.isArray(attachments) && attachments[0]?.lucrareId) ||
+    undefined
   const inferredType =
     normalizedType === "REPORT"
       ? "REPORT"
@@ -172,6 +177,33 @@ export async function sendInviteStyleEmail(
       if (emailEventId) await updateEmailEventServer(emailEventId, { status: "sent", messageId: info.messageId })
     } catch (error) {
       console.error("Eroare la logging eveniment email sent:", error)
+    }
+
+    const isOfferEmail = emailEventType === "OFFER"
+    if (isOfferEmail) {
+      const emailBodyHash = await hashOfferEmailBody(html || content || null)
+      const opportunityId =
+        metaExtra && typeof metaExtra.opportunityId === "string" ? metaExtra.opportunityId : null
+      const offerId = metaExtra && typeof metaExtra.offerId === "string" ? metaExtra.offerId : null
+      await logOfferEvent({
+        type: "OFFER_EMAIL_SENT",
+        source: source || (opportunityId || offerId ? "crm" : "lucrari"),
+        status: "sent",
+        lucrareId: inferredLucrareId || null,
+        opportunityId,
+        offerId,
+        actorId: actorUserId || null,
+        actorType: actorUserId ? "staff" : "system",
+        messageId: String(info.messageId || "") || null,
+        email: Array.isArray(to) && to[0] ? String(to[0]) : null,
+        emailBodyHtml: html || content || null,
+        payload: {
+          subject: subject || null,
+          to: to || [],
+          emailEventId,
+          emailBodyHash,
+        },
+      })
     }
 
     return { messageId: String(info.messageId || ""), emailEventId }

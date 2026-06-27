@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS } from "@/lib/crm/constants"
+import { logEmailEventServer } from "@/lib/email/email-events.server"
+import { hashOfferEmailBody, logOfferEvent } from "@/lib/offer/offer-events.server"
 import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 
@@ -158,6 +160,11 @@ export async function POST(request: NextRequest) {
 
     // Fără sesiune staff: folosim SMTP/IMAP din env (flux public cu token ofertă).
     const resolved = await resolveMailTransport(null)
+    const htmlBody = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
+          <p>Pentru validarea ofertei CRM, introduceți codul:</p>
+          <p style="font-size:20px;font-weight:700;letter-spacing:2px">${code}</p>
+          <p>Codul este valabil 15 minute. Dacă ai cerut mai multe coduri, folosește doar ultimul cod primit.</p>
+        </div>`
     const sendParams: Parameters<typeof sendMailWithSentCopy>[0] = {
       transporter: resolved.transporter,
       smtpAuth: resolved.smtpAuth,
@@ -165,11 +172,7 @@ export async function POST(request: NextRequest) {
         from: resolved.mailFrom,
         to: [email],
         subject: "Cod validare ofertă",
-        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-          <p>Pentru validarea ofertei CRM, introduceți codul:</p>
-          <p style="font-size:20px;font-weight:700;letter-spacing:2px">${code}</p>
-          <p>Codul este valabil 15 minute. Dacă ai cerut mai multe coduri, folosește doar ultimul cod primit.</p>
-        </div>`,
+        html: htmlBody,
         text: `Cod validare ofertă CRM: ${code}. Cod valabil 15 minute.`,
       },
       imapContext: {
@@ -181,6 +184,38 @@ export async function POST(request: NextRequest) {
       sendParams.imapExplicit = resolved.imapExplicit
     }
     await sendMailWithSentCopy(sendParams)
+
+    const offerSnap = await offerRef.get()
+    const opportunityId = String((offerSnap.data() as Record<string, unknown>)?.opportunityId || "")
+    let emailEventId: string | null = null
+    try {
+      emailEventId = await logEmailEventServer({
+        type: "OFFER_CODE",
+        to: [email],
+        subject: "Cod validare ofertă",
+        status: "sent",
+        provider: "smtp",
+        meta: { route: "/api/crm/offers/send-code", offerId, opportunityId },
+      })
+    } catch {
+      /* non-blocking */
+    }
+
+    await logOfferEvent(
+      {
+        type: "OFFER_CODE_SENT",
+        source: "crm",
+        status: "sent",
+        offerId,
+        opportunityId: opportunityId || null,
+        actorType: "portal_client",
+        email,
+        token,
+        emailBodyHtml: htmlBody,
+        payload: { emailEventId, emailBodyHash: await hashOfferEmailBody(htmlBody) },
+      },
+      request,
+    )
 
     return NextResponse.json({ status: "sent", message: "Codul a fost trimis pe email." })
   } catch (error) {

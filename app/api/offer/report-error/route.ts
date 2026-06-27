@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
+import { logOfferEvent } from "@/lib/offer/offer-events.server"
 
 const MAX_ID_LEN = 128
 const MAX_ACTION_LEN = 32
@@ -125,6 +126,25 @@ export async function POST(req: NextRequest) {
     } catch (logError) {
       console.warn("[offer/report-error] Nu s-a putut scrie log-ul global:", logError)
     }
+
+    await logOfferEvent(
+      {
+        type: "OFFER_ERROR_REPORTED",
+        source: "lucrari",
+        status: pageState || "error",
+        lucrareId,
+        actorType: "portal_client",
+        token: token || null,
+        payload: {
+          reportId: reportRef.id,
+          tokenStatus,
+          userMessage: userMessage || null,
+          technicalMessage: technicalMessage || null,
+          browser,
+        },
+      },
+      req,
+    )
 
     return NextResponse.json({ ok: true, id: reportRef.id })
   } catch (error: any) {
