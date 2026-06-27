@@ -35,7 +35,7 @@ export async function generateOfferEvidencePdf(pack: OfferEvidencePack): Promise
   doc.setFontSize(10)
 
   const summaryLines = [
-    pack.summary.sentAt ? `Trimis: ${formatUiDate(new Date(pack.summary.sentAt))}` : null,
+    pack.summary.sentAt ? `Ultima trimitere înregistrată: ${formatUiDate(pack.summary.sentAt)}` : null,
     pack.summary.sentTo?.length ? `Destinatar: ${pack.summary.sentTo.join(", ")}` : null,
     pack.summary.acceptedAt ? `Acceptat: ${formatUiDate(new Date(pack.summary.acceptedAt))}` : null,
     pack.summary.acceptedByEmail ? `Email verificat: ${pack.summary.acceptedByEmail}` : null,
@@ -82,9 +82,14 @@ export async function generateOfferEvidencePdf(pack: OfferEvidencePack): Promise
   y += 6
   doc.setFontSize(9)
 
-  const sorted = [...pack.timeline].sort(
-    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
-  )
+  const sorted = [...pack.timeline].sort((a, b) => {
+    const aMs = a.at ? new Date(a.at).getTime() : null
+    const bMs = b.at ? new Date(b.at).getTime() : null
+    if (aMs == null && bMs == null) return a.id.localeCompare(b.id)
+    if (aMs == null) return 1
+    if (bMs == null) return -1
+    return aMs - bMs
+  })
 
   for (const item of sorted) {
     if (y > 270) {
@@ -92,7 +97,7 @@ export async function generateOfferEvidencePdf(pack: OfferEvidencePack): Promise
       y = 18
     }
     const tier = item.dataTier === "complete" ? "Complet" : "Date limitate"
-    const when = item.at ? formatUiDate(new Date(item.at)) : "-"
+    const when = item.at ? formatUiDate(item.at) : "dată indisponibilă"
     y = safeLine(doc, `${when} — ${item.label} [${tier}]`, margin, y + 3, contentWidth)
 
     const detailParts: string[] = []

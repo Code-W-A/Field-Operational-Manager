@@ -47,7 +47,7 @@ export interface OfferEvidenceTimelineItem {
   id: string
   type: OfferEventType | string
   label: string
-  at: string
+  at: string | null
   dataTier: OfferEvidenceDataTier
   available: Record<string, unknown>
   missing?: string[]

@@ -26,9 +26,41 @@ function toIso(value: unknown): string | null {
   }
 }
 
-function toMs(value: unknown): number {
+function toMs(value: unknown): number | null {
   const iso = toIso(value)
-  return iso ? new Date(iso).getTime() : 0
+  return iso ? new Date(iso).getTime() : null
+}
+
+function compareTimelineAsc(a: OfferEvidenceTimelineItem, b: OfferEvidenceTimelineItem): number {
+  const aMs = toMs(a.at)
+  const bMs = toMs(b.at)
+  if (aMs == null && bMs == null) return a.id.localeCompare(b.id)
+  if (aMs == null) return 1
+  if (bMs == null) return -1
+  return aMs - bMs
+}
+
+function compareTimelineDesc(a: OfferEvidenceTimelineItem, b: OfferEvidenceTimelineItem): number {
+  const aMs = toMs(a.at)
+  const bMs = toMs(b.at)
+  if (aMs == null && bMs == null) return a.id.localeCompare(b.id)
+  if (aMs == null) return 1
+  if (bMs == null) return -1
+  return bMs - aMs
+}
+
+function sameAvailableString(a: OfferEvidenceTimelineItem, b: OfferEvidenceTimelineItem, key: string): boolean {
+  const left = a.available[key]
+  const right = b.available[key]
+  return typeof left === "string" && left.trim() !== "" && left === right
+}
+
+function preferTimelineItem(a: OfferEvidenceTimelineItem, b: OfferEvidenceTimelineItem): OfferEvidenceTimelineItem {
+  if (a.dataTier === "complete" && b.dataTier === "legacy") return a
+  if (a.dataTier === "legacy" && b.dataTier === "complete") return b
+  if (!a.at && b.at) return b
+  if (a.at && !b.at) return a
+  return a
 }
 
 function labelForType(type: string): string {
@@ -44,12 +76,17 @@ function legacyItem(params: {
   extraMissing?: string[]
 }): OfferEvidenceTimelineItem {
   const presentKeys = new Set(Object.keys(params.available).filter((k) => params.available[k] != null && params.available[k] !== ""))
-  const missing = [...LEGACY_MISSING_FIELDS.filter((f) => !presentKeys.has(f)), ...(params.extraMissing || [])]
+  const at = toIso(params.at)
+  const missing = [
+    ...LEGACY_MISSING_FIELDS.filter((f) => !presentKeys.has(f)),
+    ...(at ? [] : ["timestamp"]),
+    ...(params.extraMissing || []),
+  ]
   return {
     id: params.id,
     type: params.type,
     label: labelForType(String(params.type)),
-    at: toIso(params.at) || new Date(0).toISOString(),
+    at,
     dataTier: "legacy",
     available: params.available,
     missing: missing.length ? Array.from(new Set(missing)) : undefined,
@@ -64,7 +101,7 @@ function completeItemFromEvent(docId: string, data: Record<string, unknown>): Of
     id: `offerEvents/${docId}`,
     type,
     label: labelForType(type),
-    at: toIso(data.createdAt) || new Date().toISOString(),
+    at: toIso(data.createdAt) || toIso(data.eventAt),
     dataTier: "complete",
     available: {
       status: data.status,
@@ -89,33 +126,36 @@ function completeItemFromEvent(docId: string, data: Record<string, unknown>): Of
 }
 
 function dedupeTimeline(items: OfferEvidenceTimelineItem[]): OfferEvidenceTimelineItem[] {
-  const sorted = [...items].sort((a, b) => toMs(a.at) - toMs(b.at))
+  const sorted = [...items].sort(compareTimelineAsc)
   const kept: OfferEvidenceTimelineItem[] = []
 
   for (const item of sorted) {
     const duplicate = kept.find((existing) => {
       if (existing.type !== item.type) return false
-      const delta = Math.abs(toMs(existing.at) - toMs(item.at))
-      if (delta > DEDUP_WINDOW_MS) return false
-      if (existing.dataTier === "complete" && item.dataTier === "legacy") return true
-      if (existing.dataTier === "legacy" && item.dataTier === "complete") {
+      const existingMs = toMs(existing.at)
+      const itemMs = toMs(item.at)
+      const sameMessageId = sameAvailableString(existing, item, "messageId")
+      const sameDatedEvent = existingMs != null && itemMs != null && Math.abs(existingMs - itemMs) <= DEDUP_WINDOW_MS
+      if (!sameDatedEvent && !sameMessageId) return false
+
+      const preferred = preferTimelineItem(existing, item)
+      if (preferred !== existing) {
         const idx = kept.indexOf(existing)
-        kept[idx] = item
-        return true
+        kept[idx] = preferred
       }
-      return existing.dataTier === item.dataTier
+      return true
     })
     if (!duplicate) kept.push(item)
   }
 
-  return kept.sort((a, b) => toMs(b.at) - toMs(a.at))
+  return kept.sort(compareTimelineDesc)
 }
 
 function buildIntegrity(items: OfferEvidenceTimelineItem[]) {
   const warnings: string[] = []
   const complete = [...items]
     .filter((item) => item.dataTier === "complete")
-    .sort((a, b) => toMs(a.at) - toMs(b.at))
+    .sort(compareTimelineAsc)
 
   let previousHash: string | null = null
   for (const item of complete) {
@@ -153,6 +193,11 @@ function buildPackWarnings(params: {
   if (params.sentAt && !hasSent) warnings.push("Rezumatul indică o trimitere, dar timeline-ul nu are eveniment de email trimis.")
   if (params.acceptedAt && !hasAccepted) warnings.push("Rezumatul indică acceptare, dar timeline-ul nu are eveniment de acceptare.")
   if (params.acceptedAt && !params.acceptedSnapshot) warnings.push("Oferta este acceptată, dar snapshotul acceptat nu este disponibil.")
+  const sentMs = toMs(params.sentAt)
+  const acceptedMs = toMs(params.acceptedAt)
+  if (sentMs != null && acceptedMs != null && sentMs > acceptedMs) {
+    warnings.push("Ultima trimitere înregistrată este după acceptare; trimiterea inițială a ofertei acceptate nu are timestamp complet în datele istorice.")
+  }
 
   return warnings
 }
@@ -194,7 +239,7 @@ async function fetchOfferEventsByLucrare(lucrareId: string) {
     return snap.docs
   } catch {
     const snap = await adminDb.collection(OFFER_EVENTS_COLLECTION).where("lucrareId", "==", lucrareId).limit(200).get()
-    return snap.docs.sort((a, b) => toMs(b.data().createdAt) - toMs(a.data().createdAt))
+    return snap.docs.sort((a, b) => (toMs(b.data().createdAt) || 0) - (toMs(a.data().createdAt) || 0))
   }
 }
 
@@ -222,7 +267,7 @@ async function fetchOfferEventsByOpportunity(opportunityId: string, offerId?: st
       .where(offerId ? "offerId" : "opportunityId", "==", offerId || opportunityId)
       .limit(200)
       .get()
-    return snap.docs.sort((a, b) => toMs(b.data().createdAt) - toMs(a.data().createdAt))
+    return snap.docs.sort((a, b) => (toMs(b.data().createdAt) || 0) - (toMs(a.data().createdAt) || 0))
   }
 }
 
