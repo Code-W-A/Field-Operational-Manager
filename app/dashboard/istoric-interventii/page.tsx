@@ -23,7 +23,7 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
-import { Eye, Search, X } from "lucide-react"
+import { Search, X } from "lucide-react"
 import { ensurePdfFont } from "@/lib/pdf/font-loader"
 import { drawFooter, drawSimpleHeader } from "@/lib/pdf/common"
 import { Input } from "@/components/ui/input"
@@ -634,28 +634,6 @@ export default function IstoricInterventiiPage() {
         meta: {
           thClassName: "w-[90px] max-w-[90px] px-2",
           tdClassName: "w-[90px] max-w-[90px] px-2",
-        },
-      },
-      {
-        id: "actions",
-        header: "Acțiune",
-        cell: ({ row }) => (
-          <Button
-            asChild
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Link href={`/dashboard/lucrari/${row.original.id}`} title="Vezi tichetul">
-              <Eye className="h-4 w-4" />
-            </Link>
-          </Button>
-        ),
-        meta: {
-          // Slightly wider so "Acțiune" doesn't clip/squash in the header
-          thClassName: "w-[84px] min-w-[84px] max-w-[84px] px-2 text-center whitespace-nowrap",
-          tdClassName: "w-[84px] min-w-[84px] max-w-[84px] px-2 text-center whitespace-nowrap",
         },
       },
     ],

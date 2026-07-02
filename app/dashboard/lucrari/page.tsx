@@ -3500,22 +3500,19 @@ export default function Lucrari() {
                         <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat || "-"}</div>
                       </div>
 
-                      {/* View More Button */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (isBulkSelectionMode) {
+                      {isBulkSelectionMode && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
                             if (workId) toggleWorkSelection(workId)
-                            return
-                          }
-                          handleViewDetails(lucrare)
-                        }}
-                      >
-                        {isBulkSelectionMode ? (isSelectedForBulk ? "Selectat" : "Selectează") : "Vezi detalii"}
-                      </Button>
+                          }}
+                        >
+                          {isSelectedForBulk ? "Selectat" : "Selectează"}
+                        </Button>
+                      )}
                     </div>
 
                     {/* Desktop / tablet card - same layout as mobile */}
@@ -3592,22 +3589,19 @@ export default function Lucrari() {
                         <div className="text-gray-900 line-clamp-2">{lucrare.defectReclamat || "-"}</div>
                       </div>
 
-                      {/* View More Button */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (isBulkSelectionMode) {
+                      {isBulkSelectionMode && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2 border-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
                             if (workId) toggleWorkSelection(workId)
-                            return
-                          }
-                          handleViewDetails(lucrare)
-                        }}
-                      >
-                        {isBulkSelectionMode ? (isSelectedForBulk ? "Selectat" : "Selectează") : "Vezi detalii"}
-                      </Button>
+                          }}
+                        >
+                          {isSelectedForBulk ? "Selectat" : "Selectează"}
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

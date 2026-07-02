@@ -352,11 +352,15 @@ export default function Dashboard() {
     }
   }
 
+  const bubbleEmitent = (it: { emitentLabel?: string }) =>
+    !isTechnician ? it.emitentLabel : undefined
+
   const statusBubble = (color: string) => (it: any) => (
     <WorkBubbleStatus
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
+      emitent={bubbleEmitent(it)}
       colorClass={color}
       onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
       className="mb-2"
@@ -368,6 +372,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
+      emitent={bubbleEmitent(it)}
       colorClass={color}
       onClick={() => {
         if (it.lucrareId) {
@@ -388,6 +393,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
+      emitent={bubbleEmitent(it)}
       equipmentList={it.equipmentList}
       colorClass={color}
       onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
@@ -410,6 +416,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
+      emitent={bubbleEmitent(it)}
       equipmentList={it.equipmentList}
       status={it.statusLucrare}
       colorClass={getTechnicianWorkColor(it.statusLucrare)}
@@ -426,6 +433,7 @@ export default function Dashboard() {
         key={it.id}
         title={it.locatie}
         subtitle={it.equipmentLabel}
+        emitent={bubbleEmitent(it)}
         colorClass={color}
         onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
         className="mb-2"
@@ -448,6 +456,7 @@ export default function Dashboard() {
         key={it.id}
         title={it.locatie}
         subtitle={it.equipmentLabel}
+        emitent={bubbleEmitent(it)}
         colorClass={color}
         onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
         className="mb-2"

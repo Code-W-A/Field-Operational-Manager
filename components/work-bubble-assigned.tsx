@@ -21,13 +21,14 @@ const BUBBLE_CONFIG = {
 export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string
   subtitle?: string
+  emitent?: string
   status?: string
   equipmentList?: string[]
   colorClass?: string
   onClick?: () => void
 }
 
-export function WorkBubbleAssigned({ title, subtitle, status, equipmentList, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleAssignedProps) {
+export function WorkBubbleAssigned({ title, subtitle, emitent, status, equipmentList, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleAssignedProps) {
   const hasMultipleEquipment = Array.isArray(equipmentList) && equipmentList.length > 1
 
   return (
@@ -84,6 +85,11 @@ export function WorkBubbleAssigned({ title, subtitle, status, equipmentList, col
           subtitle || "-"
         )}
       </div>
+      {emitent && (
+        <div className="text-xs opacity-80 leading-tight min-w-0 max-w-full w-full whitespace-normal break-words mt-0.5">
+          Emitent: {emitent}
+        </div>
+      )}
     </div>
   )
 }

@@ -10,6 +10,7 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-settings"
 import { toDateSafe } from "@/lib/utils/time-format"
+import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 
 export interface DashboardBubbleItem {
   id: string
@@ -23,6 +24,7 @@ export interface DashboardBubbleItem {
   offerStatus?: "accept" | "reject"
   equipmentStatus?: string
   contractId?: string
+  emitentLabel?: string
   // Câmpuri pentru sortare specifică
   sortDate?: Date
   createdAt?: Date
@@ -136,6 +138,7 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date,
     sortDate: sortDate,
     offerStatus: offerStatus,
     equipmentStatus: equipmentStatus,
+    emitentLabel: getTicketEmitent(l),
   }
 }
 
@@ -146,6 +149,7 @@ function buildRevisionScheduleBubble(params: {
   locatie: string
   equipmentLabel: string
   sortDate: Date
+  emitentLabel?: string
 }): DashboardBubbleItem {
   return {
     id: params.id,
@@ -154,6 +158,7 @@ function buildRevisionScheduleBubble(params: {
     locatie: params.locatie,
     equipmentLabel: params.equipmentLabel,
     sortDate: params.sortDate,
+    emitentLabel: params.emitentLabel,
   }
 }
 
@@ -301,7 +306,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     if (cfg.programatorReviziiEnabled && Array.isArray(contracts) && contracts.length > 0) {
       // Dacă tichetele de revizie există deja, vrem să navigăm către tichet (nu către contract).
       // Mapăm după contract + data intervenției (zi) și reținem dacă e deja atribuit.
-      const revizieWorkByContractAndDate: Record<string, { lucrareId: string; hasTechnicians: boolean }> = {}
+      const revizieWorkByContractAndDate: Record<string, { lucrareId: string; hasTechnicians: boolean; emitentLabel?: string }> = {}
       if (Array.isArray(activeLucrari) && activeLucrari.length > 0) {
         for (const l of activeLucrari) {
           const lucrareId = String((l as any)?.id || "")
@@ -315,7 +320,13 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           const hasTechnicians = technicians.length > 0
           const key = `${contractId}|${dk}`
           // păstrăm prima lucrare găsită pentru cheie
-          if (!revizieWorkByContractAndDate[key]) revizieWorkByContractAndDate[key] = { lucrareId, hasTechnicians }
+          if (!revizieWorkByContractAndDate[key]) {
+            revizieWorkByContractAndDate[key] = {
+              lucrareId,
+              hasTechnicians,
+              emitentLabel: getTicketEmitent(l),
+            }
+          }
         }
       }
 
@@ -371,6 +382,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
               locatie: locationName,
               equipmentLabel: subtitle,
               sortDate: generateAt,
+              emitentLabel: meta?.emitentLabel,
             })
           )
           added += 1

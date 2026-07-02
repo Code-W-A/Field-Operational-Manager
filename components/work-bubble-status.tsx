@@ -7,11 +7,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export interface WorkBubbleStatusProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string
   subtitle?: string
+  emitent?: string
   colorClass?: string
   onClick?: () => void
 }
 
-export function WorkBubbleStatus({ title, subtitle, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleStatusProps) {
+export function WorkBubbleStatus({ title, subtitle, emitent, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleStatusProps) {
   return (
     <TooltipProvider>
       <Tooltip>
@@ -30,7 +31,7 @@ export function WorkBubbleStatus({ title, subtitle, colorClass = "bg-slate-600",
               "w-full",
               "min-w-0",
               "max-w-full",
-              "min-h-14",
+              "min-h-16",
               "px-3",
               "py-2",
               "box-border",
@@ -61,13 +62,19 @@ export function WorkBubbleStatus({ title, subtitle, colorClass = "bg-slate-600",
                 {subtitle}
               </div>
             )}
+            {emitent && (
+              <div className="text-xs opacity-80 leading-tight text-white mt-0.5 whitespace-normal break-words min-w-0 max-w-full w-full">
+                Emitent: {emitent}
+              </div>
+            )}
           </div>
         </TooltipTrigger>
-        {(title || subtitle) && (
+        {(title || subtitle || emitent) && (
           <TooltipContent>
             <div className="text-xs">
               <div className="font-medium">{title}</div>
               {subtitle && <div className="opacity-80">{subtitle}</div>}
+              {emitent && <div className="opacity-80">Emitent: {emitent}</div>}
             </div>
           </TooltipContent>
         )}
