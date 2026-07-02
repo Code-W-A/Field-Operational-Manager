@@ -33,6 +33,14 @@ export interface OfferPdfInput {
   prestator?: { name?: string; cui?: string; reg?: string; address?: string }
   beneficiar?: { name?: string; cui?: string; reg?: string; address?: string }
   documentType?: "offer" | "deviz"
+  responseProof?: OfferResponseProof
+}
+
+export interface OfferResponseProof {
+  action: "accept" | "reject"
+  actedAt: string | Date
+  verifiedEmail: string
+  reason?: string
 }
 
 // Normalize keeping diacritics; fix common cedilla/comma confusions and enforce NFC
@@ -43,6 +51,11 @@ function normalizeForPdf(text = ""): string {
   return t
 }
 
+async function serverImport<T>(specifier: string): Promise<T> {
+  const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<T>
+  return dynamicImport(specifier)
+}
+
 function formatDisplayWorkId(input: OfferPdfInput): string {
   const value = String(input.numarRaport || "").trim()
   if (value) return value.startsWith("#") ? value : `#${value}`
@@ -51,6 +64,15 @@ function formatDisplayWorkId(input: OfferPdfInput): string {
 
 async function getPdfLogoDataUrl(): Promise<string | null> {
   try {
+    if (typeof window === "undefined") {
+      const [{ readFile }, path] = await Promise.all([
+        serverImport<typeof import("node:fs/promises")>("node:fs/promises"),
+        serverImport<typeof import("node:path")>("node:path"),
+      ])
+      const filePath = path.join(process.cwd(), "public", "nrglogo.png")
+      const buf = await readFile(filePath)
+      return `data:image/png;base64,${buf.toString("base64")}`
+    }
     const resp = await fetch("/nrglogo.png")
     const blob = await resp.blob()
     const reader = new FileReader()
@@ -62,6 +84,51 @@ async function getPdfLogoDataUrl(): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+export function formatOfferResponseProofText(proof: OfferResponseProof): string {
+  const actedAt = proof.actedAt instanceof Date ? proof.actedAt : new Date(proof.actedAt)
+  const validDate = Number.isNaN(actedAt.getTime()) ? new Date() : actedAt
+  const date = `${String(validDate.getDate()).padStart(2, "0")}.${String(validDate.getMonth() + 1).padStart(2, "0")}.${validDate.getFullYear()}`
+  const time = `${String(validDate.getHours()).padStart(2, "0")}:${String(validDate.getMinutes()).padStart(2, "0")}`
+  const actionLabel = proof.action === "accept" ? "acceptata" : "refuzata"
+  return `Oferta ${actionLabel} la data de ${date} ora ${time} de pe email ${String(proof.verifiedEmail || "").trim() || "-"}`
+}
+
+function drawResponseProof(doc: jsPDF, input: OfferPdfInput, x: number, y: number, width: number, pageHeight: number): number {
+  if (!input.responseProof) return y
+
+  const proofText = normalizeForPdf(formatOfferResponseProofText(input.responseProof))
+  const reason = input.responseProof.reason ? normalizeForPdf(`Motiv refuz: ${input.responseProof.reason}`) : ""
+  const proofLines = doc.splitTextToSize(proofText, width - 8)
+  const reasonLines = reason ? doc.splitTextToSize(reason, width - 8) : []
+  const blockHeight = 10 + proofLines.length * 5 + (reasonLines.length ? 3 + reasonLines.length * 5 : 0)
+  const maxY = pageHeight - 34
+
+  if (y + blockHeight > maxY) {
+    doc.addPage()
+    y = 12
+  } else {
+    y += 8
+  }
+
+  doc.setDrawColor(22, 163, 74).setLineWidth(0.4)
+  doc.setFillColor(240, 253, 244)
+  doc.roundedRect(x, y, width, blockHeight, 2, 2, "FD")
+  doc.setTextColor(22, 101, 52).setFont("NotoSans", "bold").setFontSize(9)
+  doc.text("Dovada raspuns client", x + 4, y + 6)
+  doc.setTextColor(20, 83, 45).setFont("NotoSans", "normal").setFontSize(9)
+  let yy = y + 11
+  doc.text(proofLines, x + 4, yy)
+  yy += proofLines.length * 5
+  if (reasonLines.length) {
+    yy += 3
+    doc.setTextColor(127, 29, 29)
+    doc.text(reasonLines, x + 4, yy)
+    yy += reasonLines.length * 5
+  }
+  doc.setTextColor(0)
+  return y + blockHeight
 }
 
 function drawStandardFooter(doc: jsPDF, margin: number, width: number, pageHeight: number) {
@@ -468,6 +535,7 @@ async function generateDevizDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   const preparedLine = preparedBy
     ? normalizeForPdf(`Întocmit la data de ${preparedAt} de ${preparedBy}`)
     : normalizeForPdf(`Întocmit la data de ${preparedAt}`)
+  y = drawResponseProof(doc, input, M, y, W, PH)
   const footerSepY = PH - 28
   doc.setFont("NotoSans", "normal").setFontSize(9).setTextColor(0)
   doc.text(preparedLine, M, footerSepY - 4)

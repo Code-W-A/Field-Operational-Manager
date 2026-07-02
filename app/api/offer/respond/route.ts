@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/firebase/admin"
 import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server"
 import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
+import { generateCertifiedLucrariOfferPdf } from "@/lib/offer/certified-pdf.server"
 
 function toDate(value: any): Date | null {
   if (!value) return null
@@ -280,10 +281,12 @@ export async function POST(req: NextRequest) {
 
       if (safeFinalAction === "accept") {
         update.statusOferta = "OFERTAT"
+        update.offerPipelineStage = "OFERTA_ACCEPTATA"
         update.acceptedOfferSnapshot = data?.offerActionSnapshot || null
         update.offerActionVersionSavedAt = data?.offerActionSnapshot?.savedAt || data?.offerActionVersionSavedAt || null
       } else {
         update.statusOferta = "DA"
+        update.offerPipelineStage = "OFERTA_REFUZATA"
       }
 
       tx.update(workRef, update)
@@ -313,6 +316,34 @@ export async function POST(req: NextRequest) {
 
     const workSnapAfter = await adminDb.collection("lucrari").doc(workId).get()
     const workDataAfter = workSnapAfter.data() as any
+    try {
+      const responseCertifiedPdf = await generateCertifiedLucrariOfferPdf({
+        lucrareId: workId,
+        work: workDataAfter || {},
+        action: txResult.action,
+      })
+      if (responseCertifiedPdf) {
+        await adminDb.collection("lucrari").doc(workId).set({ responseCertifiedPdf }, { merge: true })
+        ;(workDataAfter as any).responseCertifiedPdf = responseCertifiedPdf
+      }
+    } catch (error) {
+      await logOfferEvent(
+        {
+          type: "OFFER_ERROR_REPORTED",
+          source: "lucrari",
+          status: "certified_pdf_failed",
+          lucrareId: workId,
+          actorType: "system",
+          payload: {
+            responseAction: txResult.action,
+            context: "generate_response_certified_pdf",
+            error: error instanceof Error ? error.message : String(error),
+          },
+          integrityWarning: "PDF-ul intern cu dovada răspunsului nu a putut fi generat; răspunsul clientului rămâne înregistrat.",
+        },
+        req,
+      )
+    }
     await logOfferEvent(
       {
         type: txResult.action === "accept" ? "OFFER_ACCEPTED" : "OFFER_REJECTED",

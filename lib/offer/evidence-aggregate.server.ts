@@ -223,6 +223,10 @@ function buildSummaryFromWork(work: Record<string, unknown>): OfferEvidenceSumma
     pdfUrl: (work.ofertaDocument as Record<string, unknown> | undefined)?.url
       ? String((work.ofertaDocument as Record<string, unknown>).url)
       : null,
+    certifiedPdf:
+      work.responseCertifiedPdf && typeof work.responseCertifiedPdf === "object"
+        ? (work.responseCertifiedPdf as OfferEvidenceSummary["certifiedPdf"])
+        : null,
     messageId: lastOfferEmail.messageId ? String(lastOfferEmail.messageId) : null,
     statusOferta: work.statusOferta ? String(work.statusOferta) : null,
   }
@@ -503,6 +507,10 @@ function buildCrmSummary(offer: Record<string, unknown>): OfferEvidenceSummary {
     offerTotal: typeof snapshot.total === "number" ? snapshot.total : null,
     offerVersion: offer.version != null ? String(offer.version) : null,
     pdfUrl: offer.pdfUrl ? String(offer.pdfUrl) : null,
+    certifiedPdf:
+      offer.responseCertifiedPdf && typeof offer.responseCertifiedPdf === "object"
+        ? (offer.responseCertifiedPdf as OfferEvidenceSummary["certifiedPdf"])
+        : null,
     messageId: null,
     statusOferta: offer.status ? String(offer.status) : null,
   }

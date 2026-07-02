@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
       offerActionExpiresAt: expiresAt,
       offerActionUsedAt: null,
       offerActionVerification: null,
+      offerPipelineStage: "OFERTA_TRANSMISA",
     }
     // Persist optional snapshot of the offer being sent so we can later show exactly what was accepted
     if (snapshot && typeof snapshot === 'object') {

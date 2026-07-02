@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS, CRM_PIPELINE_STAGE_LABELS, isPipelineStageAllowedForOpportunityType } from "@/lib/crm/constants"
 import { logOfferEvent } from "@/lib/offer/offer-events.server"
+import { generateCertifiedCrmOfferPdf } from "@/lib/offer/certified-pdf.server"
 
 function toDate(value: unknown): Date | null {
   if (!value) return null
@@ -205,6 +206,37 @@ export async function POST(request: NextRequest) {
 
     const offerSnapAfter = await adminDb.collection(CRM_COLLECTIONS.offers).doc(txResult.offerId).get()
     const offerDataAfter = (offerSnapAfter.data() || {}) as Record<string, unknown>
+    try {
+      const opportunitySnapAfter = await adminDb.collection(CRM_COLLECTIONS.opportunities).doc(txResult.opportunityId).get()
+      const responseCertifiedPdf = await generateCertifiedCrmOfferPdf({
+        offerId: txResult.offerId,
+        opportunity: opportunitySnapAfter.exists ? { id: opportunitySnapAfter.id, ...opportunitySnapAfter.data() } : {},
+        offer: { id: txResult.offerId, ...offerDataAfter },
+        action: txResult.action,
+      })
+      if (responseCertifiedPdf) {
+        await adminDb.collection(CRM_COLLECTIONS.offers).doc(txResult.offerId).set({ responseCertifiedPdf }, { merge: true })
+        ;(offerDataAfter as Record<string, unknown>).responseCertifiedPdf = responseCertifiedPdf
+      }
+    } catch (error) {
+      await logOfferEvent(
+        {
+          type: "OFFER_ERROR_REPORTED",
+          source: "crm",
+          status: "certified_pdf_failed",
+          offerId: txResult.offerId,
+          opportunityId: txResult.opportunityId,
+          actorType: "system",
+          payload: {
+            responseAction: txResult.action,
+            context: "generate_response_certified_pdf",
+            error: error instanceof Error ? error.message : String(error),
+          },
+          integrityWarning: "PDF-ul intern cu dovada răspunsului nu a putut fi generat; răspunsul clientului rămâne înregistrat.",
+        },
+        request,
+      )
+    }
     await logOfferEvent(
       {
         type: txResult.action === "accept" ? "OFFER_ACCEPTED" : "OFFER_REJECTED",

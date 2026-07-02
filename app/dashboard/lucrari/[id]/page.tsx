@@ -44,6 +44,7 @@ import {
   Mail,
   History,
   Loader2,
+  FileCheck2,
 } from "lucide-react"
 import { format } from "date-fns"
 import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
@@ -4198,6 +4199,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               </Button>
                             </div>
                           )}
+                          {(lucrare as any)?.responseCertifiedPdf?.storagePath ? (
+                            <div className="mt-2">
+                              <Button asChild variant="outline" size="sm">
+                                <a
+                                  href={`/api/lucrari/${encodeURIComponent(lucrare.id!)}/offer-certified-pdf`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <FileCheck2 className="mr-1.5 h-4 w-4" />
+                                  PDF dovadă
+                                </a>
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
                       )}
                     </div>

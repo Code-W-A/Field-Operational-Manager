@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, Download, FileText, ExternalLink } from "lucide-react"
+import { Loader2, Download, FileText, ExternalLink, FileCheck2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { formatUiDate } from "@/lib/utils/time-format"
 import type { OfferEvidencePack, OfferEvidenceTimelineItem } from "@/lib/offer/evidence-types"
@@ -85,9 +85,11 @@ function TimelineRow({ item }: { item: OfferEvidenceTimelineItem }) {
 function OfferEvidenceDetails({
   pack,
   logsHref,
+  certifiedPdfHref,
 }: {
   pack: OfferEvidencePack
   logsHref: string
+  certifiedPdfHref: string | null
 }) {
   return (
     <>
@@ -121,6 +123,18 @@ function OfferEvidenceDetails({
               className="text-blue-700 hover:underline inline-flex items-center gap-1"
             >
               PDF ofertă <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        ) : null}
+        {pack.summary.certifiedPdf && certifiedPdfHref ? (
+          <div>
+            <a
+              href={certifiedPdfHref}
+              target="_blank"
+              rel="noreferrer"
+              className="text-emerald-700 hover:underline inline-flex items-center gap-1"
+            >
+              PDF dovadă <FileCheck2 className="h-3 w-3" />
             </a>
           </div>
         ) : null}
@@ -250,6 +264,12 @@ export function OfferEvidencePanel({ mode, entityId, title = "Dosar ofertă", cl
     mode === "lucrari"
       ? `/dashboard/loguri?lucrareId=${encodeURIComponent(entityId)}&categorie=${encodeURIComponent("Portal ofertă")}`
       : "/dashboard/loguri"
+  const certifiedPdfHref =
+    mode === "lucrari"
+      ? `/api/lucrari/${encodeURIComponent(entityId)}/offer-certified-pdf`
+      : mode === "crm-offer"
+        ? `/api/crm/offers/${encodeURIComponent(entityId)}/certified-pdf`
+        : null
 
   return (
     <div className={`p-4 border rounded-md bg-white ${className || ""}`}>
@@ -313,7 +333,7 @@ export function OfferEvidencePanel({ mode, entityId, title = "Dosar ofertă", cl
             ) : !pack ? (
               <p className="text-sm text-muted-foreground">Nu există date pentru dosar.</p>
             ) : (
-              <OfferEvidenceDetails pack={pack} logsHref={logsHref} />
+              <OfferEvidenceDetails pack={pack} logsHref={logsHref} certifiedPdfHref={certifiedPdfHref} />
             )}
           </div>
         </DialogContent>

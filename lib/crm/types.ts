@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore"
+import type { OfferResponseCertifiedPdf } from "@/lib/offer/evidence-types"
 import {
   CRM_DIRECTIONS,
   CRM_INTERNAL_HANDOFF_STATUSES,
@@ -163,6 +164,7 @@ export interface CrmOffer {
   actionUsedAt?: FirestoreDateValue | null
   verification?: CrmOfferVerification
   response?: CrmOfferResponse
+  responseCertifiedPdf?: OfferResponseCertifiedPdf
   sentAt?: FirestoreDateValue
   createdById: string
   createdAt?: FirestoreDateValue

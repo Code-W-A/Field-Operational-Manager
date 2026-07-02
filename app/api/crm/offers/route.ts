@@ -104,6 +104,28 @@ function serializeResponse(value: unknown) {
   }
 }
 
+function serializeCertifiedPdf(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const item = value as Record<string, unknown>
+  const action = item.action === "accept" || item.action === "reject" ? item.action : null
+  const storagePath = normalizeString(item.storagePath)
+  const filename = normalizeString(item.filename)
+  if (!action || !storagePath || !filename) return undefined
+  return {
+    action,
+    actedAt: normalizeString(item.actedAt),
+    verifiedEmail: normalizeString(item.verifiedEmail),
+    reason: normalizeString(item.reason) || undefined,
+    renderedProofText: normalizeString(item.renderedProofText),
+    storagePath,
+    filename,
+    mime: "application/pdf" as const,
+    size: normalizeNumber(item.size, 0),
+    generatedAt: normalizeString(item.generatedAt),
+    sourceVersion: normalizeString(item.sourceVersion) || undefined,
+  }
+}
+
 function serializeOffer(offerId: string, data: Record<string, unknown>) {
   return {
     id: offerId,
@@ -133,6 +155,7 @@ function serializeOffer(offerId: string, data: Record<string, unknown>) {
     actionUsedAt: serializeDateValue(data.actionUsedAt),
     verification: serializeVerification(data.verification),
     response: serializeResponse(data.response),
+    responseCertifiedPdf: serializeCertifiedPdf(data.responseCertifiedPdf),
     sentAt: serializeDateValue(data.sentAt),
     createdById: normalizeString(data.createdById),
     createdAt: serializeDateValue(data.createdAt),

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Square, Loader2, MapPin, Clock, AlertCircle } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import {
   createCheckIn,
   createCheckOut,
@@ -15,10 +15,18 @@ import {
   endExtraTimeLog,
 } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
+import { resolveAttendanceSpecialDay, type AttendanceSpecialDayInfo } from "@/lib/attendance/special-day-confirmation"
+import { subscribeHrHolidays } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { extractTime24 } from "@/lib/utils/date-utils"
-import type { AttendanceSession, FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
+import type {
+  AttendanceSession,
+  FaceRecognitionResult,
+  AttendanceLocation,
+  AttendanceSpecialDayConfirmation,
+} from "@/types/attendance"
+import type { HrHoliday } from "@/lib/hr/types"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
@@ -46,6 +54,10 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
   const [currentTime, setCurrentTime] = useState(Date.now())
   const [debugSimMinutes, setDebugSimMinutes] = useState<number | null>(null)
   const [pendingAuditId, setPendingAuditId] = useState<string | null>(null)
+  const [holidays, setHolidays] = useState<HrHoliday[]>([])
+  const [specialConfirmOpen, setSpecialConfirmOpen] = useState(false)
+  const [specialDayWarning, setSpecialDayWarning] = useState<AttendanceSpecialDayInfo | null>(null)
+  const [specialDayConfirmed, setSpecialDayConfirmed] = useState<AttendanceSpecialDayConfirmation | null>(null)
 
   // Extra time tracking
   const [clientRouteActive, setClientRouteActive] = useState(false)
@@ -63,6 +75,18 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       setCurrentTime(Date.now())
     }, 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const year = new Date().getFullYear()
+    return subscribeHrHolidays({
+      year,
+      onChange: setHolidays,
+      onError: (error) => {
+        console.warn("Nu s-au putut încărca sărbătorile legale pentru pontaj:", error)
+        setHolidays([])
+      },
+    })
   }, [])
 
   // Cleanup any pending auto-end timers
@@ -156,6 +180,15 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     }
   }
 
+  const startCheckInSelfie = (confirmation?: AttendanceSpecialDayConfirmation) => {
+    setAction("check-in")
+    setDebugSimMinutes(null)
+    setSpecialDayConfirmed(confirmation ?? null)
+    setPendingAuditId(`selfie_checkin_${Date.now()}`)
+    setShowFaceDialog(true)
+    setFlowState("selfie")
+  }
+
   const handleCheckIn = () => {
     if (disabled) {
       toast({
@@ -165,10 +198,16 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       })
       return
     }
-    setAction("check-in")
-    setPendingAuditId(`selfie_checkin_${Date.now()}`)
-    setShowFaceDialog(true)
-    setFlowState("selfie")
+
+    const warning = resolveAttendanceSpecialDay(new Date(), holidays)
+    if (warning) {
+      setSpecialDayWarning(warning)
+      setSpecialConfirmOpen(true)
+      return
+    }
+
+    setSpecialDayWarning(null)
+    startCheckInSelfie()
   }
 
   const handleCheckOut = async () => {
@@ -194,6 +233,8 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     }
 
     setAction("check-out")
+    setSpecialDayWarning(null)
+    setSpecialDayConfirmed(null)
     setPendingAuditId(`selfie_checkout_${Date.now()}`)
     setShowFaceDialog(true)
     setFlowState("selfie")
@@ -224,6 +265,8 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     }
     setDebugSimMinutes(Math.round(minutes))
     setAction("check-out")
+    setSpecialDayWarning(null)
+    setSpecialDayConfirmed(null)
     setPendingAuditId(`selfie_checkout_${Date.now()}`)
     setShowFaceDialog(true)
     setFlowState("selfie")
@@ -247,6 +290,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
             type: "field",
             userAgent: navigator.userAgent,
           },
+          specialDayConfirmation: specialDayConfirmed ?? undefined,
           // selfie (optional)
           ...(result as any).__selfieCheckIn,
         })
@@ -331,6 +375,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       setAction(null)
       setDebugSimMinutes(null)
       setPendingAuditId(null)
+      setSpecialDayConfirmed(null)
     } catch (error) {
       console.error("Field check-in/out error:", error)
       const message = error instanceof Error ? error.message : "A apărut o eroare"
@@ -345,6 +390,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       setAction(null)
       setDebugSimMinutes(null)
       setPendingAuditId(null)
+      setSpecialDayConfirmed(null)
     }
   }
 
@@ -661,6 +707,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
           setFlowState("idle")
           setAction(null)
           setPendingAuditId(null)
+          setSpecialDayConfirmed(null)
         }
       }}>
         <DialogContent className="max-w-lg">
@@ -718,6 +765,54 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
               <p className="text-lg">Procesăm...</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={specialConfirmOpen}
+        onOpenChange={(open) => {
+          setSpecialConfirmOpen(open)
+          if (!open) {
+            setSpecialDayWarning(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">Pontaj în zi nelucrătoare</DialogTitle>
+            <DialogDescription className="text-center">
+              {specialDayWarning
+                ? `Azi este ${specialDayWarning.label}. Confirmă că vrei să pornești pontajul.`
+                : "Confirmă că vrei să pornești pontajul."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSpecialConfirmOpen(false)
+                setSpecialDayWarning(null)
+              }}
+            >
+              Anulează
+            </Button>
+            <Button
+              onClick={() => {
+                if (!specialDayWarning) return
+                const confirmation: AttendanceSpecialDayConfirmation = {
+                  ...specialDayWarning,
+                  required: true,
+                  confirmed: true,
+                  confirmedAt: Date.now(),
+                }
+                setSpecialConfirmOpen(false)
+                setSpecialDayWarning(null)
+                startCheckInSelfie(confirmation)
+              }}
+            >
+              Da, mă pontez
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

@@ -17,6 +17,17 @@ export interface AttendanceLocation {
   address?: string
 }
 
+export type AttendanceSpecialDayKind = "saturday" | "sunday" | "legal_holiday"
+
+export interface AttendanceSpecialDayConfirmation {
+  required: boolean
+  confirmed: boolean
+  kind: AttendanceSpecialDayKind
+  label: string
+  date: string // yyyy-mm-dd, local date
+  confirmedAt: number // timestamp
+}
+
 export interface DeviceInfo {
   type: string
   userAgent: string
@@ -43,6 +54,8 @@ export interface AttendanceSession {
   checkInSelfieUrl?: string
   checkInSelfiePath?: string
   checkInSelfieStatus?: "ok" | "missing" | "error"
+  /** Explicit user confirmation when check-in starts on weekend/legal holiday. */
+  specialDayConfirmation?: AttendanceSpecialDayConfirmation
   /** Late start metadata (computed at check-in vs scheduled start). */
   lateStartMinutes?: number
   lateStartAt?: number
@@ -96,6 +109,7 @@ export interface CheckInRequest {
   checkInSelfieUrl?: string
   checkInSelfiePath?: string
   checkInSelfieStatus?: "ok" | "missing" | "error"
+  specialDayConfirmation?: AttendanceSpecialDayConfirmation
   deviceInfo: DeviceInfo
   /** Override session start (ex. ora scanării QR). */
   sessionStartMs?: number

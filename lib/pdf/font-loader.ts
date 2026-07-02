@@ -3,10 +3,28 @@ import { jsPDF } from "jspdf"
 let fontCache: { regB64: string; boldB64: string } | null = null
 let fontLoadPromise: Promise<void> | null = null
 
+async function serverImport<T>(specifier: string): Promise<T> {
+  const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<T>
+  return dynamicImport(specifier)
+}
+
 async function fetchAsBase64(url: string): Promise<string> {
+  if (typeof window === "undefined" && url.startsWith("/")) {
+    const [{ readFile }, path] = await Promise.all([
+      serverImport<typeof import("node:fs/promises")>("node:fs/promises"),
+      serverImport<typeof import("node:path")>("node:path"),
+    ])
+    const filePath = path.join(process.cwd(), "public", url.replace(/^\/+/, ""))
+    const buf = await readFile(filePath)
+    return buf.toString("base64")
+  }
+
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Font download failed: ${res.status}`)
   const buf = await res.arrayBuffer()
+  if (typeof window === "undefined") {
+    return Buffer.from(buf).toString("base64")
+  }
   let binary = ""
   const bytes = new Uint8Array(buf)
   const chunk = 0x8000
@@ -102,5 +120,3 @@ export async function ensurePdfFont(doc: jsPDF): Promise<void> {
     console.warn("⚠️ PDF font load failed, fallback to default (fără diacritice):", e)
   }
 }
-
-

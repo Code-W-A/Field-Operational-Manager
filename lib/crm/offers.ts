@@ -44,6 +44,7 @@ function mapOffer(docId: string, data: Record<string, unknown>): CrmOffer {
     actionUsedAt: (data.actionUsedAt as CrmOffer["actionUsedAt"]) || undefined,
     verification: (data.verification as CrmOffer["verification"]) || undefined,
     response: (data.response as CrmOffer["response"]) || undefined,
+    responseCertifiedPdf: (data.responseCertifiedPdf as CrmOffer["responseCertifiedPdf"]) || undefined,
     sentAt: (data.sentAt as CrmOffer["sentAt"]) || undefined,
     createdById: String(data.createdById || ""),
     createdAt: (data.createdAt as CrmOffer["createdAt"]) || undefined,

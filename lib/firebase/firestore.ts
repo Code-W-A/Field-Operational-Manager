@@ -24,6 +24,7 @@ import { deriveLegacyPrimaryClientContact, ensureClientContactIds } from "@/lib/
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import { resolveDuplicateContractAssignmentConflict } from "@/lib/utils/contract-assignment-validation"
 import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts/contract-status"
+import type { OfferResponseCertifiedPdf } from "@/lib/offer/evidence-types"
 
 export interface PersoanaContact {
   id?: string
@@ -208,6 +209,7 @@ export interface Lucrare {
   /** Justificare obligatorie când `tehnicianGarantieDecizie === "nu_intra"`. */
   tehnicianGarantieNuIntraMotiv?: string
   statusOferta?: "NU" | "DA" | "OFERTAT" // Nou câmp pentru managementul statusului ofertei
+  offerPipelineStage?: "OFERTA_TRANSMISA" | "OFERTA_ACCEPTATA" | "OFERTA_REFUZATA"
   // CÂMP NOU PENTRU NUMĂRUL FACTURII - BACKWARD COMPATIBLE
   numarFactura?: string // Numărul facturii (opțional, pentru lucrările facturate)
   // CÂMP NOU PENTRU MOTIV NEFACTURARE - BACKWARD COMPATIBLE
@@ -233,6 +235,7 @@ export interface Lucrare {
     numarOferta: string  // Numărul ofertei (editabil)
     dataOferta: string   // Data ofertei (editabil)
   }
+  responseCertifiedPdf?: OfferResponseCertifiedPdf
   devizDocument?: {
     url?: string
     fileName: string

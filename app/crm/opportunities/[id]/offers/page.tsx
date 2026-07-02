@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { AlertCircle, Download, ExternalLink, Mail, Save, Send, TableProperties } from "lucide-react"
+import { AlertCircle, Download, ExternalLink, FileCheck2, Mail, Save, Send, TableProperties } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Panel } from "@/components/crm"
 import { OfferEvidencePanel } from "@/components/offer/offer-evidence-panel"
@@ -684,6 +684,18 @@ export default function OpportunityOffersPage() {
                               </a>
                             </Button>
                           </>
+                        ) : null}
+                        {offer.responseCertifiedPdf?.storagePath ? (
+                          <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-700">
+                            <a
+                              href={`/api/crm/offers/${encodeURIComponent(offer.id)}/certified-pdf`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="PDF dovadă"
+                            >
+                              <FileCheck2 className="h-4 w-4" />
+                            </a>
+                          </Button>
                         ) : null}
                         {offer.status === "DRAFT" ? (
                           <Button

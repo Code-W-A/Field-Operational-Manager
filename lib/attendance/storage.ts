@@ -341,6 +341,7 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     checkInSelfieUrl: request.checkInSelfieUrl ?? undefined,
     checkInSelfiePath: request.checkInSelfiePath ?? undefined,
     checkInSelfieStatus: request.checkInSelfieStatus ?? undefined,
+    specialDayConfirmation: request.specialDayConfirmation ?? undefined,
     ...(late.lateStartMinutes > 0
       ? { lateStartMinutes: late.lateStartMinutes, lateStartAt: now, scheduledStart }
       : { scheduledStart }),

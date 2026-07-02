@@ -39,6 +39,145 @@ Pentru fluxul Lucrări, trimiterea ofertei transmite `lucrareId` explicit către
 
 ---
 
+## Verificare punctuală — cerința „pipeline + PDF nou după accept/refuz”
+
+### Verdict
+
+Cerința este doar parțial implementată.
+
+### Ce există deja
+
+- În fluxul **Lucrări**, acceptul/refuzul se salvează în `offerResponse`, `offerResponsesHistory`, `acceptedOfferSnapshot`, `offerActionUsedAt` și apare în UI pe tichet plus în dashboard la box-ul `Status oferte`.
+- În fluxul **CRM**, acceptul/refuzul mută explicit oportunitatea în pipeline prin `OFERTA_ACCEPTATA` / `OFERTA_REFUZATA` și scrie `STAGE_CHANGED`.
+- Există deja un **PDF de dosar ofertă** separat, generat din `lib/offer/evidence-pdf.ts`, dar acesta este un proces verbal de audit, nu PDF-ul comercial al ofertei reemis după răspuns.
+
+### Ce NU există acum
+
+- În fluxul **Lucrări**, acceptul/refuzul nu setează un câmp de pipeline dedicat, similar cu CRM. În `app/api/offer/respond/route.ts` se actualizează `statusOferta`, dar nu există o tranziție explicită de tip `OFERTA_ACCEPTATA` / `OFERTA_REFUZATA`.
+- PDF-ul comercial al ofertei generat de `lib/utils/offer-pdf.ts` nu conține niciun bloc de dovadă de tip „Oferta acceptată/refuzată la data...”.
+- După accept/refuz nu există niciun flux care să regenereze și să urce automat un **nou PDF al ofertei** cu dovada răspunsului, nici pentru `Lucrări`, nici pentru `CRM`.
+- Linkurile actuale din UI deschid fie PDF-ul original al ofertei, fie PDF-ul separat de dosar, nu un PDF reemis al ofertei cu mențiunea legală cerută.
+
+### Concluzie practică
+
+Pentru cerința formulată:
+
+1. **CRM** are deja partea de pipeline, dar nu are PDF-ul reemis cu dovada de accept/refuz.
+2. **Lucrări** nu are nici pipeline dedicat, nici PDF reemis cu dovada de accept/refuz.
+
+### Plan de implementare propus
+
+#### 1. Standardizare status pipeline pentru oferte în fluxul `Lucrări`
+
+Adăugăm un câmp explicit, separat de `statusOferta`, de exemplu:
+
+- `offerPipelineStage: "OFERTA_TRANSMISA" | "OFERTA_ACCEPTATA" | "OFERTA_REFUZATA"`
+
+Actualizări:
+
+- la trimiterea ofertei: `OFERTA_TRANSMISA`
+- la accept: `OFERTA_ACCEPTATA`
+- la refuz: `OFERTA_REFUZATA`
+
+Motiv:
+
+- `statusOferta` este folosit istoric și are valori neuniforme (`DA`, `OFERTAT`), deci nu e un suport bun pentru pipeline clar și raportare.
+
+#### 2. Model de date pentru PDF-ul reemis cu dovada răspunsului
+
+Pe `lucrari/{id}` și `crm_offers/{offerId}` adăugăm o structură dedicată, de exemplu:
+
+```ts
+responseCertifiedPdf: {
+  action: "accept" | "reject"
+  actedAt: string
+  verifiedEmail: string
+  sourceVersionSavedAt?: string
+  renderedProofText: string
+  pdfUrl: string
+  pdfStoragePath: string
+  pdfFilename: string
+  generatedAt: string
+}
+```
+
+Motiv:
+
+- păstrăm PDF-ul original nemodificat
+- salvăm separat documentul „certificat” rezultat după răspuns
+- avem un punct unic de download și audit
+
+#### 3. Extindere generator PDF ofertă
+
+Extindem `OfferPdfInput` din `lib/utils/offer-pdf.ts` cu un bloc opțional:
+
+```ts
+responseProof?: {
+  action: "accept" | "reject"
+  actedAt: string
+  verifiedEmail: string
+  reason?: string
+}
+```
+
+La randare:
+
+- pe ultima pagină, deasupra footer-ului standard, se adaugă textul:
+  `Oferta acceptata/refuzata la data de ZZ.LL.AAAA ora HH:MM de pe email sssddd@gmail.com`
+- dacă nu mai este loc pe pagină, se adaugă automat o pagină nouă doar pentru blocul de dovadă
+- pentru refuz, motivul poate fi pe linie separată când există
+
+#### 4. Regenerare automată la accept/refuz
+
+În:
+
+- `app/api/offer/respond/route.ts`
+- `app/api/crm/offers/respond/route.ts`
+
+după salvarea răspunsului:
+
+- reconstruim inputul PDF din snapshotul trimis/acceptat
+- injectăm `responseProof`
+- generăm noul PDF
+- îl urcăm în storage
+- salvăm metadatele în `responseCertifiedPdf`
+
+Important:
+
+- PDF-ul trebuie generat din snapshotul versiunii la care s-a răspuns, nu din editorul curent, ca să rămână probă fidelă
+
+#### 5. UI și download
+
+În UI:
+
+- pe tichet și pe oferta CRM adăugăm link separat: `PDF ofertă cu dovada răspunsului`
+- în `Dosar ofertă` afișăm și linkul către acest PDF
+- în istoric se afișează statusul de generare: generat / lipsă / eșuat
+
+#### 6. Compatibilitate cu datele existente
+
+Pentru ofertele deja acceptate/refuzate:
+
+- dacă avem snapshot + `offerResponse` / `response`, putem rula un backfill și genera PDF-urile retroactiv
+- dacă lipsește snapshotul versiunii răspunse, nu regenerăm automat și marcăm cazul ca „nerecuperabil complet”
+
+#### 7. Ordine recomandată de livrare
+
+1. `Lucrări`: adăugare `offerPipelineStage` + generare PDF certificat după accept/refuz
+2. `CRM`: aceeași generare PDF certificat, reutilizând același renderer
+3. UI: linkuri dedicate + status generare
+4. Backfill pentru cazurile istorice recuperabile
+
+#### 8. Estimare pragmatică
+
+- backend + model date + PDF renderer: `1-2 zile`
+- integrare UI `Lucrări` + `CRM`: `0.5-1 zi`
+- backfill + testare regresie: `0.5-1 zi`
+
+Total realist: `2-4 zile dev`
+
+---
+
 ## Context
 
 Pentru a demonstra că un client a acceptat oferta, avem nevoie de:

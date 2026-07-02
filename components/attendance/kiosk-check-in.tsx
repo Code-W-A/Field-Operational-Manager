@@ -7,9 +7,12 @@ import { Play, Square, UserCircle2, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
+import { resolveAttendanceSpecialDay, type AttendanceSpecialDayInfo } from "@/lib/attendance/special-day-confirmation"
+import { subscribeHrHolidays } from "@/lib/hr/storage"
 import { extractTime24 } from "@/lib/utils/date-utils"
 import { toast } from "@/hooks/use-toast"
-import type { FaceRecognitionResult, AttendanceLocation } from "@/types/attendance"
+import type { FaceRecognitionResult, AttendanceLocation, AttendanceSpecialDayConfirmation } from "@/types/attendance"
+import type { HrHoliday } from "@/lib/hr/types"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 import { verifyUserPassword } from "@/lib/firebase/kiosk-verifier-auth"
 import { useAuth } from "@/contexts/AuthContext"
@@ -57,6 +60,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const [noActiveOpen, setNoActiveOpen] = useState(false)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [holidays, setHolidays] = useState<HrHoliday[]>([])
+  const [specialDayWarning, setSpecialDayWarning] = useState<AttendanceSpecialDayInfo | null>(null)
+  const [specialDayConfirmed, setSpecialDayConfirmed] = useState<AttendanceSpecialDayConfirmation | null>(null)
 
   // Kiosk logout flow
   const [logoutOpen, setLogoutOpen] = useState(false)
@@ -73,7 +79,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       return () => clearTimeout(timer)
     }
 
-    if (flowState !== "idle" && flowState !== "success") {
+    if (flowState !== "idle") {
       const timer = setTimeout(() => {
         resetFlow()
         toast({
@@ -85,6 +91,18 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       return () => clearTimeout(timer)
     }
   }, [flowState])
+
+  useEffect(() => {
+    const year = new Date().getFullYear()
+    return subscribeHrHolidays({
+      year,
+      onChange: setHolidays,
+      onError: (error) => {
+        console.warn("Nu s-au putut încărca sărbătorile legale pentru pontaj kiosk:", error)
+        setHolidays([])
+      },
+    })
+  }, [])
 
   const resetFlow = () => {
     setFlowState("idle")
@@ -100,6 +118,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setAlreadyStartedAt(null)
     setNoActiveOpen(false)
     setConfirmOpen(false)
+    setSpecialDayWarning(null)
+    setSpecialDayConfirmed(null)
   }
 
   const resetLogout = () => {
@@ -203,6 +223,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       }
 
       // Confirmation comes before password (per requirement)
+      setSpecialDayWarning(action === "check-in" ? resolveAttendanceSpecialDay(new Date(), holidays) : null)
+      setSpecialDayConfirmed(null)
       setConfirmOpen(true)
     } catch (error) {
       toast({
@@ -217,6 +239,16 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   }
 
   const proceedAfterConfirm = () => {
+    if (action === "check-in" && specialDayWarning) {
+      setSpecialDayConfirmed({
+        ...specialDayWarning,
+        required: true,
+        confirmed: true,
+        confirmedAt: Date.now(),
+      })
+    } else {
+      setSpecialDayConfirmed(null)
+    }
     setConfirmOpen(false)
     setShowPasswordDialog(true)
     setFlowState("verify-password")
@@ -300,6 +332,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             type: "kiosk",
             userAgent: navigator.userAgent,
           },
+          specialDayConfirmation: specialDayConfirmed ?? undefined,
           ...(result as any).__selfieCheckIn,
         })
 
@@ -679,6 +712,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                 setAlreadyStartedOpen(false)
                 setAlreadyStartedAt(null)
                 setAction("check-out")
+                setSpecialDayWarning(null)
+                setSpecialDayConfirmed(null)
                 // Confirmation before password
                 setConfirmOpen(true)
               }}
@@ -722,6 +757,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                 // Switch flow to Start
                 setNoActiveOpen(false)
                 setAction("check-in")
+                setSpecialDayWarning(resolveAttendanceSpecialDay(new Date(), holidays))
+                setSpecialDayConfirmed(null)
                 setConfirmOpen(true)
               }}
             >
@@ -740,6 +777,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             setSelectedUser(null)
             setPassword("")
             setFlowState("select-user")
+            setSpecialDayWarning(null)
+            setSpecialDayConfirmed(null)
           }
         }}
       >
@@ -749,7 +788,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               {action === "check-in" ? "Confirmare Start" : "Confirmare Stop"}
             </DialogTitle>
             <DialogDescription className="text-center">
-              {action === "check-in"
+              {action === "check-in" && specialDayWarning
+                ? `Azi este ${specialDayWarning.label}. Confirmi că vrei să pornești pontajul?`
+                : action === "check-in"
                 ? "Confirmi că vrei să începi tura?"
                 : "Confirmi că vrei să închei tura?"}
             </DialogDescription>
@@ -778,11 +819,15 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                 setSelectedUser(null)
                 setPassword("")
                 setFlowState("select-user")
+                setSpecialDayWarning(null)
+                setSpecialDayConfirmed(null)
               }}
             >
               Nu
             </Button>
-            <Button onClick={proceedAfterConfirm}>Da, continuă</Button>
+            <Button onClick={proceedAfterConfirm}>
+              {action === "check-in" && specialDayWarning ? "Da, mă pontez" : "Da, continuă"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -797,6 +842,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             setPassword("")
             setPasswordSubmitting(false)
             setFlowState("select-user")
+            setSpecialDayWarning(null)
+            setSpecialDayConfirmed(null)
           }
         }}
       >
@@ -839,6 +886,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                 setPassword("")
                 setPasswordSubmitting(false)
                 setFlowState("select-user")
+                setSpecialDayWarning(null)
+                setSpecialDayConfirmed(null)
               }}
               disabled={passwordSubmitting}
             >
