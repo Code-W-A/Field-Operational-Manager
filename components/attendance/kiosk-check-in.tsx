@@ -22,6 +22,9 @@ import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import type { KioskEligibleRole } from "@/lib/attendance/kiosk-eligible-users"
 
+/** Temporar: false = pontaj kiosk fără parolă angajat, doar selfie. Codul parolei rămâne. */
+const KIOSK_EMPLOYEE_PASSWORD_ENABLED = false
+
 export interface KioskUser {
   uid: string
   displayName: string
@@ -238,6 +241,12 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     }
   }
 
+  const proceedToSelfieCapture = () => {
+    setShowPasswordDialog(false)
+    setShowDialog(true)
+    setFlowState("selfie")
+  }
+
   const proceedAfterConfirm = () => {
     if (action === "check-in" && specialDayWarning) {
       setSpecialDayConfirmed({
@@ -250,8 +259,12 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       setSpecialDayConfirmed(null)
     }
     setConfirmOpen(false)
-    setShowPasswordDialog(true)
-    setFlowState("verify-password")
+    if (KIOSK_EMPLOYEE_PASSWORD_ENABLED) {
+      setShowPasswordDialog(true)
+      setFlowState("verify-password")
+    } else {
+      proceedToSelfieCapture()
+    }
   }
 
   const handlePasswordVerify = async () => {
@@ -270,9 +283,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       setPasswordSubmitting(true)
       await verifyUserPassword(email, password)
       // Success: continue to selfie capture (audit)
-      setShowPasswordDialog(false)
-      setShowDialog(true)
-      setFlowState("selfie")
+      proceedToSelfieCapture()
     } catch (error) {
       toast({
         title: "Parolă invalidă",
