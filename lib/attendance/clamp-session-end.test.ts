@@ -65,3 +65,28 @@ test("forgottenSessionEndMs: program end normal pe ziua de start", () => {
   const expected = new Date(2026, 5, 16, 17, 0, 0, 0).getTime()
   assert.equal(forgottenSessionEndMs(start, "17:00"), expected)
 })
+
+test("forgottenSessionEndMs: program end invalid => fallback 16:30", () => {
+  const start = new Date(2026, 5, 16, 8, 0, 0).getTime()
+  const expected = new Date(2026, 5, 16, 16, 30, 0, 0).getTime()
+  assert.equal(forgottenSessionEndMs(start, "99:99"), expected)
+  assert.equal(forgottenSessionEndMs(start, "abc"), expected)
+})
+
+test("forgottenSessionEndMs: program end egal cu start => sfârșitul zilei", () => {
+  const start = new Date(2026, 5, 16, 16, 30, 0).getTime()
+  assert.equal(forgottenSessionEndMs(start, "16:30"), endOfLocalDayMs(start))
+})
+
+test("clamp: Stop exact la 23:59:59.999 în ziua de start rămâne permis", () => {
+  const start = new Date(2026, 5, 16, 8, 0, 0).getTime()
+  const stop = endOfLocalDayMs(start)
+  assert.equal(clampSessionEndMs(start, stop, "16:30"), stop)
+})
+
+test("clamp: Stop la 00:00 ziua următoare este limitat la program end", () => {
+  const start = new Date(2026, 5, 16, 8, 0, 0).getTime()
+  const stop = new Date(2026, 5, 17, 0, 0, 0).getTime()
+  const expected = new Date(2026, 5, 16, 16, 30, 0, 0).getTime()
+  assert.equal(clampSessionEndMs(start, stop, "16:30"), expected)
+})

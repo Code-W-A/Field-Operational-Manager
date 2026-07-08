@@ -22,6 +22,7 @@ function parseHHmm(value: string | undefined, fallback: { h: number; m: number }
   const h = Number(hStr)
   const m = Number(mStr)
   if (!Number.isFinite(h) || !Number.isFinite(m)) return fallback
+  if (h < 0 || h > 23 || m < 0 || m > 59) return fallback
   return { h, m }
 }
 

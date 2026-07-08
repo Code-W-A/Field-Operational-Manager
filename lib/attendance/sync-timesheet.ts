@@ -11,10 +11,11 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
-import type { TimesheetCell, TimesheetMonthKey, TimesheetCode } from "@/lib/hr/types"
+import type { TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
-import { calcEffectiveMinutes, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
+import { type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
 import { logPontajCondicaSync } from "@/lib/attendance/pontaj-audit-log"
+import { buildAttendanceTimesheetCell } from "@/lib/attendance/sync-timesheet-merge"
 
 const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
@@ -27,79 +28,34 @@ function debugPontajLog(label: string, payload: Record<string, any>) {
   }
 }
 
-function parseHM(value: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!m) return null
-  const hh = Number(m[1])
-  const mm = Number(m[2])
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
-  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
-  return hh * 60 + mm
-}
+function buildAttendanceEntriesFromSessions(sessions: AttendanceSession[]): NonNullable<TimesheetCell["entries"]> {
+  const entries: NonNullable<TimesheetCell["entries"]> = []
+  for (const s of sessions) {
+    if (!s.sessionEnd) continue
+    entries.push({
+      start: formatTime(s.sessionStart),
+      end: formatTime(s.sessionEnd),
+      methodStart: `Play (${s.mode})`,
+      methodEnd: `Stop (${s.checkOutMode || s.mode})`,
+      project: "Pontaj",
+      attendanceSessionId: s.id,
+      selfieStartUrl: (s as any).checkInSelfieUrl,
+      selfieEndUrl: (s as any).checkOutSelfieUrl,
+      lateStartMinutes: Number((s as any).lateStartMinutes ?? 0) || undefined,
+    })
 
-function normalizeNonOverlappingEntries(entries: NonNullable<TimesheetCell["entries"]>) {
-  const withRanges = entries
-    .map((e) => {
-      const s = parseHM(e.start)
-      const en = parseHM(e.end)
-      if (s == null || en == null || s >= en) return null
-      return { entry: e, start: s, end: en }
-    })
-    .filter(Boolean) as Array<{ entry: TimesheetCell["entries"][number]; start: number; end: number }>
-  if (withRanges.length <= 1) return withRanges.map((r) => r.entry)
-  withRanges.sort((a, b) => (a.start - b.start) || (a.end - b.end))
-  const result: typeof withRanges = []
-  for (const item of withRanges) {
-    const last = result[result.length - 1]
-    if (!last || item.start >= last.end) {
-      result.push(item)
-      continue
-    }
-    debugPontajLog("overlap:skip", {
-      reason: "computed_overlap",
-      kept: { start: last.entry.start, end: last.entry.end },
-      skipped: { start: item.entry.start, end: item.entry.end },
-    })
-  }
-  return result.map((r) => r.entry)
-}
-
-function filterOverlappingEntries(
-  existing: NonNullable<TimesheetCell["entries"]>,
-  incoming: NonNullable<TimesheetCell["entries"]>
-) {
-  const existingRanges = existing
-    .map((e) => {
-      const s = parseHM(e.start)
-      const en = parseHM(e.end)
-      if (s == null || en == null || s >= en) return null
-      return { start: s, end: en }
-    })
-    .filter(Boolean) as Array<{ start: number; end: number }>
-  if (!existingRanges.length) return incoming
-  return incoming.filter((e) => {
-    const s = parseHM(e.start)
-    const en = parseHM(e.end)
-    if (s == null || en == null || s >= en) return false
-    const overlaps = existingRanges.some((ex) => s < ex.end && ex.start < en)
-    if (overlaps) {
-      debugPontajLog("overlap:skip", {
-        reason: "existing_overlap",
-        skipped: { start: e.start, end: e.end },
+    for (const log of s.extraTimeLogs || []) {
+      if (!log.endTime) continue
+      entries.push({
+        start: formatTime(log.startTime),
+        end: formatTime(log.endTime),
+        methodStart: "Extra",
+        methodEnd: "Extra",
+        project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
       })
     }
-    return !overlaps
-  })
-}
-
-function calcHoursFromEntries(entries: NonNullable<TimesheetCell["entries"]>) {
-  const minutes = entries.reduce((sum, e) => {
-    const s = parseHM(e.start)
-    const en = parseHM(e.end)
-    if (s == null || en == null || s >= en) return sum
-    return sum + (en - s)
-  }, 0)
-  return Math.round((minutes / 60) * 100) / 100
+  }
+  return entries
 }
 
 let cachedHrDefaults: { pauzaStart?: string; pauzaEnd?: string } | null | undefined = undefined
@@ -215,91 +171,46 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
 
       const sorted = [...sessions].sort((a, b) => a.sessionStart - b.sessionStart)
 
-      const totalMinutes = sorted.reduce((sum, session) => {
-        if (!session.sessionEnd) return sum
-        return sum + (session.sessionEnd - session.sessionStart) / 60000
-      }, 0)
-
       const totalExtraMinutes = sorted.reduce((sum, session) => {
         const logs = session.extraTimeLogs || []
         return sum + logs.reduce((s, l) => s + (l.minutesEligible || 0), 0)
       }, 0)
 
-      const entries: NonNullable<TimesheetCell["entries"]> = []
-
-      for (const s of sorted) {
-        if (!s.sessionEnd) continue
-        entries.push({
-          start: formatTime(s.sessionStart),
-          end: formatTime(s.sessionEnd),
-          methodStart: `Play (${s.mode})`,
-          methodEnd: `Stop (${s.checkOutMode || s.mode})`,
-          project: "Pontaj",
-          attendanceSessionId: s.id,
-          selfieStartUrl: (s as any).checkInSelfieUrl,
-          selfieEndUrl: (s as any).checkOutSelfieUrl,
-          lateStartMinutes: Number((s as any).lateStartMinutes ?? 0) || undefined,
-        })
-
-        for (const log of s.extraTimeLogs || []) {
-          if (!log.endTime) continue
-          entries.push({
-            start: formatTime(log.startTime),
-            end: formatTime(log.endTime),
-            methodStart: "Extra",
-            methodEnd: "Extra",
-            project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
-          })
-        }
-      }
-
-      const normalizedEntries = normalizeNonOverlappingEntries(entries)
+      const computedEntries = buildAttendanceEntriesFromSessions(sorted)
       const defaultBreak = await getEmployeeDefaultBreak(employeeId)
 
       const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
-      // Preserve special day codes (DEL/WE/SL) while still syncing pontaj hours+entries.
-      let code: TimesheetCode = "WORK"
-      let existingBreaks: TimesheetCell["breaks"] | undefined = undefined
+      let existingDay: TimesheetCell | undefined = undefined
       try {
         const existingSnap = await getDoc(timesheetRef)
-        const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
-        const existingCode = existingDay?.code as TimesheetCode | undefined
-        if (existingCode === "DEL" || existingCode === "WE" || existingCode === "SL") {
-          code = existingCode
-        }
-        existingBreaks = existingDay?.breaks
+        existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
       } catch {
         // ignore
       }
 
-      const totalMinutesEffective = calcEffectiveMinutes({
-        entries: normalizedEntries as any,
-        breaks: (existingBreaks ?? null) as any,
+      const merged = buildAttendanceTimesheetCell({
+        existingDay,
+        computedEntries,
         defaultBreak,
       })
-      const totalHours = Math.round((totalMinutesEffective / 60) * 100) / 100
+      if (!merged.cell) {
+        console.log(`Skipped protected HR day for employee ${employeeId}: ${merged.protectedCode}`)
+        continue
+      }
 
-      const cell: TimesheetCell = {
-        code,
-        hours: totalHours,
-        entries: normalizedEntries,
-      }
-      if (existingBreaks) {
-        ;(cell as any).breaks = existingBreaks
-      }
       batch.set(
         timesheetRef,
         {
           employeeId,
           monthKey,
           updatedAt: serverTimestamp(),
-          days: { [dayKey]: cell },
+          days: { [dayKey]: merged.cell },
         },
         { merge: true }
       )
 
       console.log(
-        `Synced ${sessions.length} session(s) for employee ${employeeId}: ${totalHours}h total (${totalExtraMinutes}m extra)`
+        `Synced ${sessions.length} session(s) for employee ${employeeId}: ${merged.cell.hours ?? 0}h total (${totalExtraMinutes}m extra)`
       )
     }
 
@@ -457,14 +368,6 @@ function endOfDayLocal(d: Date) {
   return x
 }
 
-function isNonWorkHrCode(code: TimesheetCode | undefined) {
-  if (!code) return false
-  // Only block true leave / absence codes.
-  // Important: WE/SL/DEL may still have pontaj (e.g. weekend work, legal holiday work, delegation work),
-  // so we must allow syncing attendance into those days.
-  return code === "CO" || code === "CFP" || code === "CM" || code === "IN"
-}
-
 export type UserDaySyncResult =
   | {
       synced: true
@@ -558,12 +461,18 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const dayKey = String(day)
   const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
 
-  // Non-destructive guard: don't overwrite protected day types.
   const existingSnap = await getDoc(timesheetRef)
   const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
-  const existingCode = existingDay?.code as TimesheetCode | undefined
-  if (isNonWorkHrCode(existingCode)) {
-    debugPontajLog("sync-user-day:protected", { userId, employeeId, monthKey, day, existingCode })
+
+  const computedEntries = buildAttendanceEntriesFromSessions(sessions)
+  const defaultBreak = await getEmployeeDefaultBreak(employeeId)
+  const merged = buildAttendanceTimesheetCell({
+    existingDay,
+    computedEntries,
+    defaultBreak,
+  })
+  if (!merged.cell) {
+    debugPontajLog("sync-user-day:protected", { userId, employeeId, monthKey, day, existingCode: merged.protectedCode })
     const r = {
       synced: false as const,
       reason: "protected_day" as const,
@@ -572,59 +481,8 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
       monthKey,
       day,
     }
-    logPontajCondicaSync(userId, r, { existingCode: existingCode ? String(existingCode) : undefined })
+    logPontajCondicaSync(userId, r, { existingCode: String(merged.protectedCode) })
     return r
-  }
-
-  const totalMinutes = sessions.reduce((sum, s) => {
-    if (!s.sessionEnd) return sum
-    return sum + (s.sessionEnd - s.sessionStart) / 60000
-  }, 0)
-  const computedEntries: NonNullable<TimesheetCell["entries"]> = []
-  for (const s of sessions) {
-    if (!s.sessionEnd) continue
-    computedEntries.push({
-      start: formatTime(s.sessionStart),
-      end: formatTime(s.sessionEnd),
-      methodStart: `Play (${s.mode})`,
-      methodEnd: `Stop (${s.checkOutMode || s.mode})`,
-      project: "Pontaj",
-      attendanceSessionId: s.id,
-      selfieStartUrl: (s as any).checkInSelfieUrl,
-      selfieEndUrl: (s as any).checkOutSelfieUrl,
-      lateStartMinutes: Number((s as any).lateStartMinutes ?? 0) || undefined,
-    })
-
-    for (const log of s.extraTimeLogs || []) {
-      if (!log.endTime) continue
-      computedEntries.push({
-        start: formatTime(log.startTime),
-        end: formatTime(log.endTime),
-        methodStart: "Extra",
-        methodEnd: "Extra",
-        project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
-      })
-    }
-  }
-
-  const pontajProjects = new Set<string>(["Pontaj", "Traseu către client", "Traseu către casă"])
-  const preservedEntries = (existingDay?.entries ?? []).filter((e) => !pontajProjects.has(String(e.project ?? "")))
-  const normalizedComputed = normalizeNonOverlappingEntries(computedEntries)
-  const safeComputed = filterOverlappingEntries(preservedEntries, normalizedComputed)
-  const defaultBreak = await getEmployeeDefaultBreak(employeeId)
-  const totalMinutesEffective = calcEffectiveMinutes({
-    entries: safeComputed as any,
-    breaks: (existingDay?.breaks ?? null) as any,
-    defaultBreak,
-  })
-  const totalHours = Math.round((totalMinutesEffective / 60) * 100) / 100
-
-  const code: TimesheetCode = (existingCode === "DEL" || existingCode === "WE" || existingCode === "SL") ? existingCode : "WORK"
-  const cell: TimesheetCell = {
-    code,
-    hours: totalHours,
-    entries: [...preservedEntries, ...safeComputed],
-    ...(existingDay?.breaks ? { breaks: existingDay.breaks } : {}),
   }
 
   const batch = writeBatch(db)
@@ -634,7 +492,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
       employeeId,
       monthKey,
       updatedAt: serverTimestamp(),
-      days: { [dayKey]: cell },
+      days: { [dayKey]: merged.cell },
     },
     { merge: true }
   )
@@ -646,7 +504,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     monthKey,
     day,
     sessionCount: sessions.length,
-    totalHours,
+    totalHours: merged.cell.hours ?? 0,
   })
 
   const ok = {
@@ -654,7 +512,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
     reason: "synced" as const,
     employeeId,
     sessionCount: sessions.length,
-    totalHours,
+    totalHours: merged.cell.hours ?? 0,
     monthKey,
     day,
   }

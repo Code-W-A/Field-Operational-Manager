@@ -7,6 +7,7 @@ import {
   updateDoc,
   getDoc,
   getDocs,
+  runTransaction,
   query,
   where,
   orderBy,
@@ -30,6 +31,12 @@ import { calculateHomeRouteMinutes } from "@/lib/attendance/extra-time"
 import { clampSessionEndMs } from "@/lib/attendance/auto-pontaj-schedule"
 import { syncAttendanceUserDayToTimesheet, type UserDaySyncResult } from "@/lib/attendance/sync-timesheet"
 import { logPontajCondicaSyncError, logPontajPlay, logPontajStop } from "@/lib/attendance/pontaj-audit-log"
+import {
+  selectLatestActiveSession,
+  shouldBlockCheckInForLock,
+  shouldBlockCheckoutForLock,
+  type LockSessionSnapshot,
+} from "@/lib/attendance/active-session-lock"
 
 export type Unsubscribe = () => void
 
@@ -38,12 +45,43 @@ const DEFAULT_PROGRAM_END = "16:30"
 
 const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
+const ACTIVE_SESSION_LOCKS_COLLECTION = "attendanceActiveSessions"
+
+const withoutUndefined = (obj: Record<string, any>) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+
 function debugPontajLog(label: string, payload: Record<string, any>) {
   if (!DEBUG_PONTAJ) return
   try {
     console.log(`[PONTAJ] ${label}`, payload)
   } catch {
     // ignore
+  }
+}
+
+function timestampToMillis(value: any): number | undefined {
+  if (typeof value === "number") return value
+  if (value?.toMillis) return value.toMillis()
+  return undefined
+}
+
+function normalizeAttendanceDoc(id: string, data: any): AttendanceSession {
+  return {
+    id,
+    ...data,
+    sessionStart: timestampToMillis(data.sessionStart) ?? Date.now(),
+    sessionEnd: data.sessionEnd ? timestampToMillis(data.sessionEnd) : undefined,
+    createdAt: timestampToMillis(data.createdAt) ?? Date.now(),
+    updatedAt: timestampToMillis(data.updatedAt) ?? Date.now(),
+  } as AttendanceSession
+}
+
+function toLockSessionSnapshot(id: string, data: any): LockSessionSnapshot {
+  return {
+    id,
+    userId: data?.userId ? String(data.userId) : null,
+    status: data?.status ? String(data.status) : null,
+    sessionStart: timestampToMillis(data?.sessionStart) ?? null,
   }
 }
 
@@ -291,12 +329,6 @@ function finalizeOpenExtraTimeLogs(params: {
  * Create a new check-in session
  */
 export async function createCheckIn(request: CheckInRequest): Promise<string> {
-  // Check if user has an active session
-  const activeSession = await getActiveSession(request.userId)
-  if (activeSession) {
-    throw new Error("User already has an active session. Please check out first.")
-  }
-
   const sessionId = `att_${request.userId}_${Date.now()}`
   const now = request.sessionStartMs ?? Date.now()
 
@@ -354,18 +386,39 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     updatedAt: now,
   }
 
-  const withoutUndefined = (obj: Record<string, any>) =>
-    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+  const sessionRef = doc(db, "attendance", sessionId)
+  const lockRef = doc(db, ACTIVE_SESSION_LOCKS_COLLECTION, request.userId)
 
-  await setDoc(
-    doc(db, "attendance", sessionId),
-    withoutUndefined({
+  await runTransaction(db, async (tx) => {
+    const lockSnap = await tx.get(lockRef)
+    const lockedSessionId = lockSnap.exists() ? String((lockSnap.data() as any)?.activeSessionId || "") : ""
+
+    if (lockedSessionId) {
+      const lockedSessionRef = doc(db, "attendance", lockedSessionId)
+      const lockedSessionSnap = await tx.get(lockedSessionRef)
+      if (lockedSessionSnap.exists()) {
+        const lockedSession = toLockSessionSnapshot(lockedSessionSnap.id, lockedSessionSnap.data())
+        if (shouldBlockCheckInForLock(lockedSession)) {
+          throw new Error("User already has an active session. Please check out first.")
+        }
+      }
+    }
+
+    tx.set(sessionRef, withoutUndefined({
       ...session,
       sessionStart: Timestamp.fromMillis(now),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    }) as any,
-  )
+    }) as any)
+
+    tx.set(lockRef, withoutUndefined({
+      userId: request.userId,
+      activeSessionId: sessionId,
+      sessionStart: Timestamp.fromMillis(now),
+      employeeId: schedule?.employeeId ?? null,
+      updatedAt: serverTimestamp(),
+    }) as any)
+  })
 
   debugPontajLog("check-in:written", {
     sessionId,
@@ -392,17 +445,15 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
  */
 export async function createCheckOut(request: CheckOutRequest): Promise<UserDaySyncResult | null> {
   const sessionRef = doc(db, "attendance", request.sessionId)
-  
-  // Get the session to check the 1-minute rule
-  const sessions = await getDocs(
-    query(collection(db, "attendance"), where("__name__", "==", request.sessionId))
-  )
-  
-  if (sessions.empty) {
+
+  // Initial read is used for client-side timing rules; the transaction below revalidates status atomically.
+  const initialSnap = await getDoc(sessionRef)
+
+  if (!initialSnap.exists()) {
     throw new Error("Session not found")
   }
 
-  const raw = sessions.docs[0].data() as any
+  const raw = initialSnap.data() as any
   const sessionData = raw as AttendanceSession
   const sessionStart = typeof sessionData.sessionStart === 'number' 
     ? sessionData.sessionStart 
@@ -454,14 +505,47 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
   // mai mult decât ziua de start. Pentru astfel de sesiuni facturăm la ora de final a programului.
   const effectiveEnd = clampSessionEndMs(sessionStart, now, programLucruEnd)
 
-  const extraTimeLogs = finalizeOpenExtraTimeLogs({ session: raw, now: effectiveEnd, programLucruStart, programLucruEnd })
+  const txResult = await runTransaction(db, async (tx) => {
+    const currentSnap = await tx.get(sessionRef)
+    if (!currentSnap.exists()) {
+      throw new Error("Session not found")
+    }
 
-  const withoutUndefined = (obj: Record<string, any>) =>
-    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+    const currentRaw = currentSnap.data() as any
+    if (currentRaw.status !== "active") {
+      throw new Error("Sesiunea este deja închisă.")
+    }
 
-  await updateDoc(
-    sessionRef,
-    withoutUndefined({
+    const currentUserId = String(currentRaw.userId || sessionData.userId || "")
+    const lockRef = doc(db, ACTIVE_SESSION_LOCKS_COLLECTION, currentUserId)
+    const lockSnap = await tx.get(lockRef)
+    const lockedSessionId = lockSnap.exists() ? String((lockSnap.data() as any)?.activeSessionId || "") : ""
+    let shouldDeleteLock = false
+
+    if (lockedSessionId === request.sessionId) {
+      shouldDeleteLock = true
+    } else if (lockedSessionId) {
+      const lockedSessionRef = doc(db, "attendance", lockedSessionId)
+      const lockedSessionSnap = await tx.get(lockedSessionRef)
+      const lockedSession = lockedSessionSnap.exists()
+        ? toLockSessionSnapshot(lockedSessionSnap.id, lockedSessionSnap.data())
+        : null
+      if (shouldBlockCheckoutForLock({ requestedSessionId: request.sessionId, lockedSession })) {
+        throw new Error("Există altă sesiune activă pentru acest utilizator. Reîncarcă pontajul înainte de depontare.")
+      }
+      shouldDeleteLock = true
+    }
+
+    const currentProgramLucruStart = currentRaw.programLucruStart ? String(currentRaw.programLucruStart) : DEFAULT_PROGRAM_START
+    const currentProgramLucruEnd = currentRaw.programLucruEnd ? String(currentRaw.programLucruEnd) : DEFAULT_PROGRAM_END
+    const currentExtraTimeLogs = finalizeOpenExtraTimeLogs({
+      session: currentRaw,
+      now: effectiveEnd,
+      programLucruStart: currentProgramLucruStart,
+      programLucruEnd: currentProgramLucruEnd,
+    })
+
+    tx.update(sessionRef, withoutUndefined({
       sessionEnd: Timestamp.fromMillis(effectiveEnd),
       status: "completed",
       checkOutMode: request.mode,
@@ -475,26 +559,35 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
         ? { checkOutAuto: true, checkOutAutoReason: request.checkOutAutoReason ?? null }
         : {}),
       ...(request.autoStopped ? { autoStopped: true, autoStoppedAt: serverTimestamp() } : {}),
-      ...(extraTimeLogs ? { extraTimeLogs } : {}),
+      ...(currentExtraTimeLogs ? { extraTimeLogs: currentExtraTimeLogs } : {}),
       updatedAt: serverTimestamp(),
-    }) as any,
-  )
+    }) as any)
+
+    if (shouldDeleteLock) {
+      tx.delete(lockRef)
+    }
+
+    return {
+      sessionData: normalizeAttendanceDoc(currentSnap.id, currentRaw),
+      extraTimeLogsCount: Array.isArray(currentExtraTimeLogs) ? currentExtraTimeLogs.length : 0,
+    }
+  })
 
   debugPontajLog("check-out:written", {
     sessionId: request.sessionId,
-    userId: sessionData.userId,
-    employeeId: (sessionData as any)?.employeeId,
+    userId: txResult.sessionData.userId,
+    employeeId: (txResult.sessionData as any)?.employeeId,
     sessionStart,
     sessionEnd: effectiveEnd,
     requestedEnd: now,
     clamped: effectiveEnd !== now,
-    extraTimeLogs: Array.isArray(extraTimeLogs) ? extraTimeLogs.length : 0,
+    extraTimeLogs: txResult.extraTimeLogsCount,
   })
 
   logPontajStop({
-    userId: sessionData.userId,
-    userDisplayName: (sessionData as any)?.userName,
-    employeeId: (sessionData as any)?.employeeId,
+    userId: txResult.sessionData.userId,
+    userDisplayName: (txResult.sessionData as any)?.userName,
+    employeeId: (txResult.sessionData as any)?.employeeId,
     sessionId: request.sessionId,
     sessionStartMs: sessionStart,
     sessionEndMs: effectiveEnd,
@@ -504,12 +597,12 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
 
   // Immediately update HR timesheet so condica reflects the Stop without extra steps.
   try {
-    const res = await syncAttendanceUserDayToTimesheet(sessionData.userId, new Date(sessionStart))
+    const res = await syncAttendanceUserDayToTimesheet(txResult.sessionData.userId, new Date(sessionStart))
     debugPontajLog("condica:sync-result", res)
     return res
   } catch (error) {
     console.warn("Auto-sync Pontaj → Condică failed (storage):", error)
-    logPontajCondicaSyncError(sessionData.userId, error)
+    logPontajCondicaSyncError(txResult.sessionData.userId, error)
     return null
   }
 }
@@ -519,27 +612,31 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
  */
 export async function getActiveSession(userId: string): Promise<AttendanceSession | null> {
   try {
+    const lockSnap = await getDoc(doc(db, ACTIVE_SESSION_LOCKS_COLLECTION, userId))
+    const lockedSessionId = lockSnap.exists() ? String((lockSnap.data() as any)?.activeSessionId || "") : ""
+    if (lockedSessionId) {
+      const lockedSessionSnap = await getDoc(doc(db, "attendance", lockedSessionId))
+      if (lockedSessionSnap.exists()) {
+        const lockedSession = normalizeAttendanceDoc(lockedSessionSnap.id, lockedSessionSnap.data())
+        if (lockedSession.userId === userId && lockedSession.status === "active") {
+          return lockedSession
+        }
+      }
+    }
+
     const q = query(
       collection(db, "attendance"),
       where("userId", "==", userId),
       where("status", "==", "active"),
+      orderBy("sessionStart", "desc"),
       limit(1)
     )
 
     const snapshot = await getDocs(q)
     if (snapshot.empty) return null
 
-    const doc = snapshot.docs[0]
-    const data = doc.data()
-    
-    return {
-      id: doc.id,
-      ...data,
-      sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
-      sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
-      createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
-      updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
-    } as AttendanceSession
+    const activeDoc = snapshot.docs[0]
+    return normalizeAttendanceDoc(activeDoc.id, activeDoc.data())
   } catch (error) {
     if (!isMissingIndexError(error)) throw error
     console.warn("Missing index for active session query; using fallback scan.")
@@ -547,20 +644,9 @@ export async function getActiveSession(userId: string): Promise<AttendanceSessio
       query(collection(db, "attendance"), where("userId", "==", userId))
     )
     const sessions: AttendanceSession[] = fallbackSnap.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        id: doc.id,
-        ...data,
-        sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
-        sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
-        createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
-        updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
-      } as AttendanceSession
+      return normalizeAttendanceDoc(doc.id, doc.data())
     })
-    const active = sessions
-      .filter((s) => s.status === "active")
-      .sort((a, b) => b.sessionStart - a.sessionStart)[0]
-    return active ?? null
+    return selectLatestActiveSession(sessions)
   }
 }
 
@@ -630,39 +716,73 @@ export function subscribeActiveSession(
   onChange: (session: AttendanceSession | null) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(
-    collection(db, "attendance"),
-    where("userId", "==", userId),
-    where("status", "==", "active"),
-    limit(1)
-  )
+  let innerUnsubscribe: Unsubscribe | null = null
 
-  return onSnapshot(
-    q,
+  const clearInner = () => {
+    if (innerUnsubscribe) {
+      innerUnsubscribe()
+      innerUnsubscribe = null
+    }
+  }
+
+  const subscribeLegacyActive = () => {
+    clearInner()
+    const q = query(
+      collection(db, "attendance"),
+      where("userId", "==", userId),
+      where("status", "==", "active"),
+    )
+
+    innerUnsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const sessions = snapshot.docs.map((doc) => normalizeAttendanceDoc(doc.id, doc.data()))
+        onChange(selectLatestActiveSession(sessions))
+      },
+      (error) => {
+        onError?.(error as Error)
+      },
+    )
+  }
+
+  const lockUnsubscribe = onSnapshot(
+    doc(db, ACTIVE_SESSION_LOCKS_COLLECTION, userId),
     (snapshot) => {
-      if (snapshot.empty) {
-        onChange(null)
+      const lockedSessionId = snapshot.exists() ? String((snapshot.data() as any)?.activeSessionId || "") : ""
+      if (!lockedSessionId) {
+        subscribeLegacyActive()
         return
       }
 
-      const doc = snapshot.docs[0]
-      const data = doc.data()
-
-      const session: AttendanceSession = {
-        id: doc.id,
-        ...data,
-        sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
-        sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
-        createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
-        updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
-      } as AttendanceSession
-
-      onChange(session)
+      clearInner()
+      innerUnsubscribe = onSnapshot(
+        doc(db, "attendance", lockedSessionId),
+        (sessionSnap) => {
+          if (!sessionSnap.exists()) {
+            subscribeLegacyActive()
+            return
+          }
+          const session = normalizeAttendanceDoc(sessionSnap.id, sessionSnap.data())
+          if (session.userId !== userId || session.status !== "active") {
+            subscribeLegacyActive()
+            return
+          }
+          onChange(session)
+        },
+        (error) => {
+          onError?.(error as Error)
+        },
+      )
     },
     (error) => {
       onError?.(error as Error)
     }
   )
+
+  return () => {
+    clearInner()
+    lockUnsubscribe()
+  }
 }
 
 /**

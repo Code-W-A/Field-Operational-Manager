@@ -37,6 +37,14 @@ test("isAtOrPastScheduleGrace before and after threshold", () => {
   assert.equal(isAtOrPastScheduleGrace(at, "17:00", 30), true)
 })
 
+test("scheduleGraceThresholdMs supports zero grace exactly at program end", () => {
+  const refDay = new Date(2026, 4, 31, 10, 0, 0).getTime()
+  const threshold = scheduleGraceThresholdMs(refDay, "17:00", 0)
+  assert.equal(threshold, new Date(2026, 4, 31, 17, 0, 0, 0).getTime())
+  assert.equal(isAtOrPastScheduleGrace(threshold - 1, "17:00", 0), false)
+  assert.equal(isAtOrPastScheduleGrace(threshold, "17:00", 0), true)
+})
+
 test("localDayBounds spans midnight boundaries", () => {
   const noon = new Date(2026, 5, 1, 12, 0, 0).getTime()
   const { startMs, endMs } = localDayBounds(noon)
@@ -49,6 +57,14 @@ test("localDayBounds spans midnight boundaries", () => {
 test("timeOnSameDayMs parses HH:mm on same calendar day", () => {
   const base = new Date(2026, 2, 10, 14, 45, 0).getTime()
   assert.equal(timeOnSameDayMs(base, "08:15"), new Date(2026, 2, 10, 8, 15, 0, 0).getTime())
+})
+
+test("timeOnSameDayMs falls back for invalid HH:mm", () => {
+  const base = new Date(2026, 2, 10, 14, 45, 0).getTime()
+  const fallback = new Date(2026, 2, 10, 16, 30, 0, 0).getTime()
+  assert.equal(timeOnSameDayMs(base, "24:00"), fallback)
+  assert.equal(timeOnSameDayMs(base, "10:99"), fallback)
+  assert.equal(timeOnSameDayMs(base, "invalid"), fallback)
 })
 
 test("canAutoCheckOut policy (report_signed): lucrări rămase azi blochează, forceEndOfDay ignoră", () => {

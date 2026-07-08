@@ -1,15 +1,17 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import type { Employee, HrRequest } from "@/lib/hr/types"
+import type { Employee, HrRequest, TimesheetMonth } from "@/lib/hr/types"
 import {
   extractApprovedOvertime,
   aggregateOvertimeGeneral,
   aggregateOvertimeByEmployee,
   formatOvertimeCSV,
+  formatOvertimeReconciliationCSV,
   formatDateRo,
   formatMonthRo,
   currentYearRange,
+  reconcileOvertimeWithTimesheets,
   type OvertimeEntry,
 } from "@/lib/hr/overtime-report"
 
@@ -21,9 +23,24 @@ const employees: Employee[] = [
   { id: "emp-3", nume: "Vasilescu", prenume: "Andrei", active: false },
 ]
 
+function timesheet(employeeId: string, days: TimesheetMonth["days"], monthKey = "2026-03"): TimesheetMonth {
+  return {
+    employeeId,
+    monthKey: monthKey as any,
+    days,
+    updatedAt: Date.now(),
+  }
+}
+
 function makeOvertimeRequest(
   overrides: Partial<HrRequest> & { date?: string; overtimeHours?: number; reason?: string },
 ): HrRequest {
+  const payload = {
+    kind: "ADD_OVERTIME" as const,
+    date: overrides.date || "2026-03-15",
+    overtimeHours: overrides.overtimeHours ?? 1.5,
+    reason: overrides.reason,
+  }
   return {
     id: overrides.id || "req-1",
     employeeId: overrides.employeeId || "emp-1",
@@ -33,22 +50,11 @@ function makeOvertimeRequest(
     managerUid: "mgr-1",
     kind: "ADD_OVERTIME",
     status: overrides.status || "approved",
-    payload: {
-      kind: "ADD_OVERTIME",
-      date: overrides.date || "2026-03-15",
-      overtimeHours: overrides.overtimeHours ?? 1.5,
-      reason: overrides.reason,
-    },
+    payload,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...overrides,
-    // ensure payload isn't overwritten by spread
-    payload: {
-      kind: "ADD_OVERTIME",
-      date: overrides.date || "2026-03-15",
-      overtimeHours: overrides.overtimeHours ?? 1.5,
-      reason: overrides.reason,
-    },
+    payload,
   } as HrRequest
 }
 
@@ -270,6 +276,291 @@ test("formatOvertimeCSV: escapes double quotes in fields", () => {
   ]
   const csv = formatOvertimeCSV(entries, "detailed")
   assert.match(csv, /Ion ""Nelu"" Popescu/)
+})
+
+// --- reconcileOvertimeWithTimesheets ---
+
+test("reconcileOvertimeWithTimesheets: confirms request when real pontaj after program covers requested time", () => {
+  const requests = [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1.5 })]
+  const rows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          hours: 9.5,
+          entries: [{ start: "08:00", end: "18:00", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].status, "confirmed")
+  assert.equal(rows[0].foundMinutes, 90)
+  assert.equal(rows[0].diffMinutes, 0)
+})
+
+test("reconcileOvertimeWithTimesheets: marks partial when pontaj after program is smaller than request", () => {
+  const requests = [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 2 })]
+  const rows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          hours: 9,
+          entries: [{ start: "08:00", end: "17:30", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].status, "partial")
+  assert.equal(rows[0].foundMinutes, 60)
+  assert.equal(rows[0].diffMinutes, -60)
+})
+
+test("reconcileOvertimeWithTimesheets: marks missing timesheet when day is absent", () => {
+  const requests = [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })]
+  const rows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees,
+    timesheets: [timesheet("emp-1", {})],
+  })
+
+  assert.equal(rows[0].status, "missing_timesheet")
+  assert.equal(rows[0].foundMinutes, 0)
+})
+
+test("reconcileOvertimeWithTimesheets: ignores ADD_OVERTIME request interval as proof", () => {
+  const requests = [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })]
+  const rows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          hours: 9,
+          entries: [
+            {
+              start: "16:30",
+              end: "17:30",
+              project: "Ore suplimentare",
+              sourceRequestId: "r1",
+              sourceRequestKind: "ADD_OVERTIME",
+            },
+          ],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].status, "missing_attendance")
+  assert.equal(rows[0].foundMinutes, 0)
+})
+
+test("reconcileOvertimeWithTimesheets: falls back to 16:30 when employee and defaults have no end program", () => {
+  const requests = [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 0.5 })]
+  const rows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees,
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [{ start: "08:00", end: "17:00", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].programEnd, "16:30")
+  assert.equal(rows[0].status, "confirmed")
+  assert.equal(rows[0].foundMinutes, 30)
+})
+
+test("formatOvertimeReconciliationCSV: exports status and difference", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 2, reason: "Intervenție urgentă" })],
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [{ start: "08:00", end: "17:30", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+  const csv = formatOvertimeReconciliationCSV(rows)
+
+  assert.match(csv, /Status reconciliere/)
+  assert.match(csv, /Parțial/)
+  assert.match(csv, /-1 h/)
+  assert.match(csv, /Intervenție urgentă/)
+})
+
+test("reconcileOvertimeWithTimesheets: uses HR default program end when employee program end is missing", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })],
+    employees,
+    hrDefaults: { programLucruEnd: "17:00" },
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [{ start: "08:00", end: "18:00", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].programEnd, "17:00")
+  assert.equal(rows[0].foundMinutes, 60)
+  assert.equal(rows[0].status, "confirmed")
+})
+
+test("reconcileOvertimeWithTimesheets: includes pending requests only when filter asks for them", () => {
+  const requests = [
+    makeOvertimeRequest({ id: "approved", status: "approved", date: "2026-03-15" }),
+    makeOvertimeRequest({ id: "pending", status: "pending", date: "2026-03-16" }),
+  ]
+
+  const defaultRows = reconcileOvertimeWithTimesheets({ requests, employees, timesheets: [] })
+  assert.deepEqual(defaultRows.map((row) => row.requestId), ["approved"])
+
+  const filteredRows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees,
+    timesheets: [],
+    filters: { requestStatuses: ["pending"] },
+  })
+  assert.deepEqual(filteredRows.map((row) => row.requestId), ["pending"])
+})
+
+test("reconcileOvertimeWithTimesheets: filters by employee and date range", () => {
+  const requests = [
+    makeOvertimeRequest({ id: "r1", employeeId: "emp-1", date: "2026-03-10" }),
+    makeOvertimeRequest({ id: "r2", employeeId: "emp-1", date: "2026-04-10" }),
+    makeOvertimeRequest({ id: "r3", employeeId: "emp-2", date: "2026-03-15" }),
+  ]
+
+  const rows = reconcileOvertimeWithTimesheets({
+    requests,
+    employees,
+    timesheets: [],
+    filters: { employeeId: "emp-1", dateRange: { from: "2026-03-01", to: "2026-03-31" } },
+  })
+
+  assert.deepEqual(rows.map((row) => row.requestId), ["r1"])
+})
+
+test("reconcileOvertimeWithTimesheets: confirms with one minute tolerance", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })],
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [{ start: "08:00", end: "17:29", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].foundMinutes, 59)
+  assert.equal(rows[0].diffMinutes, -1)
+  assert.equal(rows[0].status, "confirmed")
+})
+
+test("reconcileOvertimeWithTimesheets: invalid program end marks difference", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })],
+    employees: [{ ...employees[0], programLucruEnd: "bad" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [{ start: "08:00", end: "18:00", project: "Pontaj", attendanceSessionId: "att-1" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].programEnd, "bad")
+  assert.equal(rows[0].status, "difference")
+  assert.equal(rows[0].foundMinutes, 0)
+})
+
+test("reconcileOvertimeWithTimesheets: ignores ADD_OVERTIME intervals from any request", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })],
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [
+            {
+              start: "16:30",
+              end: "18:00",
+              project: "Ore suplimentare",
+              sourceRequestId: "other-request",
+              sourceRequestKind: "ADD_OVERTIME",
+            },
+          ],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].status, "missing_attendance")
+  assert.equal(rows[0].foundMinutes, 0)
+})
+
+test("reconcileOvertimeWithTimesheets: does not double-count overlapping real attendance entries", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 2 })],
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [
+            { start: "08:00", end: "18:00", project: "Pontaj", attendanceSessionId: "att-1" },
+            { start: "17:00", end: "18:30", project: "Traseu către casă", attendanceSessionId: "att-1" },
+          ],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].foundMinutes, 120)
+  assert.equal(rows[0].diffMinutes, 0)
+  assert.equal(rows[0].status, "confirmed")
+})
+
+test("reconcileOvertimeWithTimesheets: accepts real project entries without attendanceSessionId", () => {
+  const rows = reconcileOvertimeWithTimesheets({
+    requests: [makeOvertimeRequest({ id: "r1", date: "2026-03-15", overtimeHours: 1 })],
+    employees: [{ ...employees[0], programLucruEnd: "16:30" }],
+    timesheets: [
+      timesheet("emp-1", {
+        "15": {
+          code: "WORK",
+          entries: [{ start: "16:30", end: "17:30", project: "Traseu către client" }],
+        },
+      }),
+    ],
+  })
+
+  assert.equal(rows[0].status, "confirmed")
+  assert.equal(rows[0].foundMinutes, 60)
 })
 
 // --- helpers ---

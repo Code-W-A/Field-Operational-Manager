@@ -13,6 +13,8 @@
     "test:pontaj-clamp": "npx tsx --test lib/attendance/clamp-session-end.test.ts",
     "test:ticket-emitent": "npx tsx --test lib/utils/ticket-emitent.test.ts",
     "test:e2e:pontaj": "playwright test e2e/pontaj-auto-checkout.spec.ts",
+    "test:e2e:pontaj-full": "playwright test e2e/pontaj-full.spec.ts",
+    "test:e2e:pontaj-human": "playwright test e2e/pontaj-human.spec.ts",
     "test:e2e:istoric-row-click": "playwright test e2e/istoric-row-click.spec.ts",
     "test:offer-dates": "npx tsx --test lib/utils/time-format.ro-date.test.ts",
     "test:offer-pdf-input": "npx tsx --test lib/work-documents/offer-pdf-input.test.ts",

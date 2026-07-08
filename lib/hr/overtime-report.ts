@@ -1,6 +1,7 @@
-import type { Employee, HrRequest } from "@/lib/hr/types"
+import type { Employee, HrDefaults, HrRequest, HrRequestStatus, TimesheetMonth } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { normalizeOvertimeHoursValue, formatOvertimeDuration } from "@/lib/hr/overtime-duration"
+import { parseHM } from "@/lib/hr/time-calc"
 
 // --- Types ---
 
@@ -36,6 +37,49 @@ export type OvertimeGeneralStats = {
 export type OvertimeDateRange = {
   from?: string // yyyy-mm-dd
   to?: string   // yyyy-mm-dd
+}
+
+export type OvertimeReconciliationStatus =
+  | "confirmed"
+  | "partial"
+  | "missing_attendance"
+  | "missing_timesheet"
+  | "difference"
+
+export type OvertimeReconciliationRow = OvertimeEntry & {
+  requestStatus: HrRequestStatus
+  requestedMinutes: number
+  foundMinutes: number
+  diffMinutes: number
+  programEnd: string
+  status: OvertimeReconciliationStatus
+  statusLabel: string
+  timesheetHours?: number
+  evidenceEntries: string[]
+}
+
+export type OvertimeReconciliationFilters = {
+  dateRange?: OvertimeDateRange
+  requestStatuses?: HrRequestStatus[]
+  employeeId?: string
+}
+
+const REAL_TIMESHEET_PROJECTS = new Set(["Pontaj", "Traseu către client", "Traseu către casă"])
+const OVERTIME_CONFIRM_TOLERANCE_MINUTES = 1
+
+function sumMergedMinutes(ranges: Array<{ start: number; end: number }>): number {
+  if (!ranges.length) return 0
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || a.end - b.end)
+  const merged: Array<{ start: number; end: number }> = []
+  for (const range of sorted) {
+    const last = merged[merged.length - 1]
+    if (!last || range.start > last.end) {
+      merged.push({ ...range })
+      continue
+    }
+    last.end = Math.max(last.end, range.end)
+  }
+  return merged.reduce((sum, range) => sum + Math.max(0, range.end - range.start), 0)
 }
 
 // --- Extraction ---
@@ -83,6 +127,119 @@ export function extractApprovedOvertime(
 
   entries.sort((a, b) => a.date.localeCompare(b.date) || a.employeeName.localeCompare(b.employeeName, "ro"))
   return entries
+}
+
+export function reconcileOvertimeWithTimesheets(params: {
+  requests: HrRequest[]
+  employees: Employee[]
+  timesheets: TimesheetMonth[]
+  hrDefaults?: HrDefaults
+  filters?: OvertimeReconciliationFilters
+}): OvertimeReconciliationRow[] {
+  const employeeMap = new Map(params.employees.map((emp) => [emp.id, emp]))
+  const timesheetMap = new Map(params.timesheets.map((ts) => [`${ts.employeeId}:${ts.monthKey}`, ts]))
+  const statusSet = new Set(params.filters?.requestStatuses ?? ["approved"])
+
+  const rows: OvertimeReconciliationRow[] = []
+
+  for (const req of params.requests) {
+    if (req.kind !== "ADD_OVERTIME") continue
+    if (!statusSet.has(req.status)) continue
+    if (params.filters?.employeeId && req.employeeId !== params.filters.employeeId) continue
+
+    const payload = req.payload as { kind: "ADD_OVERTIME"; date: string; overtimeHours: number; reason?: string }
+    const date = String(payload.date || "")
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    if (params.filters?.dateRange?.from && date < params.filters.dateRange.from) continue
+    if (params.filters?.dateRange?.to && date > params.filters.dateRange.to) continue
+
+    const hours = normalizeOvertimeHoursValue(payload.overtimeHours)
+    if (hours <= 0) continue
+
+    const employee = employeeMap.get(req.employeeId)
+    const employeeName = req.employeeName || getEmployeeFullName(employee) || req.employeeId
+    const requestedMinutes = Math.round(hours * 60)
+    const programEnd = employee?.programLucruEnd || params.hrDefaults?.programLucruEnd || "16:30"
+    const programEndMinutes = parseHM(programEnd)
+    const monthKey = date.slice(0, 7)
+    const dayKey = String(Number(date.slice(8, 10)))
+    const timesheet = timesheetMap.get(`${req.employeeId}:${monthKey}`)
+    const cell = timesheet?.days?.[dayKey]
+
+    let foundMinutes = 0
+    const evidenceEntries: string[] = []
+    let status: OvertimeReconciliationStatus = "missing_timesheet"
+
+    if (!timesheet || !cell) {
+      status = "missing_timesheet"
+    } else if (programEndMinutes == null) {
+      status = "difference"
+    } else {
+      const realEntries = (cell.entries ?? []).filter((entry: any) => {
+        if (entry?.sourceRequestKind === "ADD_OVERTIME") return false
+        if (entry?.sourceRequestId === req.id) return false
+        if (entry?.attendanceSessionId) return true
+        return REAL_TIMESHEET_PROJECTS.has(String(entry?.project ?? ""))
+      })
+
+      const evidenceRanges: Array<{ start: number; end: number }> = []
+      for (const entry of realEntries as Array<{ start: string; end: string; project?: string }>) {
+        const start = parseHM(entry.start)
+        const end = parseHM(entry.end)
+        if (start == null || end == null || end <= start) continue
+        const overlapStart = Math.max(start, programEndMinutes)
+        const overlapEnd = Math.min(end, 23 * 60 + 59)
+        if (overlapEnd <= overlapStart) continue
+        evidenceRanges.push({ start: overlapStart, end: overlapEnd })
+        evidenceEntries.push(`${entry.start}-${entry.end}${entry.project ? ` (${entry.project})` : ""}`)
+      }
+      foundMinutes = sumMergedMinutes(evidenceRanges)
+
+      if (foundMinutes >= requestedMinutes - OVERTIME_CONFIRM_TOLERANCE_MINUTES) {
+        status = "confirmed"
+      } else if (foundMinutes > 0) {
+        status = "partial"
+      } else {
+        status = "missing_attendance"
+      }
+    }
+
+    rows.push({
+      employeeId: req.employeeId,
+      employeeName,
+      date,
+      hours,
+      reason: payload.reason || undefined,
+      requestId: req.id,
+      requestStatus: req.status,
+      requestedMinutes,
+      foundMinutes,
+      diffMinutes: foundMinutes - requestedMinutes,
+      programEnd,
+      status,
+      statusLabel: overtimeReconciliationStatusLabel(status),
+      timesheetHours: typeof cell?.hours === "number" ? cell.hours : undefined,
+      evidenceEntries,
+    })
+  }
+
+  rows.sort((a, b) => a.date.localeCompare(b.date) || a.employeeName.localeCompare(b.employeeName, "ro"))
+  return rows
+}
+
+export function overtimeReconciliationStatusLabel(status: OvertimeReconciliationStatus): string {
+  switch (status) {
+    case "confirmed":
+      return "Confirmat"
+    case "partial":
+      return "Parțial"
+    case "missing_attendance":
+      return "Lipsește pontaj"
+    case "missing_timesheet":
+      return "Fără condică"
+    case "difference":
+      return "Diferență"
+  }
 }
 
 // --- Aggregation ---
@@ -175,6 +332,34 @@ export function formatOvertimeCSV(entries: OvertimeEntry[], mode: "general" | "d
   return [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n")
 }
 
+export function formatOvertimeReconciliationCSV(rows: OvertimeReconciliationRow[]): string {
+  const headers = [
+    "Angajat",
+    "Data",
+    "Status cerere",
+    "Ore cerute",
+    "Program sfârșit",
+    "Ore găsite în condică",
+    "Diferență",
+    "Status reconciliere",
+    "Dovezi condică",
+    "Motiv",
+  ]
+  const body = rows.map((row) => [
+    row.employeeName,
+    formatDateRo(row.date),
+    row.requestStatus,
+    formatOvertimeDuration(row.hours),
+    row.programEnd,
+    formatOvertimeDuration(row.foundMinutes / 60),
+    formatSignedDuration(row.diffMinutes),
+    row.statusLabel,
+    row.evidenceEntries.join("; "),
+    row.reason || "",
+  ])
+  return [headers, ...body].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n")
+}
+
 export function downloadCSV(csv: string, filename: string) {
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
   const url = URL.createObjectURL(blob)
@@ -190,6 +375,13 @@ export function downloadCSV(csv: string, filename: string) {
 export function formatDateRo(isoDate: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate
   return `${isoDate.slice(8, 10)}.${isoDate.slice(5, 7)}.${isoDate.slice(0, 4)}`
+}
+
+export function formatSignedDuration(minutes: number): string {
+  const rounded = Math.round(minutes)
+  if (rounded === 0) return "0 min"
+  const sign = rounded > 0 ? "+" : "-"
+  return `${sign}${formatOvertimeDuration(Math.abs(rounded) / 60)}`
 }
 
 export function formatMonthRo(monthKey: string): string {

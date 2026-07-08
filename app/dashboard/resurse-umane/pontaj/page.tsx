@@ -1,17 +1,20 @@
-import { redirect } from "next/navigation"
+"use client"
 
-export default async function PontajRedirectPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
-}) {
-  const params = new URLSearchParams()
-  for (const [k, v] of Object.entries(searchParams ?? {})) {
-    if (typeof v === "string") params.set(k, v)
-    else if (Array.isArray(v)) v.forEach((vv) => params.append(k, vv))
-  }
-  const qs = params.toString()
-  redirect(`/dashboard/resurse-umane/condica-prezenta${qs ? `?${qs}` : ""}`)
+import { useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+
+export default function PontajRedirectPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const qs = searchParams.toString()
+    router.replace(`/dashboard/resurse-umane/condica-prezenta${qs ? `?${qs}` : ""}`)
+  }, [router, searchParams])
+
+  return (
+    <main className="flex min-h-screen items-center justify-center">
+      <p className="text-sm text-muted-foreground">Se deschide condica de prezență...</p>
+    </main>
+  )
 }
-
-

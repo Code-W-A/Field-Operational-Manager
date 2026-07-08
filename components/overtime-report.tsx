@@ -3,20 +3,25 @@
 import { useState, useEffect, useMemo } from "react"
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
-import type { Employee, HrRequest, HrRequestKind } from "@/lib/hr/types"
+import type { Employee, HrDefaults, HrRequest, HrRequestKind, TimesheetMonth } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
-import { subscribeEmployees } from "@/lib/hr/storage"
+import { subscribeEmployees, subscribeHrDefaults, subscribeTimesheetsForMonth } from "@/lib/hr/storage"
 import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import {
   extractApprovedOvertime,
   aggregateOvertimeGeneral,
   aggregateOvertimeByEmployee,
   formatOvertimeCSV,
+  formatOvertimeReconciliationCSV,
   downloadCSV,
   formatDateRo,
   formatMonthRo,
+  formatSignedDuration,
   currentYearRange,
+  reconcileOvertimeWithTimesheets,
   type OvertimeDateRange,
+  type OvertimeReconciliationRow,
+  type OvertimeReconciliationStatus,
 } from "@/lib/hr/overtime-report"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,7 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Spinner } from "@/components/ui/spinner"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
-import { Download, Clock, Users, FileText, ChevronDown, ChevronRight, AlertCircle } from "lucide-react"
+import { Download, Clock, Users, FileText, ChevronDown, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react"
 
 function normalizeHrRequest(id: string, data: any): HrRequest {
   return {
@@ -52,11 +57,17 @@ function normalizeHrRequest(id: string, data: any): HrRequest {
 export function OvertimeReport({ className }: { className?: string }) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [requests, setRequests] = useState<HrRequest[]>([])
+  const [hrDefaults, setHrDefaults] = useState<HrDefaults>({})
+  const [timesheetsByMonth, setTimesheetsByMonth] = useState<Record<string, TimesheetMonth[]>>({})
   const [loading, setLoading] = useState(true)
+  const [timesheetsLoading, setTimesheetsLoading] = useState(true)
 
   const currentYear = new Date().getFullYear()
   const [selectedYear, setSelectedYear] = useState(String(currentYear))
+  const [selectedMonth, setSelectedMonth] = useState<string>("all")
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all")
+  const [requestStatusFilter, setRequestStatusFilter] = useState<"approved" | "pending" | "active">("approved")
+  const [reconciliationFilter, setReconciliationFilter] = useState<"all" | "issues">("all")
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("sumar")
 
@@ -68,11 +79,28 @@ export function OvertimeReport({ className }: { className?: string }) {
     return years
   }, [currentYear])
 
+  const monthOptions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, idx) => {
+        const month = String(idx + 1).padStart(2, "0")
+        return { value: month, label: formatMonthRo(`${selectedYear}-${month}`) }
+      }),
+    [selectedYear],
+  )
+
   // Subscribe to employees
   useEffect(() => {
     const unsub = subscribeEmployees({
       onChange: (emps) => setEmployees(emps),
       onError: (err) => console.error("OvertimeReport: employees error", err),
+    })
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    const unsub = subscribeHrDefaults({
+      onChange: setHrDefaults,
+      onError: (err) => console.error("OvertimeReport: defaults error", err),
     })
     return unsub
   }, [])
@@ -99,9 +127,44 @@ export function OvertimeReport({ className }: { className?: string }) {
     return unsub
   }, [])
 
+  useEffect(() => {
+    const months = selectedMonth === "all"
+      ? Array.from({ length: 12 }, (_, idx) => `${selectedYear}-${String(idx + 1).padStart(2, "0")}`)
+      : [`${selectedYear}-${selectedMonth}`]
+
+    setTimesheetsLoading(true)
+    setTimesheetsByMonth({})
+    const loaded = new Set<string>()
+    const unsubs = months.map((monthKey) =>
+      subscribeTimesheetsForMonth({
+        monthKey: monthKey as any,
+        onChange: (items) => {
+          loaded.add(monthKey)
+          setTimesheetsByMonth((prev) => ({ ...prev, [monthKey]: items }))
+          if (loaded.size === months.length) setTimesheetsLoading(false)
+        },
+        onError: (err) => {
+          console.error("OvertimeReport: timesheets error", err)
+          loaded.add(monthKey)
+          if (loaded.size === months.length) setTimesheetsLoading(false)
+        },
+      }),
+    )
+
+    return () => {
+      unsubs.forEach((unsub) => unsub())
+    }
+  }, [selectedYear, selectedMonth])
+
   const dateRange: OvertimeDateRange = useMemo(
-    () => ({ from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31` }),
-    [selectedYear],
+    () => {
+      if (selectedMonth !== "all") {
+        const lastDay = new Date(Number(selectedYear), Number(selectedMonth), 0).getDate()
+        return { from: `${selectedYear}-${selectedMonth}-01`, to: `${selectedYear}-${selectedMonth}-${String(lastDay).padStart(2, "0")}` }
+      }
+      return { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31` }
+    },
+    [selectedYear, selectedMonth],
   )
 
   const allEntries = useMemo(
@@ -116,6 +179,38 @@ export function OvertimeReport({ className }: { className?: string }) {
 
   const generalStats = useMemo(() => aggregateOvertimeGeneral(filteredEntries), [filteredEntries])
   const byEmployee = useMemo(() => aggregateOvertimeByEmployee(filteredEntries), [filteredEntries])
+
+  const timesheets = useMemo(() => Object.values(timesheetsByMonth).flat(), [timesheetsByMonth])
+
+  const reconciliationRowsAll = useMemo(() => {
+    const requestStatuses = requestStatusFilter === "active" ? ["approved", "pending"] as const : [requestStatusFilter]
+    return reconcileOvertimeWithTimesheets({
+      requests,
+      employees,
+      timesheets,
+      hrDefaults,
+      filters: {
+        dateRange,
+        requestStatuses: [...requestStatuses],
+        employeeId: selectedEmployee === "all" ? undefined : selectedEmployee,
+      },
+    })
+  }, [requests, employees, timesheets, hrDefaults, dateRange, requestStatusFilter, selectedEmployee])
+
+  const reconciliationRows = useMemo(() => {
+    if (reconciliationFilter === "all") return reconciliationRowsAll
+    return reconciliationRowsAll.filter((row) => row.status !== "confirmed")
+  }, [reconciliationRowsAll, reconciliationFilter])
+
+  const reconciliationStats = useMemo(() => {
+    const confirmed = reconciliationRowsAll.filter((row) => row.status === "confirmed").length
+    return {
+      confirmed,
+      issues: reconciliationRowsAll.length - confirmed,
+      requestedHours: Math.round(reconciliationRowsAll.reduce((sum, row) => sum + row.requestedMinutes, 0) / 60 * 100) / 100,
+      foundHours: Math.round(reconciliationRowsAll.reduce((sum, row) => sum + row.foundMinutes, 0) / 60 * 100) / 100,
+    }
+  }, [reconciliationRowsAll])
 
   const chartData = useMemo(
     () =>
@@ -140,6 +235,12 @@ export function OvertimeReport({ className }: { className?: string }) {
     const csv = formatOvertimeCSV(filteredEntries, mode)
     const suffix = mode === "general" ? "sumar" : "detaliat"
     downloadCSV(csv, `ore-suplimentare-${selectedYear}-${suffix}.csv`)
+  }
+
+  const handleReconciliationExport = () => {
+    const csv = formatOvertimeReconciliationCSV(reconciliationRows)
+    const suffix = selectedMonth === "all" ? selectedYear : `${selectedYear}-${selectedMonth}`
+    downloadCSV(csv, `ore-suplimentare-reconciliere-${suffix}.csv`)
   }
 
   if (loading) {
@@ -174,6 +275,20 @@ export function OvertimeReport({ className }: { className?: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
+              <label className="text-sm font-medium text-muted-foreground">Lună</label>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[190px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate lunile</SelectItem>
+                  {monthOptions.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <label className="text-sm font-medium text-muted-foreground">Angajat</label>
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
                 <SelectTrigger className="w-[220px]">
@@ -189,15 +304,40 @@ export function OvertimeReport({ className }: { className?: string }) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-muted-foreground">Status cerere</label>
+              <Select value={requestStatusFilter} onValueChange={(v) => setRequestStatusFilter(v as any)}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approved">Aprobate</SelectItem>
+                  <SelectItem value="pending">În așteptare</SelectItem>
+                  <SelectItem value="active">Toate active</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-muted-foreground">Reconciliere</label>
+              <Select value={reconciliationFilter} onValueChange={(v) => setReconciliationFilter(v as any)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate</SelectItem>
+                  <SelectItem value="issues">Doar probleme</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {filteredEntries.length === 0 ? (
+      {filteredEntries.length === 0 && reconciliationRowsAll.length === 0 ? (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Nu există ore suplimentare aprobate pentru {selectedYear}
+            Nu există cereri de ore suplimentare pentru {selectedYear}
             {selectedEmployee !== "all" ? " pentru angajatul selectat" : ""}.
           </AlertDescription>
         </Alert>
@@ -207,6 +347,7 @@ export function OvertimeReport({ className }: { className?: string }) {
             <TabsList>
               <TabsTrigger value="sumar">Sumar</TabsTrigger>
               <TabsTrigger value="per-tehnician">Per Tehnician</TabsTrigger>
+              <TabsTrigger value="reconciliere">Reconciliere condică</TabsTrigger>
             </TabsList>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => handleExport("general")}>
@@ -217,6 +358,12 @@ export function OvertimeReport({ className }: { className?: string }) {
                 <Download className="mr-2 h-4 w-4" />
                 Export Detaliat CSV
               </Button>
+              {activeTab === "reconciliere" ? (
+                <Button variant="outline" size="sm" onClick={handleReconciliationExport} disabled={reconciliationRows.length === 0}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Reconciliere CSV
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -360,9 +507,120 @@ export function OvertimeReport({ className }: { className?: string }) {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="reconciliere" className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Confirmate
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{reconciliationStats.confirmed}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Probleme
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{reconciliationStats.issues}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Ore cerute</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatOvertimeDuration(reconciliationStats.requestedHours)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Ore găsite</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatOvertimeDuration(reconciliationStats.foundHours)}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Cereri vs condică</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {timesheetsLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Spinner className="mr-2" />
+                    <span className="text-muted-foreground">Se încarcă condica...</span>
+                  </div>
+                ) : reconciliationRows.length === 0 ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>Nu există cereri pentru filtrele selectate.</AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Angajat</th>
+                          <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Data</th>
+                          <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Status</th>
+                          <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Cerut</th>
+                          <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Program sfârșit</th>
+                          <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Găsit</th>
+                          <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Diferență</th>
+                          <th className="text-left py-2 font-medium text-muted-foreground">Dovezi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reconciliationRows.map((row) => (
+                          <ReconciliationRow key={row.requestId} row={row} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       )}
     </div>
+  )
+}
+
+function reconciliationBadgeVariant(status: OvertimeReconciliationStatus): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "confirmed") return "default"
+  if (status === "partial") return "secondary"
+  if (status === "difference") return "outline"
+  return "destructive"
+}
+
+function ReconciliationRow({ row }: { row: OvertimeReconciliationRow }) {
+  return (
+    <tr className="border-b last:border-0 align-top">
+      <td className="py-2 pr-4 font-medium">{row.employeeName}</td>
+      <td className="py-2 pr-4 whitespace-nowrap">{formatDateRo(row.date)}</td>
+      <td className="py-2 pr-4">
+        <Badge variant={reconciliationBadgeVariant(row.status)}>{row.statusLabel}</Badge>
+        <div className="text-xs text-muted-foreground mt-1">{row.requestStatus}</div>
+      </td>
+      <td className="py-2 pr-4 text-right whitespace-nowrap">{formatOvertimeDuration(row.hours)}</td>
+      <td className="py-2 pr-4 whitespace-nowrap">{row.programEnd}</td>
+      <td className="py-2 pr-4 text-right whitespace-nowrap">{formatOvertimeDuration(row.foundMinutes / 60)}</td>
+      <td className="py-2 pr-4 text-right whitespace-nowrap">{formatSignedDuration(row.diffMinutes)}</td>
+      <td className="py-2 text-muted-foreground min-w-[220px]">
+        {row.evidenceEntries.length > 0 ? row.evidenceEntries.join("; ") : "—"}
+      </td>
+    </tr>
   )
 }
 
