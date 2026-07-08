@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { isE2eTestMode } from "@/lib/utils/environment"
+import { getAppNowMs, setE2eFakeNowMs } from "@/lib/utils/test-clock"
 import { determineMode, getCurrentLocation } from "@/lib/attendance/location"
 import { buildAttendanceTimesheetCell } from "@/lib/attendance/sync-timesheet-merge"
 import { reconcileOvertimeWithTimesheets } from "@/lib/hr/overtime-report"
@@ -73,6 +74,8 @@ function formatEntries(cell: TimesheetCell) {
 
 export default function PontajHumanE2ePage() {
   const enabled = isE2eTestMode()
+  const [clockInput, setClockInput] = useState("2026-03-15T08:00:00+02:00")
+  const [clockNow, setClockNow] = useState(() => getAppNowMs())
   const [activeSession, setActiveSession] = useState<AttendanceSession | null>(null)
   const [completedSession, setCompletedSession] = useState<AttendanceSession | null>(null)
   const [kioskSession, setKioskSession] = useState<AttendanceSession | null>(null)
@@ -108,6 +111,17 @@ export default function PontajHumanE2ePage() {
   }, [timesheetCell])
 
   const rowVisible = !problemFilter || reconciliation?.status !== "confirmed"
+
+  const applyClock = (value: string | number | Date | null) => {
+    setE2eFakeNowMs(value)
+    setClockNow(getAppNowMs())
+  }
+
+  const shiftClock = (minutes: number) => {
+    const next = getAppNowMs() + minutes * 60 * 1000
+    applyClock(next)
+    setClockInput(new Date(next).toISOString())
+  }
 
   const resolveBrowserLocation = async () => {
     const current = await getCurrentLocation()
@@ -263,6 +277,48 @@ export default function PontajHumanE2ePage() {
   return (
     <main style={{ padding: 24, maxWidth: 1040, fontFamily: "sans-serif" }}>
       <h1 data-testid="pontaj-human-title">Pontaj human-like E2E</h1>
+
+      <section aria-label="Ceas E2E" style={{ marginTop: 20 }}>
+        <h2>Ceas E2E</h2>
+        <input
+          data-testid="e2e-clock-input"
+          value={clockInput}
+          onChange={(event) => setClockInput(event.currentTarget.value)}
+          style={{ minWidth: 280, marginRight: 8 }}
+        />
+        <button data-testid="e2e-clock-apply" onClick={() => applyClock(clockInput)}>
+          Aplică ora
+        </button>
+        <button data-testid="e2e-clock-0800" onClick={() => {
+          const value = "2026-03-15T08:00:00+02:00"
+          setClockInput(value)
+          applyClock(value)
+        }}>
+          08:00
+        </button>
+        <button data-testid="e2e-clock-1630" onClick={() => {
+          const value = "2026-03-15T16:30:00+02:00"
+          setClockInput(value)
+          applyClock(value)
+        }}>
+          16:30
+        </button>
+        <button data-testid="e2e-clock-1800" onClick={() => {
+          const value = "2026-03-15T18:00:00+02:00"
+          setClockInput(value)
+          applyClock(value)
+        }}>
+          18:00
+        </button>
+        <button data-testid="e2e-clock-plus-8h" onClick={() => shiftClock(8 * 60)}>
+          +8h
+        </button>
+        <button data-testid="e2e-clock-clear" onClick={() => applyClock(null)}>
+          Clear
+        </button>
+        <div data-testid="e2e-clock-now-ms">{clockNow}</div>
+        <div data-testid="e2e-clock-now-local">{new Date(clockNow).toISOString()}</div>
+      </section>
 
       <section aria-label="Browser permissions" style={{ marginTop: 20 }}>
         <h2>Permisiuni browser</h2>

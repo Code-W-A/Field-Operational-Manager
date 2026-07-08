@@ -1,62 +1,19 @@
-import type { Employee, TimesheetMonth, TimesheetMonthKey } from "./types"
+import type { Employee, HrDefaults, HrHoliday, HrRequest, TimesheetMonth, TimesheetMonthKey } from "./types"
 import { getEmployeeFullName } from "./types"
-import { daysInMonth } from "./storage"
+import { calculateEmployeeOvertimeBank, calculateEmployeeTimesheetSummary, daysInMonthFromKey } from "@/lib/hr/timesheet-summary"
 
 export function exportTimesheetsToCSV(
   monthKey: TimesheetMonthKey,
   employees: Employee[],
-  timesheets: TimesheetMonth[]
+  timesheets: TimesheetMonth[],
+  options?: {
+    requests?: HrRequest[]
+    holidays?: HrHoliday[]
+    hrDefaults?: HrDefaults
+  },
 ) {
-  const dim = daysInMonth(monthKey)
-  
-  // Header CSV
-  const headers = [
-    "Angajat",
-    "Functie",
-    ...Array.from({ length: dim }, (_, i) => `Ziua ${i + 1}`),
-    "Total Ore",
-    "Banca Ore",
-  ]
-  
-  // Rows
-  const rows = employees.map(emp => {
-    const ts = timesheets.find(t => t.employeeId === emp.id && t.monthKey === monthKey)
-    const row = [
-      getEmployeeFullName(emp),
-      emp.title || "-",
-    ]
-    
-    let totalHours = 0
-    let workDays = 0
-    
-    for (let d = 1; d <= dim; d++) {
-      const cell = ts?.days?.[String(d)]
-      let val = "-"
-      
-      if (cell?.code === "WORK") {
-        val = String(cell.hours ?? 8)
-        totalHours += Number(cell.hours ?? 8)
-        workDays++
-      } else if (cell?.code && cell.code !== "EMPTY") {
-        val = cell.code
-      }
-      
-      row.push(val)
-    }
-    
-    row.push(String(totalHours))
-    
-    // Bancă de ore = total - (workDays * 8)
-    const expectedHours = workDays * 8
-    const overtimeBank = totalHours - expectedHours
-    row.push(overtimeBank >= 0 ? `+${overtimeBank}` : String(overtimeBank))
-    
-    return row
-  })
-  
-  // Generate CSV
-  const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n")
-  
+  const csv = formatTimesheetsCSV(monthKey, employees, timesheets, options)
+
   // Download
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }) // BOM for Excel compatibility
   const url = URL.createObjectURL(blob)
@@ -67,3 +24,87 @@ export function exportTimesheetsToCSV(
   URL.revokeObjectURL(url)
 }
 
+export function formatTimesheetsCSV(
+  monthKey: TimesheetMonthKey,
+  employees: Employee[],
+  timesheets: TimesheetMonth[],
+  options?: {
+    requests?: HrRequest[]
+    holidays?: HrHoliday[]
+    hrDefaults?: HrDefaults
+  },
+) {
+  const dim = daysInMonthFromKey(monthKey)
+  
+  // Header CSV
+  const headers = [
+    "Angajat",
+    "Functie",
+    ...Array.from({ length: dim }, (_, i) => `Ziua ${i + 1}`),
+    "Zile lucrate",
+    "Tichete de masă",
+    "Ore prezență",
+    "Bancă de ore",
+    "Ore traseu la client",
+    "Zile CO",
+    "Zile DEL",
+    "Ore IN",
+    "Total Ore",
+  ]
+  
+  // Rows
+  const rows = employees.map(emp => {
+    const ts = timesheets.find(t => t.employeeId === emp.id && t.monthKey === monthKey)
+    const row = [
+      getEmployeeFullName(emp),
+      emp.title || "-",
+    ]
+    
+    for (let d = 1; d <= dim; d++) {
+      const cell = ts?.days?.[String(d)]
+      let val = "-"
+      
+      if (cell?.code === "WORK") {
+        val = String(cell.hours ?? 8)
+      } else if (cell?.code && cell.code !== "EMPTY") {
+        val = cell.code
+      }
+      
+      row.push(val)
+    }
+
+    const summary = calculateEmployeeTimesheetSummary({
+      employeeId: emp.id,
+      monthKey,
+      timesheet: ts,
+      employee: emp,
+      hrDefaults: options?.hrDefaults ?? null,
+      requests: options?.requests ?? [],
+      holidays: options?.holidays ?? [],
+    })
+    const bank = calculateEmployeeOvertimeBank({
+      employeeId: emp.id,
+      monthKey,
+      timesheet: ts,
+      employee: emp,
+      hrDefaults: options?.hrDefaults ?? null,
+      requests: options?.requests ?? [],
+      holidays: options?.holidays ?? [],
+    })
+
+    row.push(String(summary.zileLucrate))
+    row.push(String(summary.ticheteMasa))
+    row.push(String(Math.round(summary.orePrezenta * 100) / 100))
+    row.push(bank.display)
+    row.push(String(summary.oreTraseuLaClient))
+    row.push(String(summary.co))
+    row.push(String(summary.del))
+    row.push(String(summary.totalTimpIN))
+    row.push(String(Math.round(summary.orePrezenta * 100) / 100))
+    
+    return row
+  })
+  
+  // Generate CSV
+  return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n")
+}

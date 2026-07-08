@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import type { KioskEligibleRole } from "@/lib/attendance/kiosk-eligible-users"
+import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
 
 /** Temporar: false = pontaj kiosk fără parolă angajat, doar selfie. Codul parolei rămâne. */
 const KIOSK_EMPLOYEE_PASSWORD_ENABLED = false
@@ -96,7 +97,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   }, [flowState])
 
   useEffect(() => {
-    const year = new Date().getFullYear()
+    const year = new Date(getAppNowMs()).getFullYear()
     return subscribeHrHolidays({
       year,
       onChange: setHolidays,
@@ -226,7 +227,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       }
 
       // Confirmation comes before password (per requirement)
-      setSpecialDayWarning(action === "check-in" ? resolveAttendanceSpecialDay(new Date(), holidays) : null)
+      setSpecialDayWarning(action === "check-in" ? resolveAttendanceSpecialDay(new Date(getAppNowMs()), holidays) : null)
       setSpecialDayConfirmed(null)
       setConfirmOpen(true)
     } catch (error) {
@@ -253,7 +254,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         ...specialDayWarning,
         required: true,
         confirmed: true,
-        confirmedAt: Date.now(),
+        confirmedAt: getAppNowMs(),
       })
     } else {
       setSpecialDayConfirmed(null)
@@ -299,9 +300,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     if (!selectedUser || !action) throw new Error("Utilizator/Acțiune lipsă")
     const sessionId =
       action === "check-out"
-        ? (await getActiveSession(selectedUser.uid))?.id || `att_${selectedUser.uid}_${Date.now()}`
-        : `att_${selectedUser.uid}_${Date.now()}`
-    const ts = Date.now()
+        ? (await getActiveSession(selectedUser.uid))?.id || `att_${selectedUser.uid}_${getAppNowMs()}`
+        : `att_${selectedUser.uid}_${getAppNowMs()}`
+    const ts = getAppNowMs()
     const path = `attendance/selfies/${selectedUser.uid}/${sessionId}/${kind}-${ts}.jpg`
     const file = new File([blob], `${kind}-${ts}.jpg`, { type: "image/jpeg" })
     const { url } = await uploadFile(file, path)
@@ -344,6 +345,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             userAgent: navigator.userAgent,
           },
           specialDayConfirmation: specialDayConfirmed ?? undefined,
+          ...(getE2eFakeNowRequestMs() != null ? { sessionStartMs: getE2eFakeNowRequestMs() } : {}),
           ...(result as any).__selfieCheckIn,
         })
 
@@ -382,6 +384,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             userAgent: navigator.userAgent,
           },
           ...(result as any).__selfieCheckOut,
+          ...(getE2eFakeNowRequestMs() != null ? { sessionEndMs: getE2eFakeNowRequestMs() } : {}),
           ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
         })
 
@@ -645,7 +648,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                     const uploaded = await uploadSelfie(r.blob, action === "check-in" ? "checkin" : "checkout")
                     const base: FaceRecognitionResult = {
                       success: true,
-                      faceId: `kiosk_pw_${selectedUser.uid}_${Date.now()}`,
+                      faceId: `kiosk_pw_${selectedUser.uid}_${getAppNowMs()}`,
                       confidence: 1,
                     }
                     if (action === "check-in") {
@@ -768,7 +771,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                 // Switch flow to Start
                 setNoActiveOpen(false)
                 setAction("check-in")
-                setSpecialDayWarning(resolveAttendanceSpecialDay(new Date(), holidays))
+                setSpecialDayWarning(resolveAttendanceSpecialDay(new Date(getAppNowMs()), holidays))
                 setSpecialDayConfirmed(null)
                 setConfirmOpen(true)
               }}

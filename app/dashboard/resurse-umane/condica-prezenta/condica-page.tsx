@@ -56,7 +56,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
-import { calcEffectiveMinutes, minutesToHM, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
+import { minutesToHM, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
+import { calculateEmployeeOvertimeBank, calculateEmployeeTimesheetSummary } from "@/lib/hr/timesheet-summary"
 
 function InfoTooltipButton({
   tooltip,
@@ -587,172 +588,15 @@ export default function CondicaPrezentaPage() {
   }
 
   const getSummary = (employeeId: string) => {
-    const ts = getEmployeeTimesheet(employeeId)
-    let zileLucrate = 0
-    let ticheteMasa = 0
-    let orePrezenta = 0
-    let oreLucrateEfectiv = 0
-    let oreSarbatoriLegale = 0
-    let co = 0
-    let del = 0
-    let totalTimpIN = 0
-    let oreTraseuLaClient = 0
-    let oreTraseuDeLaClient = 0
-    let oreC1 = 0
-    let oreC2 = 0
-    let oreC3 = 0
-    let oreC4 = 0
-    let oreC5 = 0
-    let oreC6 = 0
-    let oreC7 = 0
-
-    const dim = daysInMonth(monthKey)
-    for (let d = 1; d <= dim; d++) {
-      const c = ts?.days?.[String(d)]
-      if (!c || c.code === "EMPTY") continue
-      zileLucrate += 1
-
-      const entries = (c.entries ?? []) as NonNullable<TimesheetCell["entries"]>
-      const defaultBreak = getEmployeeDefaultBreak(employeeId)
-      const schedule = getScheduleMinutes(employeeId)
-      const [yStr, mStr] = monthKey.split("-")
-      const dt = new Date(Number(yStr), Number(mStr) - 1, d)
-      const dow = dt.getDay() // 0=Sun ... 6=Sat
-      const isSaturday = dow === 6
-      const isSunday = dow === 0
-      const isHoliday = Boolean(holidayLabelsByDay[d])
-      const isWeekendOrHoliday = isSaturday || isSunday || isHoliday
-      const approvedKindForDay = requestMetaByEmployeeDay[employeeId]?.[d]?.kind
-      const isExcludedByApprovedRequest =
-        approvedKindForDay === "CO" ||
-        approvedKindForDay === "CFP" ||
-        approvedKindForDay === "CM" ||
-        approvedKindForDay === "DEL" ||
-        approvedKindForDay === "IN"
-
-      const toClientKey = "traseu catre client"
-      const toHomeKey = "traseu catre casa"
-      const pontajKey = "pontaj"
-
-      const isToClient = (e: NonNullable<TimesheetCell["entries"]>[number]) => normalizeKey(String(e.project || "")) === toClientKey
-      const isToHome = (e: NonNullable<TimesheetCell["entries"]>[number]) => normalizeKey(String(e.project || "")) === toHomeKey
-      const isPontaj = (e: NonNullable<TimesheetCell["entries"]>[number]) => normalizeKey(String(e.project || "")) === pontajKey
-
-      const toClientMinutesTotal = sumEntryMinutes(entries, isToClient)
-      const toHomeMinutesTotal = sumEntryMinutes(entries, isToHome)
-      oreTraseuLaClient += toClientMinutesTotal / 60
-      oreTraseuDeLaClient += toHomeMinutesTotal / 60
-
-      // C6/C7: ore lucrate sâmbătă / duminică sau în sărbătoare legală (SL).
-      // "Ore lucrate" = timp Pontaj (fallback la cell.hours dacă nu există entries).
-      const pontajMinutesTotal = sumEntryMinutes(entries, isPontaj) || Math.round(Number(c.hours ?? 0) * 60)
-      if (isHoliday || isSunday) {
-        oreC7 += pontajMinutesTotal / 60
-      } else if (isSaturday) {
-        oreC6 += pontajMinutesTotal / 60
-      }
-
-      // C1/C2/C3/C4/C5: doar în zile normale (Lu–Vi, non-SL).
-      if (schedule && !isWeekendOrHoliday) {
-        // C1: de la check-in până la ora de început a programului standard (prefer "Traseu către client" înainte de start).
-        // C2: de la ora de sfârșit a programului standard până la check-out (prefer "Traseu către casă" după end).
-        const toClientBeforeStart = sumEntryMinutes(entries, isToClient, { start: 0, end: schedule.start })
-        const toHomeAfterEnd = sumEntryMinutes(entries, isToHome, { start: schedule.end, end: 24 * 60 })
-
-        let c1Min = toClientBeforeStart
-        let c2Min = toHomeAfterEnd
-
-        // Fallback: dacă nu există traseu cronometrat, folosim Pontaj (Play/Stop) ca proxy de check-in/out.
-        if (!c1Min || !c2Min) {
-          let earliestPontaj: number | null = null
-          let latestPontaj: number | null = null
-          entries.forEach((e) => {
-            if (!isPontaj(e)) return
-            const s = parseHM(e.start)
-            const en = parseHM(e.end)
-            if (s == null || en == null || en <= s) return
-            earliestPontaj = earliestPontaj == null ? s : Math.min(earliestPontaj, s)
-            latestPontaj = latestPontaj == null ? en : Math.max(latestPontaj, en)
-          })
-          if (!c1Min && earliestPontaj != null && earliestPontaj < schedule.start) c1Min = schedule.start - earliestPontaj
-          if (!c2Min && latestPontaj != null && latestPontaj > schedule.end) c2Min = latestPontaj - schedule.end
-        }
-
-        oreC1 += c1Min / 60
-        oreC2 += c2Min / 60
-
-        // C3/C4/C5: ore Pontaj în afara programului standard (split 2h + 2h + rest).
-        const pontajOutside =
-          sumEntryMinutes(entries, isPontaj, { start: 0, end: schedule.start }) +
-          sumEntryMinutes(entries, isPontaj, { start: schedule.end, end: 24 * 60 })
-
-        const c3 = Math.min(120, pontajOutside)
-        const c4 = Math.min(120, Math.max(0, pontajOutside - 120))
-        const c5 = Math.max(0, pontajOutside - 240)
-        oreC3 += c3 / 60
-        oreC4 += c4 / 60
-        oreC5 += c5 / 60
-      }
-
-      if (c.code === "WORK") {
-        const computedMinutes =
-          entries.length > 0
-            ? calcEffectiveMinutes({
-                entries: entries as any,
-                breaks: (c.breaks ?? null) as any,
-                defaultBreak,
-              })
-            : null
-        const hours = computedMinutes != null ? computedMinutes / 60 : Number(c.hours ?? 8)
-        orePrezenta += hours
-        oreLucrateEfectiv += hours
-        if (!isWeekendOrHoliday && !isExcludedByApprovedRequest && hours > 0) {
-          ticheteMasa += 1
-        }
-      } else if (c.code === "SL") {
-        oreSarbatoriLegale += Number(c.hours ?? 8)
-      }
-    }
-
-    const approvedRequests = leaveRequests.filter((r) => r.employeeId === employeeId && r.status === "approved")
-    approvedRequests.forEach((req) => {
-      const payload: any = req.payload as any
-      if (req.kind === "CO") {
-        if (payload?.startDate && payload?.endDate) {
-          co += countDaysInRangeForMonth(payload.startDate, payload.endDate)
-        }
-      } else if (req.kind === "DEL") {
-        if (payload?.startDate && payload?.endDate) {
-          del += countDaysInRangeForMonth(payload.startDate, payload.endDate)
-        }
-      } else if (req.kind === "IN") {
-        if (payload?.date && payload?.startTime && payload?.endTime) {
-          if (String(payload.date).startsWith(monthKey)) {
-            totalTimpIN += hoursFromInterval(payload.startTime, payload.endTime)
-          }
-        }
-      }
+    return calculateEmployeeTimesheetSummary({
+      employeeId,
+      monthKey,
+      timesheet: getEmployeeTimesheet(employeeId),
+      employee: employeeById[employeeId],
+      hrDefaults,
+      requests: leaveRequests,
+      holidays,
     })
-
-    return {
-      zileLucrate,
-      ticheteMasa,
-      orePrezenta,
-      oreLucrateEfectiv,
-      oreTraseuLaClient: Math.round(oreTraseuLaClient * 100) / 100,
-      oreTraseuDeLaClient: Math.round(oreTraseuDeLaClient * 100) / 100,
-      co,
-      del,
-      totalTimpIN,
-      oreSarbatoriLegale,
-      oreC1: Math.round(oreC1 * 100) / 100,
-      oreC2: Math.round(oreC2 * 100) / 100,
-      oreC3: Math.round(oreC3 * 100) / 100,
-      oreC4: Math.round(oreC4 * 100) / 100,
-      oreC5: Math.round(oreC5 * 100) / 100,
-      oreC6: Math.round(oreC6 * 100) / 100,
-      oreC7: Math.round(oreC7 * 100) / 100,
-    }
   }
 
   const openEdit = (params: { employeeId: string; day: number; anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } }) => {
@@ -933,27 +777,15 @@ export default function CondicaPrezentaPage() {
   }
 
   const calculateOvertimeBank = (employeeId: string) => {
-    const ts = timesheets.find(t => t.employeeId === employeeId && t.monthKey === monthKey)
-    const dim = daysInMonth(monthKey)
-    
-    let totalWorked = 0
-    let workDays = 0
-    
-    for (let d = 1; d <= dim; d++) {
-      const cell = ts?.days?.[String(d)]
-      if (cell?.code === "WORK") {
-        totalWorked += Number(cell.hours ?? 8)
-        workDays++
-      }
-    }
-    
-    const expected = workDays * 8
-    const overtime = totalWorked - expected
-    
-    return {
-      overtime,
-      display: `${overtime >= 0 ? '+' : ''}${overtime.toFixed(1)}h`
-    }
+    return calculateEmployeeOvertimeBank({
+      employeeId,
+      monthKey,
+      timesheet: getEmployeeTimesheet(employeeId),
+      employee: employeeById[employeeId],
+      hrDefaults,
+      requests: leaveRequests,
+      holidays,
+    })
   }
 
   const kpis = useMemo(
@@ -1458,7 +1290,7 @@ export default function CondicaPrezentaPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => exportTimesheetsToCSV(monthKey, filteredEmployees, timesheets)}
+              onClick={() => exportTimesheetsToCSV(monthKey, filteredEmployees, timesheets, { requests: leaveRequests, holidays, hrDefaults })}
             >
               <Download className="h-4 w-4 mr-2" />
               Export CSV

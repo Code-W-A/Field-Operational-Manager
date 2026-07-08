@@ -37,6 +37,7 @@ import {
   shouldBlockCheckoutForLock,
   type LockSessionSnapshot,
 } from "@/lib/attendance/active-session-lock"
+import { getAppNowMs } from "@/lib/utils/test-clock"
 
 export type Unsubscribe = () => void
 
@@ -69,10 +70,10 @@ function normalizeAttendanceDoc(id: string, data: any): AttendanceSession {
   return {
     id,
     ...data,
-    sessionStart: timestampToMillis(data.sessionStart) ?? Date.now(),
+    sessionStart: timestampToMillis(data.sessionStart) ?? getAppNowMs(),
     sessionEnd: data.sessionEnd ? timestampToMillis(data.sessionEnd) : undefined,
-    createdAt: timestampToMillis(data.createdAt) ?? Date.now(),
-    updatedAt: timestampToMillis(data.updatedAt) ?? Date.now(),
+    createdAt: timestampToMillis(data.createdAt) ?? getAppNowMs(),
+    updatedAt: timestampToMillis(data.updatedAt) ?? getAppNowMs(),
   } as AttendanceSession
 }
 
@@ -329,8 +330,8 @@ function finalizeOpenExtraTimeLogs(params: {
  * Create a new check-in session
  */
 export async function createCheckIn(request: CheckInRequest): Promise<string> {
-  const sessionId = `att_${request.userId}_${Date.now()}`
-  const now = request.sessionStartMs ?? Date.now()
+  const now = request.sessionStartMs ?? getAppNowMs()
+  const sessionId = `att_${request.userId}_${now}`
 
   const schedule = await getEmployeeScheduleForUser(request.userId, request.userName)
   const userRole = await getUserRoleForAttendance(request.userId)
@@ -471,7 +472,7 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     if (request.sessionEndMs != null && Number.isFinite(request.sessionEndMs)) {
       return request.sessionEndMs
     }
-    const baseNow = Date.now()
+    const baseNow = getAppNowMs()
     const mins = request.debugSimulatedDurationMinutes
     if (!debugEnabled || !mins || !Number.isFinite(mins) || mins <= 0) return baseNow
     // Keep within the same local day to match HR day queries.
@@ -676,8 +677,8 @@ export async function getLatestCompletedSession(
       ...data,
       sessionStart: typeof data.sessionStart === "number" ? data.sessionStart : data.sessionStart?.toMillis?.(),
       sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === "number" ? data.sessionEnd : data.sessionEnd?.toMillis?.()) : undefined,
-      createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || Date.now(),
-      updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || Date.now(),
+      createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || getAppNowMs(),
+      updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || getAppNowMs(),
     } as AttendanceSession
 
     if (params?.sinceMs && session.sessionEnd && session.sessionEnd < params.sinceMs) return null
@@ -695,8 +696,8 @@ export async function getLatestCompletedSession(
         ...data,
         sessionStart: typeof data.sessionStart === "number" ? data.sessionStart : data.sessionStart?.toMillis?.(),
         sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === "number" ? data.sessionEnd : data.sessionEnd?.toMillis?.()) : undefined,
-        createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || Date.now(),
-        updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || Date.now(),
+        createdAt: typeof data.createdAt === "number" ? data.createdAt : data.createdAt?.toMillis?.() || getAppNowMs(),
+        updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : data.updatedAt?.toMillis?.() || getAppNowMs(),
       } as AttendanceSession
     })
     const latest = sessions
@@ -790,7 +791,7 @@ export function subscribeActiveSession(
  */
 export async function startExtraTimeLog(request: ExtraTimeRequest): Promise<void> {
   const sessionRef = doc(db, "attendance", request.sessionId)
-  const now = Date.now()
+  const now = getAppNowMs()
 
   const newLog: ExtraTimeLog = {
     type: request.type,
@@ -856,7 +857,7 @@ export async function startExtraTimeLog(request: ExtraTimeRequest): Promise<void
  */
 export async function endExtraTimeLog(sessionId: string, type: ExtraTimeRequest["type"]): Promise<number> {
   const sessionRef = doc(db, "attendance", sessionId)
-  const now = Date.now()
+  const now = getAppNowMs()
 
   // Get current session
   const sessions = await getDocs(
@@ -933,7 +934,7 @@ export async function canCheckOut(sessionId: string): Promise<{ allowed: boolean
     ? sessionData.sessionStart
     : sessionData.sessionStart.toMillis()
 
-  const now = Date.now()
+  const now = getAppNowMs()
   const elapsedSeconds = (now - sessionStart) / 1000
 
   if (elapsedSeconds < 60) {
@@ -971,8 +972,8 @@ export async function getSessionsForDateRange(
       ...data,
       sessionStart: typeof data.sessionStart === 'number' ? data.sessionStart : data.sessionStart.toMillis(),
       sessionEnd: data.sessionEnd ? (typeof data.sessionEnd === 'number' ? data.sessionEnd : data.sessionEnd.toMillis()) : undefined,
-      createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || Date.now(),
-      updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || Date.now(),
+      createdAt: typeof data.createdAt === 'number' ? data.createdAt : data.createdAt?.toMillis() || getAppNowMs(),
+      updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || getAppNowMs(),
     } as AttendanceSession
   })
 }

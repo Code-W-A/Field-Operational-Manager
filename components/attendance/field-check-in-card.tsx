@@ -30,6 +30,7 @@ import type { HrHoliday } from "@/lib/hr/types"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
+import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
 
 interface FieldCheckInCardProps {
   userId: string
@@ -51,7 +52,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
   const [loading, setLoading] = useState(true)
   const [checkOutDisabled, setCheckOutDisabled] = useState(false)
   const [checkOutTimer, setCheckOutTimer] = useState<number>(0)
-  const [currentTime, setCurrentTime] = useState(Date.now())
+  const [currentTime, setCurrentTime] = useState(getAppNowMs())
   const [debugSimMinutes, setDebugSimMinutes] = useState<number | null>(null)
   const [pendingAuditId, setPendingAuditId] = useState<string | null>(null)
   const [holidays, setHolidays] = useState<HrHoliday[]>([])
@@ -72,13 +73,13 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
   // Update current time every second
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentTime(Date.now())
+      setCurrentTime(getAppNowMs())
     }, 1000)
     return () => clearInterval(timer)
   }, [])
 
   useEffect(() => {
-    const year = new Date().getFullYear()
+    const year = new Date(getAppNowMs()).getFullYear()
     return subscribeHrHolidays({
       year,
       onChange: setHolidays,
@@ -118,7 +119,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       return
     }
 
-    const now = Date.now()
+    const now = getAppNowMs()
     const programStart = activeSession.programLucruStart || "08:00"
     const programEnd = activeSession.programLucruEnd || "16:30"
 
@@ -170,7 +171,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
         setActiveSession(session)
       } else {
         // If no active session, keep a recent completed one so "Traseu către casă" can be started.
-        const recent = await getLatestCompletedSession(userId, { sinceMs: Date.now() - 2 * 60 * 60 * 1000 })
+        const recent = await getLatestCompletedSession(userId, { sinceMs: getAppNowMs() - 2 * 60 * 60 * 1000 })
         setActiveSession(recent)
       }
     } catch (error) {
@@ -184,7 +185,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     setAction("check-in")
     setDebugSimMinutes(null)
     setSpecialDayConfirmed(confirmation ?? null)
-    setPendingAuditId(`selfie_checkin_${Date.now()}`)
+    setPendingAuditId(`selfie_checkin_${getAppNowMs()}`)
     setShowFaceDialog(true)
     setFlowState("selfie")
   }
@@ -199,7 +200,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       return
     }
 
-    const warning = resolveAttendanceSpecialDay(new Date(), holidays)
+    const warning = resolveAttendanceSpecialDay(new Date(getAppNowMs()), holidays)
     if (warning) {
       setSpecialDayWarning(warning)
       setSpecialConfirmOpen(true)
@@ -235,7 +236,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     setAction("check-out")
     setSpecialDayWarning(null)
     setSpecialDayConfirmed(null)
-    setPendingAuditId(`selfie_checkout_${Date.now()}`)
+    setPendingAuditId(`selfie_checkout_${getAppNowMs()}`)
     setShowFaceDialog(true)
     setFlowState("selfie")
   }
@@ -267,7 +268,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     setAction("check-out")
     setSpecialDayWarning(null)
     setSpecialDayConfirmed(null)
-    setPendingAuditId(`selfie_checkout_${Date.now()}`)
+    setPendingAuditId(`selfie_checkout_${getAppNowMs()}`)
     setShowFaceDialog(true)
     setFlowState("selfie")
   }
@@ -291,6 +292,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
             userAgent: navigator.userAgent,
           },
           specialDayConfirmation: specialDayConfirmed ?? undefined,
+          ...(getE2eFakeNowRequestMs() != null ? { sessionStartMs: getE2eFakeNowRequestMs() } : {}),
           // selfie (optional)
           ...(result as any).__selfieCheckIn,
         })
@@ -331,6 +333,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
           },
           // selfie (optional)
           ...(result as any).__selfieCheckOut,
+          ...(getE2eFakeNowRequestMs() != null ? { sessionEndMs: getE2eFakeNowRequestMs() } : {}),
           ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
         })
 
@@ -352,7 +355,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
         })
 
         const endForLocal = (() => {
-          if (!debugEnabled || !debugSimMinutes) return Date.now()
+          if (!debugEnabled || !debugSimMinutes) return getAppNowMs()
           const d = new Date(activeSession.sessionStart)
           d.setHours(23, 59, 59, 999)
           const endOfDay = d.getTime()
@@ -395,8 +398,8 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
   }
 
   const uploadSelfie = async (blob: Blob, kind: "checkin" | "checkout") => {
-    const sessionId = action === "check-out" ? (activeSession?.id || `att_${userId}_${Date.now()}`) : `att_${userId}_${Date.now()}`
-    const ts = Date.now()
+    const ts = getAppNowMs()
+    const sessionId = action === "check-out" ? (activeSession?.id || `att_${userId}_${ts}`) : `att_${userId}_${ts}`
     const path = `attendance/selfies/${userId}/${sessionId}/${kind}-${ts}.jpg`
     const file = new File([blob], `${kind}-${ts}.jpg`, { type: "image/jpeg" })
     const { url } = await uploadFile(file, path)
@@ -405,7 +408,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
 
   const continueAfterSelfie = async (selfie: { url?: string; path?: string; status: "ok" | "missing" | "error" }) => {
     if (!action) return
-    const faceId = pendingAuditId || `selfie_${action}_${Date.now()}`
+    const faceId = pendingAuditId || `selfie_${action}_${getAppNowMs()}`
     const base: FaceRecognitionResult = { success: true, faceId, confidence: 1 }
     // piggyback optional fields to avoid refactoring signature (kept local)
     if (action === "check-in") {
@@ -443,7 +446,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
 
       // Auto-end at the cap (min(programStart, 08:00))
       if (autoEndTimerRef.current) window.clearTimeout(autoEndTimerRef.current)
-      const now = Date.now()
+      const now = getAppNowMs()
       const programStart = activeSession.programLucruStart || "08:00"
       const toTs = (base: number, hhmm: string) => {
         const [hStr, mStr] = hhmm.split(":")
@@ -803,7 +806,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
                   ...specialDayWarning,
                   required: true,
                   confirmed: true,
-                  confirmedAt: Date.now(),
+                  confirmedAt: getAppNowMs(),
                 }
                 setSpecialConfirmOpen(false)
                 setSpecialDayWarning(null)
