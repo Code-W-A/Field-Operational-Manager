@@ -1,0 +1,153 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+
+import { TimesheetCharts } from "@/components/hr/timesheet-charts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+
+import type { Employee, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import {
+  daysInMonth,
+  getCurrentMonthKey,
+  seedHrIfEmpty,
+  subscribeEmployees,
+  subscribeTimesheetsForMonth,
+} from "@/lib/hr/storage"
+
+function fromMonthInputValue(value: string): TimesheetMonthKey {
+  return value as TimesheetMonthKey
+}
+
+function calcKpis(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]) {
+  const dim = daysInMonth(monthKey)
+  const byEmployee = new Map<string, TimesheetMonth>()
+
+  for (const timesheet of timesheets) {
+    if (timesheet.monthKey === monthKey) {
+      byEmployee.set(timesheet.employeeId, timesheet)
+    }
+  }
+
+  let totalHours = 0
+  let totalCO = 0
+  let totalSL = 0
+  let totalWE = 0
+
+  for (const employee of employees) {
+    const timesheet = byEmployee.get(employee.id)
+    for (let day = 1; day <= dim; day++) {
+      const cell = timesheet?.days?.[String(day)]
+      if (!cell) continue
+      if (cell.code === "WORK") totalHours += Number(cell.hours ?? 0)
+      if (cell.code === "CO") totalCO++
+      if (cell.code === "SL") totalSL++
+      if (cell.code === "WE") totalWE++
+    }
+  }
+
+  const activeEmployees = employees.length || 1
+  return {
+    totalHours,
+    totalCO,
+    totalSL,
+    totalWE,
+    avgHours: Math.round((totalHours / activeEmployees) * 10) / 10,
+  }
+}
+
+export function HrTimesheetReport() {
+  const searchParams = useSearchParams()
+  const initialMonthKey = (searchParams.get("month") as TimesheetMonthKey) || getCurrentMonthKey()
+
+  const [monthKey, setMonthKey] = useState<TimesheetMonthKey>(initialMonthKey)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
+
+  useEffect(() => {
+    const nextMonthKey = (searchParams.get("month") as TimesheetMonthKey) || getCurrentMonthKey()
+    setMonthKey(nextMonthKey)
+  }, [searchParams])
+
+  useEffect(() => {
+    let unsub: null | (() => void) = null
+
+    ;(async () => {
+      try {
+        await seedHrIfEmpty({ monthKey })
+      } catch {
+        // ignore seed errors in report view
+      }
+
+      unsub = subscribeEmployees({
+        onChange: (items) => setEmployees(items.filter((item) => item.active)),
+      })
+    })()
+
+    return () => unsub?.()
+  }, [monthKey])
+
+  useEffect(() => {
+    const unsub = subscribeTimesheetsForMonth({
+      monthKey,
+      onChange: setTimesheets,
+    })
+
+    return () => unsub?.()
+  }, [monthKey])
+
+  const kpis = useMemo(() => calcKpis(monthKey, employees, timesheets), [monthKey, employees, timesheets])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Input
+          type="month"
+          value={monthKey}
+          onChange={(event) => setMonthKey(fromMonthInputValue(event.target.value))}
+          className="w-[170px]"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Ore totale</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{kpis.totalHours}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Medie ore / salariat</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{kpis.avgHours}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">CO / SL (sărbătoare legală)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {kpis.totalCO} / {kpis.totalSL}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">WE</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{kpis.totalWE}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <TimesheetCharts monthKey={monthKey} employees={employees} timesheets={timesheets} />
+    </div>
+  )
+}

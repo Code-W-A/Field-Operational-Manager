@@ -1,145 +1,64 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { HrTimesheetReport } from "@/components/hr/hr-timesheet-report"
+import { OvertimeReport } from "@/components/overtime-report"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-import type { Employee, TimesheetMonthKey, TimesheetMonth } from "@/lib/hr/types"
-import {
-  daysInMonth,
-  getCurrentMonthKey,
-  seedHrIfEmpty,
-  subscribeEmployees,
-  subscribeTimesheetsForMonth,
-} from "@/lib/hr/storage"
-import { TimesheetCharts } from "@/components/hr/timesheet-charts"
+const TAB_KEYS = ["pontaj", "overtime"] as const
+type TabKey = (typeof TAB_KEYS)[number]
 
-function fromMonthInputValue(v: string): TimesheetMonthKey {
-  return v as TimesheetMonthKey
-}
+export default function HrReportsPage() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<TabKey>("pontaj")
 
-function calcKpis(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]) {
-  const dim = daysInMonth(monthKey)
-  const byEmp = new Map<string, TimesheetMonth>()
-  for (const t of timesheets) if (t.monthKey === monthKey) byEmp.set(t.employeeId, t)
+  useEffect(() => {
+    const tab = searchParams.get("tab")
+    if (TAB_KEYS.includes(tab as TabKey)) {
+      setActiveTab(tab as TabKey)
+      return
+    }
+    setActiveTab("pontaj")
+  }, [searchParams])
 
-  let totalHours = 0
-  let totalCO = 0
-  let totalSL = 0
-  let totalWE = 0
+  const handleTabChange = (value: string) => {
+    const nextTab = TAB_KEYS.includes(value as TabKey) ? (value as TabKey) : "pontaj"
+    setActiveTab(nextTab)
 
-  for (const e of employees) {
-    const ts = byEmp.get(e.id)
-    for (let d = 1; d <= dim; d++) {
-      const c = ts?.days?.[String(d)]
-      if (!c) continue
-      if (c.code === "WORK") totalHours += Number(c.hours ?? 0)
-      if (c.code === "CO") totalCO++
-      if (c.code === "SL") totalSL++
-      if (c.code === "WE") totalWE++
+    try {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("tab", nextTab)
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    } catch {
+      // ignore URL sync errors
     }
   }
 
-  const activeEmployees = employees.length || 1
-  return {
-    totalHours,
-    totalCO,
-    totalSL,
-    totalWE,
-    avgHours: Math.round((totalHours / activeEmployees) * 10) / 10,
-  }
-}
-
-export default function HrReportsPage() {
-  const searchParams = useSearchParams()
-  const initialMonthKey = (searchParams.get("month") as TimesheetMonthKey) || getCurrentMonthKey()
-
-  const [monthKey, setMonthKey] = useState<TimesheetMonthKey>(initialMonthKey)
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
-
-  useEffect(() => {
-    let unsub: null | (() => void) = null
-    ;(async () => {
-      try {
-        await seedHrIfEmpty({ monthKey })
-      } catch {
-        // ignore
-      }
-      unsub = subscribeEmployees({
-        onChange: (e) => setEmployees(e.filter((x) => x.active)),
-      })
-    })()
-    return () => unsub?.()
-  }, [])
-
-  useEffect(() => {
-    let unsub: null | (() => void) = null
-    unsub = subscribeTimesheetsForMonth({
-      monthKey,
-      onChange: setTimesheets,
-    })
-    return () => unsub?.()
-  }, [monthKey])
-
-  const kpis = useMemo(() => calcKpis(monthKey, employees, timesheets), [monthKey, employees, timesheets])
-
   return (
     <DashboardShell>
-      <DashboardHeader
-        heading="Rapoarte HR"
-        text="Vizualizează orele lucrate și distribuția CO/SL/WE."
-        headerAction={
-          <Input type="month" value={monthKey} onChange={(e) => setMonthKey(fromMonthInputValue(e.target.value))} className="w-[170px]" />
-        }
-      />
+      <DashboardHeader heading="Rapoarte HR" text="Vizualizează indicatorii de pontaj și raportul de ore suplimentare." />
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Ore totale</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{kpis.totalHours}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Medie ore / salariat</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{kpis.avgHours}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">CO / SL (sărbătoare legală)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {kpis.totalCO} / {kpis.totalSL}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">WE</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{kpis.totalWE}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="pontaj">Pontaj HR</TabsTrigger>
+          <TabsTrigger value="overtime">Ore Suplimentare</TabsTrigger>
+        </TabsList>
 
-      <div className="mt-4">
-        <TimesheetCharts monthKey={monthKey} employees={employees} timesheets={timesheets} />
-      </div>
+        <TabsContent value="pontaj" className="pt-4">
+          <HrTimesheetReport />
+        </TabsContent>
+
+        <TabsContent value="overtime" className="pt-4">
+          <OvertimeReport className="w-full" />
+        </TabsContent>
+      </Tabs>
     </DashboardShell>
   )
 }
-
 
