@@ -12,7 +12,8 @@ import { db } from "@/lib/firebase/config"
 import type { AttendanceSession } from "@/types/attendance"
 import { CalendarIcon, MapPin, Clock, TrendingUp, Users, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { extractTime24, formatRomanianDate } from "@/lib/utils/date-utils"
+import { formatRomanianDate } from "@/lib/utils/date-utils"
+import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 
 type EmployeeInfo = { fullName: string; title?: string }
 
@@ -313,9 +314,9 @@ export default function AttendanceDashboardPage() {
                           {session.mode === "office" ? "Birou" : "Mașină"}
                         </Badge>
                       </TableCell>
-                      <TableCell>{extractTime24(new Date(session.sessionStart))}</TableCell>
+                      <TableCell>{formatAttendanceTimeHHmm(session.sessionStart)}</TableCell>
                       <TableCell>
-                        {session.sessionEnd ? extractTime24(new Date(session.sessionEnd)) : "-"}
+                        {session.sessionEnd ? formatAttendanceTimeHHmm(session.sessionEnd) : "-"}
                       </TableCell>
                       <TableCell>{formatDuration(session.sessionStart, session.sessionEnd)}</TableCell>
                       <TableCell>{formatExtraTime(session)}</TableCell>

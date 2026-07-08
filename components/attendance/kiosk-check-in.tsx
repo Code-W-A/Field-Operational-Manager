@@ -9,7 +9,6 @@ import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendanc
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
 import { resolveAttendanceSpecialDay, type AttendanceSpecialDayInfo } from "@/lib/attendance/special-day-confirmation"
 import { subscribeHrHolidays } from "@/lib/hr/storage"
-import { extractTime24 } from "@/lib/utils/date-utils"
 import { toast } from "@/hooks/use-toast"
 import type { FaceRecognitionResult, AttendanceLocation, AttendanceSpecialDayConfirmation } from "@/types/attendance"
 import type { HrHoliday } from "@/lib/hr/types"
@@ -22,6 +21,7 @@ import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import type { KioskEligibleRole } from "@/lib/attendance/kiosk-eligible-users"
 import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
+import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 
 /** Temporar: false = pontaj kiosk fără parolă angajat, doar selfie. Codul parolei rămâne. */
 const KIOSK_EMPLOYEE_PASSWORD_ENABLED = false
@@ -705,7 +705,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             <DialogTitle className="text-center text-2xl">Pontaj deja pornit</DialogTitle>
             <DialogDescription className="text-center">
               Acest utilizator are deja tura pornită.
-              {alreadyStartedAt ? ` (Start: ${extractTime24(new Date(alreadyStartedAt))})` : ""}
+              {alreadyStartedAt ? ` (Start: ${formatAttendanceTimeHHmm(alreadyStartedAt)})` : ""}
             </DialogDescription>
           </DialogHeader>
 

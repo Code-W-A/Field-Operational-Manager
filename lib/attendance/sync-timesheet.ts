@@ -16,6 +16,7 @@ import { getCurrentMonthKey, timesheetDocId } from "@/lib/hr/storage"
 import { type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
 import { logPontajCondicaSync } from "@/lib/attendance/pontaj-audit-log"
 import { buildAttendanceTimesheetCell } from "@/lib/attendance/sync-timesheet-merge"
+import { buildAttendanceEntriesFromSessions } from "@/lib/attendance/sync-timesheet-entries"
 
 const DEBUG_PONTAJ = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
@@ -26,36 +27,6 @@ function debugPontajLog(label: string, payload: Record<string, any>) {
   } catch {
     // ignore
   }
-}
-
-function buildAttendanceEntriesFromSessions(sessions: AttendanceSession[]): NonNullable<TimesheetCell["entries"]> {
-  const entries: NonNullable<TimesheetCell["entries"]> = []
-  for (const s of sessions) {
-    if (!s.sessionEnd) continue
-    entries.push({
-      start: formatTime(s.sessionStart),
-      end: formatTime(s.sessionEnd),
-      methodStart: `Play (${s.mode})`,
-      methodEnd: `Stop (${s.checkOutMode || s.mode})`,
-      project: "Pontaj",
-      attendanceSessionId: s.id,
-      selfieStartUrl: (s as any).checkInSelfieUrl,
-      selfieEndUrl: (s as any).checkOutSelfieUrl,
-      lateStartMinutes: Number((s as any).lateStartMinutes ?? 0) || undefined,
-    })
-
-    for (const log of s.extraTimeLogs || []) {
-      if (!log.endTime) continue
-      entries.push({
-        start: formatTime(log.startTime),
-        end: formatTime(log.endTime),
-        methodStart: "Extra",
-        methodEnd: "Extra",
-        project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
-      })
-    }
-  }
-  return entries
 }
 
 let cachedHrDefaults: { pauzaStart?: string; pauzaEnd?: string } | null | undefined = undefined
@@ -283,16 +254,6 @@ async function getEmployeeIdForUser(
     console.error("Failed to get employee ID for user:", error)
     return null
   }
-}
-
-/**
- * Format timestamp as HH:mm
- */
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp)
-  const hours = String(date.getHours()).padStart(2, "0")
-  const minutes = String(date.getMinutes()).padStart(2, "0")
-  return `${hours}:${minutes}`
 }
 
 /**

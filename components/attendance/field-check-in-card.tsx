@@ -19,7 +19,6 @@ import { resolveAttendanceSpecialDay, type AttendanceSpecialDayInfo } from "@/li
 import { subscribeHrHolidays } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { extractTime24 } from "@/lib/utils/date-utils"
 import type {
   AttendanceSession,
   FaceRecognitionResult,
@@ -31,6 +30,7 @@ import type { OfficeLocation } from "@/lib/firebase/auth"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
+import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 
 interface FieldCheckInCardProps {
   userId: string
@@ -553,7 +553,7 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
               <div className="space-y-1.5">
                 <div className="flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-bold text-gray-900 tracking-tight tabular-nums">
-                    {extractTime24(new Date(currentTime))}
+                    {formatAttendanceTimeHHmm(currentTime)}
                   </span>
                 </div>
                 {isCheckedIn && (
