@@ -9,17 +9,12 @@ import { db } from "@/lib/firebase/firebase"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { generateHrRequestPDF } from "@/lib/hr/request-pdf-generator"
 import { toast } from "@/hooks/use-toast"
+import { getHrRequestDocxTemplateFile } from "@/lib/hr/request-document-format"
 
 const HR_COMPANY = {
   name: process.env.NEXT_PUBLIC_HR_COMPANY_NAME || "NRG Access Systems SRL",
   cui: process.env.NEXT_PUBLIC_HR_COMPANY_CUI || "RO34272913",
   registrationNumber: process.env.NEXT_PUBLIC_HR_COMPANY_REG_NO || "J23/991/2015",
-}
-
-const TEMPLATE_BY_KIND: Partial<Record<HrRequest["kind"], string>> = {
-  CO: "/docx/Cerere concediu de odihna.docx",
-  CFP: "/docx/Cerere concediu fara plata.docx",
-  DEL: "/docx/delegatie.docx",
 }
 
 type EmployeeSnapshot = {
@@ -257,7 +252,8 @@ export async function generateHrRequestDOCXAsync(
   request: HrRequest,
   opts?: { departmentName?: string },
 ): Promise<void> {
-  const templatePath = TEMPLATE_BY_KIND[request.kind]
+  const templateFile = getHrRequestDocxTemplateFile(request.kind)
+  const templatePath = templateFile ? `/docx/${templateFile}` : null
   if (!templatePath) {
     // Fallback pentru tipuri fără template DOCX explicit.
     toast({
@@ -355,4 +351,3 @@ export async function generateHrRequestDOCXAsync(
     generateHrRequestPDF(request)
   }
 }
-

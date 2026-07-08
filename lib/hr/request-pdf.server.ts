@@ -3,6 +3,7 @@ import type { HrRequest } from "@/lib/hr/types"
 import { hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import { formatRomanianDateDotsISO, formatRomanianDateTime } from "@/lib/utils/date-utils"
+import { ensurePdfFont } from "@/lib/pdf/font-loader"
 
 const COMPANY_NAME = "NRG Access Systems SRL"
 
@@ -23,11 +24,14 @@ function requestDateLabelDots(req: HrRequest) {
   return "—"
 }
 
-export function generateHrRequestPdfBuffer(
+export async function generateHrRequestPdfBuffer(
   request: HrRequest,
   opts?: { departmentName?: string }
-): { buffer: Buffer; filename: string } {
+): Promise<{ buffer: Buffer; filename: string }> {
   const doc = new jsPDF()
+  try {
+    await ensurePdfFont(doc)
+  } catch {}
   const margin = 20
   const pageWidth = doc.internal.pageSize.width
   const pageHeight = doc.internal.pageSize.height
@@ -75,4 +79,3 @@ export function generateHrRequestPdfBuffer(
   const arrayBuffer = doc.output("arraybuffer")
   return { buffer: Buffer.from(arrayBuffer), filename: fileName }
 }
-

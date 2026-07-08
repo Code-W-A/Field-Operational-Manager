@@ -6,17 +6,12 @@ import type { HrRequest } from "@/lib/hr/types"
 import { formatHrRequestSerial, hrRequestKindLabel } from "@/lib/hr/hr-requests"
 import { adminDb } from "@/lib/firebase/admin"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
+import { getHrRequestDocxTemplateFile } from "@/lib/hr/request-document-format"
 
 const HR_COMPANY = {
   name: process.env.NEXT_PUBLIC_HR_COMPANY_NAME || "NRG Access Systems SRL",
   cui: process.env.NEXT_PUBLIC_HR_COMPANY_CUI || "RO34272913",
   registrationNumber: process.env.NEXT_PUBLIC_HR_COMPANY_REG_NO || "J23/991/2015",
-}
-
-const TEMPLATE_FILE_BY_KIND: Partial<Record<HrRequest["kind"], string>> = {
-  CO: "Cerere concediu de odihna.docx",
-  CFP: "Cerere concediu fara plata.docx",
-  DEL: "delegatie.docx",
 }
 
 type EmployeeSnapshot = {
@@ -169,14 +164,10 @@ async function fetchUserByUid(uid: string): Promise<UserSnapshot | null> {
   }
 }
 
-export function canGenerateHrRequestDocx(kind: HrRequest["kind"]): boolean {
-  return Boolean(TEMPLATE_FILE_BY_KIND[kind])
-}
-
 export async function generateHrRequestDocxBuffer(
   request: HrRequest,
 ): Promise<{ buffer: Buffer; filename: string }> {
-  const templateFile = TEMPLATE_FILE_BY_KIND[request.kind]
+  const templateFile = getHrRequestDocxTemplateFile(request.kind)
   if (!templateFile) {
     throw new Error(`Nu există template DOCX pentru tipul ${request.kind}`)
   }
@@ -264,4 +255,3 @@ export async function generateHrRequestDocxBuffer(
   const filename = `Cerere_${request.kind}_${safeName}_${Date.now()}.docx`
   return { buffer: outputBuffer, filename }
 }
-

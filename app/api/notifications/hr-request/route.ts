@@ -7,8 +7,9 @@ import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 import { logError, logInfo, logWarning } from "@/lib/utils/logging-service"
 import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import { formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
+import { canGenerateHrRequestDocx } from "@/lib/hr/request-document-format"
 import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server"
-import { canGenerateHrRequestDocx, generateHrRequestDocxBuffer } from "@/lib/hr/request-docx.server"
+import { generateHrRequestDocxBuffer } from "@/lib/hr/request-docx.server"
 
 type HrRequestEvent = "created" | "status_changed"
 
@@ -264,14 +265,14 @@ export async function POST(request: NextRequest) {
 
     const results: any[] = []
 
-    const attachment = (() => {
+    const attachment = await (async () => {
       try {
         const req = buildReqForGenerators(data, requestId)
         if (canGenerateHrRequestDocx(req.kind as any)) {
           // CO/CFP/DEL: trimitem DOCX fidel template-ului clientului.
           return "docx" as const
         }
-        const { buffer, filename } = generateHrRequestPdfBuffer(req as any, {
+        const { buffer, filename } = await generateHrRequestPdfBuffer(req as any, {
           departmentName: departmentLabel || undefined,
         })
         return [{ filename, content: buffer, contentType: "application/pdf" }]
@@ -307,7 +308,7 @@ export async function POST(request: NextRequest) {
         )
         try {
           const req = buildReqForGenerators(data, requestId)
-          const { buffer, filename } = generateHrRequestPdfBuffer(req as any, {
+          const { buffer, filename } = await generateHrRequestPdfBuffer(req as any, {
             departmentName: departmentLabel || undefined,
           })
           return [{ filename, content: buffer, contentType: "application/pdf" }]

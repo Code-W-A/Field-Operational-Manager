@@ -5,6 +5,7 @@ import { doc as firestoreDoc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/firebase"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { drawFooter as drawCommonFooter } from "@/lib/pdf/common"
+import { ensurePdfFont } from "@/lib/pdf/font-loader"
 
 const HR_COMPANY = {
   name: process.env.NEXT_PUBLIC_HR_COMPANY_NAME || "NRG Access Systems SRL",
@@ -349,6 +350,9 @@ export async function generateHrRequestPDFAsync(
   })
 
   const doc = new jsPDF()
+  try {
+    await ensurePdfFont(doc as any)
+  } catch {}
   const margin = 16
   const pageWidth = doc.internal.pageSize.width
   const pageHeight = doc.internal.pageSize.height
