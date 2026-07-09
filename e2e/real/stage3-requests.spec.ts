@@ -102,8 +102,8 @@ test.describe("Etapa 3 - tehnician cereri", () => {
 
     const dialog = page.getByRole("dialog")
     await expect(dialog).toContainText(/Durată ore suplimentare|Durata ore suplimentare|Durată totală|Durata totala/i)
-    await expect(dialog.getByText(/Ore/i)).toBeVisible()
-    await expect(dialog.getByText(/Minute/i)).toBeVisible()
+    await expect(dialog.getByText(/^Ore$/i)).toBeVisible()
+    await expect(dialog.getByText(/^Minute$/i)).toBeVisible()
 
     const durationComboboxes = dialog.getByRole("combobox")
     const count = await durationComboboxes.count()
@@ -118,10 +118,10 @@ test.describe("Etapa 3 - tehnician cereri", () => {
   test("cereri: lista, filtre/tabs si detalii cerere existenta daca exista fixture", async ({ appPage: page }) => {
     await page.goto("/dashboard/cereri", { waitUntil: "domcontentloaded" })
     await expect(page.locator("body")).toContainText(/Cererile mele/i)
-    await expect(page.locator("body")).toContainText(/Pending|Aprobate|Respins|Toate|Nu există/i)
+    await expect(page.locator("body")).toContainText(/Pending|În așteptare|In asteptare|Aprobate|Aprobat|Respins|Toate|Nu există|Nu ai cereri/i)
 
     const existingCardOrRow = page.locator("tr, article, [role='row'], .cursor-pointer").filter({
-      hasText: /CO|CFP|CM|IN|DEL|Ore suplimentare|Pending|Aprobat|Respins/i,
+      hasText: /CO|CFP|CM|IN|DEL|Ore suplimentare|Adăugare ore suplimentare|Adaugare ore suplimentare|Pending|În așteptare|In asteptare|Aprobat|Respins|Concediu|Delegație|Delegatie/i,
     }).first()
 
     if (!(await existingCardOrRow.count())) {
@@ -130,7 +130,7 @@ test.describe("Etapa 3 - tehnician cereri", () => {
     }
 
     await existingCardOrRow.click()
-    await expect(page.getByRole("dialog")).toContainText(/Detalii|Cerere|Status|Aprobat|Pending|Respins/i)
+    await expect(page.getByRole("dialog")).toContainText(/Detalii|Cerere|Status|Aprobat|Pending|În așteptare|In asteptare|Respins/i)
     await closeTopmostDialog(page)
   })
 })
