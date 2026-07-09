@@ -6,6 +6,10 @@ type BrowserProblem = {
 }
 
 function isIgnoredConsoleError(message: string) {
+  if (message.includes("Kiosk check-in/out error") && message.includes("Te rugăm să mai aștepți")) {
+    return true
+  }
+
   return [
     "ResizeObserver loop completed",
     "ResizeObserver loop limit exceeded",

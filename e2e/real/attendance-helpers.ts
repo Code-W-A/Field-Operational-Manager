@@ -133,11 +133,32 @@ export async function selectKioskUser(page: Page, employeeName: string) {
   await userButton.click()
 }
 
-export async function finishKioskConfirmAndSelfie(page: Page) {
+export async function clickKioskSelfieCapture(page: Page) {
+  const captureButton = page.getByRole("button", { name: /Fă selfie|Fa selfie|Pornește Scanarea|Porneste Scanarea/i }).first()
+  await expect(captureButton).toBeVisible({ timeout: 20_000 })
+  await expect(captureButton).toBeEnabled({ timeout: 20_000 })
+  await captureButton.click()
+}
+
+export async function finishKioskConfirmAndSelfie(page: Page, options?: { allowError?: RegExp }) {
   await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Confirmare Stop|Pontaj în zi nelucrătoare|Pontaj in zi nelucratoare/i)
   await page.getByRole("button", { name: /Da, mă pontez|Da, ma pontez|Da, continuă|Da, continua/i }).click()
   await expect(page.getByRole("dialog")).toContainText(/Selfie pontaj/i, { timeout: 20_000 })
-  await expect(page.locator("body")).toContainText(/Succes|Check-In Reușit|Check-Out Reușit|Ți-ai|Ti-ai/i, { timeout: 60_000 })
+  await clickKioskSelfieCapture(page)
+  const successPattern = /Succes|Check-In Reușit|Check-Out Reușit|Ți-ai|Ti-ai/i
+  const expectedPattern = options?.allowError
+    ? new RegExp(`${successPattern.source}|${options.allowError.source}`, "i")
+    : successPattern
+  await expect(page.locator("body")).toContainText(expectedPattern, { timeout: 60_000 })
+
+  if (options?.allowError) {
+    const bodyText = await page.locator("body").innerText().catch(() => "")
+    if (options.allowError.test(bodyText)) {
+      return "allowed-error" as const
+    }
+  }
+
+  return "success" as const
 }
 
 export async function finishFieldSelfie(page: Page) {

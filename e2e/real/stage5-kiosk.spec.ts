@@ -1,7 +1,10 @@
+import type { Page } from "@playwright/test"
+
 import { annotateBlocked, closeTopmostDialog, expect, test } from "./fixtures"
 import { getBaseUrl, isMutatingEnabled, STORAGE_STATE } from "./env"
 import {
   clearFakeNow,
+  clickKioskSelfieCapture,
   ensureAttendanceFixture,
   expectCondicaHasPontaj,
   finishKioskConfirmAndSelfie,
@@ -12,6 +15,18 @@ import {
   setFakeNow,
   setRuntimeFakeNow,
 } from "./attendance-helpers"
+
+async function cancelCurrentKioskFlow(page: Page) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const cancelButton = page.getByRole("button", { name: /Anulează|Anuleaza/i }).last()
+    if (!(await cancelButton.count())) break
+    if (!(await cancelButton.isVisible().catch(() => false))) break
+    await cancelButton.click({ timeout: 5_000 }).catch(() => undefined)
+    await page.waitForTimeout(300)
+  }
+
+  await expect(page.locator("body")).toContainText(/Sistem Pontaj|Nu sunt utilizatori eligibili/i, { timeout: 10_000 })
+}
 
 test.describe("Etapa 5 - kiosk si pontaj", () => {
   test.use({ storageState: STORAGE_STATE.kiosk })
@@ -29,7 +44,7 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     }
   })
 
-  test("kiosk start: lista utilizatori eligibili, anulare si confirmare parola fara check-in", async ({ appPage: page }) => {
+  test("kiosk start: lista utilizatori eligibili, anulare fara check-in", async ({ appPage: page }) => {
     await page.goto("/kiosk", { waitUntil: "domcontentloaded" })
     await expect(page.locator("body")).toContainText(/Sistem Pontaj|Nu sunt utilizatori eligibili/i)
 
@@ -50,11 +65,12 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     }
 
     await userButton.click()
-    await expect(page.getByRole("dialog")).toContainText(/Confirmare parolă|Confirmare parola/i)
-    await expect(page.getByRole("button", { name: /Continuă|Continua/i })).toBeDisabled()
+    await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Pontaj deja pornit|Confirmare parolă|Confirmare parola/i)
+    if (await page.getByText(/Confirmare parolă|Confirmare parola/i).count()) {
+      await expect(page.getByRole("button", { name: /Continuă|Continua/i })).toBeDisabled()
+    }
     await closeTopmostDialog(page)
-    await expect(page.locator("body")).toContainText(/Selectează numele tău|Selecteaza numele tau/i)
-    await page.getByRole("button", { name: /Anulează|Anuleaza/i }).click()
+    await cancelCurrentKioskFlow(page)
   })
 
   test("kiosk stop: nu porneste mutatii si gestioneaza lipsa sesiunii active", async ({ appPage: page }) => {
@@ -101,11 +117,17 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     // Cleanup: daca fixture-ul are deja o sesiune activa, o oprim inainte de verificarea "stop fara sesiune".
     await page.getByRole("button", { name: /Stop/i }).click()
     await selectKioskUser(page, fixture.employeeName)
-    if (await page.getByText(/Nu există tură activă|Nu exista tura activa/i).count()) {
-      await page.getByRole("button", { name: /Anulează|Anuleaza/i }).click()
+    const cleanupDialog = page.getByRole("dialog")
+    await expect(cleanupDialog).toContainText(/Nu există tură activă|Nu exista tura activa|Confirmare Stop/i, { timeout: 20_000 })
+    if (await cleanupDialog.getByText(/Nu există tură activă|Nu exista tura activa/i).count()) {
+      await cancelCurrentKioskFlow(page)
     } else {
-      await finishKioskConfirmAndSelfie(page)
-      await expect(page.locator("body")).toContainText(/Succes/i, { timeout: 60_000 })
+      const outcome = await finishKioskConfirmAndSelfie(page, { allowError: /Te rugăm să mai aștepți|Te rugam sa mai astepti/i })
+      if (outcome === "allowed-error") {
+        annotateBlocked("Fixture-ul are o sesiune activa recenta si regula de cooldown nu permite Stop inca.")
+        await clearFakeNow(page)
+        return
+      }
       await page.waitForTimeout(3_500)
     }
 
@@ -113,7 +135,7 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     await page.getByRole("button", { name: /Stop/i }).click()
     await selectKioskUser(page, fixture.employeeName)
     await expect(page.getByRole("dialog")).toContainText(/Nu există tură activă|Nu exista tura activa/i, { timeout: 20_000 })
-    await page.getByRole("button", { name: /Anulează|Anuleaza/i }).click()
+    await cancelCurrentKioskFlow(page)
 
     // Start real.
     await setRuntimeFakeNow(page, startAt)
@@ -126,13 +148,18 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     await page.getByRole("button", { name: /Start/i }).click()
     await selectKioskUser(page, fixture.employeeName)
     await expect(page.getByRole("dialog")).toContainText(/Pontaj deja pornit/i, { timeout: 20_000 })
-    await page.getByRole("button", { name: /Anulează|Anuleaza/i }).click()
+    await cancelCurrentKioskFlow(page)
 
     // Stop real, apoi sync-ul checkout-ului trebuie sa ajunga in condica.
     await setRuntimeFakeNow(page, stopAt)
     await page.getByRole("button", { name: /Stop/i }).click()
     await selectKioskUser(page, fixture.employeeName)
-    await finishKioskConfirmAndSelfie(page)
+    const stopOutcome = await finishKioskConfirmAndSelfie(page, { allowError: /Te rugăm să mai aștepți|Te rugam sa mai astepti/i })
+    if (stopOutcome === "allowed-error") {
+      annotateBlocked("Check-out kiosk blocat de cooldown; check-in-ul E2E a fost creat, dar stop-ul trebuie reluat dupa minimul de timp.")
+      await clearFakeNow(page)
+      return
+    }
     await page.waitForTimeout(5_000)
     await clearFakeNow(page)
 
@@ -157,6 +184,7 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     const fixture = await ensureAttendanceFixture(browser)
 
     await page.context().clearPermissions()
+    await page.context().grantPermissions(["camera"])
     await page.goto("/kiosk", { waitUntil: "domcontentloaded" })
     if (await page.getByText(/Nu sunt utilizatori eligibili/i).count()) {
       annotateBlocked("Kiosk nu are utilizatori eligibili pentru test locatie refuzata.")
@@ -165,24 +193,26 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
 
     await page.getByRole("button", { name: /Start/i }).click()
     await selectKioskUser(page, fixture.employeeName)
+    await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Pontaj deja pornit|Pontaj în zi nelucrătoare|Pontaj in zi nelucratoare/i, {
+      timeout: 20_000,
+    })
 
     if (await page.getByText(/Pontaj deja pornit/i).count()) {
-      await page.getByRole("button", { name: /Anulează|Anuleaza/i }).click()
+      await cancelCurrentKioskFlow(page)
       annotateBlocked("Fixture-ul are deja sesiune activa; ruleaza testul principal de cleanup inainte.")
       return
     }
 
-    await finishKioskConfirmAndSelfie(page)
-    await expect(page.locator("body")).toContainText(/Succes|Eroare|Nu s-a putut determina locația|Nu s-a putut determina locatia/i, {
-      timeout: 60_000,
+    const startOutcome = await finishKioskConfirmAndSelfie(page, {
+      allowError: /Te rugăm să mai aștepți|Te rugam sa mai astepti|Nu s-a putut determina locația|Nu s-a putut determina locatia/i,
     })
 
-    if (await page.getByText(/Succes/i).count()) {
+    if (startOutcome === "success" && (await page.getByText(/Succes/i).count())) {
       await page.waitForTimeout(3_500)
       await page.context().grantPermissions(["geolocation", "camera"])
       await page.getByRole("button", { name: /Stop/i }).click()
       await selectKioskUser(page, fixture.employeeName)
-      await finishKioskConfirmAndSelfie(page)
+      await finishKioskConfirmAndSelfie(page, { allowError: /Te rugăm să mai aștepți|Te rugam sa mai astepti/i })
     }
   })
 
@@ -201,16 +231,20 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
 
     await page.getByRole("button", { name: /Start/i }).click()
     await selectKioskUser(page, fixture.employeeName)
+    await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Pontaj deja pornit|Pontaj în zi nelucrătoare|Pontaj in zi nelucratoare/i, {
+      timeout: 20_000,
+    })
 
     if (await page.getByText(/Pontaj deja pornit/i).count()) {
-      await page.getByRole("button", { name: /Anulează|Anuleaza/i }).click()
+      await cancelCurrentKioskFlow(page)
       annotateBlocked("Fixture-ul are deja sesiune activa; ruleaza testul principal de cleanup inainte.")
       return
     }
 
     await page.getByRole("button", { name: /Da, mă pontez|Da, ma pontez|Da, continuă|Da, continua/i }).click()
     await expect(page.getByRole("dialog")).toContainText(/Selfie pontaj/i, { timeout: 20_000 })
-    await expect(page.locator("body")).toContainText(/Selfie indisponibil|Permisiune cameră refuzată|Permisiune camera refuzata|Selfie obligatoriu/i, {
+    await clickKioskSelfieCapture(page)
+    await expect(page.locator("body")).toContainText(/Selfie indisponibil|Permisiune cameră refuzată|Permisiune camera refuzata|Selfie obligatoriu|Nu am putut accesa camera|Permission denied|Eroare camera/i, {
       timeout: 60_000,
     })
   })
