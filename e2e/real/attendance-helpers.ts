@@ -1,6 +1,99 @@
-import type { Locator, Page } from "@playwright/test"
+import type { Browser, Locator, Page } from "@playwright/test"
 
 import { expect } from "./fixtures"
+import { getBaseUrl, getCredentials, makeRunPrefix, readOptionalEnv, STORAGE_STATE } from "./env"
+
+export type AttendanceFixture = {
+  source: string
+  employeeId: string
+  employeeName: string
+  userUid: string
+  departmentId: string | null
+}
+
+export type AttendanceExpectedValues = {
+  expectedBank?: string
+  expectedC1?: string
+  expectedC2?: string
+  expectedC3?: string
+  expectedC4?: string
+  expectedC5?: string
+  expectedC6?: string
+  expectedC7?: string
+}
+
+export function getAttendanceExpectedValues(): AttendanceExpectedValues {
+  return {
+    expectedBank: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_BANK"),
+    expectedC1: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C1"),
+    expectedC2: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C2"),
+    expectedC3: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C3"),
+    expectedC4: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C4"),
+    expectedC5: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C5"),
+    expectedC6: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C6"),
+    expectedC7: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C7"),
+  }
+}
+
+function ensureBootstrapPayload(data: unknown): AttendanceFixture {
+  const fixture = (data as any)?.fixture
+  if (!fixture?.employeeName || !fixture?.employeeId) {
+    throw new Error(`Invalid E2E attendance fixture response: ${JSON.stringify(data)}`)
+  }
+
+  return {
+    source: String(fixture.source || "api"),
+    employeeId: String(fixture.employeeId),
+    employeeName: String(fixture.employeeName),
+    userUid: String(fixture.userUid || ""),
+    departmentId: fixture.departmentId ? String(fixture.departmentId) : null,
+  }
+}
+
+export async function ensureAttendanceFixtureFromAdminPage(page: Page): Promise<AttendanceFixture> {
+  const response = await page.request.post("/api/e2e/attendance-fixture", {
+    data: {
+      allowMutating: true,
+      runPrefix: makeRunPrefix(),
+      techEmail: getCredentials("tech").email,
+    },
+  })
+
+  let data: unknown = null
+  try {
+    data = await response.json()
+  } catch {
+    data = { error: await response.text().catch(() => "") }
+  }
+
+  if (!response.ok()) {
+    throw new Error(
+      [
+        `E2E attendance fixture bootstrap failed (${response.status()}).`,
+        "Verifica daca deployment-ul contine ruta /api/e2e/attendance-fixture si daca sesiunea admin este valida.",
+        `Response: ${JSON.stringify(data)}`,
+      ].join(" ")
+    )
+  }
+
+  return ensureBootstrapPayload(data)
+}
+
+export async function ensureAttendanceFixture(browser: Browser): Promise<AttendanceFixture> {
+  const adminContext = await browser.newContext({
+    baseURL: getBaseUrl(),
+    storageState: STORAGE_STATE.admin,
+    locale: "ro-RO",
+    timezoneId: "Europe/Bucharest",
+  })
+
+  try {
+    const adminPage = await adminContext.newPage()
+    return await ensureAttendanceFixtureFromAdminPage(adminPage)
+  } finally {
+    await adminContext.close()
+  }
+}
 
 export function localMonthKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`

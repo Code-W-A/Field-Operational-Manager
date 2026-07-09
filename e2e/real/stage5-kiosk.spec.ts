@@ -1,7 +1,8 @@
 import { annotateBlocked, closeTopmostDialog, expect, test } from "./fixtures"
-import { getAttendanceFixture, getBaseUrl, isMutatingEnabled, STORAGE_STATE } from "./env"
+import { getBaseUrl, isMutatingEnabled, STORAGE_STATE } from "./env"
 import {
   clearFakeNow,
+  ensureAttendanceFixture,
   expectCondicaHasPontaj,
   finishKioskConfirmAndSelfie,
   localDateAt,
@@ -83,11 +84,7 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
   test("MUTATING kiosk: stop fara sesiune, start/stop real cu selfie si verificare condica", async ({ appPage: page, browser }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
 
-    const fixture = getAttendanceFixture()
-    if (!fixture.employeeName) {
-      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME pentru fixture-ul de pontaj kiosk.")
-      return
-    }
+    const fixture = await ensureAttendanceFixture(browser)
 
     const startAt = localDateAt(8, 0)
     const stopAt = localDateAt(17, 30)
@@ -154,14 +151,10 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     }
   })
 
-  test("MUTATING kiosk: locatie refuzata foloseste fallback birou sau raporteaza blocaj clar", async ({ appPage: page }) => {
+  test("MUTATING kiosk: locatie refuzata foloseste fallback birou sau raporteaza blocaj clar", async ({ appPage: page, browser }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
 
-    const fixture = getAttendanceFixture()
-    if (!fixture.employeeName) {
-      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME pentru fixture-ul kiosk.")
-      return
-    }
+    const fixture = await ensureAttendanceFixture(browser)
 
     await page.context().clearPermissions()
     await page.goto("/kiosk", { waitUntil: "domcontentloaded" })
@@ -193,14 +186,10 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     }
   })
 
-  test("MUTATING kiosk: camera refuzata blocheaza selfie obligatoriu fara start", async ({ appPage: page }) => {
+  test("MUTATING kiosk: camera refuzata blocheaza selfie obligatoriu fara start", async ({ appPage: page, browser }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
 
-    const fixture = getAttendanceFixture()
-    if (!fixture.employeeName) {
-      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME pentru fixture-ul kiosk.")
-      return
-    }
+    const fixture = await ensureAttendanceFixture(browser)
 
     await page.context().clearPermissions()
     await page.context().grantPermissions(["geolocation"])

@@ -25,29 +25,19 @@ E2E_RUN_MUTATING=true
 E2E_RUN_PREFIX=E2E_RUN_YYYYMMDDHHMMSS
 ```
 
-Pentru fluxurile reale de pontaj este necesar fixture dedicat:
+Pentru fluxurile reale de pontaj nu mai trebuie setate manual salariatul sau ID-ul lui. Testele apeleaza endpoint-ul admin `/api/e2e/attendance-fixture`, care:
 
-```bash
-E2E_ATTENDANCE_EMPLOYEE_NAME="E2E_RUN_... Nume Salariat"
-E2E_ATTENDANCE_EMPLOYEE_ID="emp_..."
-E2E_ATTENDANCE_CAN_USE_FAKE_CLOCK=true # doar daca deployment-ul are NEXT_PUBLIC_E2E_TEST_MODE=true
-E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true # permite pagina admin /pontaj/sync, care sincronizeaza global ziua curenta
-E2E_ATTENDANCE_EXPECTED_BANK="+1.5h" # optional, pentru verificari exacte UI
-E2E_ATTENDANCE_EXPECTED_C1="..."
-E2E_ATTENDANCE_EXPECTED_C2="..."
-E2E_ATTENDANCE_EXPECTED_C3="..."
-E2E_ATTENDANCE_EXPECTED_C4="..."
-E2E_ATTENDANCE_EXPECTED_C5="..."
-E2E_ATTENDANCE_EXPECTED_C6="..."
-E2E_ATTENDANCE_EXPECTED_C7="..."
-```
+- foloseste contul `E2E_TECH_EMAIL` ca utilizator tehnician de test;
+- daca tehnicianul are deja un salariat HR activ asociat prin `hrEmployees.userUid`, il reutilizeaza fara sa ii modifice datele;
+- daca nu exista salariat asociat, creeaza automat departament + salariat `E2E_RUN_*` si seteaza `userUid`;
+- returneaza automat `employeeId` si `employeeName` catre testele kiosk/field/condica.
 
 Observatii:
 
-- `E2E_ATTENDANCE_EMPLOYEE_NAME` trebuie sa fie un salariat de test, nu o persoana reala.
-- `E2E_ATTENDANCE_EMPLOYEE_ID` permite deschiderea condicii filtrate direct pe salariat.
 - Fake clock functioneaza doar daca build-ul remote a fost deployat cu `NEXT_PUBLIC_E2E_TEST_MODE=true`; altfel testul foloseste timpul real si poate astepta regula de 1 minut la field checkout.
-- `E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true` trebuie folosit doar cand ziua curenta contine date E2E controlate; pagina `/dashboard/resurse-umane/pontaj/sync` proceseaza toate sesiunile completate din zi.
+- `E2E_RUN_PREFIX` este optional; daca lipseste, testele genereaza automat `E2E_RUN_<timestamp>`.
+- Testul de re-sync manual foloseste pagina `/dashboard/resurse-umane/pontaj/sync`, care proceseaza ziua curenta. Se ruleaza doar cand setezi explicit `E2E_RUN_MUTATING=true`.
+- Optional, pentru verificari exacte de calcul UI poti seta `E2E_ATTENDANCE_EXPECTED_BANK` si `E2E_ATTENDANCE_EXPECTED_C1`...`E2E_ATTENDANCE_EXPECTED_C7`; daca lipsesc, testul verifica doar existenta zonelor de calcul.
 
 ## Comenzi
 
@@ -160,7 +150,7 @@ Acoperire:
 - Respingere: motiv obligatoriu verificat prin buton dezactivat, apoi activat dupa completarea motivului, fara submit.
 - Condica: sync/export vizibile si popover zi daca exista data.
 - Condica: UI real pentru banca ore si C1-C7 pe fixture E2E.
-- Condica: re-sync manual prin `/dashboard/resurse-umane/pontaj/sync`, protejat de `E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true`.
+- Condica: re-sync manual prin `/dashboard/resurse-umane/pontaj/sync`, rulat doar cu `E2E_RUN_MUTATING=true`.
 - `TODO_MUTATING`: aprobare/respingere/stergere pending doar pe cereri `E2E_RUN_*` create in etapa 3.
 - `TODO_MUTATING`: verificare condica dupa aprobare, zile protejate si conflicte.
 
@@ -216,7 +206,7 @@ Acoperire real DB adaugata:
 - Start/Stop real kiosk cu selfie upload si geolocatie fake, apoi verificare directa in condica.
 - Start/Stop real field din `/dashboard/lucrari`, apoi sync in condica.
 - Dublu start, stop fara sesiune activa, camera refuzata, locatie refuzata/fallback birou.
-- Re-sincronizare manuala prin pagina admin `/dashboard/resurse-umane/pontaj/sync`, protejata de `E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true`.
+- Re-sincronizare manuala prin pagina admin `/dashboard/resurse-umane/pontaj/sync`, protejata de `E2E_RUN_MUTATING=true`.
 - Verificare UI pentru C1-C7/banca de ore pe fixture E2E; valorile exacte se pot valida cu env-urile `E2E_ATTENDANCE_EXPECTED_*`.
 
 Ce ramane conditionat de fixture/deployment:
@@ -226,8 +216,8 @@ Ce ramane conditionat de fixture/deployment:
 
 Regula pentru aceste fluxuri real DB:
 
-- Nu se ruleaza pe salariați/lucrari reale nemarcate.
-- Se creeaza fixture E2E dedicat: user tehnician + salariat `userUid` asociat + departament + manager + lucrare E2E.
+- Nu se ruleaza pe conturi personale/reale; `E2E_TECH_EMAIL` trebuie sa fie cont tehnician de test.
+- Se foloseste `E2E_TECH_EMAIL` ca user tehnician de test; daca nu are salariat HR asociat, se creeaza automat salariat `E2E_RUN_*` + departament + manager.
 - Toate sesiunile/datele au prefix `E2E_RUN_*`, apoi se verifica in condica si se curata unde este sigur.
 
 ## Etapa 6 - Lucrari tehnician

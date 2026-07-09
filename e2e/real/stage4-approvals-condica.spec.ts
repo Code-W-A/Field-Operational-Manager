@@ -1,6 +1,12 @@
 import { annotateBlocked, clickIfVisible, closeTopmostDialog, expect, test } from "./fixtures"
-import { getAttendanceFixture, isMutatingEnabled, STORAGE_STATE } from "./env"
-import { expectCondicaHasPontaj, localMonthKey, openCondicaForFixture, safeFixturePattern } from "./attendance-helpers"
+import { isMutatingEnabled, STORAGE_STATE } from "./env"
+import {
+  ensureAttendanceFixtureFromAdminPage,
+  getAttendanceExpectedValues,
+  localMonthKey,
+  openCondicaForFixture,
+  safeFixturePattern,
+} from "./attendance-helpers"
 
 test.describe("Etapa 4 - admin aprobari si condica", () => {
   test.use({ storageState: STORAGE_STATE.admin })
@@ -77,26 +83,27 @@ test.describe("Etapa 4 - admin aprobari si condica", () => {
   })
 
   test("condica: UI real pentru banca ore si C1-C7 pe fixture E2E", async ({ appPage: page }) => {
-    const fixture = getAttendanceFixture()
-    if (!fixture.employeeName) {
-      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME pentru verificare UI calcule condica.")
+    if (!isMutatingEnabled()) {
+      annotateBlocked("Seteaza E2E_RUN_MUTATING=true pentru bootstrap automat fixture E2E pontaj.")
       return
     }
 
+    const fixture = await ensureAttendanceFixtureFromAdminPage(page)
     await openCondicaForFixture(page, { employeeId: fixture.employeeId, monthKey: localMonthKey() })
-    await expectCondicaHasPontaj(page, fixture.employeeName)
+    await expect(page.locator("body")).toContainText(safeFixturePattern(fixture.employeeName), { timeout: 30_000 })
     await expect(page.locator("body")).toContainText(/Bancă|Banca|Ore C1|Ore C2|Ore C3|Ore C4|Ore C5|Ore C6|Ore C7/i)
 
+    const expected = getAttendanceExpectedValues()
     const expectedValues = [
-      fixture.expectedBank,
-      fixture.expectedC1,
-      fixture.expectedC2,
-      fixture.expectedC3,
-      fixture.expectedC4,
-      fixture.expectedC5,
-      fixture.expectedC6,
-      fixture.expectedC7,
-    ].filter(Boolean)
+      expected.expectedBank,
+      expected.expectedC1,
+      expected.expectedC2,
+      expected.expectedC3,
+      expected.expectedC4,
+      expected.expectedC5,
+      expected.expectedC6,
+      expected.expectedC7,
+    ].filter((value): value is string => Boolean(value))
 
     for (const expected of expectedValues) {
       await expect(page.locator("body")).toContainText(safeFixturePattern(expected))
@@ -106,11 +113,7 @@ test.describe("Etapa 4 - admin aprobari si condica", () => {
   test("MUTATING condica: re-sync manual pentru ziua curenta si verificare fixture", async ({ appPage: page }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru re-sync real.")
 
-    const fixture = getAttendanceFixture()
-    if (!fixture.employeeName || !fixture.allowGlobalSync) {
-      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME si E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true pentru re-sync manual real.")
-      return
-    }
+    const fixture = await ensureAttendanceFixtureFromAdminPage(page)
 
     await page.goto("/dashboard/resurse-umane/pontaj/sync", { waitUntil: "domcontentloaded" })
     await expect(page.locator("body")).toContainText(/Sincronizare Pontaj|Sincronizează pontajul|Sincronizeaza pontajul/i)
@@ -118,6 +121,6 @@ test.describe("Etapa 4 - admin aprobari si condica", () => {
     await expect(page.locator("body")).toContainText(/Sincronizare Reușită|Sincronizare Reusita|Sincronizare/i, { timeout: 90_000 })
 
     await openCondicaForFixture(page, { employeeId: fixture.employeeId, monthKey: localMonthKey() })
-    await expectCondicaHasPontaj(page, fixture.employeeName)
+    await expect(page.locator("body")).toContainText(safeFixturePattern(fixture.employeeName), { timeout: 30_000 })
   })
 })

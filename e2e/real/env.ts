@@ -66,21 +66,3 @@ export function makeRunPrefix() {
   if (fromEnv) return fromEnv
   return `E2E_RUN_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`
 }
-
-export function getAttendanceFixture() {
-  return {
-    employeeName: readOptionalEnv("E2E_ATTENDANCE_EMPLOYEE_NAME"),
-    employeeId: readOptionalEnv("E2E_ATTENDANCE_EMPLOYEE_ID"),
-    workOrderText: readOptionalEnv("E2E_ATTENDANCE_WORK_ORDER_TEXT"),
-    canUseFakeClock: process.env.E2E_ATTENDANCE_CAN_USE_FAKE_CLOCK === "true",
-    allowGlobalSync: process.env.E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC === "true",
-    expectedBank: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_BANK"),
-    expectedC1: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C1"),
-    expectedC2: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C2"),
-    expectedC3: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C3"),
-    expectedC4: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C4"),
-    expectedC5: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C5"),
-    expectedC6: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C6"),
-    expectedC7: readOptionalEnv("E2E_ATTENDANCE_EXPECTED_C7"),
-  }
-}

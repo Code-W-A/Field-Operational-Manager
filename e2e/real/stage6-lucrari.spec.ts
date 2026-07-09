@@ -1,8 +1,9 @@
 import { annotateBlocked, clickIfVisible, closeDialogIfPresent, expect, test } from "./fixtures"
-import { getAttendanceFixture, getBaseUrl, isMutatingEnabled, STORAGE_STATE } from "./env"
+import { getBaseUrl, isMutatingEnabled, STORAGE_STATE } from "./env"
 import {
   clickFieldAttendanceButton,
   clearFakeNow,
+  ensureAttendanceFixture,
   expectCondicaHasPontaj,
   finishFieldSelfie,
   localDateAt,
@@ -88,11 +89,7 @@ test.describe("Etapa 6 - lucrari tehnician", () => {
   test("MUTATING lucrari: start/stop field real si verificare condica", async ({ appPage: page, browser }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
 
-    const fixture = getAttendanceFixture()
-    if (!fixture.employeeName) {
-      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME pentru fixture-ul field.")
-      return
-    }
+    const fixture = await ensureAttendanceFixture(browser)
 
     const startAt = localDateAt(8, 0)
     const stopAt = localDateAt(17, 30)
@@ -143,9 +140,10 @@ test.describe("Etapa 6 - lucrari tehnician", () => {
     }
   })
 
-  test("MUTATING lucrari: camera refuzata continua pontajul field fara selfie", async ({ appPage: page }) => {
+  test("MUTATING lucrari: camera refuzata continua pontajul field fara selfie", async ({ appPage: page, browser }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
 
+    await ensureAttendanceFixture(browser)
     await page.context().clearPermissions()
     await page.context().grantPermissions(["geolocation"])
     await page.goto("/dashboard/lucrari", { waitUntil: "domcontentloaded" })
@@ -175,9 +173,10 @@ test.describe("Etapa 6 - lucrari tehnician", () => {
     await finishFieldSelfie(page)
   })
 
-  test("MUTATING lucrari: locatie refuzata blocheaza start field fara sesiune activa", async ({ appPage: page }) => {
+  test("MUTATING lucrari: locatie refuzata blocheaza start field fara sesiune activa", async ({ appPage: page, browser }) => {
     test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
 
+    await ensureAttendanceFixture(browser)
     await page.context().clearPermissions()
     await page.context().grantPermissions(["camera"])
     await page.goto("/dashboard/lucrari", { waitUntil: "domcontentloaded" })
