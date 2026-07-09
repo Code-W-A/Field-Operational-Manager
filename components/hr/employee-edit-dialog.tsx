@@ -18,8 +18,9 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Image as ImageIcon, Pencil, Trash2, UserCheck } from "lucide-react"
-import { DateInput } from "@/components/ui/date-input"
+import { DatePicker } from "@/components/ui/DatePicker"
 import { normalizeTimeHHmmLoose } from "@/lib/utils/time-input"
+import { formatISODate, parseRomanianDateTime } from "@/lib/utils/date-utils"
 
 export type EmployeeEditDialogUser = {
   uid: string
@@ -166,6 +167,10 @@ export function EmployeeEditDialog({
   }, [photoFile])
 
   const activeDepartments = useMemo(() => departments.filter((d) => d.active), [departments])
+  const ciIssueDateValue = useMemo(() => {
+    const parsed = parseRomanianDateTime(ciDataEmiterii)
+    return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null
+  }, [ciDataEmiterii])
 
   const save = async () => {
     const trimmedNume = nume.trim()
@@ -292,7 +297,7 @@ export function EmployeeEditDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[1000px] lg:max-w-[1100px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
@@ -302,159 +307,171 @@ export function EmployeeEditDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-6 py-4">
-            {/* Profile photo */}
-            <div className="grid gap-2">
-              <Label>Poză profil</Label>
-              <div className="flex items-center gap-4">
-                <div className="relative h-24 w-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border group">
-                  <div
-                    className={cn(
-                      "h-full w-full flex items-center justify-center",
-                      photoPreview || photoURL ? "cursor-pointer" : ""
-                    )}
-                    onClick={() => {
-                      const src = photoPreview || photoURL
-                      if (src) setPhotoZoomOpen(true)
-                    }}
-                    title={photoPreview || photoURL ? "Vezi poza" : undefined}
-                    aria-label={photoPreview || photoURL ? "Vezi poza" : "Poză profil"}
-                  >
-                    {photoPreview || photoURL ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photoPreview || photoURL} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <ImageIcon className="h-10 w-10 text-muted-foreground/60" />
-                    )}
-                  </div>
-                  {(photoPreview || photoURL) && (
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm border border-red-100 hover:bg-white"
-                      title="Elimină poza"
-                      aria-label="Elimină poza"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setPhotoURL("")
-                        setPhotoFile(null)
-                        setPhotoPreview("")
+          <div className="grid gap-6 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start">
+            <div className="space-y-6">
+              {/* Profile photo */}
+              <div className="grid gap-2">
+                <Label>Poză profil</Label>
+                <div className="flex items-center gap-4">
+                  <div className="relative h-24 w-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border group">
+                    <div
+                      className={cn(
+                        "h-full w-full flex items-center justify-center",
+                        photoPreview || photoURL ? "cursor-pointer" : ""
+                      )}
+                      onClick={() => {
+                        const src = photoPreview || photoURL
+                        if (src) setPhotoZoomOpen(true)
                       }}
-                      disabled={photoSaving}
+                      title={photoPreview || photoURL ? "Vezi poza" : undefined}
+                      aria-label={photoPreview || photoURL ? "Vezi poza" : "Poză profil"}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-                    disabled={photoSaving}
-                  />
-                  <div className="text-xs text-muted-foreground">Modificările de poză se aplică doar la apăsarea „Salvează".</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Basic Information */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="employeePrenume">Prenume *</Label>
-                  <Input
-                    id="employeePrenume"
-                    value={prenume}
-                    onChange={(e) => setPrenume(e.target.value)}
-                    className="border-2 h-11"
-                    placeholder="Ex: Ion"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="employeeNume">Nume *</Label>
-                  <Input
-                    id="employeeNume"
-                    value={nume}
-                    onChange={(e) => setNume(e.target.value)}
-                    className="border-2 h-11"
-                    placeholder="Ex: Popescu"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="employeeTitle">Funcție</Label>
-                <Input
-                  id="employeeTitle"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="border-2 h-11"
-                  placeholder="Ex: Tehnician montator"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
-                      active
-                        ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
-                        : "bg-gradient-to-br from-slate-400 to-slate-500",
+                      {photoPreview || photoURL ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={photoPreview || photoURL} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <ImageIcon className="h-10 w-10 text-muted-foreground/60" />
+                      )}
+                    </div>
+                    {(photoPreview || photoURL) && (
+                      <button
+                        type="button"
+                        className="absolute top-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm border border-red-100 hover:bg-white"
+                        title="Elimină poza"
+                        aria-label="Elimină poza"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setPhotoURL("")
+                          setPhotoFile(null)
+                          setPhotoPreview("")
+                        }}
+                        disabled={photoSaving}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     )}
-                  >
-                    <UserCheck className="h-5 w-5 text-white" />
                   </div>
-                  <div>
-                    <div className="text-sm font-bold">Status activ</div>
-                    <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                      disabled={photoSaving}
+                    />
+                    <div className="text-xs text-muted-foreground">Modificările de poză se aplică doar la apăsarea „Salvează".</div>
                   </div>
                 </div>
-                <Switch checked={active} onCheckedChange={setActive} />
+              </div>
+
+              {/* Basic Information */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Informații de bază</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="employeePrenume">Prenume *</Label>
+                    <Input
+                      id="employeePrenume"
+                      value={prenume}
+                      onChange={(e) => setPrenume(e.target.value)}
+                      className="border-2 h-11"
+                      placeholder="Ex: Ion"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="employeeNume">Nume *</Label>
+                    <Input
+                      id="employeeNume"
+                      value={nume}
+                      onChange={(e) => setNume(e.target.value)}
+                      className="border-2 h-11"
+                      placeholder="Ex: Popescu"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="employeeTitle">Funcție</Label>
+                  <Input
+                    id="employeeTitle"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="border-2 h-11"
+                    placeholder="Ex: Tehnician montator"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "h-10 w-10 rounded-lg flex items-center justify-center shadow-sm",
+                        active
+                          ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
+                          : "bg-gradient-to-br from-slate-400 to-slate-500",
+                      )}
+                    >
+                      <UserCheck className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold">Status activ</div>
+                      <div className="text-xs text-muted-foreground">Dezactivează pentru a ascunde din liste</div>
+                    </div>
+                  </div>
+                  <Switch checked={active} onCheckedChange={setActive} />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Identification Data */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date de identificare</h3>
+                <div className="grid gap-2">
+                  <Label htmlFor="employeeCnp">CNP</Label>
+                  <Input
+                    id="employeeCnp"
+                    value={cnp}
+                    onChange={(e) => setCnp(e.target.value)}
+                    placeholder="Ex: 1820620285533"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="employeeCiSerie">Serie CI</Label>
+                    <Input id="employeeCiSerie" value={ciSerie} onChange={(e) => setCiSerie(e.target.value)} placeholder="Ex: RT" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="employeeCiNumar">Număr CI</Label>
+                    <Input id="employeeCiNumar" value={ciNumar} onChange={(e) => setCiNumar(e.target.value)} placeholder="Ex: 226633" />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="employeeCiDataEmiterii">Data emiterii CI</Label>
+                  <DatePicker
+                    value={ciIssueDateValue}
+                    onChange={(value) => {
+                      if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+                        setCiDataEmiterii("")
+                        return
+                      }
+                      setCiDataEmiterii(formatISODate(value))
+                    }}
+                    format="dd.MM.yyyy"
+                    placeholder="dd.MM.yyyy"
+                    locale="ro"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="employeeCiEmitent">Emitent CI</Label>
+                  <Input id="employeeCiEmitent" value={ciEmitent} onChange={(e) => setCiEmitent(e.target.value)} placeholder="Ex: SPCLEP Chiajana" />
+                </div>
               </div>
             </div>
-
-            <Separator />
-
-            {/* Identification Data */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date de identificare</h3>
-              <div className="grid gap-2">
-                <Label htmlFor="employeeCnp">CNP</Label>
-                <Input
-                  id="employeeCnp"
-                  value={cnp}
-                  onChange={(e) => setCnp(e.target.value)}
-                  placeholder="Ex: 1820620285533"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="employeeCiSerie">Serie CI</Label>
-                  <Input id="employeeCiSerie" value={ciSerie} onChange={(e) => setCiSerie(e.target.value)} placeholder="Ex: RT" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="employeeCiNumar">Număr CI</Label>
-                  <Input id="employeeCiNumar" value={ciNumar} onChange={(e) => setCiNumar(e.target.value)} placeholder="Ex: 226633" />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="employeeCiDataEmiterii">Data emiterii CI</Label>
-                <DateInput value={ciDataEmiterii} onChange={setCiDataEmiterii} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="employeeCiEmitent">Emitent CI</Label>
-                <Input id="employeeCiEmitent" value={ciEmitent} onChange={(e) => setCiEmitent(e.target.value)} placeholder="Ex: SPCLEP Chiajana" />
-              </div>
-            </div>
-
-            <Separator />
 
             {/* Workplace Data */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">Date despre locul de muncă</h3>
+            <div className="space-y-3 lg:border-l lg:pl-6">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase lg:pt-1">Date despre locul de muncă</h3>
               <div className="grid gap-2">
                 <Label htmlFor="employeePoziteCOR">Poziție COR</Label>
                 <Input
@@ -730,4 +747,3 @@ export function EmployeeEditDialog({
     </>
   )
 }
-

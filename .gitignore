@@ -29,5 +29,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+/playwright-report-real/
 /blob-report/
 /e2e/.auth/
