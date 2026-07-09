@@ -1,5 +1,16 @@
 import { annotateBlocked, clickIfVisible, closeDialogIfPresent, expect, test } from "./fixtures"
-import { STORAGE_STATE } from "./env"
+import { getAttendanceFixture, getBaseUrl, isMutatingEnabled, STORAGE_STATE } from "./env"
+import {
+  clickFieldAttendanceButton,
+  clearFakeNow,
+  expectCondicaHasPontaj,
+  finishFieldSelfie,
+  localDateAt,
+  localMonthKey,
+  openCondicaForFixture,
+  setFakeNow,
+  setRuntimeFakeNow,
+} from "./attendance-helpers"
 
 test.describe("Etapa 6 - lucrari tehnician", () => {
   test.use({ storageState: STORAGE_STATE.tech })
@@ -72,5 +83,119 @@ test.describe("Etapa 6 - lucrari tehnician", () => {
 
     await expect(startStopButton).toBeVisible()
     await expect(body).toContainText(/selfie|camera|Pontaj|ACTIV|Start|Stop/i)
+  })
+
+  test("MUTATING lucrari: start/stop field real si verificare condica", async ({ appPage: page, browser }) => {
+    test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
+
+    const fixture = getAttendanceFixture()
+    if (!fixture.employeeName) {
+      annotateBlocked("Seteaza E2E_ATTENDANCE_EMPLOYEE_NAME pentru fixture-ul field.")
+      return
+    }
+
+    const startAt = localDateAt(8, 0)
+    const stopAt = localDateAt(17, 30)
+    const monthKey = localMonthKey(startAt)
+
+    await setFakeNow(page, startAt)
+    await page.goto("/dashboard/lucrari", { waitUntil: "domcontentloaded" })
+
+    if (await page.getByText(/Pontajul este indisponibil|Verificăm asocierea HR|Verificam asocierea HR/i).count()) {
+      annotateBlocked("Pontaj field indisponibil: contul tehnician nu are asociere HR completa.")
+      return
+    }
+
+    // Cleanup daca exista deja sesiune activa.
+    const existingStop = page.getByRole("button", { name: /Mă opresc acum|Ma opresc acum/i }).first()
+    if (await existingStop.count()) {
+      await expect(existingStop).toBeEnabled({ timeout: 75_000 })
+      await existingStop.click()
+      await finishFieldSelfie(page)
+      await page.waitForTimeout(3_000)
+    }
+
+    await setRuntimeFakeNow(page, startAt)
+    await clickFieldAttendanceButton(page, /Mă pontez acum|Ma pontez acum/i)
+    await finishFieldSelfie(page)
+    await expect(page.locator("body")).toContainText(/ACTIV|Așteptați|Asteptati|Mă opresc acum|Ma opresc acum/i, { timeout: 60_000 })
+
+    await setRuntimeFakeNow(page, stopAt)
+    const stopButton = page.getByRole("button", { name: /Mă opresc acum|Ma opresc acum/i }).first()
+    await expect(stopButton).toBeEnabled({ timeout: 75_000 })
+    await stopButton.click()
+    await finishFieldSelfie(page)
+    await page.waitForTimeout(5_000)
+    await clearFakeNow(page)
+
+    const adminContext = await browser.newContext({
+      baseURL: getBaseUrl(),
+      storageState: STORAGE_STATE.admin,
+      locale: "ro-RO",
+      timezoneId: "Europe/Bucharest",
+    })
+    try {
+      const adminPage = await adminContext.newPage()
+      await openCondicaForFixture(adminPage, { employeeId: fixture.employeeId, monthKey })
+      await expectCondicaHasPontaj(adminPage, fixture.employeeName, /Pontaj|9\.5|9,5|h/i)
+    } finally {
+      await adminContext.close()
+    }
+  })
+
+  test("MUTATING lucrari: camera refuzata continua pontajul field fara selfie", async ({ appPage: page }) => {
+    test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
+
+    await page.context().clearPermissions()
+    await page.context().grantPermissions(["geolocation"])
+    await page.goto("/dashboard/lucrari", { waitUntil: "domcontentloaded" })
+
+    if (await page.getByText(/Pontajul este indisponibil|Verificăm asocierea HR|Verificam asocierea HR/i).count()) {
+      annotateBlocked("Pontaj field indisponibil pentru test camera refuzata.")
+      return
+    }
+
+    const startButton = page.getByRole("button", { name: /Mă pontez acum|Ma pontez acum/i }).first()
+    if (!(await startButton.count())) {
+      annotateBlocked("Contul tehnician are deja sesiune activa sau butonul Start nu este disponibil.")
+      return
+    }
+
+    await startButton.click()
+    await expect(page.getByRole("dialog")).toContainText(/Ești pregătit|Esti pregatit|selfie/i, { timeout: 20_000 })
+    await expect(page.locator("body")).toContainText(/Continuăm fără selfie|Continuam fara selfie|Pontaj înregistrat|Pontaj inregistrat|ACTIV/i, {
+      timeout: 60_000,
+    })
+
+    // Cleanup: oprim sesiunea pornita fara selfie.
+    await page.context().grantPermissions(["geolocation", "camera"])
+    const stopButton = page.getByRole("button", { name: /Mă opresc acum|Ma opresc acum/i }).first()
+    await expect(stopButton).toBeEnabled({ timeout: 75_000 })
+    await stopButton.click()
+    await finishFieldSelfie(page)
+  })
+
+  test("MUTATING lucrari: locatie refuzata blocheaza start field fara sesiune activa", async ({ appPage: page }) => {
+    test.skip(!isMutatingEnabled(), "Set E2E_RUN_MUTATING=true pentru fluxuri reale de pontaj.")
+
+    await page.context().clearPermissions()
+    await page.context().grantPermissions(["camera"])
+    await page.goto("/dashboard/lucrari", { waitUntil: "domcontentloaded" })
+
+    if (await page.getByText(/Pontajul este indisponibil|Verificăm asocierea HR|Verificam asocierea HR/i).count()) {
+      annotateBlocked("Pontaj field indisponibil pentru test locatie refuzata.")
+      return
+    }
+
+    const startButton = page.getByRole("button", { name: /Mă pontez acum|Ma pontez acum/i }).first()
+    if (!(await startButton.count())) {
+      annotateBlocked("Contul tehnician are deja sesiune activa; ruleaza cleanup in testul start/stop.")
+      return
+    }
+
+    await startButton.click()
+    await expect(page.getByRole("dialog")).toContainText(/Ești pregătit|Esti pregatit|selfie/i, { timeout: 20_000 })
+    await expect(page.locator("body")).toContainText(/Eroare|locaț|locat|permisiune|Nu s-a putut/i, { timeout: 60_000 })
+    await expect(page.getByRole("button", { name: /Mă pontez acum|Ma pontez acum/i }).first()).toBeVisible({ timeout: 20_000 })
   })
 })

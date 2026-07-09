@@ -25,6 +25,30 @@ E2E_RUN_MUTATING=true
 E2E_RUN_PREFIX=E2E_RUN_YYYYMMDDHHMMSS
 ```
 
+Pentru fluxurile reale de pontaj este necesar fixture dedicat:
+
+```bash
+E2E_ATTENDANCE_EMPLOYEE_NAME="E2E_RUN_... Nume Salariat"
+E2E_ATTENDANCE_EMPLOYEE_ID="emp_..."
+E2E_ATTENDANCE_CAN_USE_FAKE_CLOCK=true # doar daca deployment-ul are NEXT_PUBLIC_E2E_TEST_MODE=true
+E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true # permite pagina admin /pontaj/sync, care sincronizeaza global ziua curenta
+E2E_ATTENDANCE_EXPECTED_BANK="+1.5h" # optional, pentru verificari exacte UI
+E2E_ATTENDANCE_EXPECTED_C1="..."
+E2E_ATTENDANCE_EXPECTED_C2="..."
+E2E_ATTENDANCE_EXPECTED_C3="..."
+E2E_ATTENDANCE_EXPECTED_C4="..."
+E2E_ATTENDANCE_EXPECTED_C5="..."
+E2E_ATTENDANCE_EXPECTED_C6="..."
+E2E_ATTENDANCE_EXPECTED_C7="..."
+```
+
+Observatii:
+
+- `E2E_ATTENDANCE_EMPLOYEE_NAME` trebuie sa fie un salariat de test, nu o persoana reala.
+- `E2E_ATTENDANCE_EMPLOYEE_ID` permite deschiderea condicii filtrate direct pe salariat.
+- Fake clock functioneaza doar daca build-ul remote a fost deployat cu `NEXT_PUBLIC_E2E_TEST_MODE=true`; altfel testul foloseste timpul real si poate astepta regula de 1 minut la field checkout.
+- `E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true` trebuie folosit doar cand ziua curenta contine date E2E controlate; pagina `/dashboard/resurse-umane/pontaj/sync` proceseaza toate sesiunile completate din zi.
+
 ## Comenzi
 
 - `npm run test:e2e:real:setup-auth`
@@ -57,7 +81,7 @@ Acceptanta:
 
 ## Etapa 1 - Admin HR read-only si dialog inventory
 
-Status: `TODO`
+Status: `IMPLEMENTED_READONLY`
 
 Scop: inventariere dialoguri si validari fara a salva date.
 
@@ -104,7 +128,7 @@ Acceptanta:
 
 ## Etapa 3 - Tehnician cereri
 
-Status: `IMPLEMENTED_READONLY`
+Status: `IMPLEMENTED_READONLY_AND_MUTATING_GUARDED`
 
 Scop: cereri reale create de tehnician.
 
@@ -135,6 +159,8 @@ Acoperire:
 - Detalii cerere, document disponibil, edit dialog si refuz dialog fara submit.
 - Respingere: motiv obligatoriu verificat prin buton dezactivat, apoi activat dupa completarea motivului, fara submit.
 - Condica: sync/export vizibile si popover zi daca exista data.
+- Condica: UI real pentru banca ore si C1-C7 pe fixture E2E.
+- Condica: re-sync manual prin `/dashboard/resurse-umane/pontaj/sync`, protejat de `E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true`.
 - `TODO_MUTATING`: aprobare/respingere/stergere pending doar pe cereri `E2E_RUN_*` create in etapa 3.
 - `TODO_MUTATING`: verificare condica dupa aprobare, zile protejate si conflicte.
 
@@ -146,7 +172,7 @@ Acceptanta:
 
 ## Etapa 5 - Kiosk si pontaj
 
-Status: `IMPLEMENTED_READONLY`
+Status: `IMPLEMENTED_READONLY_AND_MUTATING_GUARDED`
 
 Scop: pontaj kiosk cu camera/geolocatie controlate de Playwright.
 
@@ -156,8 +182,10 @@ Acoperire:
 - Excludere salariat fara `userUid`.
 - Start/Stop pana la confirmarea parolei, fara check-in/check-out real.
 - Logout kiosk cere parola si nu deconecteaza fara confirmare.
-- `TODO_MUTATING`: Start/Stop normal cu camera fake si geolocatie fake.
-- `TODO_MUTATING`: camera refuzata, fallback locatie birou, dublu start, stop fara sesiune activa.
+- Start/Stop real kiosk cu camera fake si geolocatie fake, apoi verificare condica pe fixture.
+- Dublu start si stop fara sesiune activa.
+- Locatie refuzata: fallback birou sau eroare clara, cu cleanup daca start-ul reuseste.
+- Camera refuzata: selfie obligatoriu blocheaza start-ul kiosk.
 
 Acceptanta:
 
@@ -183,13 +211,18 @@ Acoperire verificata local:
 - `npx tsx --test lib/hr/time-calc.test.ts lib/hr/request-timesheet-sync.test.ts lib/hr/timesheet-summary.test.ts lib/attendance/sync-timesheet-merge.test.ts lib/hr/overtime-report.test.ts`
 - Rezultat curent: `69` teste trecute.
 
-Ce NU este inca full E2E real DB:
+Acoperire real DB adaugata:
 
 - Start/Stop real kiosk cu selfie upload si geolocatie fake, apoi verificare directa in condica.
 - Start/Stop real field din `/dashboard/lucrari`, apoi sync in condica.
-- Dublu start, stop fara sesiune activa, camera refuzata, locatie refuzata/fallback birou, selfie missing/error pe baza reala.
-- Re-sincronizare manuala din condica peste o zi cu date `E2E_RUN_*`.
-- Verificare UI end-to-end pentru C1-C7/banca de ore dupa ce testul creeaza pontaje controlate.
+- Dublu start, stop fara sesiune activa, camera refuzata, locatie refuzata/fallback birou.
+- Re-sincronizare manuala prin pagina admin `/dashboard/resurse-umane/pontaj/sync`, protejata de `E2E_ATTENDANCE_ALLOW_GLOBAL_SYNC=true`.
+- Verificare UI pentru C1-C7/banca de ore pe fixture E2E; valorile exacte se pot valida cu env-urile `E2E_ATTENDANCE_EXPECTED_*`.
+
+Ce ramane conditionat de fixture/deployment:
+
+- Verificare exacta C1-C7 dupa pontaje cu ore controlate necesita `NEXT_PUBLIC_E2E_TEST_MODE=true` in deployment sau asteptare reala.
+- Cleanup complet al sesiunilor/condicii din Firestore trebuie facut doar pentru documente `E2E_RUN_*`.
 
 Regula pentru aceste fluxuri real DB:
 
@@ -199,7 +232,7 @@ Regula pentru aceste fluxuri real DB:
 
 ## Etapa 6 - Lucrari tehnician
 
-Status: `IMPLEMENTED_READONLY`
+Status: `IMPLEMENTED_READONLY_AND_MUTATING_GUARDED`
 
 Scop: fluxuri tehnician pe lucrari.
 
@@ -209,7 +242,9 @@ Acoperire:
 - Actiuni disponibile pe rol tehnician.
 - Pontaj field: expune Start/Stop sau motiv blocare HR.
 - Raport: buton disponibil/dezactivat inventariat.
-- `TODO_MUTATING`: pontaj field start/stop cu camera si geolocatie fake.
+- Pontaj field start/stop cu camera si geolocatie fake, apoi verificare condica.
+- Camera refuzata continua field pontaj fara selfie, apoi cleanup prin stop.
+- Locatie refuzata blocheaza start field fara sesiune activa.
 - `TODO_MUTATING`: raport minim, validari si finalizare unde exista lucrare `E2E_RUN_*` dedicata.
 
 Acceptanta:
@@ -227,6 +262,6 @@ Acceptanta:
 
 - Configul Playwright local existent ramane pentru harness/local.
 - Suita remote foloseste `playwright.real.config.ts`.
-- Inventarul curent listeaza `43` teste Playwright in `8` fisiere.
+- Inventarul curent listeaza `51` teste Playwright in `8` fisiere.
 - Selectorii existenti sunt partial accesibili; unde apar teste fragile se adauga `data-testid` punctual.
 - `userUid` nu este setat in dialogul actual de creare salariat, deci Etapa 2 trebuie sa documenteze/fixeze acest gap.
