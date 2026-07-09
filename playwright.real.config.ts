@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
+import { loadEnvConfig } from "@next/env"
+
+loadEnvConfig(process.cwd())
 
 const baseURL = process.env.E2E_BASE_URL || "https://fom-nrg.vercel.app"
 

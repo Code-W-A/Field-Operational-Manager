@@ -9,7 +9,7 @@ test.describe("Etapa 2 - admin HR mutating controlat", () => {
   })
 
   test("departament E2E: creare, editare, toggling status, refresh si cleanup", async ({ appPage: page }) => {
-    const runPrefix = makeRunPrefix()
+    const runPrefix = `${makeRunPrefix()}_${Date.now()}`
     const deptName = `${runPrefix} Departament`
     const editedDeptName = `${deptName} Editat`
 
@@ -59,21 +59,21 @@ test.describe("Etapa 2 - admin HR mutating controlat", () => {
     }
 
     await deleteButton.click()
-    await expect(page.getByRole("dialog")).toContainText(/Confirmare ștergere|Confirmare stergere/i)
+    await expect(page.getByRole("alertdialog")).toContainText(/Confirmare ștergere|Confirmare stergere/i)
     await page.getByRole("button", { name: /^Șterge$|^Sterge$/i }).click()
     await expect(page.getByText(editedDeptName)).toHaveCount(0, { timeout: 20_000 })
   })
 
-  test("documenteaza gap userUid la creare salariat", async ({ appPage: page }) => {
+  test("salariat: dialogul de creare expune asocierea userUid", async ({ appPage: page }) => {
     await page.goto("/dashboard/resurse-umane/salariati", { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: /Adaugă/i }).first().click()
     await expect(page.getByRole("dialog")).toContainText(/Adaugă salariat/i)
-    await expect(page.getByRole("dialog")).not.toContainText(/Utilizator asociat/i)
+    await expect(page.getByRole("dialog")).toContainText(/Utilizator asociat/i)
     await closeTopmostDialog(page)
   })
 
-  test("salariat E2E: formularul expune campurile necesare dar blocheaza asocierea userUid la creare", async ({ appPage: page }) => {
-    const runPrefix = makeRunPrefix()
+  test("salariat E2E: formularul expune campurile necesare si asocierea userUid la creare", async ({ appPage: page }) => {
+    const runPrefix = `${makeRunPrefix()}_${Date.now()}`
 
     await page.goto("/dashboard/resurse-umane/salariati", { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: /Adaugă/i }).first().click()

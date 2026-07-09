@@ -49,7 +49,26 @@ export async function expectAppShell(page: Page) {
 }
 
 export async function closeTopmostDialog(page: Page) {
+  if (!(await page.getByRole("dialog").count())) return
+
   await page.keyboard.press("Escape")
+  await page.waitForTimeout(150)
+
+  if (await page.getByRole("dialog").count()) {
+    const dialog = page.getByRole("dialog").last()
+    const safeCloseButton = dialog
+      .getByRole("button", { name: /^(Close|Închide|Inchide|Anulează|Anuleaza|Renunță|Renunta)$/i })
+      .last()
+
+    if ((await safeCloseButton.count()) && (await safeCloseButton.isVisible())) {
+      await safeCloseButton.click({ timeout: 2_000, force: true }).catch(async () => {
+        if (await page.getByRole("dialog").count()) {
+          await page.keyboard.press("Escape")
+        }
+      })
+    }
+  }
+
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 })
 }
 

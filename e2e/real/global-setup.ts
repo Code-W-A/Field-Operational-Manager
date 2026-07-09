@@ -12,7 +12,19 @@ async function login(page: Page, role: E2ERole) {
   await page.locator("#password").fill(password)
   await page.getByRole("button", { name: /Autentificare/i }).click()
   await expect(page).toHaveURL(expectedUrl, { timeout: 45_000 })
-  await page.context().storageState({ path: STORAGE_STATE[role] })
+  await expect
+    .poll(
+      async () => {
+        const cookies = await page.context().cookies()
+        return {
+          hasSession: cookies.some((cookie) => cookie.name === "__session"),
+          userRole: cookies.find((cookie) => cookie.name === "userRole")?.value,
+        }
+      },
+      { timeout: 20_000 }
+    )
+    .toEqual({ hasSession: true, userRole: role === "tech" ? "tehnician" : role })
+  await page.context().storageState({ path: STORAGE_STATE[role], indexedDB: true })
 }
 
 async function globalSetup() {

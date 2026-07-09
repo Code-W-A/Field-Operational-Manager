@@ -71,6 +71,7 @@ export function EmployeeEditDialog({
   const [prenume, setPrenume] = useState("")
   const [title, setTitle] = useState("")
   const [active, setActive] = useState(true)
+  const [userUid, setUserUid] = useState<string | undefined>(undefined)
 
   // Profile photo
   const [photoURL, setPhotoURL] = useState("")
@@ -108,6 +109,7 @@ export function EmployeeEditDialog({
       setPrenume("")
       setTitle("")
       setActive(true)
+      setUserUid(undefined)
       setPhotoURL("")
       setInitialPhotoURL("")
       setPhotoFile(null)
@@ -135,6 +137,7 @@ export function EmployeeEditDialog({
     setPrenume(employee.prenume)
     setTitle(employee.title || "")
     setActive(employee.active)
+    setUserUid(employee.userUid)
     setPhotoURL(employee.photoURL || "")
     setInitialPhotoURL(employee.photoURL || "")
     setPhotoFile(null)
@@ -237,6 +240,7 @@ export function EmployeeEditDialog({
             prenume: trimmedPrenume,
             title: title.trim() || undefined,
             active,
+            userUid,
             photoURL: finalPhotoURL || undefined,
             photoUpdatedAt,
             cnp: cnp.trim() || undefined,
@@ -261,6 +265,7 @@ export function EmployeeEditDialog({
             prenume: trimmedPrenume,
             title: title.trim() || undefined,
             active,
+            userUid,
             photoURL: finalPhotoURL || undefined,
             photoUpdatedAt,
             cnp: cnp.trim() || undefined,
@@ -399,6 +404,27 @@ export function EmployeeEditDialog({
                     className="border-2 h-11"
                     placeholder="Ex: Tehnician montator"
                   />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="employeeUserUid">Utilizator asociat</Label>
+                  <Select value={userUid || "__none__"} onValueChange={(v) => setUserUid(v === "__none__" ? undefined : v)}>
+                    <SelectTrigger id="employeeUserUid" aria-label="Utilizator asociat">
+                      <SelectValue placeholder="Alege utilizator" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Fără utilizator asociat</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.uid} value={u.uid}>
+                          {u.displayName || u.email || u.uid}
+                          {u.role ? ` • ${u.role}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs text-muted-foreground">
+                    Leagă salariatul de contul din aplicație. Este necesar pentru pontaj, cereri și kiosk.
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between rounded-xl border-2 p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 shadow-sm">

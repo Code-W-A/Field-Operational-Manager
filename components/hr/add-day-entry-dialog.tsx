@@ -211,22 +211,22 @@ export function AddDayEntryDialog({
     })
     
     if (!employeeId) {
-      console.error('❌ Lipsește employeeId - verifică dacă ai angajați în listă!')
+      console.warn('Lipsește employeeId - utilizatorul trebuie să selecteze un angajat.')
       alert('Nu ai selectat un angajat! Verifică dacă există angajați în listă.')
       return
     }
     if (!startDate) {
-      console.error('❌ Lipsește startDate')
+      console.warn('Lipsește startDate - utilizatorul trebuie să selecteze data de început.')
       alert('Selectează data de început!')
       return
     }
     if (!endDate) {
-      console.error('❌ Lipsește endDate')
+      console.warn('Lipsește endDate - utilizatorul trebuie să selecteze data de sfârșit.')
       alert('Selectează data de sfârșit!')
       return
     }
     if (!monthKey) {
-      console.error('❌ monthKey nu s-a putut calcula din startDate:', startDate)
+      console.warn('monthKey nu s-a putut calcula din startDate:', startDate)
       alert('Data de început este invalidă!')
       return
     }
@@ -462,5 +462,4 @@ export function AddDayEntryDialog({
     </Dialog>
   )
 }
-
 
