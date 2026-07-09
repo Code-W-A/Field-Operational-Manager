@@ -83,6 +83,56 @@ test("ADD_OVERTIME appends one traceable interval and preserves existing pontaj"
   assert.equal(next.hours, 9.5)
 })
 
+test("CORRECT_HOURS replaces day with traceable intervals, breaks and recalculated hours", () => {
+  const next = buildTimesheetCellForHrRequest({
+    requestId: "req-correct-hours-1",
+    kind: "CORRECT_HOURS",
+    payload: {
+      date: "2026-05-18",
+      entries: [
+        { start: "08:00", end: "12:00", project: "Pontaj" },
+        { start: "12:30", end: "17:00", project: "Pontaj", travelToClient: true },
+      ],
+      breaks: [{ start: "12:00", end: "12:30" }],
+    },
+    existing: {
+      code: "WORK",
+      hours: 2,
+      entries: [{ start: "10:00", end: "12:00", project: "Pontaj vechi" }],
+    },
+  })
+
+  assert.ok(next)
+  assert.equal(next.code, "WORK")
+  assert.equal(next.hours, 8.5)
+  assert.equal(next.sourceRequestId, "req-correct-hours-1")
+  assert.equal(next.entries?.length, 2)
+  assert.equal(next.entries?.every((entry: any) => entry.sourceRequestId === "req-correct-hours-1"), true)
+  assert.equal(next.entries?.[1]?.travelToClient, true)
+  assert.deepEqual(next.breaks, [
+    {
+      start: "12:00",
+      end: "12:30",
+      sourceRequestId: "req-correct-hours-1",
+      sourceRequestKind: "CORRECT_HOURS",
+    },
+  ])
+})
+
+test("IN request creates protected invoire cell with recalculated duration", () => {
+  const next = buildTimesheetCellForHrRequest({
+    requestId: "req-in-1",
+    kind: "IN",
+    payload: { date: "2026-05-18", startTime: "10:00", endTime: "12:15" },
+  })
+
+  assert.ok(next)
+  assert.equal(next.code, "IN")
+  assert.equal(next.hours, 2.25)
+  assert.deepEqual(next.breaks, [])
+  assert.equal(next.entries?.[0]?.project, "Învoire")
+})
+
 test("ADD_OVERTIME is idempotent when the same request is synced again", () => {
   const once = buildTimesheetCellForHrRequest({
     requestId: "req-overtime-2",
@@ -128,4 +178,32 @@ test("removeHrRequestFromTimesheetCell removes only the request interval", () =>
   assert.equal(cleaned.entries?.length, 1)
   assert.deepEqual(cleaned.entries?.[0], { start: "08:00", end: "16:30", project: "Pontaj" })
   assert.equal(cleaned.hours, 8.5)
+})
+
+test("removeHrRequestFromTimesheetCell removes request breaks and recalculates preserved hours", () => {
+  const cell: TimesheetCell = {
+    code: "WORK",
+    entries: [
+      { start: "08:00", end: "16:30", project: "Pontaj" },
+      {
+        start: "17:00",
+        end: "18:00",
+        project: "Ore suplimentare",
+        sourceRequestId: "req-remove-breaks",
+        sourceRequestKind: "ADD_OVERTIME",
+      },
+    ],
+    breaks: [
+      { start: "12:00", end: "12:30" },
+      { start: "17:15", end: "17:30", sourceRequestId: "req-remove-breaks", sourceRequestKind: "ADD_OVERTIME" },
+    ],
+    hours: 9.25,
+  }
+
+  const cleaned = removeHrRequestFromTimesheetCell(cell, "req-remove-breaks")
+
+  assert.ok(cleaned)
+  assert.equal(cleaned.entries?.length, 1)
+  assert.deepEqual(cleaned.breaks, [{ start: "12:00", end: "12:30" }])
+  assert.equal(cleaned.hours, 8)
 })

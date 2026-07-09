@@ -2521,9 +2521,75 @@ function filterOverlappingEntriesA(existing: any[], incoming: any[]): any[] {
   })
 }
 
+const attendanceTimeFormatterA = new Intl.DateTimeFormat("ro-RO", {
+  timeZone: TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  hourCycle: "h23",
+})
+
+const attendanceDateTimeFormatterA = new Intl.DateTimeFormat("ro-RO", {
+  timeZone: TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  hourCycle: "h23",
+})
+
+function getAttendanceLocalPartsA(ms: number) {
+  const parts = attendanceDateTimeFormatterA.formatToParts(new Date(ms))
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "0"
+  return {
+    year: Number(get("year")),
+    month: Number(get("month")),
+    day: Number(get("day")),
+    hour: Number(get("hour")),
+    minute: Number(get("minute")),
+    second: Number(get("second")),
+  }
+}
+
+function zonedDateTimeToUtcMsA(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  millisecond: number,
+) {
+  const wantedUtc = Date.UTC(year, month - 1, day, hour, minute, second, millisecond)
+  let guess = wantedUtc
+  for (let i = 0; i < 3; i += 1) {
+    const parts = getAttendanceLocalPartsA(guess)
+    const representedUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, millisecond)
+    guess += wantedUtc - representedUtc
+  }
+  return guess
+}
+
+function attendanceLocalDayMetaA(referenceMs: number) {
+  const parts = getAttendanceLocalPartsA(referenceMs)
+  const startMs = zonedDateTimeToUtcMsA(parts.year, parts.month, parts.day, 0, 0, 0, 0)
+  const endMs = zonedDateTimeToUtcMsA(parts.year, parts.month, parts.day, 23, 59, 59, 999)
+  return {
+    startMs,
+    endMs,
+    day: parts.day,
+    monthKey: `${parts.year}-${String(parts.month).padStart(2, "0")}`,
+  }
+}
+
 function formatTimeHMA(ms: number): string {
-  const d = new Date(ms)
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  const parts = attendanceTimeFormatterA.formatToParts(new Date(ms))
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "00"
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00"
+  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`
 }
 
 function normalizeNameA(input: string): string {
@@ -2588,21 +2654,12 @@ async function getEmployeeDefaultBreakA(employeeId: string): Promise<HMRangeA | 
 }
 
 async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hints: { employeeId?: string; userName?: string }): Promise<void> {
-  const date = new Date(dayRefMs)
-  const start = new Date(date)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(date)
-  end.setHours(23, 59, 59, 999)
-  const day = date.getDate()
-  const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+  const { startMs, endMs, day, monthKey } = attendanceLocalDayMetaA(dayRefMs)
   const dayKey = String(day)
 
   const snap = await db
     .collection("attendance")
     .where("userId", "==", userId)
-    .where("sessionStart", ">=", Timestamp.fromDate(start))
-    .where("sessionStart", "<=", Timestamp.fromDate(end))
-    .where("status", "==", "completed")
     .get()
 
   const sessions = snap.docs
@@ -2615,7 +2672,15 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
         sessionEnd: toMillisSafeAttendance(data.sessionEnd) ?? undefined,
       }
     })
-    .filter((s) => Boolean(s.sessionEnd))
+    .filter((s) => {
+      return (
+        String(s.status || "") === "completed" &&
+        Number.isFinite(s.sessionStart) &&
+        s.sessionStart >= startMs &&
+        s.sessionStart <= endMs &&
+        Boolean(s.sessionEnd)
+      )
+    })
     .sort((a, b) => a.sessionStart - b.sessionStart)
 
   if (!sessions.length) return

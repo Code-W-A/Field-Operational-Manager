@@ -1,0 +1,56 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+
+import { calcEffectiveMinutes, minutesToHM, parseHM } from "@/lib/hr/time-calc"
+
+test("calcEffectiveMinutes merges overlapping work intervals before subtracting breaks", () => {
+  const minutes = calcEffectiveMinutes({
+    entries: [
+      { start: "08:00", end: "12:00" },
+      { start: "11:00", end: "16:30" },
+      { start: "16:30", end: "17:00" },
+    ],
+    breaks: [{ start: "12:00", end: "12:30" }],
+  })
+
+  assert.equal(minutes, 510)
+})
+
+test("calcEffectiveMinutes subtracts overlapping breaks only once after break normalization", () => {
+  const minutes = calcEffectiveMinutes({
+    entries: [{ start: "08:00", end: "16:30" }],
+    breaks: [
+      { start: "12:00", end: "12:45" },
+      { start: "12:30", end: "13:00" },
+    ],
+  })
+
+  assert.equal(minutes, 450)
+})
+
+test("calcEffectiveMinutes ignores invalid manual breaks and falls back to default break", () => {
+  const minutes = calcEffectiveMinutes({
+    entries: [{ start: "08:00", end: "16:30" }],
+    breaks: [{ start: "13:00", end: "12:00" }],
+    defaultBreak: { start: "12:00", end: "12:30" },
+  })
+
+  assert.equal(minutes, 480)
+})
+
+test("calcEffectiveMinutes subtracts default break only where it overlaps worked time", () => {
+  const minutes = calcEffectiveMinutes({
+    entries: [{ start: "08:00", end: "10:00" }],
+    defaultBreak: { start: "09:30", end: "11:00" },
+  })
+
+  assert.equal(minutes, 90)
+})
+
+test("parseHM and minutesToHM reject invalid values and clamp formatting", () => {
+  assert.equal(parseHM("24:00"), null)
+  assert.equal(parseHM("08:60"), null)
+  assert.equal(parseHM("8:05"), 485)
+  assert.equal(minutesToHM(-10), "00:00")
+  assert.equal(minutesToHM(75), "01:15")
+})

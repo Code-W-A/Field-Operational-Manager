@@ -38,7 +38,7 @@ E2E_RUN_PREFIX=E2E_RUN_YYYYMMDDHHMMSS
 
 ## Etapa 0 - infrastructura remote
 
-Status: `TODO`
+Status: `IMPLEMENTED_READONLY`
 
 Scop: login real pe roluri, storage state separat si smoke pe URL-urile critice.
 
@@ -64,9 +64,16 @@ Scop: inventariere dialoguri si validari fara a salva date.
 Acoperire:
 
 - Salariati: lista, dialog adaugare, validare nume/prenume obligatorii.
+- Salariati: program standard/pauza standard, normalizare ore si alert global fara executie.
+- Salariati: switch `Status activ`, input poza profil si checkbox departament in dialogul de adaugare.
+- Salariati: cautare si dialog editare fara salvare.
 - Profil salariat: taburi, card asociere utilizator, pontaj, cereri, poza profil.
-- Departamente: dialog creare/editare/stergere fara confirmare destructiva.
-- Condica: luna, filtre, popover celula, sarbatori legale, export CSV disponibil.
+- Profil salariat: dialog `Cerere noua de concediu`, KPI zile, tipuri CO/CFP/CM/DEL, camp document medical si camp client delegatie.
+- Departamente: dialog creare/editare/stergere fara confirmare destructiva, validare nume.
+- Condica: luna, view compact/detaliat, legenda, dialog adaugare, dialog stergere, sarbatori legale, export CSV disponibil.
+- Condica: dialog adaugare cu intervale dinamice, pauze dinamice, `Traseu la client`, includere concedii/evenimente/sarbatori/weekend.
+- Condica: dialog stergere cu checkbox timp/pauza si submit blocat cand formularul este incomplet.
+- Condica: sarbatori legale cu add/list/delete draft fara salvare.
 - Rapoarte: tab pontaj si tab ore suplimentare.
 
 Acceptanta:
@@ -77,16 +84,17 @@ Acceptanta:
 
 ## Etapa 2 - Admin HR mutating controlat
 
-Status: `TODO`
+Status: `PARTIAL_MUTATING`
 
 Scop: operatii reale, dar izolate prin `E2E_RUN_*`.
 
 Acoperire:
 
-- Creeaza departament `E2E_RUN_*`, verifica persistenta.
-- Creeaza salariat `E2E_RUN_*`, verifica program, pauza, departament, manager.
+- Creeaza departament `E2E_RUN_*`, verifica persistenta, editeaza, activeaza/dezactiveaza, refresh, cleanup.
 - Verifica gap-ul `userUid` la creare salariat.
-- Asociaza user existent, verifica dependente kiosk/cereri/pontaj.
+- Blocheaza explicit formularul de salariat nou daca nu exista control de asociere `userUid`.
+- `TODO`: creare salariat E2E complet si asociere user existent dupa fixul UI/API pentru `userUid`.
+- `TODO`: verificare dependente kiosk/cereri/pontaj dupa asociere.
 
 Acceptanta:
 
@@ -96,15 +104,18 @@ Acceptanta:
 
 ## Etapa 3 - Tehnician cereri
 
-Status: `TODO`
+Status: `IMPLEMENTED_READONLY`
 
 Scop: cereri reale create de tehnician.
 
 Acoperire:
 
-- Tipuri: `CO`, `CFP`, `CM`, `IN`, `DEL`, `CORRECT_HOURS`, `ADD_OVERTIME`.
-- Validari: lipsa departament, lipsa manager, date lipsa, overlap, CM fara document, overtime invalid.
-- Lista cereri si status pending.
+- Tipuri inventariate in dialog: `CO`, `CFP`, `CM`, `IN`, `DEL`, `CORRECT_HOURS`, `ADD_OVERTIME`.
+- Validari read-only: submit blocat pe payload incomplet, CM expune document medical, overtime expune durata, corectare pontaj expune intervale/pauze.
+- Corectare pontaj: adauga interval, adauga pauza, stergere interval/pauza blocata/corecta fara submit.
+- Overtime: dropdown ore/minute si preview durata cu granularitate 30 minute.
+- Lista cereri si detalii cerere existenta daca exista fixture.
+- `TODO_MUTATING`: creare cereri reale `E2E_RUN_*`, overlap, CM cu fixture file si descarcare document.
 
 Acceptanta:
 
@@ -114,15 +125,18 @@ Acceptanta:
 
 ## Etapa 4 - Admin aprobari si condica
 
-Status: `TODO`
+Status: `IMPLEMENTED_READONLY`
 
 Scop: aprobarea cererilor si sincronizarea in condica.
 
 Acoperire:
 
-- Detalii cerere, aprobare, respingere cu motiv obligatoriu, editare payload, stergere pending.
-- Verificare condica dupa aprobare.
-- Zile protejate, conflicte, export CSV si modificari manuale.
+- Tabs pending/toate si empty states.
+- Detalii cerere, document disponibil, edit dialog si refuz dialog fara submit.
+- Respingere: motiv obligatoriu verificat prin buton dezactivat, apoi activat dupa completarea motivului, fara submit.
+- Condica: sync/export vizibile si popover zi daca exista data.
+- `TODO_MUTATING`: aprobare/respingere/stergere pending doar pe cereri `E2E_RUN_*` create in etapa 3.
+- `TODO_MUTATING`: verificare condica dupa aprobare, zile protejate si conflicte.
 
 Acceptanta:
 
@@ -132,7 +146,7 @@ Acceptanta:
 
 ## Etapa 5 - Kiosk si pontaj
 
-Status: `TODO`
+Status: `IMPLEMENTED_READONLY`
 
 Scop: pontaj kiosk cu camera/geolocatie controlate de Playwright.
 
@@ -140,8 +154,10 @@ Acoperire:
 
 - Lista utilizatori eligibili.
 - Excludere salariat fara `userUid`.
-- Start/Stop normal.
-- Camera refuzata, fallback locatie birou, dublu start, stop fara sesiune activa, logout kiosk.
+- Start/Stop pana la confirmarea parolei, fara check-in/check-out real.
+- Logout kiosk cere parola si nu deconecteaza fara confirmare.
+- `TODO_MUTATING`: Start/Stop normal cu camera fake si geolocatie fake.
+- `TODO_MUTATING`: camera refuzata, fallback locatie birou, dublu start, stop fara sesiune activa.
 
 Acceptanta:
 
@@ -149,18 +165,52 @@ Acceptanta:
 - Selfie este obligatoriu in kiosk.
 - Sesiunea poate fi reconciliata in condica dupa sync.
 
+### Acoperire calcule pontaj/condica
+
+Status: `IMPLEMENTED_DETERMINISTIC`
+
+Acoperire existenta prin teste locale deterministe:
+
+- `lib/hr/time-calc.test.ts`: parse ore, intervale suprapuse, pauze suprapuse, pauza manuala invalida cu fallback la pauza default, pauza care se suprapune partial cu timpul lucrat.
+- `lib/attendance/sync-timesheet-merge.test.ts`: sync pontaj real in condica, pastreaza overtime aprobat, pastreaza intrari manuale, elimina pontaj vechi generat, protejeaza zile `CO/CFP/CM/IN`, pastreaza coduri compatibile `DEL/WE/SL`, aplica pauza default sau pauza manuala, ignora intervale invalide, normalizeaza pontaje suprapuse.
+- `lib/hr/request-timesheet-sync.test.ts`: `ADD_OVERTIME`, `CORRECT_HOURS`, `IN`, idempotenta, stergere intervale/pauze generate de cereri, recalcul ore dupa stergere.
+- `lib/hr/timesheet-summary.test.ts`: zile lucrate, tichete de masa, ore prezenta, banca de ore, traseu client/casa, CO/DEL/IN, C1-C7, sarbatori/weekend si export CSV.
+- `lib/hr/overtime-report.test.ts`: reconciliere cerere overtime cu pontaj real, partial/missing/difference, toleranta 1 minut, program default, fara double-count pe intervale suprapuse.
+- Harness E2E local `e2e/pontaj-full.spec.ts`, `e2e/pontaj-human.spec.ts`, `e2e/condica-summary.spec.ts`: fluxuri simulate de pontaj, sync condica, overtime si sumar.
+
+Acoperire verificata local:
+
+- `npx tsx --test lib/hr/time-calc.test.ts lib/hr/request-timesheet-sync.test.ts lib/hr/timesheet-summary.test.ts lib/attendance/sync-timesheet-merge.test.ts lib/hr/overtime-report.test.ts`
+- Rezultat curent: `69` teste trecute.
+
+Ce NU este inca full E2E real DB:
+
+- Start/Stop real kiosk cu selfie upload si geolocatie fake, apoi verificare directa in condica.
+- Start/Stop real field din `/dashboard/lucrari`, apoi sync in condica.
+- Dublu start, stop fara sesiune activa, camera refuzata, locatie refuzata/fallback birou, selfie missing/error pe baza reala.
+- Re-sincronizare manuala din condica peste o zi cu date `E2E_RUN_*`.
+- Verificare UI end-to-end pentru C1-C7/banca de ore dupa ce testul creeaza pontaje controlate.
+
+Regula pentru aceste fluxuri real DB:
+
+- Nu se ruleaza pe salariați/lucrari reale nemarcate.
+- Se creeaza fixture E2E dedicat: user tehnician + salariat `userUid` asociat + departament + manager + lucrare E2E.
+- Toate sesiunile/datele au prefix `E2E_RUN_*`, apoi se verifica in condica si se curata unde este sigur.
+
 ## Etapa 6 - Lucrari tehnician
 
-Status: `TODO`
+Status: `IMPLEMENTED_READONLY`
 
 Scop: fluxuri tehnician pe lucrari.
 
 Acoperire:
 
-- Lista, filtre, cautare, detalii lucrare.
+- Lista, empty state, cautare, detalii lucrare unde exista fixture.
 - Actiuni disponibile pe rol tehnician.
-- Pontaj field start/stop cu camera si geolocatie fake.
-- Raport minim, validari si finalizare unde exista fixture dedicat.
+- Pontaj field: expune Start/Stop sau motiv blocare HR.
+- Raport: buton disponibil/dezactivat inventariat.
+- `TODO_MUTATING`: pontaj field start/stop cu camera si geolocatie fake.
+- `TODO_MUTATING`: raport minim, validari si finalizare unde exista lucrare `E2E_RUN_*` dedicata.
 
 Acceptanta:
 
@@ -177,5 +227,6 @@ Acceptanta:
 
 - Configul Playwright local existent ramane pentru harness/local.
 - Suita remote foloseste `playwright.real.config.ts`.
+- Inventarul curent listeaza `43` teste Playwright in `8` fisiere.
 - Selectorii existenti sunt partial accesibili; unde apar teste fragile se adauga `data-testid` punctual.
 - `userUid` nu este setat in dialogul actual de creare salariat, deci Etapa 2 trebuie sa documenteze/fixeze acest gap.

@@ -203,6 +203,28 @@ test("timesheet summary ignores invalid intervals for IN, pontaj and travel", ()
   assert.equal(summary.totalTimpIN, 0)
 })
 
+test("timesheet summary classifies outside-program pontaj into C1-C5 buckets", () => {
+  const ts = timesheet({
+    "2": work({
+      entries: [{ start: "06:00", end: "22:00", project: "Pontaj" }],
+    }),
+  })
+
+  const summary = calculateEmployeeTimesheetSummary({
+    employeeId: employee.id,
+    monthKey: "2026-03",
+    timesheet: ts,
+    employee,
+  })
+
+  assert.equal(summary.orePrezenta, 15.5)
+  assert.equal(summary.oreC1, 2)
+  assert.equal(summary.oreC2, 5.5)
+  assert.equal(summary.oreC3, 2)
+  assert.equal(summary.oreC4, 2)
+  assert.equal(summary.oreC5, 3.5)
+})
+
 test("formatTimesheetsCSV exports the same summary columns used by the UI", () => {
   const ts = timesheet({
     "1": work({

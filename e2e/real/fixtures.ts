@@ -1,4 +1,4 @@
-import { expect, test as base, type Page, type TestInfo } from "@playwright/test"
+import { expect, test as base, type Locator, type Page, type TestInfo } from "@playwright/test"
 
 type BrowserProblem = {
   source: "console" | "pageerror"
@@ -51,4 +51,47 @@ export async function expectAppShell(page: Page) {
 export async function closeTopmostDialog(page: Page) {
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 })
+}
+
+export function annotateBlocked(description: string) {
+  test.info().annotations.push({ type: "blocked", description })
+}
+
+export async function closeDialogIfPresent(page: Page) {
+  if (!(await page.getByRole("dialog").count())) return
+  await closeTopmostDialog(page)
+}
+
+export async function clickIfVisible(locator: Locator) {
+  if (!(await locator.count())) return false
+  const first = locator.first()
+  if (!(await first.isVisible())) return false
+  await first.click()
+  return true
+}
+
+export async function expectButtonDisabled(page: Page, name: RegExp) {
+  const button = page.getByRole("button", { name })
+  await expect(button).toBeVisible()
+  await expect(button).toBeDisabled()
+}
+
+export async function toggleCheckboxNearText(scope: Page | Locator, text: RegExp) {
+  const labelText = scope.getByText(text).first()
+  await expect(labelText).toBeVisible()
+  const row = labelText.locator("xpath=ancestor::*[.//*[@role='checkbox']][1]")
+  await expect(row).toBeVisible()
+  const checkbox = row.getByRole("checkbox").first()
+  await expect(checkbox).toBeVisible()
+  await checkbox.click()
+  return checkbox
+}
+
+export async function openLastComboboxOption(page: Page, optionName: RegExp) {
+  const dialog = page.getByRole("dialog")
+  const comboboxes = dialog.getByRole("combobox")
+  const count = await comboboxes.count()
+  if (count === 0) throw new Error("No combobox found in open dialog")
+  await comboboxes.nth(count - 1).click()
+  await page.getByRole("option", { name: optionName }).click()
 }

@@ -29,6 +29,30 @@ function debugPontajLog(label: string, payload: Record<string, any>) {
   }
 }
 
+function timestampToMillis(value: any): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const ms = value?.toMillis?.()
+  return typeof ms === "number" && Number.isFinite(ms) ? ms : undefined
+}
+
+function normalizeAttendanceSessionDoc(id: string, data: any): AttendanceSession {
+  return {
+    id,
+    ...data,
+    sessionStart: timestampToMillis(data?.sessionStart) ?? Date.now(),
+    sessionEnd: timestampToMillis(data?.sessionEnd),
+    createdAt: timestampToMillis(data?.createdAt) ?? Date.now(),
+    updatedAt: timestampToMillis(data?.updatedAt) ?? Date.now(),
+    extraTimeLogs: Array.isArray(data?.extraTimeLogs)
+      ? data.extraTimeLogs.map((log: any) => ({
+          ...log,
+          startTime: timestampToMillis(log?.startTime) ?? log?.startTime,
+          endTime: timestampToMillis(log?.endTime) ?? log?.endTime,
+        }))
+      : data?.extraTimeLogs,
+  } as AttendanceSession
+}
+
 let cachedHrDefaults: { pauzaStart?: string; pauzaEnd?: string } | null | undefined = undefined
 async function getHrDefaultsBreak(): Promise<{ pauzaStart?: string; pauzaEnd?: string } | null> {
   if (cachedHrDefaults !== undefined) return cachedHrDefaults
@@ -108,14 +132,7 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
     const sessionsByUser: Record<string, AttendanceSession[]> = {}
 
     sessionsSnapshot.docs.forEach((docSnap) => {
-      const session = {
-        id: docSnap.id,
-        ...docSnap.data(),
-        sessionStart: docSnap.data().sessionStart?.toMillis?.() || Date.now(),
-        sessionEnd: docSnap.data().sessionEnd?.toMillis?.(),
-        createdAt: docSnap.data().createdAt?.toMillis?.() || Date.now(),
-        updatedAt: docSnap.data().updatedAt?.toMillis?.() || Date.now(),
-      } as AttendanceSession
+      const session = normalizeAttendanceSessionDoc(docSnap.id, docSnap.data())
 
       if (!sessionsByUser[session.userId]) {
         sessionsByUser[session.userId] = []
@@ -348,6 +365,24 @@ export type UserDaySyncResult =
       day: number
     }
 
+async function getCompletedUserSessionsForLocalDay(userId: string, startMs: number, endMs: number): Promise<AttendanceSession[]> {
+  // Avoid a composite-index dependency during checkout. A stale condică is worse
+  // than scanning this user's sessions and filtering the target day client-side.
+  const snapshot = await getDocs(query(collection(db, "attendance"), where("userId", "==", userId)))
+  return snapshot.docs
+    .map((docSnap) => normalizeAttendanceSessionDoc(docSnap.id, docSnap.data()))
+    .filter((session) => {
+      return (
+        session.status === "completed" &&
+        typeof session.sessionStart === "number" &&
+        session.sessionStart >= startMs &&
+        session.sessionStart <= endMs &&
+        typeof session.sessionEnd === "number"
+      )
+    })
+    .sort((a, b) => a.sessionStart - b.sessionStart)
+}
+
 /**
  * Sync (recompute) a single user's attendance for a specific day into HR timesheet.
  * - Pulls all completed attendance sessions for that user for that day
@@ -369,31 +404,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const start = startOfDayLocal(date)
   const end = endOfDayLocal(date)
 
-  const sessionsQuery = query(
-    collection(db, "attendance"),
-    where("userId", "==", userId),
-    where("sessionStart", ">=", Timestamp.fromDate(start)),
-    where("sessionStart", "<=", Timestamp.fromDate(end)),
-    where("status", "==", "completed")
-  )
-
-  const sessionsSnapshot = await getDocs(sessionsQuery)
-
-  const sessions: AttendanceSession[] = sessionsSnapshot.docs
-    .map((docSnap) => {
-      const data = docSnap.data() as any
-      const session: AttendanceSession = {
-        id: docSnap.id,
-        ...data,
-        sessionStart: data.sessionStart?.toMillis?.() ?? data.sessionStart ?? Date.now(),
-        sessionEnd: data.sessionEnd?.toMillis?.() ?? data.sessionEnd,
-        createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
-        updatedAt: data.updatedAt?.toMillis?.() ?? Date.now(),
-      } as AttendanceSession
-      return session
-    })
-    .filter((s) => Boolean(s.sessionEnd))
-    .sort((a, b) => a.sessionStart - b.sessionStart)
+  const sessions = await getCompletedUserSessionsForLocalDay(userId, start.getTime(), end.getTime())
 
   if (!sessions.length) {
     debugPontajLog("sync-user-day:no-sessions", { userId, monthKey, day })

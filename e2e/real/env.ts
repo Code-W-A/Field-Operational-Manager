@@ -52,8 +52,26 @@ export function requireMutatingEnabled() {
   }
 }
 
+export function isMutatingEnabled() {
+  return process.env.E2E_RUN_MUTATING === "true"
+}
+
+export function readOptionalEnv(name: string) {
+  const value = process.env[name]?.trim()
+  return value || undefined
+}
+
 export function makeRunPrefix() {
   const fromEnv = process.env.E2E_RUN_PREFIX?.trim()
   if (fromEnv) return fromEnv
   return `E2E_RUN_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`
+}
+
+export function getAttendanceFixture() {
+  return {
+    employeeName: readOptionalEnv("E2E_ATTENDANCE_EMPLOYEE_NAME"),
+    employeeId: readOptionalEnv("E2E_ATTENDANCE_EMPLOYEE_ID"),
+    workOrderText: readOptionalEnv("E2E_ATTENDANCE_WORK_ORDER_TEXT"),
+    canUseFakeClock: process.env.E2E_ATTENDANCE_CAN_USE_FAKE_CLOCK === "true",
+  }
 }
