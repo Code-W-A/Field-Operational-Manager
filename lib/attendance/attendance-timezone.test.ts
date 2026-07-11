@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import {
   ATTENDANCE_TIME_ZONE,
   formatAttendanceTimeHHmm,
+  getAttendanceLocalDayBounds,
   getAttendanceLocalDateParts,
 } from "@/lib/attendance/attendance-timezone"
 import { buildAttendanceEntriesFromSessions } from "@/lib/attendance/sync-timesheet-entries"
@@ -30,6 +31,14 @@ test("getAttendanceLocalDateParts returns Bucharest calendar parts", () => {
     hour: 0,
     minute: 30,
   })
+})
+
+test("Bucharest day bounds retain 23-hour and 25-hour DST days", () => {
+  const spring = getAttendanceLocalDayBounds(Date.parse("2026-03-29T10:00:00.000Z"))
+  const autumn = getAttendanceLocalDayBounds(Date.parse("2026-10-25T10:00:00.000Z"))
+
+  assert.equal(spring.endMs - spring.startMs + 1, 23 * 60 * 60 * 1000)
+  assert.equal(autumn.endMs - autumn.startMs + 1, 25 * 60 * 60 * 1000)
 })
 
 test("buildAttendanceEntriesFromSessions formats pontaj and extra logs in Bucharest time", () => {
@@ -59,7 +68,11 @@ test("buildAttendanceEntriesFromSessions formats pontaj and extra logs in Buchar
   assert.equal(entries[0].project, "Pontaj")
   assert.equal(entries[0].start, "12:52")
   assert.equal(entries[0].end, "13:27")
+  assert.equal(entries[0].startTimestampMs, session.sessionStart)
+  assert.equal(entries[0].endTimestampMs, session.sessionEnd)
   assert.equal(entries[1].project, "Traseu către client")
   assert.equal(entries[1].start, "07:30")
   assert.equal(entries[1].end, "08:00")
+  assert.equal(entries[1].startTimestampMs, session.extraTimeLogs?.[0].startTime)
+  assert.equal(entries[1].endTimestampMs, session.extraTimeLogs?.[0].endTime)
 })

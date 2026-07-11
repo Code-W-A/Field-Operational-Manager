@@ -1,5 +1,12 @@
 import type { Employee, HrDefaults, HrHoliday, HrRequest, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
-import { calcEffectiveMinutes, isValidHMRange, overlapMinutes, parseHM, type HMRange } from "@/lib/hr/time-calc"
+import {
+  getConfiguredBreak,
+  getExpectedWorkMinutes,
+  getTimesheetCellMinutes,
+  overlapMinutes,
+  parseHM,
+  type HMRange,
+} from "@/lib/hr/time-calc"
 
 type TimesheetEntry = NonNullable<TimesheetCell["entries"]>[number]
 
@@ -76,10 +83,7 @@ function hoursFromInterval(startTime: string, endTime: string) {
 }
 
 function getDefaultBreak(employee?: Employee | null, defaults?: HrDefaults | null): HMRange | null {
-  const start = String(employee?.pauzaStart || defaults?.pauzaStart || "").trim()
-  const end = String(employee?.pauzaEnd || defaults?.pauzaEnd || "").trim()
-  const range = { start, end }
-  return isValidHMRange(range) ? range : null
+  return getConfiguredBreak(employee, defaults)
 }
 
 function getScheduleMinutes(employee?: Employee | null, defaults?: HrDefaults | null) {
@@ -94,6 +98,11 @@ function getScheduleMinutes(employee?: Employee | null, defaults?: HrDefaults | 
 function sumEntryMinutes(entries: TimesheetEntry[], predicate: (entry: TimesheetEntry) => boolean, window?: { start: number; end: number }) {
   return entries.reduce((sum, entry) => {
     if (!predicate(entry)) return sum
+    const absoluteStart = Number(entry.startTimestampMs)
+    const absoluteEnd = Number(entry.endTimestampMs)
+    if (!window && Number.isFinite(absoluteStart) && Number.isFinite(absoluteEnd) && absoluteEnd > absoluteStart) {
+      return sum + (absoluteEnd - absoluteStart) / 60_000
+    }
     const start = parseHM(entry.start)
     const end = parseHM(entry.end)
     if (start == null || end == null || end <= start) return sum
@@ -243,15 +252,7 @@ export function calculateEmployeeTimesheetSummary(params: {
     }
 
     if (cell.code === "WORK") {
-      const computedMinutes =
-        entries.length > 0
-          ? calcEffectiveMinutes({
-              entries,
-              breaks: cell.breaks ?? null,
-              defaultBreak,
-            })
-          : null
-      const hours = computedMinutes != null ? computedMinutes / 60 : Number(cell.hours ?? 8)
+      const hours = getTimesheetCellMinutes({ cell, defaultBreak }) / 60
       orePrezenta += hours
       oreLucrateEfectiv += hours
       if (!isWeekendOrHoliday && !isExcludedByApprovedRequest && hours > 0) {
@@ -297,8 +298,12 @@ export function calculateEmployeeTimesheetSummary(params: {
   }
 }
 
-export function calculateOvertimeBankFromSummary(summary: Pick<EmployeeTimesheetSummary, "orePrezenta">, workDays: number): OvertimeBankSummary {
-  const overtime = round2(Number(summary.orePrezenta || 0) - workDays * 8)
+export function calculateOvertimeBankFromSummary(
+  summary: Pick<EmployeeTimesheetSummary, "orePrezenta">,
+  workDays: number,
+  expectedWorkHoursPerDay = 8,
+): OvertimeBankSummary {
+  const overtime = round2(Number(summary.orePrezenta || 0) - workDays * expectedWorkHoursPerDay)
   return {
     overtime,
     display: `${overtime >= 0 ? "+" : ""}${overtime.toFixed(1)}h`,
@@ -320,5 +325,6 @@ export function calculateEmployeeOvertimeBank(params: {
   for (let day = 1; day <= dim; day++) {
     if (params.timesheet?.days?.[String(day)]?.code === "WORK") workDays++
   }
-  return calculateOvertimeBankFromSummary(summary, workDays)
+  const expectedWorkHoursPerDay = getExpectedWorkMinutes(params.employee, params.hrDefaults) / 60
+  return calculateOvertimeBankFromSummary(summary, workDays, expectedWorkHoursPerDay)
 }

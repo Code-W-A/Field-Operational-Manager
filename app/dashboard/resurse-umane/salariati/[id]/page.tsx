@@ -36,8 +36,9 @@ import {
   UserRound,
 } from "lucide-react"
 
-import type { Department, Employee, HrRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Department, Employee, HrDefaults, HrRequest, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
+import { getConfiguredBreak, getTimesheetCellMinutes } from "@/lib/hr/time-calc"
 import {
   createOrUpdateEmployee,
   daysInMonth,
@@ -47,6 +48,7 @@ import {
   subscribeHrRequestsForEmployee,
   subscribeTimesheetsForMonth,
   subscribeDepartments,
+  subscribeHrDefaults,
   deletePendingHrRequest,
 } from "@/lib/hr/storage"
 import type { TimesheetMonth } from "@/lib/hr/types"
@@ -59,8 +61,13 @@ import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 
 type AppUser = { uid: string; displayName: string | null; email: string | null; role?: string }
 
-function summarizeTimesheetFromTimesheets(monthKey: TimesheetMonthKey, employeeId: string, timesheets: TimesheetMonth[]) {
-  const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === employeeId)
+function summarizeTimesheetFromTimesheets(
+  monthKey: TimesheetMonthKey,
+  employee: Employee,
+  timesheets: TimesheetMonth[],
+  defaults: HrDefaults,
+) {
+  const ts = timesheets.find((t) => t.monthKey === monthKey && t.employeeId === employee.id)
   const dim = daysInMonth(monthKey)
   let workHours = 0
   let coDays = 0
@@ -70,7 +77,12 @@ function summarizeTimesheetFromTimesheets(monthKey: TimesheetMonthKey, employeeI
   for (let d = 1; d <= dim; d++) {
     const cell = ts?.days?.[String(d)]
     if (!cell) continue
-    if (cell.code === "WORK") workHours += Number(cell.hours ?? 0)
+    if (cell.code === "WORK") {
+      workHours += getTimesheetCellMinutes({
+        cell,
+        defaultBreak: getConfiguredBreak(employee, defaults),
+      }) / 60
+    }
     if (cell.code === "CO") coDays += 1
     if (cell.code === "SL") slDays += 1
     if (cell.code === "WE") weDays += 1
@@ -126,6 +138,7 @@ export default function HrEmployeeDetailsPage() {
   const [usersError, setUsersError] = useState<string | null>(null)
   const [leaveRequests, setLeaveRequests] = useState<HrRequest[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  const [hrDefaults, setHrDefaults] = useState<HrDefaults>({})
   
   const [activeTab, setActiveTab] = useState<"detalii" | "pontaj" | "concedii">("detalii")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -194,6 +207,8 @@ export default function HrEmployeeDetailsPage() {
     return () => unsub()
   }, [])
 
+  useEffect(() => subscribeHrDefaults({ onChange: setHrDefaults }), [])
+
   useEffect(() => {
     if (!employee) return
     const unsub = subscribeHrRequestsForEmployee({
@@ -220,8 +235,8 @@ export default function HrEmployeeDetailsPage() {
 
   const summary = useMemo(() => {
     if (!employee) return null
-    return summarizeTimesheetFromTimesheets(monthKey, employee.id, timesheets)
-  }, [employee, monthKey, timesheets])
+    return summarizeTimesheetFromTimesheets(monthKey, employee, timesheets, hrDefaults)
+  }, [employee, monthKey, timesheets, hrDefaults])
 
   const setUserUid = async (uid: string | undefined) => {
     if (!employee) return

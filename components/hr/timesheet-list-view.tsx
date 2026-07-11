@@ -5,7 +5,7 @@ import type { Employee, TimesheetCell, TimesheetMonthKey } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { calcEffectiveMinutes, type HMRange } from "@/lib/hr/time-calc"
+import { getTimesheetCellMinutes, type HMRange } from "@/lib/hr/time-calc"
 
 function weekdayMeta(monthKey: TimesheetMonthKey, day: number) {
   const [yStr, mStr] = monthKey.split("-")
@@ -84,17 +84,8 @@ export function TimesheetListView({
         for (let d = 1; d <= dim; d++) {
           const cell = getCell(emp.id, d)
           if (cell?.code === "WORK") {
-            const entries = cell?.entries ?? []
             const defaultBreak = getDefaultBreakForEmployee?.(emp.id) ?? null
-            const computedMinutes =
-              entries.length > 0
-                ? calcEffectiveMinutes({
-                    entries: entries as any,
-                    breaks: (cell?.breaks ?? null) as any,
-                    defaultBreak,
-                  })
-                : null
-            totalHours += computedMinutes != null ? computedMinutes / 60 : Number(cell.hours ?? 8)
+            totalHours += getTimesheetCellMinutes({ cell, defaultBreak }) / 60
             workDays++
           }
         }

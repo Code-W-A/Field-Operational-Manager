@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions"
 import { initializeApp } from "firebase-admin/app"
-import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore"
+import { FieldValue, getFirestore, Timestamp, type DocumentReference } from "firebase-admin/firestore"
 import * as tls from "node:tls"
 import * as net from "node:net"
 
@@ -2208,9 +2208,7 @@ function toMillisSafeAttendance(value: any): number | null {
 }
 
 function endOfLocalDayMsAttendance(referenceMs: number): number {
-  const d = new Date(referenceMs)
-  d.setHours(23, 59, 59, 999)
-  return d.getTime()
+  return attendanceLocalDayMetaA(referenceMs).endMs
 }
 
 /**
@@ -2244,10 +2242,9 @@ function parseHHmmAttendance(value: string | undefined, fallback: { h: number; m
 }
 
 function timeOnSameDayMsAttendance(ts: number, hhmm: string | undefined, fallback: { h: number; m: number } = { h: 16, m: 30 }) {
-  const d = new Date(ts)
   const { h, m } = parseHHmmAttendance(hhmm, fallback)
-  d.setHours(h, m, 0, 0)
-  return d.getTime()
+  const parts = getAttendanceLocalPartsA(ts)
+  return zonedDateTimeToUtcMsA(parts.year, parts.month, parts.day, h, m, 0, 0)
 }
 
 function scheduleGraceThresholdMsAttendance(nowMs: number, programLucruEnd: string | undefined) {
@@ -2303,6 +2300,34 @@ function buildAutoCheckoutPatch(data: any, endMs: number, opts: { reason: string
   }
 }
 
+async function completeAttendanceSessionAuto(
+  sessionRef: DocumentReference,
+  requestedEndMs: number,
+  opts: { reason: string; forceEndOfDay?: boolean },
+): Promise<boolean> {
+  return db.runTransaction(async (transaction) => {
+    const sessionSnap = await transaction.get(sessionRef)
+    if (!sessionSnap.exists) return false
+    const data = sessionSnap.data() as any
+    if (String(data?.status || "") !== "active") return false
+
+    const userId = String(data?.userId || "")
+    const lockRef = userId ? db.collection("attendanceActiveSessions").doc(userId) : null
+    const lockSnap = lockRef ? await transaction.get(lockRef) : null
+    const startMs = toMillisSafeAttendance(data?.sessionStart)
+    const programEnd = data?.programLucruEnd ? String(data.programLucruEnd) : DEFAULT_PROGRAM_END_ATTENDANCE
+    const billedEnd = startMs
+      ? clampSessionEndMsAttendance(startMs, requestedEndMs, programEnd)
+      : requestedEndMs
+
+    transaction.update(sessionRef, buildAutoCheckoutPatch(data, billedEnd, opts))
+    if (lockRef && lockSnap?.exists && String((lockSnap.data() as any)?.sessionId || "") === sessionRef.id) {
+      transaction.delete(lockRef)
+    }
+    return true
+  })
+}
+
 /**
  * Auto check-out at program end + grace (default 30 min), if no ticket „În lucru”.
  */
@@ -2338,8 +2363,9 @@ export const autoCheckOutScheduleGrace = functions
           continue
         }
 
-        await d.ref.update(buildAutoCheckoutPatch(data, nowMs, { reason: "schedule_grace" }))
-        totalStopped += 1
+        if (await completeAttendanceSessionAuto(d.ref, nowMs, { reason: "schedule_grace" })) {
+          totalStopped += 1
+        }
       }
 
       console.log("autoCheckOutScheduleGrace completed", { totalStopped })
@@ -2374,31 +2400,10 @@ export const autoStopAttendanceSessions = functions
         return null
       }
 
-      const docs = snap.docs
-      for (let i = 0; i < docs.length; i += 450) {
-        const chunk = docs.slice(i, i + 450)
-        const batch = db.batch()
-
-        for (const d of chunk) {
-          const data = d.data() as any
-          if (String(data?.status || "") !== "active") continue
-
-          // Facturăm pe ziua de start a sesiunii (nu „acum”), ca să nu acumulăm zile
-          // pentru sesiunile uitate (ex. încă active din 16 sau 19). Stop uitat => ora de final program.
-          const startMs = toMillisSafeAttendance(data?.sessionStart)
-          const programEnd = data?.programLucruEnd ? String(data.programLucruEnd) : DEFAULT_PROGRAM_END_ATTENDANCE
-          const billedEnd = startMs
-            ? clampSessionEndMsAttendance(startMs, nowMs, programEnd)
-            : nowMs
-
-          batch.update(
-            d.ref,
-            buildAutoCheckoutPatch(data, billedEnd, { reason: "eod_force", forceEndOfDay: true }),
-          )
+      for (const attendanceDoc of snap.docs) {
+        if (await completeAttendanceSessionAuto(attendanceDoc.ref, nowMs, { reason: "eod_force", forceEndOfDay: true })) {
           totalStopped += 1
         }
-
-        await batch.commit()
       }
 
       console.log("autoStopAttendanceSessions completed", { totalStopped })
@@ -2417,7 +2422,7 @@ export const autoStopAttendanceSessions = functions
  * NOTĂ: oglindește `syncAttendanceUserDayToTimesheet` din lib/attendance/sync-timesheet.ts.
  * Orice schimbare în algoritmul de calcul trebuie reflectată în ambele locuri.
  */
-type HMRangeA = { start: string; end: string }
+type HMRangeA = { start: string; end: string; startTimestampMs?: number; endTimestampMs?: number }
 
 function parseHMminutesA(value: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim())
@@ -2459,14 +2464,49 @@ function normalizeRangesA(ranges: HMRangeA[]): Array<{ start: number; end: numbe
   return merged
 }
 
+function normalizeAbsoluteRangesA(ranges: HMRangeA[]): Array<{ start: number; end: number }> {
+  const items = ranges
+    .map((range) => {
+      const start = Number(range.startTimestampMs)
+      const end = Number(range.endTimestampMs)
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null
+      return { start, end }
+    })
+    .filter(Boolean) as Array<{ start: number; end: number }>
+  if (items.length <= 1) return items
+  items.sort((a, b) => a.start - b.start || a.end - b.end)
+  const merged: Array<{ start: number; end: number }> = []
+  for (const item of items) {
+    const last = merged[merged.length - 1]
+    if (!last || item.start >= last.end) {
+      merged.push({ ...item })
+      continue
+    }
+    last.end = Math.max(last.end, item.end)
+  }
+  return merged
+}
+
+function sumRangeMinutesA(ranges: Array<{ start: number; end: number }>, divisor = 1): number {
+  return ranges.reduce((sum, range) => sum + (range.end - range.start) / divisor, 0)
+}
+
 function overlapMinutesA(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
   return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart))
 }
 
 function calcEffectiveMinutesA(params: { entries: HMRangeA[]; breaks?: HMRangeA[] | null; defaultBreak?: HMRangeA | null }): number {
   const entryRanges = normalizeRangesA(params.entries || [])
-  if (!entryRanges.length) return 0
-  const entryMinutes = entryRanges.reduce((sum, r) => sum + (r.end - r.start), 0)
+  const absoluteEntryRanges = normalizeAbsoluteRangesA(params.entries || [])
+  if (!entryRanges.length && !absoluteEntryRanges.length) return 0
+  const timestampedEntries = (params.entries || []).filter((entry) => {
+    const start = Number(entry.startTimestampMs)
+    const end = Number(entry.endTimestampMs)
+    return Number.isFinite(start) && Number.isFinite(end) && end > start
+  })
+  const entryMinutes =
+    sumRangeMinutesA(entryRanges) +
+    (sumRangeMinutesA(absoluteEntryRanges, 60_000) - sumRangeMinutesA(normalizeRangesA(timestampedEntries)))
   const manualBreaks = normalizeRangesA(Array.isArray(params.breaks) ? params.breaks : [])
   const breaksToUse =
     manualBreaks.length > 0
@@ -2484,41 +2524,34 @@ function calcEffectiveMinutesA(params: { entries: HMRangeA[]; breaks?: HMRangeA[
   return Math.max(0, entryMinutes - breakOverlap)
 }
 
-function normalizeNonOverlappingEntriesA(entries: any[]): any[] {
+function normalizeComputedEntriesA(entries: any[]): any[] {
   const withRanges = entries
     .map((e) => {
       const s = parseHMminutesA(e.start)
       const en = parseHMminutesA(e.end)
-      if (s == null || en == null || s >= en) return null
-      return { entry: e, start: s, end: en }
+      const absoluteStart = Number(e.startTimestampMs)
+      const absoluteEnd = Number(e.endTimestampMs)
+      const hasAbsoluteRange = Number.isFinite(absoluteStart) && Number.isFinite(absoluteEnd) && absoluteEnd > absoluteStart
+      if ((s == null || en == null || s >= en) && !hasAbsoluteRange) return null
+      return {
+        entry: e,
+        start: hasAbsoluteRange ? absoluteStart : (s as number) * 60_000,
+        end: hasAbsoluteRange ? absoluteEnd : (en as number) * 60_000,
+      }
     })
     .filter(Boolean) as Array<{ entry: any; start: number; end: number }>
   if (withRanges.length <= 1) return withRanges.map((r) => r.entry)
   withRanges.sort((a, b) => a.start - b.start || a.end - b.end)
-  const result: typeof withRanges = []
-  for (const item of withRanges) {
-    const last = result[result.length - 1]
-    if (!last || item.start >= last.end) result.push(item)
-  }
-  return result.map((r) => r.entry)
+  return withRanges.map((r) => r.entry)
 }
 
-function filterOverlappingEntriesA(existing: any[], incoming: any[]): any[] {
-  const existingRanges = existing
-    .map((e) => {
-      const s = parseHMminutesA(e.start)
-      const en = parseHMminutesA(e.end)
-      if (s == null || en == null || s >= en) return null
-      return { start: s, end: en }
-    })
-    .filter(Boolean) as Array<{ start: number; end: number }>
-  if (!existingRanges.length) return incoming
-  return incoming.filter((e) => {
-    const s = parseHMminutesA(e.start)
-    const en = parseHMminutesA(e.end)
-    if (s == null || en == null || s >= en) return false
-    return !existingRanges.some((ex) => s < ex.end && ex.start < en)
-  })
+function isValidTimesheetEntryA(entry: any): boolean {
+  const start = parseHMminutesA(entry?.start)
+  const end = parseHMminutesA(entry?.end)
+  const absoluteStart = Number(entry?.startTimestampMs)
+  const absoluteEnd = Number(entry?.endTimestampMs)
+  return (start != null && end != null && start < end) ||
+    (Number.isFinite(absoluteStart) && Number.isFinite(absoluteEnd) && absoluteEnd > absoluteStart)
 }
 
 const attendanceTimeFormatterA = new Intl.DateTimeFormat("ro-RO", {
@@ -2563,14 +2596,14 @@ function zonedDateTimeToUtcMsA(
   second: number,
   millisecond: number,
 ) {
-  const wantedUtc = Date.UTC(year, month - 1, day, hour, minute, second, millisecond)
+  const wantedUtc = Date.UTC(year, month - 1, day, hour, minute, second, 0)
   let guess = wantedUtc
   for (let i = 0; i < 3; i += 1) {
     const parts = getAttendanceLocalPartsA(guess)
-    const representedUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, millisecond)
+    const representedUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, 0)
     guess += wantedUtc - representedUtc
   }
-  return guess
+  return guess + millisecond
 }
 
 function attendanceLocalDayMetaA(referenceMs: number) {
@@ -2709,6 +2742,8 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
     computedEntries.push({
       start: formatTimeHMA(s.sessionStart),
       end: formatTimeHMA(s.sessionEnd),
+      startTimestampMs: s.sessionStart,
+      endTimestampMs: s.sessionEnd,
       methodStart: `Play (${s.mode})`,
       methodEnd: `Stop (${s.checkOutMode || s.mode})`,
       project: "Pontaj",
@@ -2722,6 +2757,8 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
       computedEntries.push({
         start: formatTimeHMA(log.startTime),
         end: formatTimeHMA(log.endTime),
+        startTimestampMs: log.startTime,
+        endTimestampMs: log.endTime,
         methodStart: "Extra",
         methodEnd: "Extra",
         project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",
@@ -2730,12 +2767,14 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
   }
 
   const pontajProjects = new Set(["Pontaj", "Traseu către client", "Traseu către casă"])
-  const preservedEntries = (existingDay?.entries ?? []).filter((e: any) => !pontajProjects.has(String(e.project ?? "")))
-  const normalizedComputed = normalizeNonOverlappingEntriesA(computedEntries)
-  const safeComputed = filterOverlappingEntriesA(preservedEntries, normalizedComputed)
+  const preservedEntries = (existingDay?.entries ?? []).filter((e: any) => {
+    return !pontajProjects.has(String(e.project ?? "")) && isValidTimesheetEntryA(e)
+  })
+  const normalizedComputed = normalizeComputedEntriesA(computedEntries)
+  const finalEntries = [...preservedEntries, ...normalizedComputed]
   const defaultBreak = await getEmployeeDefaultBreakA(employeeId)
   const totalMinutesEffective = calcEffectiveMinutesA({
-    entries: safeComputed as any,
+    entries: finalEntries as any,
     breaks: (existingDay?.breaks ?? null) as any,
     defaultBreak,
   })
@@ -2744,7 +2783,7 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
   const cell: any = {
     code,
     hours: totalHours,
-    entries: [...preservedEntries, ...safeComputed],
+    entries: finalEntries,
     ...(existingDay?.breaks ? { breaks: existingDay.breaks } : {}),
   }
 

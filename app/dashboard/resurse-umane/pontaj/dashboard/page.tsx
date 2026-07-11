@@ -14,8 +14,16 @@ import { CalendarIcon, MapPin, Clock, TrendingUp, Users, Loader2 } from "lucide-
 import { cn } from "@/lib/utils"
 import { formatRomanianDate } from "@/lib/utils/date-utils"
 import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
+import { buildAttendanceEntriesFromSessions } from "@/lib/attendance/sync-timesheet-entries"
+import { calcEffectiveMinutes, getConfiguredBreak } from "@/lib/hr/time-calc"
+import type { HrDefaults } from "@/lib/hr/types"
 
-type EmployeeInfo = { fullName: string; title?: string }
+type EmployeeInfo = {
+  fullName: string
+  title?: string
+  pauzaStart?: string
+  pauzaEnd?: string
+}
 
 function buildEmployeeInfo(data: any): EmployeeInfo {
   const prenume = String(data?.prenume || "").trim()
@@ -23,7 +31,12 @@ function buildEmployeeInfo(data: any): EmployeeInfo {
   const legacy = String(data?.fullName || "").trim()
   const fullName = `${prenume} ${nume}`.trim() || legacy
   const title = data?.title ? String(data.title) : undefined
-  return { fullName: fullName || "N/A", title }
+  return {
+    fullName: fullName || "N/A",
+    title,
+    pauzaStart: data?.pauzaStart ? String(data.pauzaStart) : undefined,
+    pauzaEnd: data?.pauzaEnd ? String(data.pauzaEnd) : undefined,
+  }
 }
 
 export default function AttendanceDashboardPage() {
@@ -79,6 +92,9 @@ export default function AttendanceDashboardPage() {
       // Resolve technician details dynamically from HR employees (so edits show up immediately).
       // Primary: attendance.employeeId -> hrEmployees/{employeeId}
       // Fallback: attendance.userId -> hrEmployees where userUid == userId
+      let resolvedById: Record<string, EmployeeInfo> = {}
+      let resolvedByUserUid: Record<string, EmployeeInfo> = {}
+      let hrDefaults: HrDefaults = {}
       try {
         const ids = Array.from(
           new Set(
@@ -109,6 +125,7 @@ export default function AttendanceDashboardPage() {
             if (!p) continue
             next[p[0]] = p[1]
           }
+          resolvedById = next
           setEmployeeInfoById(next)
         } else {
           setEmployeeInfoById({})
@@ -128,20 +145,39 @@ export default function AttendanceDashboardPage() {
             if (!p) continue
             next[p[0]] = p[1]
           }
+          resolvedByUserUid = next
           setEmployeeInfoByUserUid(next)
         } else {
           setEmployeeInfoByUserUid({})
         }
+
+        const defaultsSnap = await getDoc(doc(db, "hrSettings", "defaults"))
+        if (defaultsSnap.exists()) hrDefaults = defaultsSnap.data() as HrDefaults
       } catch (e) {
         console.warn("Failed to resolve HR employee display data:", e)
       }
 
       // Calculate stats
-      const totalHours = loadedSessions.reduce((sum, s) => {
-        if (!s.sessionEnd) return sum
-        const hours = (s.sessionEnd - s.sessionStart) / (1000 * 60 * 60)
-        return sum + hours
-      }, 0)
+      const sessionsByEmployee = new Map<string, AttendanceSession[]>()
+      for (const session of loadedSessions) {
+        if (!session.sessionEnd) continue
+        const employeeId = String((session as any).employeeId || "")
+        const key = employeeId || `uid:${session.userId}`
+        const group = sessionsByEmployee.get(key) ?? []
+        group.push(session)
+        sessionsByEmployee.set(key, group)
+      }
+
+      let totalEffectiveMinutes = 0
+      for (const [key, employeeSessions] of sessionsByEmployee) {
+        const employeeInfo = key.startsWith("uid:")
+          ? resolvedByUserUid[key.slice(4)]
+          : resolvedById[key]
+        totalEffectiveMinutes += calcEffectiveMinutes({
+          entries: buildAttendanceEntriesFromSessions(employeeSessions),
+          defaultBreak: getConfiguredBreak(employeeInfo, hrDefaults),
+        })
+      }
 
       const totalExtraMinutes = loadedSessions.reduce((sum, s) => {
         if (!s.extraTimeLogs) return sum
@@ -153,7 +189,7 @@ export default function AttendanceDashboardPage() {
       setStats({
         totalSessions: loadedSessions.length,
         activeNow,
-        totalHours: Math.round(totalHours * 10) / 10,
+        totalHours: Math.round((totalEffectiveMinutes / 60) * 10) / 10,
         totalExtraHours: Math.round((totalExtraMinutes / 60) * 10) / 10,
       })
     } catch (error) {

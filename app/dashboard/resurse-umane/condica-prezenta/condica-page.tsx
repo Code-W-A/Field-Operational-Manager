@@ -56,7 +56,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
-import { minutesToHM, type HMRange, isValidHMRange } from "@/lib/hr/time-calc"
+import {
+  getConfiguredBreak,
+  getExpectedWorkMinutes,
+  getTimesheetCellMinutes,
+  minutesToHM,
+  type HMRange,
+  isValidHMRange,
+} from "@/lib/hr/time-calc"
 import { calculateEmployeeOvertimeBank, calculateEmployeeTimesheetSummary } from "@/lib/hr/timesheet-summary"
 
 function InfoTooltipButton({
@@ -215,6 +222,7 @@ function calculateMonthKPIs(
   monthKey: TimesheetMonthKey,
   employees: Employee[],
   timesheets: TimesheetMonth[],
+  hrDefaults: HrDefaults,
   activeMetaByEmployee?: Record<string, { day: number; monthKey: TimesheetMonthKey }>
 ) {
   const dim = daysInMonth(monthKey)
@@ -223,7 +231,7 @@ function calculateMonthKPIs(
   const isCurrentMonth = monthKey === currentMonth
   
   let totalHoursMonth = 0
-  let totalWorkDays = 0
+  let expectedHours = 0
   let employeesOnLeave = 0
   
   for (const emp of employees) {
@@ -234,8 +242,11 @@ function calculateMonthKPIs(
       if (!cell) continue
       
       if (cell.code === "WORK") {
-        totalHoursMonth += Number(cell.hours ?? 8)
-        totalWorkDays++
+        totalHoursMonth += getTimesheetCellMinutes({
+          cell,
+          defaultBreak: getConfiguredBreak(emp, hrDefaults),
+        }) / 60
+        expectedHours += getExpectedWorkMinutes(emp, hrDefaults) / 60
       } else if (cell.code === "CO") {
         if (isCurrentMonth && d === today) {
           employeesOnLeave++
@@ -244,7 +255,6 @@ function calculateMonthKPIs(
     }
   }
   
-  const expectedHours = totalWorkDays * 8
   const diffHours = totalHoursMonth - expectedHours
 
   const activeEmployeesToday = (() => {
@@ -789,8 +799,8 @@ export default function CondicaPrezentaPage() {
   }
 
   const kpis = useMemo(
-    () => calculateMonthKPIs(monthKey, visibleEmployees, timesheets, activeMetaByEmployee),
-    [monthKey, visibleEmployees, timesheets, activeMetaByEmployee]
+    () => calculateMonthKPIs(monthKey, visibleEmployees, timesheets, hrDefaults, activeMetaByEmployee),
+    [monthKey, visibleEmployees, timesheets, hrDefaults, activeMetaByEmployee]
   )
 
   const holidayLabelsByDay = useMemo(() => {

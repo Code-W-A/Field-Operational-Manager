@@ -10,6 +10,9 @@ export type TimesheetCell = {
   entries?: Array<{
     start: string // "HH:mm"
     end: string // "HH:mm"
+    /** Absolute instants retained for attendance-generated entries (DST-safe duration). */
+    startTimestampMs?: number
+    endTimestampMs?: number
     methodStart?: string
     methodEnd?: string
     project?: string
@@ -200,4 +203,3 @@ export type HrHoliday = {
   /** Optional label shown in tooltips/UI */
   label?: string
 }
-

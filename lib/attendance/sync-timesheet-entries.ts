@@ -9,6 +9,8 @@ export function buildAttendanceEntriesFromSessions(sessions: AttendanceSession[]
     entries.push({
       start: formatAttendanceTimeHHmm(session.sessionStart),
       end: formatAttendanceTimeHHmm(session.sessionEnd),
+      startTimestampMs: session.sessionStart,
+      endTimestampMs: session.sessionEnd,
       methodStart: `Play (${session.mode})`,
       methodEnd: `Stop (${session.checkOutMode || session.mode})`,
       project: "Pontaj",
@@ -23,6 +25,8 @@ export function buildAttendanceEntriesFromSessions(sessions: AttendanceSession[]
       entries.push({
         start: formatAttendanceTimeHHmm(log.startTime),
         end: formatAttendanceTimeHHmm(log.endTime),
+        startTimestampMs: log.startTime,
+        endTimestampMs: log.endTime,
         methodStart: "Extra",
         methodEnd: "Extra",
         project: log.type === "to_client" ? "Traseu către client" : "Traseu către casă",

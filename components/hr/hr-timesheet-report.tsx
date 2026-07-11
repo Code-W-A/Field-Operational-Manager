@@ -7,12 +7,14 @@ import { TimesheetCharts } from "@/components/hr/timesheet-charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
-import type { Employee, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import type { Employee, HrDefaults, TimesheetMonth, TimesheetMonthKey } from "@/lib/hr/types"
+import { getConfiguredBreak, getTimesheetCellMinutes } from "@/lib/hr/time-calc"
 import {
   daysInMonth,
   getCurrentMonthKey,
   seedHrIfEmpty,
   subscribeEmployees,
+  subscribeHrDefaults,
   subscribeTimesheetsForMonth,
 } from "@/lib/hr/storage"
 
@@ -20,7 +22,7 @@ function fromMonthInputValue(value: string): TimesheetMonthKey {
   return value as TimesheetMonthKey
 }
 
-function calcKpis(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]) {
+function calcKpis(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[], defaults: HrDefaults) {
   const dim = daysInMonth(monthKey)
   const byEmployee = new Map<string, TimesheetMonth>()
 
@@ -40,7 +42,12 @@ function calcKpis(monthKey: TimesheetMonthKey, employees: Employee[], timesheets
     for (let day = 1; day <= dim; day++) {
       const cell = timesheet?.days?.[String(day)]
       if (!cell) continue
-      if (cell.code === "WORK") totalHours += Number(cell.hours ?? 0)
+      if (cell.code === "WORK") {
+        totalHours += getTimesheetCellMinutes({
+          cell,
+          defaultBreak: getConfiguredBreak(employee, defaults),
+        }) / 60
+      }
       if (cell.code === "CO") totalCO++
       if (cell.code === "SL") totalSL++
       if (cell.code === "WE") totalWE++
@@ -64,6 +71,7 @@ export function HrTimesheetReport() {
   const [monthKey, setMonthKey] = useState<TimesheetMonthKey>(initialMonthKey)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
+  const [hrDefaults, setHrDefaults] = useState<HrDefaults>({})
 
   useEffect(() => {
     const nextMonthKey = (searchParams.get("month") as TimesheetMonthKey) || getCurrentMonthKey()
@@ -97,7 +105,12 @@ export function HrTimesheetReport() {
     return () => unsub?.()
   }, [monthKey])
 
-  const kpis = useMemo(() => calcKpis(monthKey, employees, timesheets), [monthKey, employees, timesheets])
+  useEffect(() => subscribeHrDefaults({ onChange: setHrDefaults }), [])
+
+  const kpis = useMemo(
+    () => calcKpis(monthKey, employees, timesheets, hrDefaults),
+    [monthKey, employees, timesheets, hrDefaults],
+  )
 
   return (
     <div className="space-y-4">

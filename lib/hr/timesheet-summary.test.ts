@@ -139,6 +139,25 @@ test("timesheet summary excludes tickets for approved request days even when the
   assert.equal(summary.totalTimpIN, 1)
 })
 
+test("overtime bank uses the employee schedule instead of a fixed eight-hour norm", () => {
+  const shortScheduleEmployee: Employee = {
+    ...employee,
+    programLucruStart: "09:00",
+    programLucruEnd: "15:30",
+    pauzaStart: "12:00",
+    pauzaEnd: "12:30",
+  }
+  const bank = calculateEmployeeOvertimeBank({
+    employeeId: employee.id,
+    monthKey: "2026-03",
+    timesheet: timesheet({ "2": work({ hours: 6 }) }),
+    employee: shortScheduleEmployee,
+  })
+
+  assert.equal(bank.overtime, 0)
+  assert.equal(bank.display, "+0.0h")
+})
+
 test("timesheet summary counts approved CO and DEL ranges only for the selected month", () => {
   const requests: HrRequest[] = [
     request({

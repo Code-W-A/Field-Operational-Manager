@@ -179,7 +179,7 @@ test("manual attendance sync removes invalid computed entries and invalid preser
   assert.equal(result.cell.hours, 9.5)
 })
 
-test("manual attendance sync normalizes overlapping computed pontaj entries deterministically", () => {
+test("manual attendance sync preserves overlapping computed evidence and unions hours", () => {
   const result = buildAttendanceTimesheetCell({
     computedEntries: [
       attendanceEntry("08:00", "12:00", "att-1"),
@@ -189,8 +189,8 @@ test("manual attendance sync normalizes overlapping computed pontaj entries dete
   })
 
   assert.ok(result.cell)
-  assert.deepEqual(result.cell.entries?.map((entry) => entry.attendanceSessionId), ["att-1", "att-3"])
-  assert.equal(result.cell.hours, 5)
+  assert.deepEqual(result.cell.entries?.map((entry) => entry.attendanceSessionId), ["att-1", "att-2", "att-3"])
+  assert.equal(result.cell.hours, 9.5)
 })
 
 test("manual attendance sync keeps existing whole-day source metadata off regenerated WORK cell", () => {

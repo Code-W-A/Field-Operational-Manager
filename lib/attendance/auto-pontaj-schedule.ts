@@ -1,3 +1,5 @@
+import { attendanceTimeOnLocalDay, getAttendanceLocalDayBounds } from "@/lib/attendance/attendance-timezone"
+
 /**
  * Kill-switch pentru depontarea automată AGRESIVĂ din timpul zilei
  * (program + grace și raport semnat). Rămâne `false` până la fix-ul cauzei.
@@ -28,11 +30,7 @@ function parseHHmm(value: string | undefined, fallback: { h: number; m: number }
 
 /** Local calendar day bounds for a reference timestamp. */
 export function localDayBounds(referenceMs: number = Date.now()) {
-  const start = new Date(referenceMs)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(referenceMs)
-  end.setHours(23, 59, 59, 999)
-  return { startMs: start.getTime(), endMs: end.getTime() }
+  return getAttendanceLocalDayBounds(referenceMs)
 }
 
 export function timeOnSameDayMs(
@@ -40,10 +38,8 @@ export function timeOnSameDayMs(
   hhmm: string | undefined,
   fallback: { h: number; m: number } = { h: 16, m: 30 },
 ) {
-  const d = new Date(ts)
   const { h, m } = parseHHmm(hhmm, fallback)
-  d.setHours(h, m, 0, 0)
-  return d.getTime()
+  return attendanceTimeOnLocalDay(ts, h, m)
 }
 
 /**
@@ -68,9 +64,7 @@ export function isAtOrPastScheduleGrace(
 
 /** Sfârșitul zilei locale (23:59:59.999) pentru un timestamp de referință. */
 export function endOfLocalDayMs(referenceMs: number): number {
-  const d = new Date(referenceMs)
-  d.setHours(23, 59, 59, 999)
-  return d.getTime()
+  return getAttendanceLocalDayBounds(referenceMs).endMs
 }
 
 /**

@@ -6,7 +6,7 @@ import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import type React from "react"
 import { useState, useEffect } from "react"
-import { calcEffectiveMinutes, type HMRange } from "@/lib/hr/time-calc"
+import { getTimesheetCellMinutes, type HMRange } from "@/lib/hr/time-calc"
 
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
@@ -56,15 +56,7 @@ function cellLabel(
   // Normal mode: show total time as HH:mm
   const shouldShowTime = code === "WORK" || code === "DEL" || code === "WE" || code === "SL"
   if (shouldShowTime) {
-    const computedMinutes =
-      entries.length > 0
-        ? calcEffectiveMinutes({
-            entries: entries as any,
-            breaks: (cell?.breaks ?? null) as any,
-            defaultBreak,
-          })
-        : null
-    const totalMinutes = computedMinutes != null ? computedMinutes : Math.round(Number(cell?.hours ?? 0) * 60)
+    const totalMinutes = getTimesheetCellMinutes({ cell, defaultBreak })
     const hh = Math.floor(totalMinutes / 60)
     const mm = totalMinutes % 60
     const hasTime = totalMinutes > 0 || entries.length > 0
@@ -346,4 +338,3 @@ export function TimesheetGrid({
     </div>
   )
 }
-

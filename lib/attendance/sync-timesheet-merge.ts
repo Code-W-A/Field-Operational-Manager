@@ -18,33 +18,36 @@ function isNonWorkHrCode(code: TimesheetCode | undefined) {
   return code === "CO" || code === "CFP" || code === "CM" || code === "IN"
 }
 
-function normalizeNonOverlappingEntries(entries: NonNullable<TimesheetCell["entries"]>) {
+function normalizeComputedEntries(entries: NonNullable<TimesheetCell["entries"]>) {
   const withRanges = entries
     .map((entry) => {
       const start = parseHM(entry.start)
       const end = parseHM(entry.end)
-      if (start == null || end == null || start >= end) return null
-      return { entry, start, end }
+      const absoluteStart = Number(entry.startTimestampMs)
+      const absoluteEnd = Number(entry.endTimestampMs)
+      const hasAbsoluteRange = Number.isFinite(absoluteStart) && Number.isFinite(absoluteEnd) && absoluteEnd > absoluteStart
+      if ((start == null || end == null || start >= end) && !hasAbsoluteRange) return null
+      return {
+        entry,
+        start: hasAbsoluteRange ? absoluteStart : (start as number) * 60_000,
+        end: hasAbsoluteRange ? absoluteEnd : (end as number) * 60_000,
+      }
     })
     .filter(Boolean) as Array<{ entry: TimesheetEntry; start: number; end: number }>
 
   if (withRanges.length <= 1) return withRanges.map((range) => range.entry)
 
   withRanges.sort((a, b) => a.start - b.start || a.end - b.end)
-  const result: typeof withRanges = []
-  for (const item of withRanges) {
-    const last = result[result.length - 1]
-    if (!last || item.start >= last.end) {
-      result.push(item)
-    }
-  }
-  return result.map((range) => range.entry)
+  return withRanges.map((range) => range.entry)
 }
 
 function isValidEntry(entry: TimesheetEntry) {
   const start = parseHM(entry.start)
   const end = parseHM(entry.end)
-  return start != null && end != null && start < end
+  const absoluteStart = Number(entry.startTimestampMs)
+  const absoluteEnd = Number(entry.endTimestampMs)
+  return (start != null && end != null && start < end) ||
+    (Number.isFinite(absoluteStart) && Number.isFinite(absoluteEnd) && absoluteEnd > absoluteStart)
 }
 
 const PONTAJ_PROJECTS = new Set<string>(["Pontaj", "Traseu către client", "Traseu către casă"])
@@ -66,7 +69,7 @@ export function buildAttendanceTimesheetCell(params: {
   const preservedEntries = (params.existingDay?.entries ?? []).filter((entry) => {
     return !isPontajGeneratedEntry(entry) && isValidEntry(entry)
   })
-  const normalizedComputed = normalizeNonOverlappingEntries(params.computedEntries)
+  const normalizedComputed = normalizeComputedEntries(params.computedEntries)
   const finalEntries = [...preservedEntries, ...normalizedComputed]
   const existingBreaks = params.existingDay?.breaks
   const totalMinutesEffective = calcEffectiveMinutes({

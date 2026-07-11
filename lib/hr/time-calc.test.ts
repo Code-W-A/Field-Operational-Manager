@@ -1,7 +1,13 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { calcEffectiveMinutes, minutesToHM, parseHM } from "@/lib/hr/time-calc"
+import {
+  calcEffectiveMinutes,
+  getExpectedWorkMinutes,
+  getTimesheetCellMinutes,
+  minutesToHM,
+  parseHM,
+} from "@/lib/hr/time-calc"
 
 test("calcEffectiveMinutes merges overlapping work intervals before subtracting breaks", () => {
   const minutes = calcEffectiveMinutes({
@@ -53,4 +59,40 @@ test("parseHM and minutesToHM reject invalid values and clamp formatting", () =>
   assert.equal(parseHM("8:05"), 485)
   assert.equal(minutesToHM(-10), "00:00")
   assert.equal(minutesToHM(75), "01:15")
+})
+
+test("calcEffectiveMinutes uses absolute attendance instants across the DST spring gap", () => {
+  const minutes = calcEffectiveMinutes({
+    entries: [{
+      start: "02:30",
+      end: "04:30",
+      startTimestampMs: Date.parse("2026-03-29T00:30:00.000Z"),
+      endTimestampMs: Date.parse("2026-03-29T01:30:00.000Z"),
+    }],
+  })
+  assert.equal(minutes, 60)
+})
+
+test("calcEffectiveMinutes uses absolute attendance instants across the DST autumn fold", () => {
+  const minutes = calcEffectiveMinutes({
+    entries: [{
+      start: "03:30",
+      end: "03:30",
+      startTimestampMs: Date.parse("2026-10-25T00:30:00.000Z"),
+      endTimestampMs: Date.parse("2026-10-25T01:30:00.000Z"),
+    }],
+  })
+  assert.equal(minutes, 60)
+})
+
+test("getTimesheetCellMinutes treats a cell without entries or hours as zero", () => {
+  assert.equal(getTimesheetCellMinutes({ cell: {} }), 0)
+  assert.equal(getTimesheetCellMinutes({ cell: { hours: 6.5 } }), 390)
+})
+
+test("getExpectedWorkMinutes respects employee schedule and configured break", () => {
+  assert.equal(getExpectedWorkMinutes(
+    { programLucruStart: "09:00", programLucruEnd: "15:00", pauzaStart: "12:00", pauzaEnd: "12:30" },
+    null,
+  ), 330)
 })

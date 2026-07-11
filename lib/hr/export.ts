@@ -1,6 +1,7 @@
 import type { Employee, HrDefaults, HrHoliday, HrRequest, TimesheetMonth, TimesheetMonthKey } from "./types"
 import { getEmployeeFullName } from "./types"
 import { calculateEmployeeOvertimeBank, calculateEmployeeTimesheetSummary, daysInMonthFromKey } from "@/lib/hr/timesheet-summary"
+import { getConfiguredBreak, getTimesheetCellMinutes } from "@/lib/hr/time-calc"
 
 export function exportTimesheetsToCSV(
   monthKey: TimesheetMonthKey,
@@ -65,7 +66,10 @@ export function formatTimesheetsCSV(
       let val = "-"
       
       if (cell?.code === "WORK") {
-        val = String(cell.hours ?? 8)
+        val = String(getTimesheetCellMinutes({
+          cell,
+          defaultBreak: getConfiguredBreak(emp, options?.hrDefaults),
+        }) / 60)
       } else if (cell?.code && cell.code !== "EMPTY") {
         val = cell.code
       }
