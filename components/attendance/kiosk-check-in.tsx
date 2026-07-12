@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Play, Square, UserCircle2, LogOut } from "lucide-react"
@@ -25,6 +25,17 @@ import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 
 /** Temporar: false = pontaj kiosk fără parolă angajat, doar selfie. Codul parolei rămâne. */
 const KIOSK_EMPLOYEE_PASSWORD_ENABLED = false
+const KIOSK_SELFIE_UPLOAD_TIMEOUT_MS = 10_000
+
+function withKioskSelfieUploadTimeout<T>(request: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("Încărcarea selfie-ului a expirat. Reîncearcă.")), KIOSK_SELFIE_UPLOAD_TIMEOUT_MS)
+  })
+  return Promise.race([request, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
 
 export interface KioskUser {
   uid: string
@@ -73,6 +84,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const [logoutStep, setLogoutStep] = useState<"password" | "confirm">("password")
   const [logoutPassword, setLogoutPassword] = useState("")
   const [logoutSubmitting, setLogoutSubmitting] = useState(false)
+  const logoutVerificationInFlight = useRef(false)
+  const logoutConfirmationInFlight = useRef(false)
 
   // Auto-reset to idle after inactivity or success
   useEffect(() => {
@@ -131,9 +144,12 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setLogoutStep("password")
     setLogoutPassword("")
     setLogoutSubmitting(false)
+    logoutVerificationInFlight.current = false
+    logoutConfirmationInFlight.current = false
   }
 
   const handleLogoutVerifyPassword = async () => {
+    if (logoutVerificationInFlight.current || logoutSubmitting) return
     const email = (user?.email || userData?.email || "").trim()
     if (!email) {
       toast({
@@ -144,6 +160,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       return
     }
     try {
+      logoutVerificationInFlight.current = true
       setLogoutSubmitting(true)
       await verifyUserPassword(email, logoutPassword)
       setLogoutStep("confirm")
@@ -154,12 +171,15 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         variant: "destructive",
       })
     } finally {
+      logoutVerificationInFlight.current = false
       setLogoutSubmitting(false)
     }
   }
 
   const handleLogoutConfirm = async () => {
+    if (logoutConfirmationInFlight.current || logoutSubmitting) return
     try {
+      logoutConfirmationInFlight.current = true
       setLogoutSubmitting(true)
       await signOut()
       // Best-effort: clear role cookie so middleware won't redirect.
@@ -175,6 +195,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         variant: "destructive",
       })
       setLogoutSubmitting(false)
+    } finally {
+      logoutConfirmationInFlight.current = false
     }
   }
 
@@ -298,6 +320,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
   const uploadSelfie = async (blob: Blob, kind: "checkin" | "checkout") => {
     if (!selectedUser || !action) throw new Error("Utilizator/Acțiune lipsă")
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      throw new Error("Conexiunea este indisponibilă. Reîncearcă după reconectare.")
+    }
     const sessionId =
       action === "check-out"
         ? (await getActiveSession(selectedUser.uid))?.id || `att_${selectedUser.uid}_${getAppNowMs()}`
@@ -305,7 +330,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     const ts = getAppNowMs()
     const path = `attendance/selfies/${selectedUser.uid}/${sessionId}/${kind}-${ts}.jpg`
     const file = new File([blob], `${kind}-${ts}.jpg`, { type: "image/jpeg" })
-    const { url } = await uploadFile(file, path)
+    const { url } = await withKioskSelfieUploadTimeout(uploadFile(file, path))
     return { url, path }
   }
 
@@ -427,7 +452,11 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   }
 
   return (
-    <div className="min-h-[100svh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex justify-center p-4 sm:p-8 overflow-hidden">
+    <div
+      className="min-h-[100svh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex justify-center p-4 sm:p-8 overflow-hidden"
+      data-testid="kiosk-state"
+      data-kiosk-state={flowState}
+    >
       <div className="w-full max-w-4xl relative min-h-[calc(100svh-2rem)] sm:min-h-[calc(100svh-4rem)] flex flex-col">
         {/* Top-right logout */}
         <div className="absolute top-0 right-0">
@@ -462,6 +491,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-3xl">
               <button
                 onClick={() => handleActionSelect("check-in")}
+                data-testid="kiosk-start"
                 className="group relative p-6 sm:p-12 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-3xl shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 sm:hover:scale-105"
               >
                 <div className="flex flex-col items-center gap-4 sm:gap-6">
@@ -479,6 +509,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
               <button
                 onClick={() => handleActionSelect("check-out")}
+                data-testid="kiosk-stop"
                 className="group relative p-6 sm:p-12 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-3xl shadow-2xl hover:shadow-orange-500/50 transition-all duration-300 sm:hover:scale-105"
               >
                 <div className="flex flex-col items-center gap-4 sm:gap-6">
@@ -527,6 +558,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                     key={user.uid}
                     onClick={() => handleUserSelect(user)}
                     disabled={Boolean(userSelectBusyUid) || Boolean(user.disabled)}
+                    data-testid="kiosk-user"
+                    data-user-uid={user.uid}
+                    data-user-name={user.displayName}
                     className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-2xl transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <div className="flex flex-col items-center gap-3">
@@ -922,7 +956,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
           else setLogoutOpen(true)
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" onEscapeKeyDown={resetLogout}>
           <DialogHeader>
             <DialogTitle className="text-center text-2xl">Deconectare Kiosk</DialogTitle>
             <DialogDescription className="text-center">

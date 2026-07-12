@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { reportToSentry } from "@/lib/sentry/report-error"
 import type { UserRole } from "@/lib/firebase/auth"
+import { signOut as firebaseSignOut } from "@/lib/firebase/auth"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -53,7 +54,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         pathname,
       })
 
-      if (!user) {
+      if (user && !userData) {
+        // An Auth account without an application profile has no role to authorize.
+        // End the unusable session instead of leaving protected routes on an endless loader.
+        void firebaseSignOut().finally(() => router.replace("/login?error=missing-profile"))
+      } else if (!user) {
         router.push("/login")
       } else if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
         console.log("User does not have required role, redirecting to dashboard")

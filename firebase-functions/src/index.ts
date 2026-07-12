@@ -3,6 +3,7 @@ import { initializeApp } from "firebase-admin/app"
 import { FieldValue, getFirestore, Timestamp, type DocumentReference } from "firebase-admin/firestore"
 import * as tls from "node:tls"
 import * as net from "node:net"
+import { getLockedAttendanceSessionId } from "./attendance-lock"
 
 // Initialize the default Firebase app for Admin SDK
 initializeApp()
@@ -2321,7 +2322,8 @@ async function completeAttendanceSessionAuto(
       : requestedEndMs
 
     transaction.update(sessionRef, buildAutoCheckoutPatch(data, billedEnd, opts))
-    if (lockRef && lockSnap?.exists && String((lockSnap.data() as any)?.sessionId || "") === sessionRef.id) {
+    const lockedSessionId = getLockedAttendanceSessionId(lockSnap?.exists ? lockSnap.data() : null)
+    if (lockRef && lockedSessionId === sessionRef.id) {
       transaction.delete(lockRef)
     }
     return true
@@ -2423,6 +2425,10 @@ export const autoStopAttendanceSessions = functions
  * Orice schimbare în algoritmul de calcul trebuie reflectată în ambele locuri.
  */
 type HMRangeA = { start: string; end: string; startTimestampMs?: number; endTimestampMs?: number }
+
+function normalizeKeyA(value: string) {
+  return String(value || "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+}
 
 function parseHMminutesA(value: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim())
@@ -2773,8 +2779,12 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
   const normalizedComputed = normalizeComputedEntriesA(computedEntries)
   const finalEntries = [...preservedEntries, ...normalizedComputed]
   const defaultBreak = await getEmployeeDefaultBreakA(employeeId)
+  const presenceEntries = finalEntries.filter((entry: any) => {
+    const project = normalizeKeyA(String(entry?.project || ""))
+    return project !== "traseu catre client" && project !== "traseu catre casa"
+  })
   const totalMinutesEffective = calcEffectiveMinutesA({
-    entries: finalEntries as any,
+    entries: presenceEntries as any,
     breaks: (existingDay?.breaks ?? null) as any,
     defaultBreak,
   })

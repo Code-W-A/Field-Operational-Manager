@@ -2,6 +2,7 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app"
 import {
+  connectAuthEmulator,
   getAuth,
   inMemoryPersistence,
   setPersistence,
@@ -9,6 +10,7 @@ import {
   signOut,
   type Auth,
 } from "firebase/auth"
+import { assertSafeFirebaseEmulatorProject, shouldUseFirebaseEmulators } from "./emulator-safety"
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -42,6 +44,15 @@ function getSecondaryAuth(): Auth {
     }
   })()
   authSecondary = getAuth(app)
+  if (shouldUseFirebaseEmulators()) {
+    assertSafeFirebaseEmulatorProject(firebaseConfig.projectId)
+    const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || "127.0.0.1"
+    connectAuthEmulator(
+      authSecondary,
+      `http://${host}:${Number(process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT || 9099)}`,
+      { disableWarnings: true },
+    )
+  }
   return authSecondary
 }
 
@@ -74,4 +85,3 @@ export async function verifyUserPassword(email: string, password: string): Promi
     }
   }
 }
-

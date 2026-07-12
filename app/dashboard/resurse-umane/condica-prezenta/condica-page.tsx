@@ -36,6 +36,7 @@ import {
   subscribeHrRequestsForMonth,
   subscribeTimesheetsForMonth,
   upsertTimesheetCell,
+  upsertTimesheetCells,
   updateHrRequestByManager,
   syncHrRequestToTimesheets,
 } from "@/lib/hr/storage"
@@ -333,9 +334,15 @@ export default function CondicaPrezentaPage() {
   const [editApprovedRequestSaving, setEditApprovedRequestSaving] = useState(false)
   const [editApprovedPayload, setEditApprovedPayload] = useState<any>(null)
   const [editApprovedOriginalPayload, setEditApprovedOriginalPayload] = useState<any>(null)
+  const [employeesLoading, setEmployeesLoading] = useState(true)
+  const [timesheetsLoading, setTimesheetsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let unsub: null | (() => void) = null
+    setEmployeesLoading(true)
+    setLoadError(null)
     ;(async () => {
       try {
         await seedHrIfEmpty({ monthKey })
@@ -343,11 +350,18 @@ export default function CondicaPrezentaPage() {
         // ignore
       }
       unsub = subscribeEmployees({
-        onChange: (e) => setEmployees(e.filter((x) => x.active)),
+        onChange: (e) => {
+          setEmployees(e.filter((x) => x.active))
+          setEmployeesLoading(false)
+        },
+        onError: () => {
+          setEmployeesLoading(false)
+          setLoadError("Nu am putut încărca salariații. Încearcă din nou.")
+        },
       })
     })()
     return () => unsub?.()
-  }, [])
+  }, [reloadKey])
 
   useEffect(() => {
     const year = Number(monthKey.split("-")[0])
@@ -378,12 +392,21 @@ export default function CondicaPrezentaPage() {
 
   useEffect(() => {
     let unsub: null | (() => void) = null
+    setTimesheetsLoading(true)
+    setLoadError(null)
     unsub = subscribeTimesheetsForMonth({
       monthKey,
-      onChange: setTimesheets,
+      onChange: (next) => {
+        setTimesheets(next)
+        setTimesheetsLoading(false)
+      },
+      onError: () => {
+        setTimesheetsLoading(false)
+        setLoadError("Nu am putut încărca condica. Încearcă din nou.")
+      },
     })
     return () => unsub?.()
-  }, [monthKey])
+  }, [monthKey, reloadKey])
 
   useEffect(() => {
     const q = query(collection(db, "attendance"), where("status", "==", "active"))
@@ -1352,6 +1375,19 @@ export default function CondicaPrezentaPage() {
           }
         />
 
+      {employeesLoading || timesheetsLoading ? (
+        <div data-testid="condica-loading" className="mb-4 text-sm text-muted-foreground">Se încarcă condica...</div>
+      ) : null}
+      {loadError ? (
+        <div data-testid="condica-error" role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <span>{loadError}</span>
+          <Button variant="outline" size="sm" onClick={() => setReloadKey((value) => value + 1)}>Reîncearcă</Button>
+        </div>
+      ) : null}
+      {!employeesLoading && !timesheetsLoading && !loadError && filteredEmployees.length === 0 ? (
+        <div data-testid="condica-empty" className="mb-4 rounded-md border px-3 py-2 text-sm text-muted-foreground">Nu există salariați activi pentru filtrul selectat.</div>
+      ) : null}
+
       {userData?.role !== "admin" && userData?.role !== "dispecer" ? (
         <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
           Afișez doar salariații pe care îi coordonezi.
@@ -1370,7 +1406,7 @@ export default function CondicaPrezentaPage() {
                   <>
                     <b>Total ore</b> = suma orelor din condică pentru toate zilele de lucru (WORK), în luna selectată.
                     <br />
-                    Dacă într-o zi de lucru nu este trecut un număr de ore, se consideră <b>8 ore</b>.
+                    Dacă într-o zi de lucru nu există intervale sau un total salvat, se consideră <b>0 ore</b>.
                   </>
                 }
                 contentClassName="max-w-[320px]"
@@ -1378,7 +1414,7 @@ export default function CondicaPrezentaPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3">
-            <div className="text-xl font-bold text-emerald-700">{kpis.totalHoursMonth}h</div>
+            <div data-testid="condica-kpi-total-hours" className="text-xl font-bold text-emerald-700">{kpis.totalHoursMonth}h</div>
           </CardContent>
         </Card>
         
@@ -1562,7 +1598,16 @@ export default function CondicaPrezentaPage() {
             ...next,
             code: (next.code ?? "WORK") as TimesheetCode,
           }
-          await upsertTimesheetCell({ monthKey, employeeId: selectedEmployeeId, day: selectedDay, cell: normalized })
+          try {
+            await upsertTimesheetCell({ monthKey, employeeId: selectedEmployeeId, day: selectedDay, cell: normalized })
+          } catch (error) {
+            toast({
+              title: "Eroare",
+              description: error instanceof Error ? error.message : "Nu am putut salva ziua din condică.",
+              variant: "destructive",
+            })
+            throw error
+          }
         }}
         dateISO={selectedDateISO}
         defaultBreak={selectedEmployeeId ? getEmployeeDefaultBreak(selectedEmployeeId) : null}
@@ -1704,8 +1749,10 @@ export default function CondicaPrezentaPage() {
             return employeeById[id]?.pauzaEnd || hrDefaults.pauzaEnd
           })() || undefined
         }
-        onSubmitRange={async ({ employeeId, startDate, endDate, project, entries, breaks, includeConcediu, includeSarbatori, includeWeekend, hours, monthKey }) => {
+        allowedMonthKey={monthKey}
+        onSubmitRange={async ({ employeeId, startDate, endDate, project, entries, breaks, includeConcediu, includeSarbatori, includeWeekend, hours, monthKey: submittedMonthKey }) => {
           // Basic date range: we only support same-month ranges for now.
+          if (submittedMonthKey !== monthKey) throw new Error("Alege o dată în luna afișată în condică.")
           const start = new Date(startDate)
           const end = new Date(endDate)
           if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
@@ -1738,6 +1785,7 @@ export default function CondicaPrezentaPage() {
             return
           }
 
+          const cells: Array<{ day: number; cell: TimesheetCell }> = []
           const d = new Date(start)
           while (d <= end) {
             const day = d.getDate()
@@ -1782,9 +1830,10 @@ export default function CondicaPrezentaPage() {
               entries: entries.map((e) => ({ ...e, project: project ?? e.project })),
               breaks,
             }
-            await upsertTimesheetCell({ monthKey, employeeId, day, cell })
+            cells.push({ day, cell })
             d.setDate(d.getDate() + 1)
           }
+          await upsertTimesheetCells({ monthKey, employeeId, cells })
         }}
       />
 

@@ -120,6 +120,7 @@ export function TimesheetListView({
                     <button
                       key={d}
                       type="button"
+                      data-testid={`timesheet-list-cell-${emp.id}-${d}`}
                       className={cn(
                         "relative h-10 flex-1 min-w-[32px] max-w-[48px] rounded text-xs font-semibold transition-all duration-200",
                         cellClasses(cell),

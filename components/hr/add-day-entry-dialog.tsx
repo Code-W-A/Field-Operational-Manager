@@ -96,6 +96,7 @@ export function AddDayEntryDialog({
   defaultStartDate,
   defaultBreakStart,
   defaultBreakEnd,
+  allowedMonthKey,
   onSubmitRange,
 }: {
   open: boolean
@@ -105,6 +106,8 @@ export function AddDayEntryDialog({
   defaultStartDate?: string // yyyy-mm-dd
   defaultBreakStart?: string
   defaultBreakEnd?: string
+  /** The visible Condica month. Manual entries must remain in this document. */
+  allowedMonthKey?: TimesheetMonthKey
   onSubmitRange: (params: {
     employeeId: string
     startDate: string
@@ -171,6 +174,8 @@ export function AddDayEntryDialog({
   const [includeEvenimente, setIncludeEvenimente] = useState(false)
   const [includeSarbatori, setIncludeSarbatori] = useState(false)
   const [includeWeekend, setIncludeWeekend] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const hours = useMemo(() => {
     return (
@@ -199,6 +204,8 @@ export function AddDayEntryDialog({
   }
 
   const submit = async () => {
+    setError(null)
+    if (submitting) return
     console.log('🔍 Submit apăsat - verificare validări:', {
       employeeId: employeeId || '❌ LIPSĂ',
       startDate: startDate || '❌ LIPSĂ',
@@ -211,23 +218,32 @@ export function AddDayEntryDialog({
     })
     
     if (!employeeId) {
-      console.warn('Lipsește employeeId - utilizatorul trebuie să selecteze un angajat.')
-      alert('Nu ai selectat un angajat! Verifică dacă există angajați în listă.')
+      setError("Selectează un angajat.")
       return
     }
     if (!startDate) {
-      console.warn('Lipsește startDate - utilizatorul trebuie să selecteze data de început.')
-      alert('Selectează data de început!')
+      setError("Selectează data de început.")
       return
     }
     if (!endDate) {
-      console.warn('Lipsește endDate - utilizatorul trebuie să selecteze data de sfârșit.')
-      alert('Selectează data de sfârșit!')
+      setError("Selectează data de oprire.")
       return
     }
     if (!monthKey) {
-      console.warn('monthKey nu s-a putut calcula din startDate:', startDate)
-      alert('Data de început este invalidă!')
+      setError("Data de început este invalidă.")
+      return
+    }
+    const endMonthKey = parseMonthKeyFromDate(endDate)
+    if (!endMonthKey || endMonthKey !== monthKey) {
+      setError("Intervalul selectat trebuie să fie în aceeași lună.")
+      return
+    }
+    if (allowedMonthKey && monthKey !== allowedMonthKey) {
+      setError("Alege o dată în luna afișată în condică.")
+      return
+    }
+    if (endDate < startDate) {
+      setError("Data de oprire trebuie să fie după data de început.")
       return
     }
     
@@ -246,12 +262,12 @@ export function AddDayEntryDialog({
     // Validate intervals (avoid 07:03–07:03 or reversed end < start)
     const invalidEntryIdx = payloadEntries.findIndex((e) => diffMinutes(e.start, e.end) <= 0)
     if (invalidEntryIdx !== -1) {
-      alert(`Interval invalid la poziția #${invalidEntryIdx + 1}. Ora de sfârșit trebuie să fie după ora de început.`)
+      setError(`Interval invalid la poziția #${invalidEntryIdx + 1}. Ora de sfârșit trebuie să fie după ora de început.`)
       return
     }
     const invalidBreakIdx = payloadBreaks.findIndex((b) => diffMinutes(b.start, b.end) <= 0)
     if (invalidBreakIdx !== -1) {
-      alert(`Pauză invalidă la poziția #${invalidBreakIdx + 1}. Ora de sfârșit trebuie să fie după ora de început.`)
+      setError(`Pauză invalidă la poziția #${invalidBreakIdx + 1}. Ora de sfârșit trebuie să fie după ora de început.`)
       return
     }
     
@@ -269,25 +285,29 @@ export function AddDayEntryDialog({
     })
     
     try {
-    await onSubmitRange({
-      employeeId,
-      startDate,
-      endDate,
-      project: project || undefined,
-      entries: payloadEntries,
-      breaks: payloadBreaks,
-      includeConcediu,
-      includeEvenimente,
-      includeSarbatori,
-      includeWeekend,
-      hours,
-      monthKey,
-    })
+      setSubmitting(true)
+      await onSubmitRange({
+        employeeId,
+        startDate,
+        endDate,
+        project: project || undefined,
+        entries: payloadEntries,
+        breaks: payloadBreaks,
+        includeConcediu,
+        includeEvenimente,
+        includeSarbatori,
+        includeWeekend,
+        hours,
+        monthKey,
+      })
       console.log('✅ Salvat cu succes în Firebase!')
-    reset()
-    onOpenChange(false)
+      reset()
+      onOpenChange(false)
     } catch (error) {
       console.error('❌ Eroare la salvare:', error)
+      setError(error instanceof Error ? error.message : "Nu am putut salva condica. Încearcă din nou.")
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -318,11 +338,11 @@ export function AddDayEntryDialog({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label className="text-gray-700 font-medium">Data de început</Label>
-              <DateInput value={startDate} onChange={setStartDate} />
+              <DateInput value={startDate} onChange={setStartDate} testId="condica-add-start-date" />
             </div>
             <div className="grid gap-2">
               <Label className="text-gray-700 font-medium">Data de oprire</Label>
-              <DateInput value={endDate} onChange={setEndDate} />
+              <DateInput value={endDate} onChange={setEndDate} testId="condica-add-end-date" />
             </div>
           </div>
 
@@ -450,16 +470,18 @@ export function AddDayEntryDialog({
           </div>
 
           <div className="text-sm text-gray-600">Total timp (calculat): {hours.toFixed(2)} ore</div>
+          {error ? <div role="alert" className="text-sm text-destructive">{error}</div> : null}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Închide
           </Button>
-          <Button onClick={submit} className="bg-emerald-600 hover:bg-emerald-700 text-white">Adaugă condică</Button>
+          <Button onClick={submit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            {submitting ? "Se salvează..." : "Adaugă condică"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-

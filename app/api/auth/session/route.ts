@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const res = NextResponse.json({ ok: true })
     res.cookies.set("__session", sessionCookie, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true",
       sameSite: "lax",
       path: "/",
       maxAge: Math.floor(SESSION_COOKIE_MAX_MS / 1000),
@@ -39,7 +39,7 @@ export async function DELETE() {
   const res = NextResponse.json({ ok: true })
   res.cookies.set("__session", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true",
     sameSite: "lax",
     path: "/",
     maxAge: 0,

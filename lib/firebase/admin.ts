@@ -1,6 +1,7 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app"
 import { getAuth } from "firebase-admin/auth"
 import { getFirestore } from "firebase-admin/firestore"
+import { assertSafeFirebaseEmulatorProject, shouldUseFirebaseEmulators } from "./emulator-safety"
 
 // Configurația pentru Firebase Admin SDK
 const firebaseAdminConfig = {
@@ -16,6 +17,13 @@ export const initializeFirebaseAdminApp = () => {
   const apps = getApps()
 
   if (apps.length === 0) {
+    if (shouldUseFirebaseEmulators()) {
+      const projectId = assertSafeFirebaseEmulatorProject(firebaseAdminConfig.projectId)
+      return initializeApp({
+        projectId,
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      })
+    }
     return initializeApp({
       credential: cert(firebaseAdminConfig),
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,

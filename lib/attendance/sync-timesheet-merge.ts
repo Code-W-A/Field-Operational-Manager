@@ -1,5 +1,5 @@
 import type { TimesheetCell, TimesheetCode } from "@/lib/hr/types"
-import { calcEffectiveMinutes, type HMRange } from "@/lib/hr/time-calc"
+import { getTimesheetCellMinutes, type HMRange } from "@/lib/hr/time-calc"
 
 type TimesheetEntry = NonNullable<TimesheetCell["entries"]>[number]
 
@@ -72,9 +72,8 @@ export function buildAttendanceTimesheetCell(params: {
   const normalizedComputed = normalizeComputedEntries(params.computedEntries)
   const finalEntries = [...preservedEntries, ...normalizedComputed]
   const existingBreaks = params.existingDay?.breaks
-  const totalMinutesEffective = calcEffectiveMinutes({
-    entries: finalEntries as any,
-    breaks: (existingBreaks ?? null) as any,
+  const totalMinutesEffective = getTimesheetCellMinutes({
+    cell: { entries: finalEntries as any, breaks: (existingBreaks ?? undefined) as any },
     defaultBreak: params.defaultBreak ?? null,
   })
   const code: TimesheetCode = existingCode === "DEL" || existingCode === "WE" || existingCode === "SL" ? existingCode : "WORK"

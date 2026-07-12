@@ -31,6 +31,7 @@ import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
 import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
+import { executeCheckoutWithConfirmation } from "@/lib/attendance/checkout-pipeline"
 
 interface FieldCheckInCardProps {
   userId: string
@@ -322,55 +323,58 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
           throw new Error("Nu există o sesiune activă")
         }
 
-        const syncResult = await createCheckOut({
-          sessionId: activeSession.id,
-          mode,
-          location,
-          faceRecognitionId: result.faceId,
-          deviceInfo: {
-            type: "field",
-            userAgent: navigator.userAgent,
+        await executeCheckoutWithConfirmation(
+          () => createCheckOut({
+            sessionId: activeSession.id,
+            mode,
+            location,
+            faceRecognitionId: result.faceId,
+            deviceInfo: {
+              type: "field",
+              userAgent: navigator.userAgent,
+            },
+            // selfie (optional)
+            ...(result as any).__selfieCheckOut,
+            ...(getE2eFakeNowRequestMs() != null ? { sessionEndMs: getE2eFakeNowRequestMs() } : {}),
+            ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
+          }),
+          async (syncResult) => {
+            if (syncResult && !syncResult.synced) {
+              toast({
+                title: "Pontaj salvat, dar nesincronizat în condică",
+                description:
+                  syncResult.reason === "no_employee"
+                    ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
+                    : syncResult.reason === "protected_day"
+                      ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
+                      : "Nu există sesiuni completate pentru ziua respectivă.",
+              })
+            }
+
+            toast({
+              title: "Pontaj înregistrat",
+              description: "Ai oprit programul.",
+            })
+
+            const endForLocal = (() => {
+              if (!debugEnabled || !debugSimMinutes) return getAppNowMs()
+              const d = new Date(activeSession.sessionStart)
+              d.setHours(23, 59, 59, 999)
+              const endOfDay = d.getTime()
+              const desired = activeSession.sessionStart + Math.round(debugSimMinutes) * 60 * 1000
+              return Math.min(desired, endOfDay)
+            })()
+
+            // Keep it locally as completed so "Traseu către casă" can be started right after Stop.
+            setActiveSession({
+              ...activeSession,
+              status: "completed",
+              sessionEnd: endForLocal,
+              checkOutMode: mode,
+              checkOutLocation: location,
+            })
           },
-          // selfie (optional)
-          ...(result as any).__selfieCheckOut,
-          ...(getE2eFakeNowRequestMs() != null ? { sessionEndMs: getE2eFakeNowRequestMs() } : {}),
-          ...(debugEnabled && debugSimMinutes ? { debugSimulatedDurationMinutes: debugSimMinutes } : {}),
-        })
-
-        if (syncResult && !syncResult.synced) {
-          toast({
-            title: "Pontaj salvat, dar nesincronizat în condică",
-            description:
-              syncResult.reason === "no_employee"
-                ? "Nu am găsit salariatul HR asociat acestui user. Verifică în Resurse Umane → Salariați că există `userUid` setat."
-                : syncResult.reason === "protected_day"
-                  ? "Ziua este protejată (CO/DEL/SL/WE/IN) și nu a fost suprascrisă."
-                  : "Nu există sesiuni completate pentru ziua respectivă.",
-          })
-        }
-
-        toast({
-          title: "Pontaj înregistrat",
-          description: "Ai oprit programul.",
-        })
-
-        const endForLocal = (() => {
-          if (!debugEnabled || !debugSimMinutes) return getAppNowMs()
-          const d = new Date(activeSession.sessionStart)
-          d.setHours(23, 59, 59, 999)
-          const endOfDay = d.getTime()
-          const desired = activeSession.sessionStart + Math.round(debugSimMinutes) * 60 * 1000
-          return Math.min(desired, endOfDay)
-        })()
-
-        // Keep it locally as completed so "Traseu către casă" can be started right after Stop.
-        setActiveSession({
-          ...activeSession,
-          status: "completed",
-          sessionEnd: endForLocal,
-          checkOutMode: mode,
-          checkOutLocation: location,
-        })
+        )
       }
 
       setShowFaceDialog(false)

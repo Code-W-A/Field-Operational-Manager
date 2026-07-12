@@ -38,6 +38,7 @@ import {
   type LockSessionSnapshot,
 } from "@/lib/attendance/active-session-lock"
 import { getAppNowMs } from "@/lib/utils/test-clock"
+import { executeCheckoutPipeline } from "@/lib/attendance/checkout-pipeline"
 
 export type Unsubscribe = () => void
 
@@ -154,7 +155,12 @@ async function getEmployeeScheduleForUser(
   // Ajută cazurile cu utilizatori noi unde link-ul HR nu este încă propagat.
   const trimmedName = String(userName || "").trim()
   if (trimmedName) {
-    const byFullName = await getDocs(query(collection(db, "hrEmployees"), where("fullName", "==", trimmedName), limit(1)))
+    const byFullName = await getDocs(query(collection(db, "hrEmployees"), where("fullName", "==", trimmedName), limit(2)))
+    if (byFullName.size > 1) {
+      throw new Error(
+        "Există mai mulți salariați cu acest nume. Asociază explicit contul prin userUid înainte de pontare."
+      )
+    }
     if (!byFullName.empty) {
       const docSnap = byFullName.docs[0]
       const current = docSnap.data() as any
@@ -506,73 +512,92 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
   // mai mult decât ziua de start. Pentru astfel de sesiuni facturăm la ora de final a programului.
   const effectiveEnd = clampSessionEndMs(sessionStart, now, programLucruEnd)
 
-  const txResult = await runTransaction(db, async (tx) => {
-    const currentSnap = await tx.get(sessionRef)
-    if (!currentSnap.exists()) {
-      throw new Error("Session not found")
-    }
-
-    const currentRaw = currentSnap.data() as any
-    if (currentRaw.status !== "active") {
-      throw new Error("Sesiunea este deja închisă.")
-    }
-
-    const currentUserId = String(currentRaw.userId || sessionData.userId || "")
-    const lockRef = doc(db, ACTIVE_SESSION_LOCKS_COLLECTION, currentUserId)
-    const lockSnap = await tx.get(lockRef)
-    const lockedSessionId = lockSnap.exists() ? String((lockSnap.data() as any)?.activeSessionId || "") : ""
-    let shouldDeleteLock = false
-
-    if (lockedSessionId === request.sessionId) {
-      shouldDeleteLock = true
-    } else if (lockedSessionId) {
-      const lockedSessionRef = doc(db, "attendance", lockedSessionId)
-      const lockedSessionSnap = await tx.get(lockedSessionRef)
-      const lockedSession = lockedSessionSnap.exists()
-        ? toLockSessionSnapshot(lockedSessionSnap.id, lockedSessionSnap.data())
-        : null
-      if (shouldBlockCheckoutForLock({ requestedSessionId: request.sessionId, lockedSession })) {
-        throw new Error("Există altă sesiune activă pentru acest utilizator. Reîncarcă pontajul înainte de depontare.")
+  const pipeline = await executeCheckoutPipeline({
+    commit: () => runTransaction(db, async (tx) => {
+      const currentSnap = await tx.get(sessionRef)
+      if (!currentSnap.exists()) {
+        throw new Error("Session not found")
       }
-      shouldDeleteLock = true
-    }
 
-    const currentProgramLucruStart = currentRaw.programLucruStart ? String(currentRaw.programLucruStart) : DEFAULT_PROGRAM_START
-    const currentProgramLucruEnd = currentRaw.programLucruEnd ? String(currentRaw.programLucruEnd) : DEFAULT_PROGRAM_END
-    const currentExtraTimeLogs = finalizeOpenExtraTimeLogs({
-      session: currentRaw,
-      now: effectiveEnd,
-      programLucruStart: currentProgramLucruStart,
-      programLucruEnd: currentProgramLucruEnd,
-    })
+      const currentRaw = currentSnap.data() as any
+      if (currentRaw.status !== "active") {
+        throw new Error("Sesiunea este deja închisă.")
+      }
 
-    tx.update(sessionRef, withoutUndefined({
-      sessionEnd: Timestamp.fromMillis(effectiveEnd),
-      status: "completed",
-      checkOutMode: request.mode,
-      checkOutLocation: request.location,
-      checkOutFaceRecognitionId: request.faceRecognitionId ?? null,
-      checkOutSelfieUrl: request.checkOutSelfieUrl ?? null,
-      checkOutSelfiePath: request.checkOutSelfiePath ?? null,
-      checkOutSelfieStatus: request.checkOutSelfieStatus ?? null,
-      checkOutDeviceInfo: request.deviceInfo,
-      ...(request.checkOutAuto
-        ? { checkOutAuto: true, checkOutAutoReason: request.checkOutAutoReason ?? null }
-        : {}),
-      ...(request.autoStopped ? { autoStopped: true, autoStoppedAt: serverTimestamp() } : {}),
-      ...(currentExtraTimeLogs ? { extraTimeLogs: currentExtraTimeLogs } : {}),
-      updatedAt: serverTimestamp(),
-    }) as any)
+      const currentUserId = String(currentRaw.userId || sessionData.userId || "")
+      const lockRef = doc(db, ACTIVE_SESSION_LOCKS_COLLECTION, currentUserId)
+      const lockSnap = await tx.get(lockRef)
+      const lockedSessionId = lockSnap.exists() ? String((lockSnap.data() as any)?.activeSessionId || "") : ""
+      let shouldDeleteLock = false
 
-    if (shouldDeleteLock) {
-      tx.delete(lockRef)
-    }
+      if (lockedSessionId === request.sessionId) {
+        shouldDeleteLock = true
+      } else if (lockedSessionId) {
+        const lockedSessionRef = doc(db, "attendance", lockedSessionId)
+        const lockedSessionSnap = await tx.get(lockedSessionRef)
+        const lockedSession = lockedSessionSnap.exists()
+          ? toLockSessionSnapshot(lockedSessionSnap.id, lockedSessionSnap.data())
+          : null
+        if (shouldBlockCheckoutForLock({ requestedSessionId: request.sessionId, lockedSession })) {
+          throw new Error("Există altă sesiune activă pentru acest utilizator. Reîncarcă pontajul înainte de depontare.")
+        }
+        shouldDeleteLock = true
+      }
 
-    return {
-      sessionData: normalizeAttendanceDoc(currentSnap.id, currentRaw),
-      extraTimeLogsCount: Array.isArray(currentExtraTimeLogs) ? currentExtraTimeLogs.length : 0,
-    }
+      const currentProgramLucruStart = currentRaw.programLucruStart ? String(currentRaw.programLucruStart) : DEFAULT_PROGRAM_START
+      const currentProgramLucruEnd = currentRaw.programLucruEnd ? String(currentRaw.programLucruEnd) : DEFAULT_PROGRAM_END
+      const currentExtraTimeLogs = finalizeOpenExtraTimeLogs({
+        session: currentRaw,
+        now: effectiveEnd,
+        programLucruStart: currentProgramLucruStart,
+        programLucruEnd: currentProgramLucruEnd,
+      })
+
+      tx.update(sessionRef, withoutUndefined({
+        sessionEnd: Timestamp.fromMillis(effectiveEnd),
+        status: "completed",
+        checkOutMode: request.mode,
+        checkOutLocation: request.location,
+        checkOutFaceRecognitionId: request.faceRecognitionId ?? null,
+        checkOutSelfieUrl: request.checkOutSelfieUrl ?? null,
+        checkOutSelfiePath: request.checkOutSelfiePath ?? null,
+        checkOutSelfieStatus: request.checkOutSelfieStatus ?? null,
+        checkOutDeviceInfo: request.deviceInfo,
+        ...(request.checkOutAuto
+          ? { checkOutAuto: true, checkOutAutoReason: request.checkOutAutoReason ?? null }
+          : {}),
+        ...(request.autoStopped ? { autoStopped: true, autoStoppedAt: serverTimestamp() } : {}),
+        ...(currentExtraTimeLogs ? { extraTimeLogs: currentExtraTimeLogs } : {}),
+        updatedAt: serverTimestamp(),
+      }) as any)
+
+      if (shouldDeleteLock) {
+        tx.delete(lockRef)
+      }
+
+      return {
+        sessionData: normalizeAttendanceDoc(currentSnap.id, currentRaw),
+        extraTimeLogsCount: Array.isArray(currentExtraTimeLogs) ? currentExtraTimeLogs.length : 0,
+      }
+    }),
+    audit: (txResult) => logPontajStop({
+      userId: txResult.sessionData.userId,
+      userDisplayName: (txResult.sessionData as any)?.userName,
+      employeeId: (txResult.sessionData as any)?.employeeId,
+      sessionId: request.sessionId,
+      sessionStartMs: sessionStart,
+      sessionEndMs: effectiveEnd,
+      auto: request.checkOutAuto,
+      reason: request.checkOutAutoReason,
+    }),
+    sync: (txResult) => syncAttendanceUserDayToTimesheet(txResult.sessionData.userId, new Date(sessionStart)),
+    onSyncError: (error, txResult) => {
+      console.warn("Auto-sync Pontaj → Condică failed (storage):", error)
+      logPontajCondicaSyncError(txResult.sessionData.userId, error)
+    },
   })
+
+  const txResult = pipeline.committed
 
   debugPontajLog("check-out:written", {
     sessionId: request.sessionId,
@@ -585,27 +610,8 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     extraTimeLogs: txResult.extraTimeLogsCount,
   })
 
-  logPontajStop({
-    userId: txResult.sessionData.userId,
-    userDisplayName: (txResult.sessionData as any)?.userName,
-    employeeId: (txResult.sessionData as any)?.employeeId,
-    sessionId: request.sessionId,
-    sessionStartMs: sessionStart,
-    sessionEndMs: effectiveEnd,
-    auto: request.checkOutAuto,
-    reason: request.checkOutAutoReason,
-  })
-
-  // Immediately update HR timesheet so condica reflects the Stop without extra steps.
-  try {
-    const res = await syncAttendanceUserDayToTimesheet(txResult.sessionData.userId, new Date(sessionStart))
-    debugPontajLog("condica:sync-result", res)
-    return res
-  } catch (error) {
-    console.warn("Auto-sync Pontaj → Condică failed (storage):", error)
-    logPontajCondicaSyncError(txResult.sessionData.userId, error)
-    return null
-  }
+  debugPontajLog("condica:sync-result", pipeline.syncResult)
+  return pipeline.syncResult
 }
 
 /**

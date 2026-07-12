@@ -271,5 +271,5 @@ test("formatTimesheetsCSV exports the same summary columns used by the UI", () =
   const [header, row] = csv.split("\n")
   assert.match(header, /"Zile lucrate","Tichete de masă","Ore prezență","Bancă de ore","Ore traseu la client","Zile CO","Zile DEL","Ore IN"/)
   assert.match(row, /"Ana Popescu"/)
-  assert.match(row, /"2","1","8\.5","-7\.5h","0\.5","1","0","1\.5","8\.5"/)
+  assert.match(row, /"2","1","8","-8\.0h","0\.5","1","0","1\.5","8"/)
 })

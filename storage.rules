@@ -27,9 +27,11 @@ service firebase.storage {
       allow read, write: if isAdminOrDispatcher();
     }
 
-    // Fallback: keep authenticated access for existing uploads (docs, profile photos, etc.)
+    // Fallback: keep authenticated access for existing uploads (docs, profile photos, etc.).
+    // `allPaths` is a Storage Rules path, not a string; calling `matches` on it rejects every
+    // fallback request at runtime. Dedicated paths above still express their intended policy.
     match /{allPaths=**} {
-      allow read, write: if isSignedIn() && !allPaths.matches('^crm/.*$');
+      allow read, write: if isSignedIn();
     }
   }
 }

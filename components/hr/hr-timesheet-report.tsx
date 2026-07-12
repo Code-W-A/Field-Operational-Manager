@@ -129,7 +129,7 @@ export function HrTimesheetReport() {
             <CardTitle className="text-sm text-muted-foreground">Ore totale</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{kpis.totalHours}</div>
+            <div data-testid="report-kpi-total-hours" className="text-3xl font-bold">{kpis.totalHours}</div>
           </CardContent>
         </Card>
         <Card>

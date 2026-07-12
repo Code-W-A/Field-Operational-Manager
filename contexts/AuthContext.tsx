@@ -196,6 +196,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Altfel, utilizăm Firebase Auth
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // A token change and the corresponding users/{uid} read form one loading phase.
+      // ProtectedRoute must not classify the transient null userData as a missing profile.
+      setLoading(true)
       setUser(user)
 
       if (user) {

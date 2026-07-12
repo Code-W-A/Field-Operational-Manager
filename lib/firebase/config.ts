@@ -1,7 +1,9 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
-import { getFirestore } from "firebase/firestore"
-import { getStorage } from "firebase/storage"
+import { connectAuthEmulator, getAuth } from "firebase/auth"
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore"
+import { connectStorageEmulator, getStorage } from "firebase/storage"
+import { connectFunctionsEmulator, getFunctions } from "firebase/functions"
+import { assertSafeFirebaseEmulatorProject, shouldUseFirebaseEmulators } from "./emulator-safety"
 
 // Configurația Firebase
 const firebaseConfig = {
@@ -26,5 +28,19 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp()
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
+export const functions = getFunctions(app, "europe-west1")
+
+const emulatorState = globalThis as typeof globalThis & { __fomFirebaseEmulatorsConnected?: boolean }
+if (shouldUseFirebaseEmulators() && !emulatorState.__fomFirebaseEmulatorsConnected) {
+  assertSafeFirebaseEmulatorProject(firebaseConfig.projectId)
+  const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || "127.0.0.1"
+  connectAuthEmulator(auth, `http://${host}:${Number(process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT || 9099)}`, {
+    disableWarnings: true,
+  })
+  connectFirestoreEmulator(db, host, Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || 8080))
+  connectFunctionsEmulator(functions, host, Number(process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR_PORT || 5001))
+  connectStorageEmulator(storage, host, Number(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_EMULATOR_PORT || 9199))
+  emulatorState.__fomFirebaseEmulatorsConnected = true
+}
 export { app } // Adăugăm exportul explicit pentru app
 export default app

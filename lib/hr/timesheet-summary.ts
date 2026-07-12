@@ -201,8 +201,12 @@ export function calculateEmployeeTimesheetSummary(params: {
       approvedKind === "DEL" ||
       approvedKind === "IN"
 
-    const isToClient = (entry: TimesheetEntry) => normalizeKey(String(entry.project || "")) === "traseu catre client"
-    const isToHome = (entry: TimesheetEntry) => normalizeKey(String(entry.project || "")) === "traseu catre casa"
+    // New manual-entry UI stores the route as a boolean; retain the legacy
+    // project labels so existing timesheets continue to contribute to totals.
+    const isToClient = (entry: TimesheetEntry) =>
+      Boolean((entry as any).travelToClient) || normalizeKey(String(entry.project || "")) === "traseu catre client"
+    const isToHome = (entry: TimesheetEntry) =>
+      Boolean((entry as any).travelToHome) || normalizeKey(String(entry.project || "")) === "traseu catre casa"
     const isPontaj = (entry: TimesheetEntry) => normalizeKey(String(entry.project || "")) === "pontaj"
 
     const toClientMinutesTotal = sumEntryMinutes(entries, isToClient)

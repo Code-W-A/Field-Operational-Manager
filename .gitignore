@@ -30,5 +30,8 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /playwright-report-real/
+/playwright-report-pontaj-stage5/
+/playwright-report-pontaj-stage6/
 /blob-report/
 /e2e/.auth/
+/tests/e2e/.auth/

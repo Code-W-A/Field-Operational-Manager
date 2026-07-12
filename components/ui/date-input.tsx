@@ -19,9 +19,10 @@ type DateInputProps = {
   min?: string
   max?: string
   className?: string
+  testId?: string
 }
 
-export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabled, min, max, className }: DateInputProps) {
+export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabled, min, max, className, testId }: DateInputProps) {
   const displayValue = value ? formatRomanianDateISO(value) : ""
   const [draft, setDraft] = useState(displayValue)
   const [open, setOpen] = useState(false)
@@ -61,8 +62,14 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
       onChange("")
       return
     }
-    const parsed = parseRomanianDateString(next)
-    if (!parsed) return
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(next)
+    const dottedMatch = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(next)
+    const parsed = isoMatch
+      ? new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]))
+      : dottedMatch
+        ? new Date(Number(dottedMatch[3]), Number(dottedMatch[2]) - 1, Number(dottedMatch[1]))
+        : parseRomanianDateString(next)
+    if (!parsed || Number.isNaN(parsed.getTime())) return
     const iso = formatISODate(parsed)
     if (min && iso < min) {
       setDraft(displayValue)
@@ -85,6 +92,7 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
         min={min}
         max={max}
         className={className}
+        data-testid={testId}
       />
     )
   }
@@ -104,6 +112,7 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
         placeholder={placeholder}
         disabled={disabled}
         className="pr-10"
+        data-testid={testId}
       />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -151,4 +160,3 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
     </div>
   )
 }
-

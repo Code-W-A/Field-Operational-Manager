@@ -123,10 +123,13 @@ export function calcEffectiveMinutes(params: {
 }
 
 export function getTimesheetCellMinutes(params: {
-  cell: { hours?: number; entries?: HMRange[]; breaks?: HMRange[] } | null | undefined
+  cell: { hours?: number; entries?: Array<HMRange & { project?: string }>; breaks?: HMRange[] } | null | undefined
   defaultBreak?: HMRange | null
 }): number {
-  const entries = params.cell?.entries ?? []
+  const entries = (params.cell?.entries ?? []).filter((entry) => {
+    const project = String(entry.project || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    return project !== "traseu catre client" && project !== "traseu catre casa"
+  })
   if (entries.length > 0) {
     return calcEffectiveMinutes({
       entries,

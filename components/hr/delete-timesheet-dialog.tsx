@@ -127,12 +127,12 @@ export function DeleteTimesheetDialog({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Data de începere</Label>
-              <DateInput value={startDate} onChange={setStartDate} />
+              <DateInput value={startDate} onChange={setStartDate} testId="condica-delete-start-date" />
             </div>
 
             <div className="grid gap-2">
               <Label>Data de oprire</Label>
-              <DateInput value={endDate} onChange={setEndDate} />
+              <DateInput value={endDate} onChange={setEndDate} testId="condica-delete-end-date" />
             </div>
           </div>
 

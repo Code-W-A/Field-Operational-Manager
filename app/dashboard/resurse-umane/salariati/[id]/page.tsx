@@ -721,7 +721,7 @@ export default function HrEmployeeDetailsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-emerald-700">{summary?.workHours ?? 0}<span className="text-lg">h</span></div>
+                <div data-testid="employee-kpi-work-hours" className="text-3xl font-bold text-emerald-700">{summary?.workHours ?? 0}<span className="text-lg">h</span></div>
               </CardContent>
             </Card>
 

@@ -6,6 +6,9 @@ export function buildAttendanceEntriesFromSessions(sessions: AttendanceSession[]
   const entries: NonNullable<TimesheetCell["entries"]> = []
   for (const session of sessions) {
     if (!session.sessionEnd) continue
+    const selfieStartUrl = (session as any).checkInSelfieUrl
+    const selfieEndUrl = (session as any).checkOutSelfieUrl
+    const lateStartMinutes = Number((session as any).lateStartMinutes ?? 0)
     entries.push({
       start: formatAttendanceTimeHHmm(session.sessionStart),
       end: formatAttendanceTimeHHmm(session.sessionEnd),
@@ -15,9 +18,9 @@ export function buildAttendanceEntriesFromSessions(sessions: AttendanceSession[]
       methodEnd: `Stop (${session.checkOutMode || session.mode})`,
       project: "Pontaj",
       attendanceSessionId: session.id,
-      selfieStartUrl: (session as any).checkInSelfieUrl,
-      selfieEndUrl: (session as any).checkOutSelfieUrl,
-      lateStartMinutes: Number((session as any).lateStartMinutes ?? 0) || undefined,
+      ...(selfieStartUrl ? { selfieStartUrl: String(selfieStartUrl) } : {}),
+      ...(selfieEndUrl ? { selfieEndUrl: String(selfieEndUrl) } : {}),
+      ...(Number.isFinite(lateStartMinutes) && lateStartMinutes > 0 ? { lateStartMinutes } : {}),
     })
 
     for (const log of session.extraTimeLogs || []) {

@@ -220,6 +220,8 @@ export async function seedHrIfEmpty(params: { monthKey: TimesheetMonthKey }): Pr
   // IMPORTANT:
   // - HR "seed" is only for development/demo onboarding.
   // - In production, we want the UI to reflect ONLY real Firebase data unless explicitly enabled.
+  if (process.env.NEXT_PUBLIC_DISABLE_HR_SEED === "true") return false
+
   const enableSeed =
     process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_ENABLE_HR_SEED === "true"
   if (!enableSeed) return false
@@ -324,6 +326,35 @@ export function upsertTimesheetCell(params: {
       days: { [dayKey]: cleanCell },
     },
     { merge: true }
+  )
+}
+
+/**
+ * Persists a validated range of cells in one Firestore commit.  The Condica
+ * dialog uses this for a multi-day manual entry so a failed write cannot leave
+ * only the first days of the selected range stored.
+ */
+export async function upsertTimesheetCells(params: {
+  monthKey: TimesheetMonthKey
+  employeeId: string
+  cells: Array<{ day: number; cell: TimesheetCell }>
+}) {
+  if (!params.cells.length) return
+
+  const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, params.monthKey))
+  const days = Object.fromEntries(
+    params.cells.map(({ day, cell }) => [String(day), removeUndefined(cell)]),
+  )
+
+  await setDoc(
+    ref,
+    {
+      employeeId: params.employeeId,
+      monthKey: params.monthKey,
+      updatedAt: serverTimestamp(),
+      days,
+    },
+    { merge: true },
   )
 }
 

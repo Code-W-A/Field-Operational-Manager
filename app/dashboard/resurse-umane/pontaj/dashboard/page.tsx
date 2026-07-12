@@ -267,7 +267,7 @@ export default function AttendanceDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalSessions}</div>
+            <div data-testid="attendance-kpi-total-sessions" className="text-2xl font-bold">{stats.totalSessions}</div>
           </CardContent>
         </Card>
 
@@ -277,7 +277,7 @@ export default function AttendanceDashboardPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.activeNow}</div>
+            <div data-testid="attendance-kpi-active" className="text-2xl font-bold text-green-600">{stats.activeNow}</div>
           </CardContent>
         </Card>
 
@@ -287,7 +287,7 @@ export default function AttendanceDashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalHours}h</div>
+            <div data-testid="attendance-kpi-effective-hours" className="text-2xl font-bold">{stats.totalHours}h</div>
           </CardContent>
         </Card>
 
@@ -336,7 +336,7 @@ export default function AttendanceDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {sessions.map((session) => (
-                    <TableRow key={session.id}>
+                    <TableRow key={session.id} data-testid={`attendance-row-${session.id}`} data-session-id={session.id}>
                       <TableCell className="font-medium">
                         <div className="flex flex-col">
                           <span>{getTechnicianLabel(session).fullName}</span>

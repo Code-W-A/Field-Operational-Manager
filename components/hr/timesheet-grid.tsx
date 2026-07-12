@@ -285,6 +285,10 @@ export function TimesheetGrid({
                   <button
                     key={d}
                     type="button"
+                    data-testid={`timesheet-cell-${e.id}-${d}`}
+                    data-employee-id={e.id}
+                    data-day={d}
+                    data-hours={c?.hours ?? ""}
                     className={cn(
                       "relative w-full border-l border-b border-gray-200 text-xs font-semibold transition-all duration-150 hover:shadow-lg hover:z-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:z-10",
                       cellHeight,
@@ -324,7 +328,7 @@ export function TimesheetGrid({
                 )
               })}
               {cols.map((c) => (
-                <div key={c.id} className={cn("w-full border-l-2 border-b border-gray-200 flex items-center justify-center font-semibold text-gray-900 bg-gray-50/30 whitespace-nowrap overflow-hidden text-ellipsis", 
+                <div key={c.id} data-testid={`summary-${c.id}-${e.id}`} className={cn("w-full border-l-2 border-b border-gray-200 flex items-center justify-center font-semibold text-gray-900 bg-gray-50/30 whitespace-nowrap overflow-hidden text-ellipsis",
                   cellHeight,
                   compact ? "px-1 text-[10px]" : "px-2 text-xs"
                 )}>
