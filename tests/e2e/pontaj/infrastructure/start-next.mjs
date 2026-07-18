@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
+import path from "node:path"
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -12,7 +14,10 @@ function run(command, args) {
   })
 }
 
-await run("npm", ["run", "build"])
+const mayReuseBuild = process.env.PONTAJ_REUSE_NEXT_BUILD === "true"
+if (!mayReuseBuild || !existsSync(path.resolve(".next/BUILD_ID"))) {
+  await run("npm", ["run", "build"])
+}
 
 const server = spawn("npm", ["run", "start", "--", "--hostname", "127.0.0.1", "--port", "3100"], {
   env: process.env,

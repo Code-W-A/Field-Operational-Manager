@@ -10,6 +10,22 @@ function isAllowedClientDashboardPath(pathname: string) {
   )
 }
 
+function localSafeRedirectUrl(req: NextRequest, pathname: string) {
+  const url = req.nextUrl.clone()
+  url.pathname = pathname
+
+  // Next production server may canonicalize local requests to `localhost`, which
+  // would drop Auth state created on 127.0.0.1 during emulator tests.
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true") {
+    const requestHost = req.headers.get("host")
+    if (requestHost === "127.0.0.1:3100" || requestHost === "localhost:3100") {
+      url.host = requestHost
+    }
+  }
+
+  return url
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -25,24 +41,18 @@ export function middleware(req: NextRequest) {
   if (role === "kiosk") {
     const isAllowed = pathname === "/kiosk" || pathname.startsWith("/kiosk/") || pathname === "/login"
     if (!isAllowed) {
-      const url = req.nextUrl.clone()
-      url.pathname = "/kiosk"
-      return NextResponse.redirect(url)
+      return NextResponse.redirect(localSafeRedirectUrl(req, "/kiosk"))
     }
   }
 
   // Client → redirect away from dashboard except allowed pages
   if (pathname.startsWith("/dashboard") && role === "client" && !isAllowedClientDashboardPath(pathname)) {
-    const url = req.nextUrl.clone()
-    url.pathname = "/portal"
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(localSafeRedirectUrl(req, "/portal"))
   }
 
   // Technician → /dashboard should go straight to /dashboard/lucrari
   if (role === "tehnician" && pathname === "/dashboard") {
-    const url = req.nextUrl.clone()
-    url.pathname = "/dashboard/lucrari"
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(localSafeRedirectUrl(req, "/dashboard/lucrari"))
   }
 
   return NextResponse.next()
@@ -51,5 +61,4 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/:path*"],
 }
-
 

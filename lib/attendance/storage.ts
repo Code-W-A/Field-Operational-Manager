@@ -135,7 +135,7 @@ function computeLateStart(params: { now: number; scheduledStart: string }) {
 async function getEmployeeScheduleForUser(
   userId: string,
   userName?: string
-): Promise<(Pick<Employee, "programLucruStart" | "programLucruEnd"> & { employeeId: string }) | null> {
+): Promise<(Pick<Employee, "programLucruStart" | "programLucruEnd" | "pauzaStart" | "pauzaEnd"> & { employeeId: string }) | null> {
   const defaults = await getHrDefaults()
 
   const toSchedule = (docSnap: any) => {
@@ -144,6 +144,8 @@ async function getEmployeeScheduleForUser(
       employeeId: docSnap.id,
       programLucruStart: data.programLucruStart ? String(data.programLucruStart) : defaults?.programLucruStart,
       programLucruEnd: data.programLucruEnd ? String(data.programLucruEnd) : defaults?.programLucruEnd,
+      pauzaStart: data.pauzaStart ? String(data.pauzaStart) : defaults?.pauzaStart,
+      pauzaEnd: data.pauzaEnd ? String(data.pauzaEnd) : defaults?.pauzaEnd,
     }
   }
 
@@ -281,6 +283,8 @@ async function getHrDefaults(): Promise<HrDefaults | null> {
     return {
       programLucruStart: data?.programLucruStart ? String(data.programLucruStart) : undefined,
       programLucruEnd: data?.programLucruEnd ? String(data.programLucruEnd) : undefined,
+      pauzaStart: data?.pauzaStart ? String(data.pauzaStart) : undefined,
+      pauzaEnd: data?.pauzaEnd ? String(data.pauzaEnd) : undefined,
     }
   } catch {
     return null
@@ -388,6 +392,8 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
     deviceInfo: request.deviceInfo,
     programLucruStart: scheduledStart,
     programLucruEnd: schedule?.programLucruEnd ?? DEFAULT_PROGRAM_END,
+    pauzaStart: schedule?.pauzaStart,
+    pauzaEnd: schedule?.pauzaEnd,
     ...(request.checkInAuto ? { checkInAuto: true, checkInAutoReason: request.checkInAutoReason } : {}),
     createdAt: now,
     updatedAt: now,
@@ -610,7 +616,7 @@ export async function createCheckOut(request: CheckOutRequest): Promise<UserDayS
     extraTimeLogs: txResult.extraTimeLogsCount,
   })
 
-  debugPontajLog("condica:sync-result", pipeline.syncResult)
+  debugPontajLog("condica:sync-result", pipeline.syncResult ?? {})
   return pipeline.syncResult
 }
 

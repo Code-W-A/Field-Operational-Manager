@@ -1,59 +1,25 @@
 "use client"
 
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from "recharts"
-import type { Employee, TimesheetMonthKey, TimesheetMonth } from "@/lib/hr/types"
-import { getEmployeeFullName } from "@/lib/hr/types"
-import { daysInMonth } from "@/lib/hr/storage"
-
-type Row = {
-  name: string
-  hours: number
-  CO: number
-  SL: number
-  WE: number
-}
-
-function buildRows(monthKey: TimesheetMonthKey, employees: Employee[], timesheets: TimesheetMonth[]): Row[] {
-  const dim = daysInMonth(monthKey)
-  const byEmp = new Map<string, TimesheetMonth>()
-  for (const t of timesheets) {
-    if (t.monthKey === monthKey) byEmp.set(t.employeeId, t)
-  }
-
-  return employees
-    .map((e) => {
-      const ts = byEmp.get(e.id)
-      let hours = 0
-      let CO = 0
-      let SL = 0
-      let WE = 0
-      for (let d = 1; d <= dim; d++) {
-        const c = ts?.days?.[String(d)]
-        if (!c) continue
-        if (c.code === "WORK") hours += Number(c.hours ?? 0)
-        if (c.code === "CO") CO++
-        if (c.code === "SL") SL++
-        if (c.code === "WE") WE++
-      }
-      return { name: getEmployeeFullName(e), hours, CO, SL, WE }
-    })
-    .sort((a, b) => b.hours - a.hours)
-}
+import type { Employee, HrDefaults, TimesheetMonthKey, TimesheetMonth } from "@/lib/hr/types"
+import { buildTimesheetChartRows } from "@/lib/hr/timesheet-chart-rows"
 
 export function TimesheetCharts({
   monthKey,
   employees,
   timesheets,
+  defaults,
 }: {
   monthKey: TimesheetMonthKey
   employees: Employee[]
   timesheets: TimesheetMonth[]
+  defaults?: HrDefaults
 }) {
-  const rows = buildRows(monthKey, employees, timesheets)
+  const rows = buildTimesheetChartRows(monthKey, employees, timesheets, defaults)
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <div className="rounded-lg border p-4">
+      <div data-testid="report-chart-work-hours" className="rounded-lg border p-4">
         <div className="font-semibold mb-1">Ore lucrate / salariat</div>
         <div className="text-xs text-muted-foreground mb-3">Luna {monthKey}</div>
         <div className="h-[320px]">
@@ -69,7 +35,7 @@ export function TimesheetCharts({
         </div>
       </div>
 
-      <div className="rounded-lg border p-4">
+      <div data-testid="report-chart-special-days" className="rounded-lg border p-4">
         <div className="font-semibold mb-1">Zile CO/SL/WE / salariat</div>
         <div className="text-xs text-muted-foreground mb-3">Luna {monthKey}</div>
         <div className="h-[320px]">
@@ -89,5 +55,3 @@ export function TimesheetCharts({
     </div>
   )
 }
-
-

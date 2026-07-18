@@ -132,7 +132,11 @@ export default function HrEmployeeDetailsPage() {
 
   const [employees, setEmployees] = useState<Employee[]>([])
   const [employee, setEmployee] = useState<Employee | null>(null)
+  const [employeeLoadState, setEmployeeLoadState] = useState<"loading" | "ready" | "error">("loading")
+  const [employeeLoadAttempt, setEmployeeLoadAttempt] = useState(0)
   const [timesheets, setTimesheets] = useState<TimesheetMonth[]>([])
+  const [timesheetsLoadState, setTimesheetsLoadState] = useState<"loading" | "ready" | "error">("loading")
+  const [timesheetsLoadAttempt, setTimesheetsLoadAttempt] = useState(0)
   const [users, setUsers] = useState<AppUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [usersError, setUsersError] = useState<string | null>(null)
@@ -148,6 +152,8 @@ export default function HrEmployeeDetailsPage() {
 
   useEffect(() => {
     let unsub: null | (() => void) = null
+    let cancelled = false
+    setEmployeeLoadState("loading")
     ;(async () => {
       try {
         await seedHrIfEmpty({ monthKey })
@@ -156,22 +162,35 @@ export default function HrEmployeeDetailsPage() {
       }
       unsub = subscribeEmployees({
         onChange: (e) => {
+          if (cancelled) return
           setEmployees(e)
           setEmployee(e.find((x) => x.id === id) ?? null)
+          setEmployeeLoadState("ready")
+        },
+        onError: () => {
+          if (!cancelled) setEmployeeLoadState("error")
         },
       })
     })()
-    return () => unsub?.()
-  }, [id])
+    return () => {
+      cancelled = true
+      unsub?.()
+    }
+  }, [id, monthKey, employeeLoadAttempt])
 
   useEffect(() => {
     let unsub: null | (() => void) = null
+    setTimesheetsLoadState("loading")
     unsub = subscribeTimesheetsForMonth({
       monthKey,
-      onChange: setTimesheets,
+      onChange: (nextTimesheets) => {
+        setTimesheets(nextTimesheets)
+        setTimesheetsLoadState("ready")
+      },
+      onError: () => setTimesheetsLoadState("error"),
     })
     return () => unsub?.()
-  }, [monthKey])
+  }, [monthKey, timesheetsLoadAttempt])
 
   useEffect(() => {
     const load = async () => {
@@ -307,6 +326,28 @@ export default function HrEmployeeDetailsPage() {
     } finally {
       setDeletingRequestId(null)
     }
+  }
+
+  if (employeeLoadState === "loading") {
+    return (
+      <DashboardShell>
+        <DashboardHeader heading="Fișa salariat" text="Se încarcă datele salariatului." />
+      </DashboardShell>
+    )
+  }
+
+  if (employeeLoadState === "error") {
+    return (
+      <DashboardShell>
+        <DashboardHeader heading="Fișa salariat" text="Nu s-au putut încărca datele salariatului." />
+        <Alert variant="destructive">
+          <AlertDescription>Verifică conexiunea și încearcă din nou.</AlertDescription>
+        </Alert>
+        <Button variant="outline" onClick={() => setEmployeeLoadAttempt((attempt) => attempt + 1)}>
+          Reîncearcă
+        </Button>
+      </DashboardShell>
+    )
   }
 
   if (!employee) {
@@ -709,6 +750,22 @@ export default function HrEmployeeDetailsPage() {
               className="w-[180px] border-2"
             />
           </div>
+
+          {timesheetsLoadState === "loading" && (
+            <Alert>
+              <AlertDescription>Se încarcă pontajul pentru luna selectată.</AlertDescription>
+            </Alert>
+          )}
+          {timesheetsLoadState === "error" && (
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>Nu s-a putut încărca pontajul pentru luna selectată.</span>
+                <Button variant="outline" size="sm" onClick={() => setTimesheetsLoadAttempt((attempt) => attempt + 1)}>
+                  Reîncearcă pontajul
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* KPI Cards - Modern design */}
           <div className="grid gap-4 md:grid-cols-5">

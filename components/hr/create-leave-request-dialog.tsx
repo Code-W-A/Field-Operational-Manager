@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ import { CalendarDays, FileText } from "lucide-react"
 import { DateInput } from "@/components/ui/date-input"
 import { formatISODate } from "@/lib/utils/date-utils"
 import { uploadFile } from "@/lib/firebase/storage"
+import { validateHrRequestPayload, validateMedicalDocumentFile } from "@/lib/hr/request-validation"
 
 function calculateWorkDays(startStr: string, endStr: string): number {
   if (!startStr || !endStr) return 0
@@ -109,6 +110,7 @@ export function CreateLeaveRequestDialog({
   const [medicalDocumentFile, setMedicalDocumentFile] = useState<File | null>(null)
   const [sectorId, setSectorId] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [existingRequests, setExistingRequests] = useState<HrRequest[]>([])
 
@@ -166,6 +168,7 @@ export function CreateLeaveRequestDialog({
   }, [type, startDate, endDate, existingRequests])
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return
     setError(null)
 
     if (overlapHint) {
@@ -214,16 +217,19 @@ export function CreateLeaveRequestDialog({
         return
       }
 
+      submittingRef.current = true
       setSubmitting(true)
       let medicalDocumentUrl: string | undefined
       let medicalDocumentName: string | undefined
       if (type === "CM") {
         const file = medicalDocumentFile
-        if (!file) {
-          setError("Pentru concediu medical trebuie să încarci documentul de la medic.")
+        const medicalFileError = validateMedicalDocumentFile(file)
+        if (medicalFileError) {
+          setError(medicalFileError)
           setSubmitting(false)
           return
         }
+        if (!file) return
         const safeName = file.name.replace(/\s+/g, "_")
         const path = `hr/requests/cm/${employeeId}/${Date.now()}_${safeName}`
         const uploaded = await uploadFile(file, path)
@@ -240,6 +246,12 @@ export function CreateLeaveRequestDialog({
         clientName: type === "DEL" ? clientName.trim() : undefined,
         medicalDocumentUrl,
         medicalDocumentName,
+      }
+
+      const validationError = validateHrRequestPayload(type, rangePayload)
+      if (validationError) {
+        setError(validationError)
+        return
       }
 
       const { id: requestId, documentSerial } = await createHrRequest({
@@ -283,6 +295,7 @@ export function CreateLeaveRequestDialog({
     } catch (err: any) {
       setError(err?.message || "Nu am putut crea cererea. Încearcă din nou.")
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }

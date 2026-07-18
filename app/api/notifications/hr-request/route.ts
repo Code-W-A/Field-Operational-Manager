@@ -10,8 +10,83 @@ import { formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { canGenerateHrRequestDocx } from "@/lib/hr/request-document-format"
 import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server"
 import { generateHrRequestDocxBuffer } from "@/lib/hr/request-docx.server"
+import { RequireRoleError, requireVerifiedRole } from "@/lib/auth/require-role"
+import {
+  HrNotificationRequestError,
+  authorizeHrNotification,
+  parseHrNotificationPayload,
+} from "@/lib/hr/hr-notification-authorization.server"
+import { areSinkRecipientsAllowed, resolveMailTransportPolicy } from "@/lib/email/mail-transport-policy.server"
 
 type HrRequestEvent = "created" | "status_changed"
+
+const DISPATCH_COLLECTION = "hrNotificationDispatches"
+const DISPATCH_LEASE_MS = 60_000
+
+type DispatchClaim =
+  | { state: "claimed" }
+  | { state: "completed"; deliveryCount: number }
+  | { state: "processing" }
+
+function dispatchDocumentId(requestId: string, event: HrRequestEvent, status: string) {
+  return `${requestId}__${event}__${status}`
+}
+
+async function claimDispatch(params: {
+  requestId: string
+  event: HrRequestEvent
+  requestStatus: string
+  actorUid: string
+}): Promise<{ ref: FirebaseFirestore.DocumentReference; claim: DispatchClaim }> {
+  const ref = adminDb.collection(DISPATCH_COLLECTION).doc(
+    dispatchDocumentId(params.requestId, params.event, params.requestStatus),
+  )
+  const now = Date.now()
+  const claim = await adminDb.runTransaction<DispatchClaim>(async (transaction) => {
+    const snapshot = await transaction.get(ref)
+    const current = snapshot.data() as Record<string, unknown> | undefined
+    if (current?.status === "completed") {
+      return {
+        state: "completed",
+        deliveryCount: typeof current.deliveryCount === "number" ? current.deliveryCount : 0,
+      }
+    }
+    if (current?.status === "processing" && Number(current.leaseUntilMs || 0) > now) {
+      return { state: "processing" }
+    }
+    transaction.set(ref, {
+      requestId: params.requestId,
+      event: params.event,
+      requestStatus: params.requestStatus,
+      actorUid: params.actorUid,
+      status: "processing",
+      attempt: Number(current?.attempt || 0) + 1,
+      leaseUntilMs: now + DISPATCH_LEASE_MS,
+      updatedAt: new Date(now),
+      createdAt: current?.createdAt || new Date(now),
+    })
+    return { state: "claimed" }
+  })
+  return { ref, claim }
+}
+
+async function completeDispatch(ref: FirebaseFirestore.DocumentReference, deliveryCount: number) {
+  await ref.set({
+    status: "completed",
+    deliveryCount,
+    leaseUntilMs: 0,
+    completedAt: new Date(),
+    updatedAt: new Date(),
+  }, { merge: true })
+}
+
+async function failDispatch(ref: FirebaseFirestore.DocumentReference) {
+  await ref.set({
+    status: "failed",
+    leaseUntilMs: 0,
+    updatedAt: new Date(),
+  }, { merge: true })
+}
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -152,14 +227,10 @@ function buildReqForGenerators(data: any, requestId: string) {
 
 export async function POST(request: NextRequest) {
   const logContextId = `hrreq_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  let dispatchRef: FirebaseFirestore.DocumentReference | null = null
   try {
-    const body = (await request.json().catch(() => ({}))) as any
-    const requestId = String(body?.requestId || "").trim()
-    const event = String(body?.event || "").trim() as HrRequestEvent
-
-    if (!requestId || (event !== "created" && event !== "status_changed")) {
-      return NextResponse.json({ error: "Parametri invalizi" }, { status: 400 })
-    }
+    const actor = await requireVerifiedRole(["admin", "tehnician", "dispecer"], request)
+    const { requestId, event } = parseHrNotificationPayload(await request.json().catch(() => null))
 
     logInfo(
       "HR request email notification received",
@@ -172,10 +243,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Cererea nu a fost găsită" }, { status: 404 })
     }
     const data = snap.data() as any
+    authorizeHrNotification({ actorUid: actor.uid, actorRole: actor.role, event, request: data })
+
+    const transportPolicy = resolveMailTransportPolicy()
+    if (transportPolicy.mode === "disabled") {
+      logWarning(
+        "HR request email disabled by transport policy",
+        { requestId, event, reason: transportPolicy.reason },
+        { category: "email", context: { requestId, logContextId } },
+      )
+      return NextResponse.json({ error: "Serviciul de notificări nu este configurat." }, { status: 503 })
+    }
 
     const employee = await getEmployeeEmailByEmployeeId(String(data.employeeId || ""))
     const requester = await getUserEmail(String(data.requesterUid || ""))
     const manager = await getUserEmail(String(data.managerUid || ""))
+
+    const intendedRecipients = (event === "created"
+      ? [manager.email, requester.email, employee.email]
+      : [requester.email]
+    ).filter((email): email is string => Boolean(email))
+    if (
+      transportPolicy.mode === "sink" &&
+      !areSinkRecipientsAllowed(intendedRecipients, transportPolicy.sinkAllowedDomains)
+    ) {
+      return NextResponse.json({ error: "Destinatarii nu sunt permiși de transportul izolat." }, { status: 503 })
+    }
+
+    const dispatch = await claimDispatch({
+      requestId,
+      event,
+      requestStatus: String(data.status || ""),
+      actorUid: actor.uid,
+    })
+    dispatchRef = dispatch.ref
+    if (dispatch.claim.state === "completed") {
+      return NextResponse.json({ ok: true, replayed: true, deliveryCount: dispatch.claim.deliveryCount })
+    }
+    if (dispatch.claim.state === "processing") {
+      return NextResponse.json({ error: "Notificarea este deja în procesare." }, { status: 409 })
+    }
 
     const title = `${kindLabel(String(data.kind || ""))} • ${requestDateLabel(data)}`
     const employeeName = data.employeeName || data.employeeId || "—"
@@ -185,17 +292,16 @@ export async function POST(request: NextRequest) {
     const baseUrl = buildBaseUrl(request)
     const approvalsUrl = baseUrl ? `${baseUrl}/dashboard/cereri-aprobari` : "/dashboard/cereri-aprobari"
 
-    const smtpUser = process.env.EMAIL_USER || "fom@nrg-acces.ro"
-    const smtpPass = process.env.EMAIL_PASSWORD
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_SMTP_HOST || "mail.nrg-acces.ro",
-      port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "465"),
-      secure: process.env.EMAIL_SMTP_SECURE === "false" ? false : true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    })
+    const smtpUser = process.env.EMAIL_USER || ""
+    const smtpPass = process.env.EMAIL_PASSWORD || ""
+    const transporter = transportPolicy.mode === "smtp"
+      ? nodemailer.createTransport({
+          host: process.env.EMAIL_SMTP_HOST,
+          port: Number.parseInt(process.env.EMAIL_SMTP_PORT || "0"),
+          secure: process.env.EMAIL_SMTP_SECURE !== "false",
+          auth: { user: smtpUser, pass: smtpPass },
+        })
+      : null
 
     const sendMail = async (params: {
       to: string
@@ -212,6 +318,11 @@ export async function POST(request: NextRequest) {
         )
         return { ok: false, skipped: true }
       }
+
+      if (transportPolicy.mode === "sink") {
+        return { ok: true, sink: true }
+      }
+      if (!transporter) throw new Error("Transport SMTP indisponibil")
 
       let evId: string | null = null
       try {
@@ -265,7 +376,7 @@ export async function POST(request: NextRequest) {
 
     const results: any[] = []
 
-    const attachment = await (async () => {
+    const attachment = transportPolicy.mode === "sink" ? undefined : await (async () => {
       try {
         const req = buildReqForGenerators(data, requestId)
         if (canGenerateHrRequestDocx(req.kind as any)) {
@@ -317,7 +428,7 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    const finalAttachments = await resolveAttachments()
+    const finalAttachments = transportPolicy.mode === "sink" ? undefined : await resolveAttachments()
 
     if (event === "created") {
       if (manager.email) {
@@ -394,8 +505,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, results })
+    const deliveryCount = results.filter((result) => result?.ok === true).length
+    if (transportPolicy.mode === "smtp" && results.some((result) => result?.ok === false && !result?.skipped)) {
+      throw new Error("Una sau mai multe livrări SMTP au eșuat")
+    }
+    await completeDispatch(dispatch.ref, deliveryCount)
+    return NextResponse.json({ ok: true, replayed: false, deliveryCount })
   } catch (error: any) {
+    if (dispatchRef) {
+      try {
+        await failDispatch(dispatchRef)
+      } catch {}
+    }
+    if (error instanceof RequireRoleError || error instanceof HrNotificationRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     logError(
       "HR request email API failed",
       { error: error?.message || String(error) },

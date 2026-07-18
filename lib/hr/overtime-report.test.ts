@@ -50,7 +50,6 @@ function makeOvertimeRequest(
     managerUid: "mgr-1",
     kind: "ADD_OVERTIME",
     status: overrides.status || "approved",
-    payload,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...overrides,

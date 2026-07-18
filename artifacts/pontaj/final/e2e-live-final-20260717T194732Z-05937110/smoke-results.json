@@ -1,0 +1,93 @@
+{
+  "runId": "e2e-live-final-20260717T194732Z-05937110",
+  "previewUrl": "https://v0-field-operational-manager-kzil557sw-shik-projects.vercel.app",
+  "startedAt": "2026-07-17T21:03:01.785Z",
+  "checks": {
+    "previewPublic": {
+      "status": "PASS",
+      "http": 200,
+      "pageErrors": 0,
+      "staticAssets": true
+    },
+    "firebaseAuthDirect": {
+      "status": "PASS",
+      "projectId": "field-operational-manager",
+      "uid": "livefinal-20260717-05937110-admin"
+    },
+    "authentication": {
+      "status": "PASS",
+      "role": "admin",
+      "logout": true,
+      "accountMutationScope": "synthetic-only"
+    },
+    "firestoreAnonymousCrud": {
+      "status": "PASS",
+      "create": true,
+      "read": true,
+      "update": true,
+      "delete": true
+    },
+    "storageAnonymousCrud": {
+      "status": "PASS",
+      "upload": true,
+      "download": true,
+      "overwrite": true,
+      "delete": true
+    },
+    "hrEndpoint": {
+      "status": "PASS",
+      "anonymousRejected": 401,
+      "unrelatedRejected": 403,
+      "ownerAllowed": true,
+      "adminAllowed": true,
+      "assignedManagerAllowed": true,
+      "injectionRejected": 400,
+      "replay": true,
+      "concurrencyStatuses": [
+        200,
+        200
+      ],
+      "transport": "sink-.invalid"
+    },
+    "callableAuthorization": {
+      "status": "PASS",
+      "anonymousRejected": true,
+      "technicianRejected": true,
+      "adminAllowed": true,
+      "injectionRejected": true,
+      "result": {
+        "created": 0
+      },
+      "realContractsModified": 0
+    },
+    "functionalFlow": {
+      "status": "PASS",
+      "start": true,
+      "stop": true,
+      "attendanceId": "att_livefinal-20260717-05937110-tech_1784322210437",
+      "lockRemoved": true,
+      "timesheetProjection": true,
+      "requestCreated": true,
+      "decision": "approved",
+      "requestProjection": "2026-07-23:CO",
+      "exportReadOnly": true
+    },
+    "externalTransports": {
+      "status": "PASS",
+      "email": 0,
+      "sms": 0,
+      "push": 0
+    }
+  },
+  "defects": [
+    {
+      "id": "DEF-FINAL-007",
+      "classification": "APP_BUG",
+      "status": "FIXED_BEFORE_SUCCESSFUL_RUN",
+      "summary": "MAIL_SINK_ALLOWED_DOMAINS entries beginning with a dot now match domain suffixes such as example.invalid.",
+      "regression": "lib/email/mail-transport-policy.server.test.ts: 4/4 PASS"
+    }
+  ],
+  "completedAt": "2026-07-17T21:03:46.593Z",
+  "status": "PASS"
+}

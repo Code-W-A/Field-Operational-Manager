@@ -65,6 +65,9 @@ export interface AttendanceSession {
   /** Optional work schedule captured at check-in (used for extra-time caps). */
   programLucruStart?: string // "HH:mm"
   programLucruEnd?: string // "HH:mm"
+  /** Break configuration captured at check-in for deterministic timesheet sync. */
+  pauzaStart?: string // "HH:mm"
+  pauzaEnd?: string // "HH:mm"
   /** Explicit checkout metadata (separate from check-in). */
   checkOutMode?: AttendanceMode
   checkOutLocation?: AttendanceLocation

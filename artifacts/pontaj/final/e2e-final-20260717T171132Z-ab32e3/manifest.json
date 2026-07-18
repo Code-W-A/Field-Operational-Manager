@@ -1,0 +1,24 @@
+{
+  "runId": "e2e-final-20260717T171132Z-ab32e3",
+  "createdAt": "2026-07-17T17:11:32Z",
+  "authorizedProjectId": "field-operational-manager",
+  "state": "DEPLOY_AUTH_BLOCKED_BEFORE_MUTATION",
+  "authUids": [],
+  "firestoreDocuments": [],
+  "attendance": [],
+  "locks": [],
+  "timesheets": [],
+  "requests": [],
+  "specialCounters": [],
+  "logs": [],
+  "syntheticEmployees": [],
+  "syntheticDepartments": [],
+  "storageObjects": [],
+  "exports": [],
+  "sinkNotifications": [],
+  "idempotencyMarkers": [],
+  "notes": [
+    "Firebase CLI identity cannot access field-operational-manager.",
+    "No live or Preview mutation was started."
+  ]
+}

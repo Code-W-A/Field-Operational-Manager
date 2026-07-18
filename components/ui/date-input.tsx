@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { formatISODate, formatRomanianDate, formatRomanianDateISO, parseRomanianDateString } from "@/lib/utils/date-utils"
 
 type DateInputProps = {
+  id?: string
   value: string
   onChange: (value: string) => void
   placeholder?: string
@@ -22,7 +23,7 @@ type DateInputProps = {
   testId?: string
 }
 
-export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabled, min, max, className, testId }: DateInputProps) {
+export function DateInput({ id, value, onChange, placeholder = "dd MMM yyyy", disabled, min, max, className, testId }: DateInputProps) {
   const displayValue = value ? formatRomanianDateISO(value) : ""
   const [draft, setDraft] = useState(displayValue)
   const [open, setOpen] = useState(false)
@@ -85,6 +86,7 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
   if (useNativeMobileDate) {
     return (
       <Input
+        id={id}
         type="date"
         value={value || ""}
         onChange={(e) => onChange(e.target.value || "")}
@@ -100,6 +102,7 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
   return (
     <div className={cn("relative", className)}>
       <Input
+        id={id}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commitDraft}
@@ -140,7 +143,7 @@ export function DateInput({ value, onChange, placeholder = "dd MMM yyyy", disabl
               setDraft(formatRomanianDate(date))
               setOpen(false)
             }}
-            captionLayout="dropdown-buttons"
+            captionLayout="dropdown"
             fromYear={yearRange.fromYear}
             toYear={yearRange.toYear}
             fromDate={min ? new Date(min) : undefined}

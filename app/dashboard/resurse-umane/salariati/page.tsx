@@ -47,6 +47,8 @@ type AppUser = { uid: string; displayName: string | null; email: string | null; 
 export default function HrEmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
+  const [employeesError, setEmployeesError] = useState<string | null>(null)
+  const [employeesLoadAttempt, setEmployeesLoadAttempt] = useState(0)
   const [hasLegacyData, setHasLegacyData] = useState(false)
   const [importing, setImporting] = useState(false)
   const [defaultProgramStart, setDefaultProgramStart] = useState("")
@@ -74,16 +76,20 @@ export default function HrEmployeesPage() {
       unsub = subscribeEmployees({
         onChange: (e) => {
           setEmployees(e)
+          setEmployeesError(null)
           setLoading(false)
         },
-        onError: () => setLoading(false),
+        onError: () => {
+          setEmployeesError("Nu s-a putut încărca lista salariaților.")
+          setLoading(false)
+        },
       })
     })()
 
     return () => {
       unsub?.()
     }
-  }, [])
+  }, [employeesLoadAttempt])
 
   useEffect(() => {
     const unsub = subscribeDepartments({
@@ -343,8 +349,18 @@ export default function HrEmployeesPage() {
 
       {loading ? (
         <div className="text-muted-foreground">Se încarcă…</div>
+      ) : employeesError ? (
+        <div className="flex flex-wrap items-center gap-3" role="alert">
+          <span>{employeesError}</span>
+          <Button variant="outline" onClick={() => {
+            setLoading(true)
+            setEmployeesLoadAttempt((attempt) => attempt + 1)
+          }}>
+            Reîncearcă
+          </Button>
+        </div>
       ) : (
-        <EmployeesTable employees={sortedEmployees} onEdit={openEdit} />
+        <EmployeesTable employees={sortedEmployees} users={users} departments={departments} onEdit={openEdit} />
       )}
 
       <EmployeeEditDialog
@@ -470,5 +486,4 @@ export default function HrEmployeesPage() {
     </DashboardShell>
   )
 }
-
 

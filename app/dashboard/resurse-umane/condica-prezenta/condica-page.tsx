@@ -1755,7 +1755,9 @@ export default function CondicaPrezentaPage() {
           if (submittedMonthKey !== monthKey) throw new Error("Alege o dată în luna afișată în condică.")
           const start = new Date(startDate)
           const end = new Date(endDate)
-          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            throw new Error("Intervalul de date este invalid.")
+          }
 
           const entryOverlap = findOverlapPair(entries)
           if (entryOverlap) {
@@ -1764,7 +1766,7 @@ export default function CondicaPrezentaPage() {
               description: `Conflict între ${entryOverlap.a} și ${entryOverlap.b}.`,
               variant: "destructive",
             })
-            return
+            throw new Error("Intervale suprapuse.")
           }
           const breakOverlap = findOverlapPair(breaks)
           if (breakOverlap) {
@@ -1773,7 +1775,7 @@ export default function CondicaPrezentaPage() {
               description: `Conflict între ${breakOverlap.a} și ${breakOverlap.b}.`,
               variant: "destructive",
             })
-            return
+            throw new Error("Pauze suprapuse.")
           }
           const breakOutside = findBreakOutsideEntries(entries, breaks)
           if (breakOutside) {
@@ -1782,7 +1784,7 @@ export default function CondicaPrezentaPage() {
               description: `Pauza ${breakOutside.breakLabel} trebuie să fie în interiorul unui interval de lucru.`,
               variant: "destructive",
             })
-            return
+            throw new Error("Pauza trebuie să fie în interiorul unui interval de lucru.")
           }
 
           const cells: Array<{ day: number; cell: TimesheetCell }> = []
@@ -1812,7 +1814,7 @@ export default function CondicaPrezentaPage() {
                 description: `Conflict între ${existingOverlap.incoming} și ${existingOverlap.existing} în data ${String(day).padStart(2, "0")}.${monthKey.split("-")[1]}.${monthKey.split("-")[0]}.`,
                 variant: "destructive",
               })
-              return
+              throw new Error("Intervale suprapuse.")
             }
             const breakExistingOverlap = findOverlapWithExisting(existing?.breaks ?? [], breaks)
             if (breakExistingOverlap) {
@@ -1821,7 +1823,7 @@ export default function CondicaPrezentaPage() {
                 description: `Conflict între ${breakExistingOverlap.incoming} și ${breakExistingOverlap.existing} în data ${String(day).padStart(2, "0")}.${monthKey.split("-")[1]}.${monthKey.split("-")[0]}.`,
                 variant: "destructive",
               })
-              return
+              throw new Error("Pauze suprapuse.")
             }
 
             const cell: TimesheetCell = {
@@ -1846,10 +1848,15 @@ export default function CondicaPrezentaPage() {
         defaultEndDate={deleteDefaults?.endDate ?? `${monthKey}-01`}
         onSubmitRange={async ({ employeeId, startDate, endDate, deleteEntries, deleteBreaks, monthKey: mk }) => {
           // Deleting is supported only within the currently displayed month.
-          if (mk !== monthKey) return
+          if (mk !== monthKey) throw new Error("Alege un interval din luna afișată în condică.")
           const start = new Date(startDate)
           const end = new Date(endDate)
-          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            throw new Error("Intervalul de date este invalid.")
+          }
+          if (end < start) {
+            throw new Error("Data de oprire trebuie să fie după data de început.")
+          }
           const startDay = start.getDate()
           const endDay = end.getDate()
           await deleteTimesheetRange({ monthKey, employeeId, startDay, endDay, deleteEntries, deleteBreaks })

@@ -50,7 +50,7 @@ async function upsertAuthUser(params: { uid: string; email: string; displayName:
 }
 
 export async function seedMinimalPontajFixture(options: { auth?: boolean } = {}) {
-  if (options.auth !== false) {
+  if (options.auth) {
     await Promise.all(E2E_USERS.map(({ uid, email, displayName }) => upsertAuthUser({ uid, email, displayName })))
   }
 
@@ -89,7 +89,7 @@ export async function seedMinimalPontajFixture(options: { auth?: boolean } = {})
 export async function resetPontajMutations() {
   await Promise.all([
     deleteCollection("attendance"), deleteCollection("attendanceActiveSessions"),
-    deleteCollection("hrTimesheets"), deleteCollection("logs"),
+    deleteCollection("hrTimesheets"), deleteCollection("hrNotificationDispatches"), deleteCollection("logs"),
   ])
 }
 

@@ -55,6 +55,24 @@ export async function getCondicaTimesheet(employeeId = EMPLOYEE_ID, monthKey = M
   return snapshot.exists ? { id: snapshot.id, ...snapshot.data() } as any : null
 }
 
+export async function snapshotHolidayYear(year: number) {
+  const snapshot = await e2eDb.collection("hrHolidays").doc(String(year)).get()
+  return {
+    year,
+    exists: snapshot.exists,
+    data: snapshot.exists ? snapshot.data() ?? {} : null,
+  }
+}
+
+export async function restoreHolidayYear(snapshot: Awaited<ReturnType<typeof snapshotHolidayYear>>) {
+  const ref = e2eDb.collection("hrHolidays").doc(String(snapshot.year))
+  if (!snapshot.exists) {
+    await ref.delete()
+    return
+  }
+  await ref.set(snapshot.data ?? {})
+}
+
 export async function openCondica(page: Page, options: { monthKey?: string; employeeId?: string } = {}) {
   const monthKey = options.monthKey ?? MONTH_KEY
   const employeeId = options.employeeId ?? EMPLOYEE_ID

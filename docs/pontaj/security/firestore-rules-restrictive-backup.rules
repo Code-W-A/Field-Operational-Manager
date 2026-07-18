@@ -1,0 +1,136 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function admin() { return role() == 'admin'; }
+    // Existing HR UI permits dispatcher management. This is characterized, not a new policy.
+    function dispatcher() { return role() == 'dispecer'; }
+    function technician() { return role() == 'tehnician'; }
+    function kiosk() { return role() == 'kiosk'; }
+    function hrManager() { return admin() || dispatcher(); }
+    function attendanceOperator() { return hrManager() || kiosk(); }
+    function staff() { return hrManager() || technician() || kiosk(); }
+
+    function employeeOwnedBy(employeeId, uid) {
+      return exists(/databases/$(database)/documents/hrEmployees/$(employeeId)) &&
+        get(/databases/$(database)/documents/hrEmployees/$(employeeId)).data.userUid == uid;
+    }
+
+    function ownsEmployee(employeeId) {
+      return signedIn() && employeeOwnedBy(employeeId, request.auth.uid);
+    }
+
+    function ownAttendance() {
+      return signedIn() && resource != null && resource.data.userId == request.auth.uid;
+    }
+
+    function writesOwnAttendance() {
+      return signedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (uid == request.auth.uid || staff());
+      allow list: if staff();
+      allow create, delete: if admin();
+      allow update: if admin();
+    }
+
+    match /hrEmployees/{employeeId} {
+      allow read: if staff();
+      allow create, delete: if hrManager();
+      allow update: if hrManager() ||
+        (technician() && (!("userUid" in resource.data) || resource.data.userUid == null) && request.resource.data.userUid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userUid', 'updatedAt']));
+    }
+
+    match /hrDepartments/{departmentId} {
+      allow read: if staff();
+      allow write: if hrManager();
+    }
+
+    match /hrSettings/{settingId} {
+      allow read: if staff();
+      allow write: if hrManager();
+    }
+
+    match /attendance/{sessionId} {
+      allow get: if attendanceOperator() || (technician() && (resource == null || ownAttendance()));
+      allow list: if attendanceOperator() || technician();
+      allow create: if attendanceOperator() || writesOwnAttendance();
+      allow update: if attendanceOperator() || ownAttendance();
+      allow delete: if hrManager();
+    }
+
+    match /attendanceActiveSessions/{uid} {
+      allow get: if attendanceOperator() || (signedIn() && uid == request.auth.uid);
+      allow list: if attendanceOperator();
+      allow create, update: if attendanceOperator() || (signedIn() && uid == request.auth.uid && request.resource.data.userId == request.auth.uid);
+      allow delete: if attendanceOperator() || (signedIn() && uid == request.auth.uid);
+    }
+
+    match /hrTimesheets/{timesheetId} {
+      allow get: if hrManager() || kiosk() || (technician() && ownsEmployee(resource.data.employeeId));
+      allow list: if hrManager() || kiosk() || technician();
+      allow create: if hrManager() || kiosk() || (technician() && ownsEmployee(request.resource.data.employeeId));
+      allow update: if hrManager() || kiosk() || (technician() && ownsEmployee(resource.data.employeeId));
+      allow delete: if hrManager();
+    }
+
+    match /hrRequests/{requestId} {
+      allow get: if hrManager() || (signedIn() && resource.data.requesterUid == request.auth.uid);
+      allow list: if hrManager() || technician();
+      allow create: if hrManager() || (technician() && request.resource.data.requesterUid == request.auth.uid && ownsEmployee(request.resource.data.employeeId));
+      allow update: if hrManager() || (technician() && resource.data.requesterUid == request.auth.uid && resource.data.status == 'pending');
+      allow delete: if hrManager();
+    }
+
+    match /hrCounters/leaveRequestSerial {
+      allow get: if staff();
+      allow create: if hrManager() || (technician() && request.resource.data.last == 1);
+      allow update: if hrManager() ||
+        (technician() && request.resource.data.last is int && resource.data.last is int && request.resource.data.last == resource.data.last + 1);
+      allow delete: if hrManager();
+    }
+
+    match /hrCounters/{counterId} {
+      allow read, write: if hrManager();
+    }
+
+    match /hrHolidays/{year} {
+      allow read: if staff();
+      allow write: if hrManager();
+    }
+
+    match /logs/{logId} {
+      allow read: if hrManager();
+      allow create: if attendanceOperator() ||
+        (signedIn() && (request.resource.data.utilizatorId == request.auth.uid || request.resource.data.userId == request.auth.uid));
+      allow update, delete: if false;
+    }
+
+    // The operational work-order surface is outside HR, but technicians require it for Start/Stop.
+    match /lucrari/{workId} {
+      allow read, write: if hrManager() || technician();
+      allow read: if signedIn() && role() == 'client';
+      match /{subpath=**} {
+        allow read, write: if hrManager() || technician();
+        allow read: if signedIn() && role() == 'client';
+      }
+    }
+
+    // No broad fallback: every protected data family needs an explicit contract.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

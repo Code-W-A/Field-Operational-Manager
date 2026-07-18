@@ -2,11 +2,14 @@
 
 import type { Department, Employee, HrDefaults, HrHoliday, TimesheetCell, TimesheetMonth, TimesheetMonthKey } from "./types"
 import type { HrRequest, HrRequestKind, HrRequestStatus } from "./types"
+import { normalizeEmployeeSectorAssignment } from "./employee-sector-assignment"
+import { validateHrRequestCreateInput } from "./request-validation"
 import {
   collection,
   deleteDoc,
   deleteField,
   doc,
+  FieldPath,
   getDoc,
   getDocs,
   limit,
@@ -152,6 +155,7 @@ export async function getEmployeeByUserUid(userUid: string): Promise<Employee | 
 
 export async function createOrUpdateEmployee(employee: Employee) {
   const ref = doc(db, "hrEmployees", employee.id)
+  const { sectorIds, managerUidBySector } = normalizeEmployeeSectorAssignment(employee)
   
   // Prepare data object with all fields
   const data: any = {
@@ -168,8 +172,8 @@ export async function createOrUpdateEmployee(employee: Employee) {
     poziteCOR: employee.poziteCOR ?? null,
     superiorUid: employee.superiorUid ?? null,
     superiorIerarhic: employee.superiorIerarhic ?? null,
-    sectorIds: employee.sectorIds?.length ? employee.sectorIds : null,
-    managerUidBySector: employee.managerUidBySector && Object.keys(employee.managerUidBySector).length ? employee.managerUidBySector : null,
+    sectorIds: sectorIds.length ? sectorIds : null,
+    managerUidBySector: Object.keys(managerUidBySector).length ? managerUidBySector : null,
     loculDeMunca: employee.loculDeMunca ?? null,
     programLucruStart: employee.programLucruStart ?? null,
     programLucruEnd: employee.programLucruEnd ?? null,
@@ -187,7 +191,18 @@ export async function createOrUpdateEmployee(employee: Employee) {
       createdAt: serverTimestamp(),
   }
   
-  await setDoc(ref, data, { merge: true })
+  await runTransaction(db, async (transaction) => {
+    const current = await transaction.get(ref)
+    const staleManagerSectorIds = current.exists()
+      ? Object.keys((current.data().managerUidBySector as Record<string, unknown> | undefined) ?? {})
+        .filter((sectorId) => !Object.hasOwn(managerUidBySector, sectorId))
+      : []
+
+    transaction.set(ref, data, { merge: true })
+    for (const sectorId of staleManagerSectorIds) {
+      transaction.update(ref, new FieldPath("managerUidBySector", sectorId), deleteField())
+    }
+  })
 }
 
 export async function deleteEmployee(employeeId: string) {
@@ -293,7 +308,7 @@ function removeUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
     const value = obj[key]
     if (value === undefined) continue
     if (Array.isArray(value)) {
-      result[key] = value.map(item => 
+      result[key] = value.map((item: unknown) =>
         typeof item === 'object' && item !== null ? removeUndefined(item) : item
       )
     } else if (typeof value === 'object' && value !== null) {
@@ -305,7 +320,7 @@ function removeUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   return result
 }
 
-export function upsertTimesheetCell(params: {
+export async function upsertTimesheetCell(params: {
   monthKey: TimesheetMonthKey
   employeeId: string
   day: number
@@ -313,20 +328,27 @@ export function upsertTimesheetCell(params: {
 }): Promise<void> {
   const ref = doc(db, "hrTimesheets", timesheetDocId(params.employeeId, params.monthKey))
   const dayKey = String(params.day)
-  
-  // Clean the cell object to remove undefined values
   const cleanCell = removeUndefined(params.cell)
-  
-  return setDoc(
-    ref,
-    {
+
+  // Updating the day path replaces the map instead of merging it. This is
+  // required when a manager explicitly clears fields (for example, CO source
+  // metadata); a nested setDoc merge would retain those stale fields.
+  try {
+    await updateDoc(ref, {
+      employeeId: params.employeeId,
+      monthKey: params.monthKey,
+      updatedAt: serverTimestamp(),
+      [`days.${dayKey}`]: cleanCell,
+    })
+  } catch (err: any) {
+    if (err?.code !== "not-found") throw err
+    await setDoc(ref, {
       employeeId: params.employeeId,
       monthKey: params.monthKey,
       updatedAt: serverTimestamp(),
       days: { [dayKey]: cleanCell },
-    },
-    { merge: true }
-  )
+    })
+  }
 }
 
 /**
@@ -735,6 +757,8 @@ async function notifyHrRequestEmail(params: { requestId: string; event: "created
 export async function createHrRequest(
   request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">,
 ): Promise<{ id: string; documentSerial: number }> {
+  const validationError = validateHrRequestCreateInput(request)
+  if (validationError) throw new Error(validationError)
   await assertNoActiveRequestOverlap({
     employeeId: request.employeeId,
     kind: request.kind,
@@ -802,10 +826,11 @@ export async function decideHrRequest(params: {
   rejectionReason?: string
 }) {
   const ref = doc(db, "hrRequests", params.requestId)
+  const initial = await getDoc(ref)
+  if (!initial.exists()) throw new Error("Cererea nu mai există.")
+  const current = normalizeHrRequest(initial.id, initial.data())
+  if (current.status !== "pending") throw new Error("Cererea a fost deja soluționată.")
   if (params.status === "approved") {
-    const snap = await getDoc(ref)
-    if (!snap.exists()) throw new Error("Cererea nu mai există.")
-    const current = normalizeHrRequest(snap.id, snap.data())
     await assertNoActiveRequestOverlap({
       employeeId: current.employeeId,
       kind: current.kind,
@@ -813,14 +838,22 @@ export async function decideHrRequest(params: {
       excludeRequestId: params.requestId,
     })
   }
-  await updateDoc(ref, {
-    status: params.status,
-    rejectionReason: params.status === "rejected" ? (params.rejectionReason?.trim() || "—") : null,
-    decidedByUid: params.decidedByUid,
-    decidedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    emailChannel: "nextjs",
-  } as any)
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error("Cererea nu mai există.")
+    if (normalizeHrRequest(snap.id, snap.data()).status !== "pending") {
+      throw new Error("Cererea a fost deja soluționată.")
+    }
+    transaction.update(ref, {
+      status: params.status,
+      rejectionReason: params.status === "rejected" ? (params.rejectionReason?.trim() || "—") : null,
+      decidedByUid: params.decidedByUid,
+      decidedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      emailChannel: "nextjs",
+    } as any)
+  })
   await notifyHrRequestEmail({ requestId: params.requestId, event: "status_changed" })
 }
 

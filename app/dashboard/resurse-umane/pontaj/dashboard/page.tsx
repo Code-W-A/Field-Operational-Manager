@@ -17,6 +17,7 @@ import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 import { buildAttendanceEntriesFromSessions } from "@/lib/attendance/sync-timesheet-entries"
 import { calcEffectiveMinutes, getConfiguredBreak } from "@/lib/hr/time-calc"
 import type { HrDefaults } from "@/lib/hr/types"
+import { DashboardShell } from "@/components/dashboard-shell"
 
 type EmployeeInfo = {
   fullName: string
@@ -226,7 +227,8 @@ export default function AttendanceDashboardPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <DashboardShell>
+      <div className="container mx-auto py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Dashboard Pontaj</h1>
@@ -384,6 +386,7 @@ export default function AttendanceDashboardPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </DashboardShell>
   )
 }

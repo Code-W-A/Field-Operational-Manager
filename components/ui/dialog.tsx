@@ -55,7 +55,6 @@ const DialogContent = React.forwardRef<
       }}
       onEscapeKeyDown={(event) => {
         onEscapeKeyDown?.(event)
-        event.preventDefault()
       }}
       {...props}
     >

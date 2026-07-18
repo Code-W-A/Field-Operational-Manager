@@ -245,7 +245,7 @@ export function OvertimeReport({ className }: { className?: string }) {
 
   if (loading) {
     return (
-      <div className={`flex items-center justify-center py-12 ${className || ""}`}>
+      <div data-testid="overtime-loading" className={`flex items-center justify-center py-12 ${className || ""}`}>
         <Spinner className="mr-2" />
         <span className="text-muted-foreground">Se încarcă datele...</span>
       </div>
@@ -262,9 +262,9 @@ export function OvertimeReport({ className }: { className?: string }) {
         <CardContent>
           <div className="flex flex-wrap gap-4 items-end">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-muted-foreground">An</label>
+              <label htmlFor="overtime-year" className="text-sm font-medium text-muted-foreground">An</label>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger id="overtime-year" className="w-[120px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -275,9 +275,9 @@ export function OvertimeReport({ className }: { className?: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-muted-foreground">Lună</label>
+              <label htmlFor="overtime-month" className="text-sm font-medium text-muted-foreground">Lună</label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[190px]">
+                <SelectTrigger id="overtime-month" className="w-[190px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -289,9 +289,9 @@ export function OvertimeReport({ className }: { className?: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-muted-foreground">Angajat</label>
+              <label htmlFor="overtime-employee" className="text-sm font-medium text-muted-foreground">Angajat</label>
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger className="w-[220px]">
+                <SelectTrigger id="overtime-employee" className="w-[220px]">
                   <SelectValue placeholder="Toți angajații" />
                 </SelectTrigger>
                 <SelectContent>
@@ -305,9 +305,9 @@ export function OvertimeReport({ className }: { className?: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-muted-foreground">Status cerere</label>
+              <label htmlFor="overtime-request-status" className="text-sm font-medium text-muted-foreground">Status cerere</label>
               <Select value={requestStatusFilter} onValueChange={(v) => setRequestStatusFilter(v as any)}>
-                <SelectTrigger className="w-[170px]">
+                <SelectTrigger id="overtime-request-status" className="w-[170px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -318,9 +318,9 @@ export function OvertimeReport({ className }: { className?: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-muted-foreground">Reconciliere</label>
+              <label htmlFor="overtime-reconciliation" className="text-sm font-medium text-muted-foreground">Reconciliere</label>
               <Select value={reconciliationFilter} onValueChange={(v) => setReconciliationFilter(v as any)}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger id="overtime-reconciliation" className="w-[160px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -334,7 +334,7 @@ export function OvertimeReport({ className }: { className?: string }) {
       </Card>
 
       {filteredEntries.length === 0 && reconciliationRowsAll.length === 0 ? (
-        <Alert>
+        <Alert data-testid="overtime-empty">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             Nu există cereri de ore suplimentare pentru {selectedYear}
@@ -350,16 +350,16 @@ export function OvertimeReport({ className }: { className?: string }) {
               <TabsTrigger value="reconciliere">Reconciliere condică</TabsTrigger>
             </TabsList>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleExport("general")}>
+              <Button data-testid="overtime-export-summary" variant="outline" size="sm" onClick={() => handleExport("general")}>
                 <Download className="mr-2 h-4 w-4" />
                 Export Sumar CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => handleExport("detailed")}>
+              <Button data-testid="overtime-export-detailed" variant="outline" size="sm" onClick={() => handleExport("detailed")}>
                 <Download className="mr-2 h-4 w-4" />
                 Export Detaliat CSV
               </Button>
               {activeTab === "reconciliere" ? (
-                <Button variant="outline" size="sm" onClick={handleReconciliationExport} disabled={reconciliationRows.length === 0}>
+                <Button data-testid="overtime-export-reconciliation" variant="outline" size="sm" onClick={handleReconciliationExport} disabled={reconciliationRows.length === 0}>
                   <Download className="mr-2 h-4 w-4" />
                   Export Reconciliere CSV
                 </Button>
@@ -378,7 +378,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatOvertimeDuration(generalStats.totalHours)}</div>
+                  <div data-testid="overtime-kpi-total" className="text-2xl font-bold">{formatOvertimeDuration(generalStats.totalHours)}</div>
                   <p className="text-xs text-muted-foreground mt-1">{generalStats.totalHours} h</p>
                 </CardContent>
               </Card>
@@ -390,7 +390,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{generalStats.totalRequests}</div>
+                  <div data-testid="overtime-kpi-requests" className="text-2xl font-bold">{generalStats.totalRequests}</div>
                   <p className="text-xs text-muted-foreground mt-1">cereri în {selectedYear}</p>
                 </CardContent>
               </Card>
@@ -402,7 +402,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatOvertimeDuration(avgPerEmployee)}</div>
+                  <div data-testid="overtime-kpi-average" className="text-2xl font-bold">{formatOvertimeDuration(avgPerEmployee)}</div>
                   <p className="text-xs text-muted-foreground mt-1">{generalStats.byEmployee.length} angajați</p>
                 </CardContent>
               </Card>
@@ -446,7 +446,7 @@ export function OvertimeReport({ className }: { className?: string }) {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table data-testid="overtime-summary-table" className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">#</th>
@@ -518,7 +518,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{reconciliationStats.confirmed}</div>
+                  <div data-testid="overtime-reconciliation-confirmed" className="text-2xl font-bold">{reconciliationStats.confirmed}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -529,7 +529,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{reconciliationStats.issues}</div>
+                  <div data-testid="overtime-reconciliation-issues" className="text-2xl font-bold">{reconciliationStats.issues}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -537,7 +537,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Ore cerute</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatOvertimeDuration(reconciliationStats.requestedHours)}</div>
+                  <div data-testid="overtime-reconciliation-requested" className="text-2xl font-bold">{formatOvertimeDuration(reconciliationStats.requestedHours)}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -545,7 +545,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Ore găsite</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatOvertimeDuration(reconciliationStats.foundHours)}</div>
+                  <div data-testid="overtime-reconciliation-found" className="text-2xl font-bold">{formatOvertimeDuration(reconciliationStats.foundHours)}</div>
                 </CardContent>
               </Card>
             </div>
@@ -567,7 +567,7 @@ export function OvertimeReport({ className }: { className?: string }) {
                   </Alert>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table data-testid="overtime-reconciliation-table" className="w-full text-sm">
                       <thead>
                         <tr className="border-b">
                           <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Angajat</th>

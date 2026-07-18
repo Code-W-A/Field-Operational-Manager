@@ -343,6 +343,7 @@ export function DayEntryPopover({
       <Popover open={open} onOpenChange={onOpenChange}>
         {virtualRef.current ? <PopoverAnchor virtualRef={virtualRef as any} /> : null}
         <PopoverContent
+          data-testid="condica-day-detail"
           side="bottom"
           align="end"
           sideOffset={8}
@@ -461,7 +462,7 @@ export function DayEntryPopover({
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <div className="text-xs text-gray-600">Total timp</div>
-                    <div className="text-xl font-semibold text-gray-900">{minutesToHM(minutes)}</div>
+                    <div data-testid="condica-day-total" className="text-xl font-semibold text-gray-900">{minutesToHM(minutes)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-600">Pauză înregistrată</div>
@@ -523,7 +524,7 @@ export function DayEntryPopover({
                   ) : (
                     <div className="space-y-2">
                       {entries.map((e, idx) => (
-                        <div key={idx} className="flex items-center justify-between rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 px-3 py-2 hover:border-blue-400 transition-all">
+                        <div key={idx} data-testid={`condica-day-entry-${idx}`} className="flex items-center justify-between rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 px-3 py-2 hover:border-blue-400 transition-all">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-blue-600" />
                             <div className="font-mono text-sm font-bold text-gray-900">
@@ -937,5 +938,4 @@ function VerificariDialog({
     </Dialog>
   )
 }
-
 

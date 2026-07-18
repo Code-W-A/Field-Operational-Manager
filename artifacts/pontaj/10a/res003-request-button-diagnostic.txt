@@ -1,0 +1,47 @@
+{
+  "url": "http://127.0.0.1:3100/dashboard/cereri",
+  "title": "Field Operational Manager",
+  "headings": [
+    "Cerere nouă"
+  ],
+  "buttons": [
+    {
+      "text": "",
+      "accessibleName": "Deschide calendar",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "accessibleName": "Deschide calendar",
+      "disabled": false
+    },
+    {
+      "text": "Anulează",
+      "accessibleName": "Anulează",
+      "disabled": false
+    },
+    {
+      "text": "Trimite cererea",
+      "accessibleName": "Trimite cererea",
+      "disabled": true
+    },
+    {
+      "text": "Close",
+      "accessibleName": "Close",
+      "disabled": false
+    }
+  ],
+  "bodyText": "Toggle menu\nFOM\nCRM\nDashboard\nCererile mele\nTichete\nIstoric intervenții\nProceduri\nE\nE2E_PONTAJ_STAGE5 Tehnician\nCererile mele\nCerere\n\nCreează și urmărește cererile tale (concedii, învoiri, delegații, corectări de ore). Disponibil pentru salariații cu cont legat în HR.\n\nListă cereri\n#0001\nConcediu de odihnă\n10 iul 2026 → 10 iul 2026\nDepartament: E2E_PONTAJ_STAGE5 Departament\nÎn așteptare\nCerere creată\nNumăr cerere: #0001. Trimisă către șeful ierarhic.\nCerere nouă\nAngajat: Tehnician E2E_PONTAJ_STAGE5\nDepartament *\nTip cerere *\nConcediu de odihnă\nDe la *\nPână la *\nMotiv (opțional)\nAnulează\nTrimite cererea\nClose\nNotification Cerere creatăNumăr cerere: #0001. Trimisă către șeful ierarhic.",
+  "events": [
+    "console:log:Fetching user data for: tech_e2e_pontaj_stage5",
+    "console:log:User data loaded: {uid: tech_e2e_pontaj_stage5, email: tech.e2e_pontaj_stage5@e2e.invalid, displayName: E2E_PONTAJ_STAGE5 Tehnician, role: tehnician, ownerRunId: E2E_PONTAJ_STAGE5}",
+    "console:log:ProtectedRoute check: {user: true, userData: Object, allowedRoles: undefined, hasRole: false, pathname: /dashboard/cereri}",
+    "console:error:Access to fetch at 'http://localhost:3100/dashboard/lucrari' (redirected from 'http://127.0.0.1:3100/dashboard?_rsc=1al1y') from origin 'http://127.0.0.1:3100' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "requestfailed:http://localhost:3100/dashboard/lucrari:net::ERR_FAILED",
+    "console:error:Failed to load resource: net::ERR_FAILED",
+    "console:error:Failed to fetch RSC payload for http://127.0.0.1:3100/dashboard. Falling back to browser navigation. TypeError: Failed to fetch\n    at _ (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:206736)\n    at h (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:205663)\n    at http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:11890\n    at Object.o [as task] (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:168632)\n    at u.c (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:169337)\n    at u.enqueue (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:168762)\n    at c (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:11853)\n    at l (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:11378)\n    at i (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:207993)\n    at Object.prefetch (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:15:78841)\n    at http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:9:54446\n    at http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:9:54485\n    at p (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:9:54502)\n    at f (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:9:54226)\n    at IntersectionObserver.rootMargin (http://127.0.0.1:3100/_next/static/chunks/8333-1a6ece544a27c87f.js:9:53552)",
+    "console:warning:Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
+    "console:error:Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console:warning:HR email notification failed {status: 503, body: mail unavailable}"
+  ]
+}

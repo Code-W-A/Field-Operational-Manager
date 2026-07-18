@@ -115,7 +115,9 @@ export function HrTimesheetReport() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
+        <label htmlFor="hr-report-month" className="sr-only">Luna raportului Pontaj HR</label>
         <Input
+          id="hr-report-month"
           type="month"
           value={monthKey}
           onChange={(event) => setMonthKey(fromMonthInputValue(event.target.value))}
@@ -137,7 +139,7 @@ export function HrTimesheetReport() {
             <CardTitle className="text-sm text-muted-foreground">Medie ore / salariat</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{kpis.avgHours}</div>
+            <div data-testid="report-kpi-average-hours" className="text-3xl font-bold">{kpis.avgHours}</div>
           </CardContent>
         </Card>
         <Card>
@@ -145,7 +147,7 @@ export function HrTimesheetReport() {
             <CardTitle className="text-sm text-muted-foreground">CO / SL (sărbătoare legală)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
+            <div data-testid="report-kpi-co-sl" className="text-3xl font-bold">
               {kpis.totalCO} / {kpis.totalSL}
             </div>
           </CardContent>
@@ -155,12 +157,12 @@ export function HrTimesheetReport() {
             <CardTitle className="text-sm text-muted-foreground">WE</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{kpis.totalWE}</div>
+            <div data-testid="report-kpi-we" className="text-3xl font-bold">{kpis.totalWE}</div>
           </CardContent>
         </Card>
       </div>
 
-      <TimesheetCharts monthKey={monthKey} employees={employees} timesheets={timesheets} />
+      <TimesheetCharts monthKey={monthKey} employees={employees} timesheets={timesheets} defaults={hrDefaults} />
     </div>
   )
 }

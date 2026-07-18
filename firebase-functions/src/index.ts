@@ -4,6 +4,12 @@ import { FieldValue, getFirestore, Timestamp, type DocumentReference } from "fir
 import * as tls from "node:tls"
 import * as net from "node:net"
 import { getLockedAttendanceSessionId } from "./attendance-lock"
+import {
+  ScheduledWorksAuthorizationError,
+  parseScheduledWorksInput,
+  requireScheduledWorksAdmin,
+} from "./scheduled-works-auth"
+import { mayUseExternalSmtp } from "./mail-transport-policy"
 
 // Initialize the default Firebase app for Admin SDK
 initializeApp()
@@ -52,6 +58,12 @@ type SmtpConfig = {
 }
 
 function getSmtpConfig(): SmtpConfig | null {
+  if (
+    !mayUseExternalSmtp({
+      APP_DEPLOYMENT_ENV: process.env.APP_DEPLOYMENT_ENV,
+      MAIL_TRANSPORT_MODE: process.env.MAIL_TRANSPORT_MODE,
+    })
+  ) return null
   const cfg: any = (functions as any).config?.() ?? {}
   const smtp = cfg.smtp ?? {}
   const host = process.env.SMTP_HOST ?? smtp.host
@@ -1412,6 +1424,8 @@ async function dispatchHrRequestPendingReminder(params: {
 type TimesheetCell = {
   code: string
   hours?: number
+  sourceRequestId?: string
+  sourceRequestKind?: HrRequestKind
   entries?: Array<{
     start: string
     end: string
@@ -1530,7 +1544,11 @@ function buildTimesheetCellForRequest(params: {
   const requestId = params.requestId
 
   if (kind === "CO" || kind === "CFP" || kind === "CM" || kind === "DEL") {
-    return { code: kind }
+    return {
+      code: kind,
+      sourceRequestId: requestId,
+      sourceRequestKind: kind,
+    }
   }
 
   if (kind === "IN") {
@@ -1545,7 +1563,13 @@ function buildTimesheetCellForRequest(params: {
       sourceRequestId: requestId,
       sourceRequestKind: kind,
     }
-    const next: TimesheetCell = { code: "IN", entries: [entry], breaks: [] }
+    const next: TimesheetCell = {
+      code: "IN",
+      entries: [entry],
+      breaks: [],
+      sourceRequestId: requestId,
+      sourceRequestKind: kind,
+    }
     next.hours = Math.round((calcMinutes(next) / 60) * 100) / 100
     return next
   }
@@ -1572,7 +1596,13 @@ function buildTimesheetCellForRequest(params: {
         sourceRequestId: requestId,
         sourceRequestKind: kind,
       }))
-    const next: TimesheetCell = { code: "WORK", entries: nextEntries, breaks: nextBreaks }
+    const next: TimesheetCell = {
+      code: "WORK",
+      entries: nextEntries,
+      breaks: nextBreaks,
+      sourceRequestId: requestId,
+      sourceRequestKind: kind,
+    }
     next.hours = Math.round((calcMinutes(next) / 60) * 100) / 100
     return next
   }
@@ -1603,6 +1633,10 @@ function buildTimesheetCellForRequest(params: {
     const already = baseEntries.some((e: any) => e?.sourceRequestId === requestId)
     const nextEntries = already ? baseEntries : [...baseEntries, entry]
     const next: TimesheetCell = { code: "WORK", entries: nextEntries, breaks: baseBreaks }
+    if (!existing || existing.code === "EMPTY") {
+      next.sourceRequestId = requestId
+      next.sourceRequestKind = kind
+    }
     next.hours = Math.round((calcMinutes(next) / 60) * 100) / 100
     return next
   }
@@ -2692,6 +2726,17 @@ async function getEmployeeDefaultBreakA(employeeId: string): Promise<HMRangeA | 
   }
 }
 
+function getAttendanceBreakSnapshotA(sessions: Array<{ pauzaStart?: unknown; pauzaEnd?: unknown }>): HMRangeA | null {
+  for (const session of sessions) {
+    const range = {
+      start: String(session?.pauzaStart || "").trim(),
+      end: String(session?.pauzaEnd || "").trim(),
+    }
+    if (isValidHMRangeA(range)) return range
+  }
+  return null
+}
+
 async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hints: { employeeId?: string; userName?: string }): Promise<void> {
   const { startMs, endMs, day, monthKey } = attendanceLocalDayMetaA(dayRefMs)
   const dayKey = String(day)
@@ -2778,7 +2823,7 @@ async function syncAttendanceUserDayAdmin(userId: string, dayRefMs: number, hint
   })
   const normalizedComputed = normalizeComputedEntriesA(computedEntries)
   const finalEntries = [...preservedEntries, ...normalizedComputed]
-  const defaultBreak = await getEmployeeDefaultBreakA(employeeId)
+  const defaultBreak = getAttendanceBreakSnapshotA(sessions) ?? await getEmployeeDefaultBreakA(employeeId)
   const presenceEntries = finalEntries.filter((entry: any) => {
     const project = normalizeKeyA(String(entry?.project || ""))
     return project !== "traseu catre client" && project !== "traseu catre casa"
@@ -2832,10 +2877,19 @@ export const onAttendanceCheckoutSync = functions
 // IMPORTANT: nu creează nimic dacă nu suntem în fereastra de generare (generateAt <= now).
 export const runGenerateScheduledWorks = functions
   .region(REGION)
-  .https.onCall(async (data) => {
-    const contractId = typeof data?.contractId === "string" && data.contractId.length > 0 ? data.contractId : undefined
-    const res = await generateRevisionWorks({ now: new Date(), contractId })
-    return res
+  .https.onCall(async (data, context) => {
+    try {
+      const uid = context.auth?.uid
+      const userSnapshot = uid ? await db.collection("users").doc(uid).get() : undefined
+      requireScheduledWorksAdmin(uid, userSnapshot?.data())
+      const { contractId } = parseScheduledWorksInput(data)
+      return await generateRevisionWorks({ now: new Date(), contractId })
+    } catch (error) {
+      if (error instanceof ScheduledWorksAuthorizationError) {
+        throw new functions.https.HttpsError(error.code, error.message)
+      }
+      throw error
+    }
   })
 
 export const onCrmTaskCreatedEmail = functions

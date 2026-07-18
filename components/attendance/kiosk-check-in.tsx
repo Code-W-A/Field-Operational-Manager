@@ -453,11 +453,11 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
   return (
     <div
-      className="min-h-[100svh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex justify-center p-4 sm:p-8 overflow-hidden"
+      className="min-h-[100svh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex justify-center p-4 sm:p-8 landscape:p-2 lg:landscape:p-8 overflow-hidden"
       data-testid="kiosk-state"
       data-kiosk-state={flowState}
     >
-      <div className="w-full max-w-4xl relative min-h-[calc(100svh-2rem)] sm:min-h-[calc(100svh-4rem)] flex flex-col">
+      <div className="w-full max-w-4xl relative min-h-[calc(100svh-2rem)] sm:min-h-[calc(100svh-4rem)] landscape:min-h-[calc(100svh-1rem)] lg:landscape:min-h-[calc(100svh-4rem)] flex flex-col">
         {/* Top-right logout */}
         <div className="absolute top-0 right-0">
           <Button
@@ -481,27 +481,27 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         {flowState === "idle" && (
           <div className="flex-1 flex flex-col animate-in fade-in duration-500">
             {/* Header pinned to top */}
-            <div className="text-center pt-10 sm:pt-6 space-y-2 sm:space-y-4">
-              <h1 className="text-3xl sm:text-5xl font-bold text-white">Sistem Pontaj</h1>
-              <p className="text-base sm:text-xl text-slate-300">Apasă pentru a începe</p>
+            <div className="text-center pt-10 sm:pt-6 landscape:pt-2 lg:landscape:pt-6 space-y-2 sm:space-y-4 landscape:space-y-1 lg:landscape:space-y-4">
+              <h1 className="text-3xl sm:text-5xl landscape:text-2xl lg:landscape:text-5xl font-bold text-white">Sistem Pontaj</h1>
+              <p className="text-base sm:text-xl landscape:text-sm lg:landscape:text-xl text-slate-300">Apasă pentru a începe</p>
             </div>
 
             {/* Buttons centered vertically */}
             <div className="flex-1 flex items-center justify-center">
-              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-3xl">
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 landscape:gap-3 lg:landscape:gap-6 max-w-3xl">
               <button
                 onClick={() => handleActionSelect("check-in")}
                 data-testid="kiosk-start"
-                className="group relative p-6 sm:p-12 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-3xl shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 sm:hover:scale-105"
+                className="group relative p-6 sm:p-12 landscape:p-3 lg:landscape:p-12 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-3xl shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 sm:hover:scale-105"
               >
-                <div className="flex flex-col items-center gap-4 sm:gap-6">
-                  <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
-                    <Play className="w-8 h-8 sm:w-12 sm:h-12 text-white" />
+                <div className="flex flex-col items-center gap-4 sm:gap-6 landscape:gap-2 lg:landscape:gap-6">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 landscape:w-12 landscape:h-12 lg:landscape:w-24 lg:landscape:h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                    <Play className="w-8 h-8 sm:w-12 sm:h-12 landscape:w-6 landscape:h-6 lg:landscape:w-12 lg:landscape:h-12 text-white" />
                   </div>
-                  <div className="text-2xl sm:text-3xl font-bold text-white">
+                  <div className="text-2xl sm:text-3xl landscape:text-xl lg:landscape:text-3xl font-bold text-white">
                     Start
                   </div>
-                  <div className="text-sm sm:text-lg text-emerald-100">
+                  <div className="text-sm sm:text-lg landscape:text-xs lg:landscape:text-lg text-emerald-100">
                     Check-In
                   </div>
                 </div>
@@ -510,16 +510,16 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               <button
                 onClick={() => handleActionSelect("check-out")}
                 data-testid="kiosk-stop"
-                className="group relative p-6 sm:p-12 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-3xl shadow-2xl hover:shadow-orange-500/50 transition-all duration-300 sm:hover:scale-105"
+                className="group relative p-6 sm:p-12 landscape:p-3 lg:landscape:p-12 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-3xl shadow-2xl hover:shadow-orange-500/50 transition-all duration-300 sm:hover:scale-105"
               >
-                <div className="flex flex-col items-center gap-4 sm:gap-6">
-                  <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
-                    <Square className="w-8 h-8 sm:w-12 sm:h-12 text-white" />
+                <div className="flex flex-col items-center gap-4 sm:gap-6 landscape:gap-2 lg:landscape:gap-6">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 landscape:w-12 landscape:h-12 lg:landscape:w-24 lg:landscape:h-24 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors backdrop-blur-sm">
+                    <Square className="w-8 h-8 sm:w-12 sm:h-12 landscape:w-6 landscape:h-6 lg:landscape:w-12 lg:landscape:h-12 text-white" />
                   </div>
-                  <div className="text-2xl sm:text-3xl font-bold text-white">
+                  <div className="text-2xl sm:text-3xl landscape:text-xl lg:landscape:text-3xl font-bold text-white">
                     Stop
                   </div>
-                  <div className="text-sm sm:text-lg text-orange-100">
+                  <div className="text-sm sm:text-lg landscape:text-xs lg:landscape:text-lg text-orange-100">
                     Check-Out
                   </div>
                 </div>

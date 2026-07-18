@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -33,6 +34,7 @@ interface DataTableProps<TData, TValue> {
   enablePagination?: boolean
   initialPageSize?: number
   pageSizeOptions?: number[]
+  initialColumnVisibility?: VisibilityState
 }
 
 export function DataTable<TData, TValue>({
@@ -51,9 +53,10 @@ export function DataTable<TData, TValue>({
   enablePagination = false,
   initialPageSize = 10,
   pageSizeOptions = [10, 20, 50, 100],
+  initialColumnVisibility,
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = useState<SortingState>(defaultSort ? [defaultSort] : [])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility ?? {})
   const [rowSelection, setRowSelection] = useState({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
@@ -313,6 +316,15 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4 w-full">
+      {showFilters ? (
+        <Input
+          aria-label="Caută în tabel"
+          className="max-w-sm"
+          value={globalFilter}
+          onChange={(event) => handleGlobalFilterChange(event.target.value)}
+          placeholder="Caută..."
+        />
+      ) : null}
       <div className="rounded-md border overflow-x-auto">
         <Table className={tableClassName}>
           <TableHeader>
@@ -404,6 +416,7 @@ export function DataTable<TData, TValue>({
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Rânduri/pagină:</span>
             <select
+              aria-label="Rânduri pe pagină"
               className="h-9 rounded-md border bg-background px-2 text-sm"
               value={pagination.pageSize}
               onChange={(e) => {

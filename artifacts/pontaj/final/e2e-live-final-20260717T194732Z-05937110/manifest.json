@@ -1,0 +1,132 @@
+{
+  "runId": "e2e-live-final-20260717T194732Z-05937110",
+  "createdAt": "2026-07-17T19:47:32Z",
+  "firebaseProjectId": "field-operational-manager",
+  "vercel": {
+    "projectId": "prj_jLaPZFy3uf8oXVbvK6wI7HAu9is4",
+    "deploymentId": "dpl_7EjWdaGV5nQQNze7bCNffjgnH7Jp",
+    "deploymentUrl": "https://v0-field-operational-manager-kzil557sw-shik-projects.vercel.app",
+    "target": "preview",
+    "cleanupPolicy": "retain-as-test-evidence",
+    "automationBypass": {
+      "createdBy": "vercel curl",
+      "secretStored": false,
+      "cleanupPolicy": "revoke-after-smoke",
+      "status": "revoked",
+      "projectBypassEntriesAfterRevoke": 0,
+      "ssoProtectionPreserved": true
+    }
+  },
+  "resources": {
+    "firestoreDocuments": [
+      "attendance/att_livefinal-20260717-05937110-tech_1784321504324",
+      "attendance/att_livefinal-20260717-05937110-tech_1784321702114",
+      "attendance/att_livefinal-20260717-05937110-tech_1784322001937",
+      "attendance/att_livefinal-20260717-05937110-tech_1784322210437",
+      "attendanceActiveSessions/livefinal-20260717-05937110-tech",
+      "e2eExternalSmoke/e2e-live-final-20260717T194732Z-05937110",
+      "hrDepartments/e2e-live-final-20260717-05937110-department",
+      "hrEmployees/e2e-live-final-20260717-05937110-employee",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-concurrent__created__pending",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-decision__status_changed__approved",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-functional__status_changed__approved",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-owner__created__pending",
+      "hrRequests/e2e-live-final-20260717-05937110-concurrent",
+      "hrRequests/e2e-live-final-20260717-05937110-decision",
+      "hrRequests/e2e-live-final-20260717-05937110-functional",
+      "hrRequests/e2e-live-final-20260717-05937110-owner",
+      "hrTimesheets/e2e-live-final-20260717-05937110-employee_2026-07",
+      "logs/2uAS8F0l1eYMZhYkE4U0",
+      "logs/B6Ji67x4wrVvX6HsfXNm",
+      "logs/EFGrWhh2JKDwipaSRviC",
+      "logs/J4KwkTVWz8EMpQSmsjw1",
+      "logs/NI4AGz0C2hpuxOvDHeZf",
+      "logs/NnSUaQcaosKIFSbvXsJ3",
+      "logs/TUK1jKYPaAFLD7ix6gMP",
+      "logs/auth_1784321466901",
+      "logs/auth_1784321469376",
+      "logs/auth_1784321499105",
+      "logs/auth_1784321680290",
+      "logs/auth_1784321682261",
+      "logs/auth_1784321699147",
+      "logs/auth_1784321710487",
+      "logs/auth_1784321974907",
+      "logs/auth_1784321976905",
+      "logs/auth_1784321998797",
+      "logs/auth_1784322009901",
+      "logs/auth_1784322189800",
+      "logs/auth_1784322191770",
+      "logs/auth_1784322207299",
+      "logs/auth_1784322218483",
+      "logs/jHEnquqpC9K886OAjh6Q",
+      "logs/qydKZsjPClFtY66QEZfI",
+      "logs/vQ8V2ADqfNJbZSJbovZM",
+      "logs/zQWXZ62j6ZjBWXbzBOYA",
+      "users/livefinal-20260717-05937110-admin",
+      "users/livefinal-20260717-05937110-manager",
+      "users/livefinal-20260717-05937110-outsider",
+      "users/livefinal-20260717-05937110-tech"
+    ],
+    "firestoreAutoIdSelectors": [
+      {
+        "collection": "logs",
+        "createdAtOrAfter": "2026-07-17T19:47:32Z",
+        "actorUids": [
+          "livefinal-20260717-05937110-admin",
+          "livefinal-20260717-05937110-tech",
+          "livefinal-20260717-05937110-manager",
+          "livefinal-20260717-05937110-outsider"
+        ],
+        "ownerRunId": "e2e-live-final-20260717T194732Z-05937110",
+        "cleanupPolicy": "delete-exact-after-discovery"
+      },
+      {
+        "collection": "attendance",
+        "createdAtOrAfter": "2026-07-17T19:47:32Z",
+        "userId": "livefinal-20260717-05937110-tech",
+        "employeeId": "e2e-live-final-20260717-05937110-employee",
+        "cleanupPolicy": "delete-exact-after-discovery"
+      }
+    ],
+    "storageObjects": [
+      "e2e-final/e2e-live-final-20260717T194732Z-05937110/probe.txt"
+    ],
+    "authUsers": [
+      "livefinal-20260717-05937110-admin",
+      "livefinal-20260717-05937110-tech",
+      "livefinal-20260717-05937110-manager",
+      "livefinal-20260717-05937110-outsider"
+    ],
+    "nonexistentContractProbe": "e2e-live-final-20260717-05937110-contract"
+  },
+  "preExistingResourcesModified": [],
+  "cleanup": {
+    "runs": 2,
+    "remainingForRunId": {},
+    "recoveryRunsBeforeSuccessfulSmoke": 6,
+    "recoveryLastDeleted": {
+      "firestoreDocuments": [
+        "users/livefinal-20260717-05937110-tech",
+        "users/livefinal-20260717-05937110-outsider",
+        "users/livefinal-20260717-05937110-manager",
+        "users/livefinal-20260717-05937110-admin",
+        "hrEmployees/e2e-live-final-20260717-05937110-employee",
+        "hrDepartments/e2e-live-final-20260717-05937110-department"
+      ],
+      "storageObjects": [],
+      "authUsers": [
+        "livefinal-20260717-05937110-admin",
+        "livefinal-20260717-05937110-tech",
+        "livefinal-20260717-05937110-manager",
+        "livefinal-20260717-05937110-outsider"
+      ]
+    },
+    "lastDeleted": {
+      "firestoreDocuments": [],
+      "storageObjects": [],
+      "authUsers": []
+    },
+    "run1Evidence": "cleanup-run-1.json",
+    "run2Evidence": "cleanup-run-2.json"
+  }
+}

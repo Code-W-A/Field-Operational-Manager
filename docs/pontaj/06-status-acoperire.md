@@ -1,5 +1,7 @@
 # Status acoperire pontaj - ETAPA 7
 
+> Actualizare finala 2026-07-17: registru istoric. Reconcilierea autoritativa este `final-audit-232.md`: 232 ID-uri unice, 200 PASS local, 25 caracterizate, 2 security deferred, 1 manual pending, 4 business blocked si 0 FAIL. Cerinta staging separat este `SUPERSEDED_BY_OWNER_DECISION`.
+
 Generat inaintea implementarii ETAPA 7 si actualizat dupa executia finala. Registrul separa cele 232 de cazuri logice: 141 non-vector, 85 vectori CAL si 6 decizii blocate. Un test data-driven nu transforma automat toate ID-urile in cazuri implementate.
 
 Statusurile din acest document sunt actualizate dupa executia finala. La momentul inventarului initial, `PARTIAL` inseamna ca exista doar o dovada componenta (vector, unit sau un singur rol/branch), nu contractul integral al ID-ului.
@@ -92,28 +94,28 @@ Statusurile din acest document sunt actualizate dupa executia finala. La momentu
 | SYN-012 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/sync/core-sync.spec.ts | SYN-012 status aproximativ | CHARACTERIZATION UI | nu | UI considera ziua existenta sincronizata fara corelare; comportament documentat, nu oracle strict. |
 | SYN-013 | IMPLEMENTED_PASSING | tests/e2e/pontaj/sync/core-sync.spec.ts | SYN-013 sync concurent | PLAYWRIGHT UI/INTEGRATION | da | Doua sincronizari converg fara duplicate. |
 | SYN-014 | IMPLEMENTED_PASSING | tests/e2e/pontaj/sync/core-sync.spec.ts | SYN-014 interval invalid/timezone | PLAYWRIGHT UI/ORACLE | da | Intervalul invalid este disabled si timezone-ul browserului nu muta instantul. |
-| CON-001 | PARTIAL | tests/e2e/pontaj/condica/read.spec.ts | CON-001 | PLAYWRIGHT UI | da | Luna query si calendarul sunt executate; ramurile de navigare extinse raman neacoperite. |
-| CON-002 | PARTIAL | tests/e2e/pontaj/condica/read.spec.ts | CON-002 | PLAYWRIGHT UI | da | Grid/list sunt executate pe un salariat. |
-| CON-003 | PARTIAL | tests/e2e/pontaj/condica/read.spec.ts | CON-003 | PLAYWRIGHT UI | da | Persistenta modului compact este executata. |
-| CON-004 | PARTIAL | tests/e2e/pontaj/condica/read.spec.ts | CON-004 | PLAYWRIGHT UI | da | Empty-state este executat; fault-state ramane separat. |
-| CON-005 | PARTIAL | tests/e2e/pontaj/condica/summary.spec.ts | CON-005 | PLAYWRIGHT UI | da | KPI cu interval si pauza este executat. |
-| CON-006 | PARTIAL | tests/e2e/pontaj/condica/summary.spec.ts | CON-006 | PLAYWRIGHT UI | da | Tichete/traseu/C1-C7 sunt executate pe caz reprezentativ. |
-| CON-007 | PARTIAL | tests/e2e/pontaj/condica/summary.spec.ts | CON-007 | PLAYWRIGHT UI | da | Coduri si WORK partial sunt executate. |
-| CON-008 | PARTIAL | tests/e2e/pontaj/condica/realtime.spec.ts | CON-008 | PLAYWRIGHT UI | da | Doua taburi sunt sincronizate prin Firestore. |
-| CON-009 | NOT_STARTED | - | CON-009 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-010 | NOT_STARTED | - | CON-010 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-011 | PARTIAL | tests/e2e/pontaj/condica/write.spec.ts | CON-011 | PLAYWRIGHT UI + Firestore | da | Editare interval executata. |
-| CON-012 | PARTIAL | tests/e2e/pontaj/condica/write.spec.ts | CON-012 | PLAYWRIGHT UI + Firestore | da | Adaugare manuala multi-zi executata. |
-| CON-013 | PARTIAL | tests/e2e/pontaj/condica/write.spec.ts | CON-013 | PLAYWRIGHT UI + Firestore | da | Stergerea completa pe o zi este executata. |
-| CON-014 | PARTIAL | tests/e2e/pontaj/condica/write.spec.ts | CON-014 | PLAYWRIGHT UI + Firestore | da | Validarea cross-month este executata. |
-| CON-015 | NOT_STARTED | - | CON-015 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-016 | PARTIAL | tests/e2e/pontaj/condica/write.spec.ts | CON-016 | PLAYWRIGHT UI + Firestore | da | Intervalul cross-month este respins fara scrieri. |
-| CON-017 | NOT_STARTED | - | CON-017 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-018 | NOT_STARTED | - | CON-018 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-019 | NOT_STARTED | - | CON-019 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-020 | NOT_STARTED | - | CON-020 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-021 | NOT_STARTED | - | CON-021 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| CON-022 | PARTIAL | tests/e2e/pontaj/condica/export.spec.ts | CON-022 | PLAYWRIGHT UI | da | Numele si continutul minim CSV sunt executate. |
+| CON-001 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/read.spec.ts | CON-001 luna/calendar | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-002 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/read.spec.ts | CON-002 grid/list | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-003 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/read.spec.ts | CON-003 mod compact | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-004 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/read.spec.ts | CON-004 empty fara scrieri | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-005 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/summary.spec.ts | CON-005 KPI | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-006 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/summary.spec.ts | CON-006 tichete/traseu/C1-C7 | PLAYWRIGHT UI | da | PASS; DEF-001 are regresie. |
+| CON-007 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/summary.spec.ts | CON-007 coduri/partial | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-008 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/realtime.spec.ts | CON-008 two-tab | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-009 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/day-dialog.spec.ts | CON-009 detaliu zi | PLAYWRIGHT UI + Firestore | da | PASS; DEF-006 are regresie. |
+| CON-010 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/day-dialog.spec.ts | CON-010 curatare | PLAYWRIGHT UI + Firestore | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-011 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/write.spec.ts | CON-011 editare interval | PLAYWRIGHT UI + Firestore | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-012 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/write.spec.ts | CON-012 adaugare multi-zi | PLAYWRIGHT UI + Firestore | da | PASS; DEF-002 are regresie. |
+| CON-013 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/write.spec.ts | CON-013 stergere selectiva | PLAYWRIGHT UI + Firestore | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
+| CON-014 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/write.spec.ts | CON-014 validare luna | PLAYWRIGHT UI + Firestore | da | PASS; DEF-003 are regresie. |
+| CON-015 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/write.spec.ts | CON-015 overlap/adiacent | PLAYWRIGHT UI + Firestore | da | PASS; DEF-005 are regresie. |
+| CON-016 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/write.spec.ts | CON-016 cross-month | PLAYWRIGHT UI + Firestore | da | PASS; DEF-003 are regresie. |
+| CON-017 | IMPLEMENTED_PASSING; TESTABILITY_BLOCKED_NON_BLOCKING UI | tests/e2e/pontaj/condica/atomicity.spec.ts | CON-017 atomic boundary | INTEGRATION TEST-ONLY + production boundary | da | Contractul atomic PASS; fault UI real necesita hook de productie interzis. |
+| CON-018 | IMPLEMENTED_PASSING | tests/e2e/pontaj/condica/atomicity.spec.ts, convergence.spec.ts | CON-018 operatie N/two-tab | PLAYWRIGHT UI + INTEGRATION TEST-ONLY | da | PASS: eroare pre-commit, retry, campuri necerute si doua taburi. |
+| CON-019 | IMPLEMENTED_PASSING | tests/e2e/pontaj/condica/holidays.spec.ts, convergence.spec.ts | CON-019 singleton/mutex/two-tab | PLAYWRIGHT UI + Firestore | da | PASS: snapshot/restaurare exacta, metadata, sortare si propagare. |
+| CON-020 | IMPLEMENTED_PASSING | tests/e2e/pontaj/condica/approved-request.spec.ts, convergence.spec.ts | CON-020 fault/retry/two-tab | PLAYWRIGHT UI + CHARACTERIZATION | da | PASS: conflict UI, retry, clear si convergenta; resync partial este caracterizat. |
+| CON-021 | IMPLEMENTED_PASSING | tests/e2e/pontaj/condica/dialog-a11y.spec.ts | CON-021 a11y/responsive | PLAYWRIGHT UI | da | PASS: role/nume, focus, Escape, backdrop, viewport si bounding boxes. |
+| CON-022 | IMPLEMENTED_NON_BLOCKING | tests/e2e/pontaj/condica/export.spec.ts | CON-022 CSV | PLAYWRIGHT UI | da | PASS 2026-07-13 in executia unificata Condica 35/35. |
 | HR-001 | NOT_STARTED | - | HR-001 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
 | HR-002 | NOT_STARTED | - | HR-002 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
 | HR-003 | NOT_STARTED | - | HR-003 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
@@ -127,26 +129,26 @@ Statusurile din acest document sunt actualizate dupa executia finala. La momentu
 | HR-011 | NOT_STARTED | - | HR-011 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
 | HR-012 | NOT_STARTED | - | HR-012 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
 | HR-013 | NOT_STARTED | - | HR-013 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| HR-014 | NOT_STARTED | - | HR-014 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| HR-015 | NOT_STARTED | - | HR-015 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| HR-016 | NOT_STARTED | - | HR-016 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| REP-001 | PARTIAL | tests/e2e/pontaj/calculations/summary-c1-c7.spec.ts | REP-001 - acoperire initiala | ORACLE/PLAYWRIGHT UI | da | Exista dovada partiala prin test/vector anterior, dar nu toate ramurile cazului functional. |
-| REP-002 | PARTIAL | tests/e2e/pontaj/calculations/projections.spec.ts | REP-002 - acoperire initiala | ORACLE/PLAYWRIGHT UI | da | Exista dovada partiala prin test/vector anterior, dar nu toate ramurile cazului functional. |
-| REP-003 | NOT_STARTED | - | REP-003 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| REP-004 | NOT_STARTED | - | REP-004 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| REP-005 | NOT_STARTED | - | REP-005 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| REP-006 | PARTIAL | tests/e2e/pontaj/calculations/summary-c1-c7.spec.ts | REP-006 - acoperire initiala | ORACLE/PLAYWRIGHT UI | da | Exista dovada partiala prin test/vector anterior, dar nu toate ramurile cazului functional. |
-| REP-007 | NOT_STARTED | - | REP-007 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| REP-008 | NOT_STARTED | - | REP-008 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| REP-009 | NOT_STARTED | - | REP-009 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-001 | NOT_STARTED | - | RES-001 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-002 | NOT_STARTED | - | RES-002 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-003 | NOT_STARTED | - | RES-003 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-004 | NOT_STARTED | - | RES-004 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-005 | NOT_STARTED | - | RES-005 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-006 | NOT_STARTED | - | RES-006 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-007 | NOT_STARTED | - | RES-007 - acoperire initiala | - | da | Nu exista inca un test dedicat care sa execute integral cazul logic. |
-| RES-008 | MANUAL_REQUIRED | - | RES-008 - acoperire initiala | MANUAL | da | Necesita hardware/responsive/a11y companion; nu apartine executiei core ETAPA 7. |
+| HR-014 | IMPLEMENTED_PASSING | tests/e2e/pontaj/requests/lifecycle.spec.ts, approval.spec.ts | creare, aprobare si respingere | PLAYWRIGHT/EMULATOR | da | CO/CFP/CM/DEL/IN, metadata si zero timesheet la respingere: PASS. |
+| HR-015 | IMPLEMENTED_PASSING | tests/e2e/pontaj/requests/concurrency.spec.ts | seriale si decizie concurenta | PLAYWRIGHT/EMULATOR | da | Seriale 1,2 monotone si tranzitie terminala protejata: PASS. |
+| HR-016 | IMPLEMENTED_PASSING | tests/e2e/pontaj/condica/approved-request.spec.ts | overlap, editare si Clear CO | PLAYWRIGHT/EMULATOR | da | Resync, eliminare zile vechi si retry: PASS. |
+| REP-001 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/hr-kpi.spec.ts | REP-001 KPI si grafic | PLAYWRIGHT UI/INTEGRATION | da | KPI si grafic folosesc minute efective; inclus in Reports 14/14. |
+| REP-002 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/projection-consistency.spec.ts | REP-002 proiectii V01 | PLAYWRIGHT UI/INTEGRATION | da | Dashboard, condica, profil si raport sunt reconciliate pe seed izolat. |
+| REP-003 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/employee-variants.spec.ts | REP-003 variante angajat | PLAYWRIGHT UI/INTEGRATION | da | Filtrele si proiectiile angajatului sunt verificate. |
+| REP-004 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/overtime-filters.spec.ts | REP-004 filtre overtime | PLAYWRIGHT UI/INTEGRATION | da | Anul/luna si filtrele nu produc scrieri. |
+| REP-005 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/reconciliation.spec.ts | REP-005 reconciliere | PLAYWRIGHT UI/INTEGRATION | da | Sumarul si reconcilierea sunt determinate pe emulator. |
+| REP-006 | IMPLEMENTED_CHARACTERIZATION | tests/e2e/pontaj/reports/summary-c1-c7.spec.ts | REP-006 C1-C7 | PLAYWRIGHT UI/ORACLE | da | C6/C7 brut si prezenta union sunt caracterizari declarate. |
+| REP-007 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/overtime-export.spec.ts | REP-007 export CSV | PLAYWRIGHT UI | da | Exportul este read-only si escape-ul CSV este verificat. |
+| REP-008 | CHARACTERIZATION_DEF_UX_NON_BLOCKING | tests/e2e/pontaj/reports/states.spec.ts | REP-008 stari UI | PLAYWRIGHT UI | da | Error/retry pentru anumite abonari ramane caracterizare UX. |
+| REP-009 | IMPLEMENTED_PASSING | tests/e2e/pontaj/reports/year-timezone.spec.ts | REP-009 an/fus orar | PLAYWRIGHT UI/ORACLE | da | Patru fuse confirma limitarea la anul selectat. |
+| RES-001 | IMPLEMENTED_PASSING | tests/e2e/pontaj/resilience/firestore-offline.spec.ts | RES-001 | PLAYWRIGHT EMULATOR | nu | Inclus in selectia RES unificata, 28 PASS. |
+| RES-002 | IMPLEMENTED_PASSING | tests/e2e/pontaj/resilience/auth-boundary.spec.ts | RES-002 | PLAYWRIGHT EMULATOR | nu | Inclus in selectia RES unificata, 28 PASS. |
+| RES-003 | IMPLEMENTED_PASSING | tests/e2e/pontaj/resilience/external-failures.spec.ts | RES-003 | PLAYWRIGHT EMULATOR | nu | Commit dupa 503 si cleanup Storage verificate local. |
+| RES-004 | IMPLEMENTED_PASSING | tests/e2e/pontaj/resilience/snapshot-recovery.spec.ts | RES-004 | PLAYWRIGHT EMULATOR | nu | Recovery listener verificat in selectie RES unificata. |
+| RES-005 | SECURITY_BUG_REMEDIATED | tests/e2e/pontaj/security/firestore-rules.spec.ts | RES-005 | FIREBASE WEB SDK | nu | Rules verzi dupa corectiile pentru backfill/stale lock; deny implicit activ. |
+| RES-006 | SECURITY_BUG_REMEDIATED | tests/e2e/pontaj/security/storage-rules.spec.ts | RES-006 | FIREBASE WEB STORAGE SDK | nu | Owner, MIME, dimensiune si deny-by-default verificate. |
+| RES-007 | STAGING_BLOCKED_NOT_EXECUTED | docs/pontaj/10b-rezultate-res007-staging.md | RES-007 | STAGING | nu | Staging FOM, conturile E2E si izolarea SMTP nu pot fi demonstrate; zero probe mutante executate. |
+| RES-008 | IMPLEMENTED_PASSING | tests/e2e/pontaj/a11y/responsive-pages.spec.ts | RES-008 | PLAYWRIGHT UI | nu | Responsive/a11y inclus in selectia RES unificata, 28 PASS. |
 | CAL-V01 | IMPLEMENTED_PASSING | tests/e2e/pontaj/calculations/*.spec.ts | CAL-V01 | ORACLE + PLAYWRIGHT projection subset | nu | Vector executat si raportat PASS in ETAPA 6. |
 | CAL-V02 | IMPLEMENTED_PASSING | tests/e2e/pontaj/calculations/*.spec.ts | CAL-V02 | ORACLE + PLAYWRIGHT projection subset | nu | Vector executat si raportat PASS in ETAPA 6. |
 | CAL-V03 | IMPLEMENTED_PASSING | tests/e2e/pontaj/calculations/*.spec.ts | CAL-V03 | ORACLE + PLAYWRIGHT projection subset | nu | Vector executat si raportat PASS in ETAPA 6. |
@@ -238,3 +240,18 @@ Statusurile din acest document sunt actualizate dupa executia finala. La momentu
 | BLK-004 | BUSINESS_BLOCKED | docs/pontaj/02-blocaje-si-decizii.md | BLK-004 | CHARACTERIZATION | da | Atomicitatea sincronizarii pe interval necesita decizie. |
 | BLK-005 | BUSINESS_BLOCKED | docs/pontaj/02-blocaje-si-decizii.md | BLK-005 | CHARACTERIZATION | da | Accesul dispecerului la departamente este contradictoriu. |
 | BLK-006 | BUSINESS_BLOCKED | docs/pontaj/02-blocaje-si-decizii.md | BLK-006 | CHARACTERIZATION | da | Politica viitoare de parola kiosk nu este definita. |
+| HR-001 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/list.spec.ts | HR-001 | PLAYWRIGHT UI/INTEGRATION | nu | Lista, cautare, paginare si zero scrieri verificate pe emulator. |
+| HR-002 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/crud.spec.ts | HR-002 | PLAYWRIGHT UI/INTEGRATION | nu | Creare si editare; `createdAt` la editare este characterization DEF-HR-001. |
+| HR-003 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/crud.spec.ts | HR-003 | PLAYWRIGHT UI/INTEGRATION | nu | Nume lipsa si timp invalid fara scrieri; reguli de interval ramase characterization. |
+| HR-004 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/crud.spec.ts | HR-004 | PLAYWRIGHT UI/INTEGRATION | nu | Asociere si dezasociere explicita userUid. |
+| HR-006 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/profile-photo.spec.ts | HR-006 | PLAYWRIGHT UI/INTEGRATION | nu | Upload/sterge in Storage Emulator si Firestore. |
+| HR-008/009 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/defaults.spec.ts | HR-008, HR-009 | PLAYWRIGHT UI/INTEGRATION | nu | Defaults normalizate si completare selectiva a lipsurilor. |
+| HR-011/012 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/departments.spec.ts | HR-011, HR-012 | PLAYWRIGHT UI/INTEGRATION | nu | CRUD si delete protejat de asocierea salariatului. |
+| HR-005 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/managers-minimal.spec.ts; tests/e2e/pontaj/salariati/managers.spec.ts | HR-005 manageri pe sectoare | PLAYWRIGHT UI/INTEGRATION | nu | Deselectarea elimina fizic cheia stale prin tranzactie Firestore; Admin SDK si refresh sunt verificate. |
+| HR-007 | PARTIAL | tests/e2e/pontaj/salariati/profile.spec.ts | HR-007 fisa salariat | PLAYWRIGHT UI/INTEGRATION | nu | Cazurile tinta sunt PASS, dar matricea completa si regresia nu sunt executate. |
+| HR-010 | IMPLEMENTED_PASSING | tests/e2e/pontaj/salariati/defaults-attendance.spec.ts | HR-010 defaults si attendance snapshot | PLAYWRIGHT UI/INTEGRATION | nu | Programul si pauza sunt snapshot la Start; sesiunea activa nu este recalculata cu defaults noi. |
+| HR-013 | IMPLEMENTED_CHARACTERIZATION | tests/e2e/pontaj/salariati/dispatcher.spec.ts | HR-013 dispecer | PLAYWRIGHT UI/INTEGRATION | nu | UI permite lista/creare salariat si refuza departamentele; BUS-01 si regulile Firestore raman fara politica aprobata. |
+| HR-014-HR-016 | NOT_IMPLEMENTED | docs/pontaj/09a1-fundatie-hr.md | HR | N/A | nu | In afara scope-ului ETAPA 9A.1. |
+| RES-001/002/003/004/008 | IMPLEMENTED_PASSING | tests/e2e/pontaj/resilience; tests/e2e/pontaj/a11y | RES | Firebase Web SDK/Playwright UI | nu | Selectia RES unificata este verde: 28 PASS. |
+| RES-005/006 | SECURITY_BUG_REMEDIATED | tests/e2e/pontaj/security | RES | Firebase Web SDK/Storage SDK | nu | Regulile restrictive sunt verzi local; deploymentul nu este parte din gate. |
+| RES-007 | STAGING_BLOCKED_NOT_EXECUTED | docs/pontaj/10b-rezultate-res007-staging.md | RES | STAGING | nu | Pregatirea 10B.1A este completa local: auth ruta/callable, email fail-closed si guard PASS; executia staging asteapta provisioning. |

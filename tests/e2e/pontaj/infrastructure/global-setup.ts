@@ -9,7 +9,7 @@ import { resetRunManifest } from "../../fixtures/run-manifest"
 export default async function globalSetup() {
   await emulatorHealthCheck()
   await cleanupPontajRun()
-  await seedMinimalPontajFixture()
+  await seedMinimalPontajFixture({ auth: true })
   resetRunManifest()
 
   const resultDir = path.resolve("test-results")

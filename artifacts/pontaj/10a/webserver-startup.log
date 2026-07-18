@@ -1,0 +1,1149 @@
+2026-07-15T07:45:59.068Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:45:59.079Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:45:59.080Z pw:webserver Starting WebServer process node tests/e2e/pontaj/infrastructure/start-emulators.mjs...
+2026-07-15T07:45:59.086Z pw:webserver Process started
+2026-07-15T07:45:59.086Z pw:webserver Waiting for availability...
+2026-07-15T07:45:59.086Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:45:59.090Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:45:59.090Z pw:webserver Waiting 100ms
+2026-07-15T07:45:59.192Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:45:59.195Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:45:59.195Z pw:webserver Waiting 250ms
+2026-07-15T07:45:59.446Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:45:59.447Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:45:59.447Z pw:webserver Waiting 500ms
+[2m[WebServer] [22m
+[2m[WebServer] [22m> fom-firebase-functions@1.0.0 build
+[2m[WebServer] [22m> tsc
+[2m[WebServer] [22m
+2026-07-15T07:45:59.949Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:45:59.950Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:45:59.950Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:00.951Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:00.952Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:00.952Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:01.953Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:01.953Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:01.953Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m(node:3118) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[2026-07-15T07:46:02.256Z] openjdk version "17.0.17" 2025-10-21
+[2m[WebServer] [22m
+[2m[WebServer] [22m[2026-07-15T07:46:02.256Z] OpenJDK Runtime Environment Temurin-17.0.17+10 (build 17.0.17+10)
+[2m[WebServer] [22mOpenJDK 64-Bit Server VM Temurin-17.0.17+10 (build 17.0.17+10, mixed mode, sharing)
+[2m[WebServer] [22m
+[2m[WebServer] [22m[2026-07-15T07:46:02.262Z] Parsed Java major version: 17
+[2m[WebServer] [22mi  emulators: Starting emulators: auth, functions, firestore, pubsub, storage {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, functions, firestore, pubsub, storage"}}
+[2m[WebServer] [22mi  emulators: Detected demo project ID "demo-fom-pontaj-e2e", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail. {"metadata":{"emulator":{"name":"hub"},"message":"Detected demo project ID \"demo-fom-pontaj-e2e\", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail."}}
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] [auth] Authentication Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] [firestore] Firestore Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] [firestore.websocket] websocket server for firestore only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] [pubsub] Pub/Sub Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] [storage] Storage Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.514Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"pubsub":[{"address":"127.0.0.1","family":"IPv4","port":8085}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[2m[WebServer] [22m[2026-07-15T07:46:02.516Z] [hub] writing locator at /var/folders/57/w83hfs491_b5k_d4sw7tq1jh0000gn/T/hub-demo-fom-pontaj-e2e.json
+[2m[WebServer] [22m[2026-07-15T07:46:02.613Z] [functions] Functions Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.613Z] [eventarc] Eventarc Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.613Z] [tasks] Cloud Tasks Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[2m[WebServer] [22m[2026-07-15T07:46:02.613Z] late-assigned ports for functions and eventarc emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"pubsub":[{"address":"127.0.0.1","family":"IPv4","port":8085}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"functions":[{"address":"127.0.0.1","family":"IPv4","port":5001}],"eventarc":[{"address":"127.0.0.1","family":"IPv4","port":9299}],"tasks":[{"address":"127.0.0.1","family":"IPv4","port":9499}]},"metadata":{"message":"late-assigned ports for functions and eventarc emulators"}}
+[2m[WebServer] [22mi  firestore: downloading cloud-firestore-emulator-v1.19.8.jar... {"metadata":{"emulator":{"name":"firestore"},"message":"downloading cloud-firestore-emulator-v1.19.8.jar..."}}
+[2m[WebServer] [22m[2026-07-15T07:46:02.633Z] >>> [apiv2][query] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.19.8.jar 
+[2m[WebServer] [22m[2026-07-15T07:46:02.693Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[2m[WebServer] [22m[2026-07-15T07:46:02.693Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+2026-07-15T07:46:02.955Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:02.957Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:02.957Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:02.971Z] <<< [apiv2][status] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.19.8.jar 200
+[2m[WebServer] [22m[2026-07-15T07:46:02.971Z] <<< [apiv2][body] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.19.8.jar [stream]
+2026-07-15T07:46:03.958Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:03.961Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:03.962Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:04.964Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:04.967Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:04.967Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:05.969Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:05.971Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:05.971Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m
+2026-07-15T07:46:06.972Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:06.972Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:06.972Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:07.344Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[2m[WebServer] [22m[2026-07-15T07:46:07.344Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[2m[WebServer] [22m[2026-07-15T07:46:07.344Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","/private/tmp/fom-firebase-home/.cache/firebase/emulators/cloud-firestore-emulator-v1.19.8.jar","--host","127.0.0.1","--port",8080,"--websocket_port",9150,"--project_id","demo-fom-pontaj-e2e","--rules","/Users/code-with-a/Dev/FOM/Field-Operational-Manager/firestore.rules","--single_project_mode",true,"--functions_emulator","127.0.0.1:5001"],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8080} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"/private/tmp/fom-firebase-home/.cache/firebase/emulators/cloud-firestore-emulator-v1.19.8.jar\",\"--host\",\"127.0.0.1\",\"--port\",8080,\"--websocket_port\",9150,\"--project_id\",\"demo-fom-pontaj-e2e\",\"--rules\",\"/Users/code-with-a/Dev/FOM/Field-Operational-Manager/firestore.rules\",\"--single_project_mode\",true,\"--functions_emulator\",\"127.0.0.1:5001\"],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8080}"}}
+[2m[WebServer] [22mi  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to firestore-debug.log"}}
+2026-07-15T07:46:07.973Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:07.974Z pw:webserver Error while checking if http://127.0.0.1:8080/ is available: connect ECONNREFUSED 127.0.0.1:8080
+2026-07-15T07:46:07.974Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:07.974Z] Jul 15, 2026 10:46:07 AM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
+[2m[WebServer] [22mINFO: Started WebSocket server on ws://127.0.0.1:9150
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:46:07 AM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start\nINFO: Started WebSocket server on ws://127.0.0.1:9150\n"}}
+[2m[WebServer] [22m[2026-07-15T07:46:07.982Z] API endpoint: http:// {"metadata":{"emulator":{"name":"firestore"},"message":"API endpoint: http://"}}
+[2m[WebServer] [22m[2026-07-15T07:46:07.983Z] 127.0.0.1:8080
+[2m[WebServer] [22mIf you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:
+[2m[WebServer] [22m
+[2m[WebServer] [22m   export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+[2m[WebServer] [22m
+[2m[WebServer] [22mIf you are running a Firestore in Datastore Mode project, run:
+[2m[WebServer] [22m
+[2m[WebServer] [22m   export DATASTORE_EMULATOR_HOST=127.0.0.1:8080
+[2m[WebServer] [22m
+[2m[WebServer] [22mNote: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.
+[2m[WebServer] [22mDev App Server is now running.
+[2m[WebServer] [22m
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"127.0.0.1:8080\nIf you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:\n\n   export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080\n\nIf you are running a Firestore in Datastore Mode project, run:\n\n   export DATASTORE_EMULATOR_HOST=127.0.0.1:8080\n\nNote: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.\nDev App Server is now running.\n\n"}}
+[2m[WebServer] [22m✔  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
+2026-07-15T07:46:08.975Z pw:webserver HTTP GET: http://127.0.0.1:8080/
+2026-07-15T07:46:08.985Z pw:webserver HTTP Status: 200
+2026-07-15T07:46:08.986Z pw:webserver WebServer available
+2026-07-15T07:46:08.986Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:08.986Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:08.986Z pw:webserver Starting WebServer process node tests/e2e/pontaj/infrastructure/start-next.mjs...
+2026-07-15T07:46:08.987Z pw:webserver Process started
+2026-07-15T07:46:08.987Z pw:webserver Waiting for availability...
+2026-07-15T07:46:08.987Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:08.988Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:08.988Z pw:webserver Waiting 100ms
+2026-07-15T07:46:09.089Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:09.090Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:09.090Z pw:webserver Waiting 250ms
+[2m[WebServer] [22m
+[2m[WebServer] [22m> my-v0-project@0.1.0 build
+[2m[WebServer] [22m> next build
+[2m[WebServer] [22m
+2026-07-15T07:46:09.340Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:09.341Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:09.341Z pw:webserver Waiting 500ms
+[2m[WebServer] [22m(node:3245) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+2026-07-15T07:46:09.842Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:09.842Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:09.842Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m   ▲ Next.js 15.2.6
+[2m[WebServer] [22m   - Environments: .env
+[2m[WebServer] [22m   - Experiments (use with caution):
+[2m[WebServer] [22m     · clientTraceMetadata
+[2m[WebServer] [22m
+[2m[WebServer] [22m   Creating an optimized production build ...
+[2m[WebServer] [22m(node:3118) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+[2m[WebServer] [22m[2026-07-15T07:46:10.752Z] Jul 15, 2026 10:46:08 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:46:08 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22mi  pubsub: downloading pubsub-emulator-0.8.14.zip... {"metadata":{"emulator":{"name":"pubsub"},"message":"downloading pubsub-emulator-0.8.14.zip..."}}
+[2m[WebServer] [22m[2026-07-15T07:46:10.754Z] >>> [apiv2][query] GET https://storage.googleapis.com/firebase-preview-drop/emulator/pubsub-emulator-0.8.14.zip 
+2026-07-15T07:46:10.843Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:10.844Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:10.844Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:10.987Z] <<< [apiv2][status] GET https://storage.googleapis.com/firebase-preview-drop/emulator/pubsub-emulator-0.8.14.zip 200
+[2m[WebServer] [22m[2026-07-15T07:46:10.987Z] <<< [apiv2][body] GET https://storage.googleapis.com/firebase-preview-drop/emulator/pubsub-emulator-0.8.14.zip [stream]
+2026-07-15T07:46:11.846Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:11.848Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:11.848Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:12.849Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:13.539Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:13.539Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:14.542Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:14.546Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:14.546Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:15.549Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:15.553Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:15.553Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m
+2026-07-15T07:46:16.555Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:16.556Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:16.556Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:16.705Z] Data is 66786933
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] Entry: pubsub-emulator/ (compressed_size=2 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] Processing entry: pubsub-emulator/
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] Entry: pubsub-emulator/lib/ (compressed_size=2 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] Processing entry: pubsub-emulator/lib/
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/lib/
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] Entry: pubsub-emulator/lib/cloud-pubsub-emulator-0.8.14-all.jar (compressed_size=66782880 bytes, uncompressed_size=71655096 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:16.706Z] [unzip] Processing entry: pubsub-emulator/lib/cloud-pubsub-emulator-0.8.14-all.jar
+[2m[WebServer] [22m[2026-07-15T07:46:16.707Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/lib
+[2m[WebServer] [22m[2026-07-15T07:46:16.707Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/lib/cloud-pubsub-emulator-0.8.14-all.jar
+[2m[WebServer] [22m[2026-07-15T07:46:17.355Z] [unzip] Entry: pubsub-emulator/bin/ (compressed_size=2 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:17.355Z] [unzip] Processing entry: pubsub-emulator/bin/
+[2m[WebServer] [22m[2026-07-15T07:46:17.355Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin/
+[2m[WebServer] [22m[2026-07-15T07:46:17.356Z] [unzip] Entry: pubsub-emulator/bin/cloud-pubsub-emulator.bat (compressed_size=889 bytes, uncompressed_size=2276 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:17.356Z] [unzip] Processing entry: pubsub-emulator/bin/cloud-pubsub-emulator.bat
+[2m[WebServer] [22m[2026-07-15T07:46:17.356Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin
+[2m[WebServer] [22m[2026-07-15T07:46:17.357Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin/cloud-pubsub-emulator.bat
+[2m[WebServer] [22m[2026-07-15T07:46:17.357Z] [unzip] Entry: pubsub-emulator/bin/cloud-pubsub-emulator (compressed_size=2284 bytes, uncompressed_size=5728 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:17.357Z] [unzip] Processing entry: pubsub-emulator/bin/cloud-pubsub-emulator
+[2m[WebServer] [22m[2026-07-15T07:46:17.357Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin
+[2m[WebServer] [22m[2026-07-15T07:46:17.357Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin/cloud-pubsub-emulator
+[2m[WebServer] [22m[2026-07-15T07:46:17.358Z] Ignoring unsupported arg: projectId {"metadata":{"emulator":{"name":"pubsub"},"message":"Ignoring unsupported arg: projectId"}}
+[2m[WebServer] [22m[2026-07-15T07:46:17.358Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"pubsub"},"message":"Ignoring unsupported arg: auto_download"}}
+[2m[WebServer] [22m[2026-07-15T07:46:17.358Z] Starting Pub/Sub Emulator with command {"binary":"/private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin/cloud-pubsub-emulator","args":["--host=127.0.0.1","--port=8085"],"optionalArgs":["port","host"],"joinArgs":true,"shell":true,"port":8085} {"metadata":{"emulator":{"name":"pubsub"},"message":"Starting Pub/Sub Emulator with command {\"binary\":\"/private/tmp/fom-firebase-home/.cache/firebase/emulators/pubsub-emulator-0.8.14/pubsub-emulator/bin/cloud-pubsub-emulator\",\"args\":[\"--host=127.0.0.1\",\"--port=8085\"],\"optionalArgs\":[\"port\",\"host\"],\"joinArgs\":true,\"shell\":true,\"port\":8085}"}}
+[2m[WebServer] [22mi  pubsub: Pub/Sub Emulator logging to pubsub-debug.log {"metadata":{"emulator":{"name":"pubsub"},"message":"Pub/Sub Emulator logging to pubsub-debug.log"}}
+2026-07-15T07:46:17.558Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:17.558Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:17.558Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:18.056Z] This is the Google Pub/Sub fake.
+[2m[WebServer] [22mImplementation may be incomplete or differ from the real system.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"This is the Google Pub/Sub fake.\nImplementation may be incomplete or differ from the real system.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:46:18.097Z] Jul 15, 2026 10:46:18 AM com.google.cloud.pubsub.testing.v1.Main main
+[2m[WebServer] [22mINFO: IAM integration is disabled. IAM policy methods and ACL checks are not supported
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"Jul 15, 2026 10:46:18 AM com.google.cloud.pubsub.testing.v1.Main main\nINFO: IAM integration is disabled. IAM policy methods and ACL checks are not supported\n"}}
+[2m[WebServer] [22m[2026-07-15T07:46:18.245Z] SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+[2m[WebServer] [22mSLF4J: Defaulting to no-operation (NOP) logger implementation
+[2m[WebServer] [22mSLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"SLF4J: Failed to load class \"org.slf4j.impl.StaticLoggerBinder\".\nSLF4J: Defaulting to no-operation (NOP) logger implementation\nSLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:46:18.538Z] Jul 15, 2026 10:46:18 AM com.google.cloud.pubsub.testing.v1.Main main
+[2m[WebServer] [22mINFO: Server started, listening on 8085
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"Jul 15, 2026 10:46:18 AM com.google.cloud.pubsub.testing.v1.Main main\nINFO: Server started, listening on 8085\n"}}
+2026-07-15T07:46:18.560Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:18.562Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:18.562Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22mi  storage: downloading cloud-storage-rules-runtime-v1.1.3.jar... {"metadata":{"emulator":{"name":"storage"},"message":"downloading cloud-storage-rules-runtime-v1.1.3.jar..."}}
+[2m[WebServer] [22m[2026-07-15T07:46:18.610Z] >>> [apiv2][query] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-storage-rules-runtime-v1.1.3.jar 
+[2m[WebServer] [22m[2026-07-15T07:46:18.803Z] <<< [apiv2][status] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-storage-rules-runtime-v1.1.3.jar 200
+[2m[WebServer] [22m[2026-07-15T07:46:18.803Z] <<< [apiv2][body] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-storage-rules-runtime-v1.1.3.jar [stream]
+2026-07-15T07:46:19.563Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:19.578Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:19.578Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:20.579Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:20.584Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:20.584Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:21.585Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:21.660Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:21.660Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:22.678Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:22.809Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:22.810Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m
+2026-07-15T07:46:23.812Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:23.822Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:23.823Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:24.461Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
+2026-07-15T07:46:24.824Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:24.826Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:24.829Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:25.786Z] Temp file directory for storage emulator: /var/folders/57/w83hfs491_b5k_d4sw7tq1jh0000gn/T/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: /var/folders/57/w83hfs491_b5k_d4sw7tq1jh0000gn/T/firebase/storage/blobs"}}
+2026-07-15T07:46:25.897Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+[2m[WebServer] [22mi  ui: downloading ui-v1.15.0.zip... {"metadata":{"emulator":{"name":"ui"},"message":"downloading ui-v1.15.0.zip..."}}
+[2m[WebServer] [22m[2026-07-15T07:46:25.898Z] >>> [apiv2][query] GET https://storage.googleapis.com/firebase-preview-drop/emulator/ui-v1.15.0.zip 
+2026-07-15T07:46:25.907Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:25.912Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:25.931Z] <<< [apiv2][status] GET https://storage.googleapis.com/firebase-preview-drop/emulator/ui-v1.15.0.zip 200
+[2m[WebServer] [22m[2026-07-15T07:46:25.931Z] <<< [apiv2][body] GET https://storage.googleapis.com/firebase-preview-drop/emulator/ui-v1.15.0.zip [stream]
+[2m[WebServer] [22m
+[2m[WebServer] [22m[2026-07-15T07:46:26.540Z] Data is 3538469
+[2m[WebServer] [22m[2026-07-15T07:46:26.540Z] [unzip] Entry: client/ (compressed_size=0 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.540Z] [unzip] Processing entry: client/
+[2m[WebServer] [22m[2026-07-15T07:46:26.540Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/
+[2m[WebServer] [22m[2026-07-15T07:46:26.542Z] [unzip] Entry: client/favicon-16x16.png (compressed_size=293 bytes, uncompressed_size=293 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.542Z] [unzip] Processing entry: client/favicon-16x16.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.542Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.542Z] [unzip] Writing file: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/favicon-16x16.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.543Z] [unzip] Entry: client/safari-pinned-tab.svg (compressed_size=1433 bytes, uncompressed_size=2611 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.543Z] [unzip] Processing entry: client/safari-pinned-tab.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.543Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.543Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/safari-pinned-tab.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.551Z] [unzip] Entry: client/favicon.ico (compressed_size=2933 bytes, uncompressed_size=13294 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.551Z] [unzip] Processing entry: client/favicon.ico
+[2m[WebServer] [22m[2026-07-15T07:46:26.551Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.551Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/favicon.ico
+[2m[WebServer] [22m[2026-07-15T07:46:26.552Z] [unzip] Entry: client/index.html (compressed_size=1364 bytes, uncompressed_size=3071 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.552Z] [unzip] Processing entry: client/index.html
+[2m[WebServer] [22m[2026-07-15T07:46:26.552Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.553Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/index.html
+[2m[WebServer] [22m[2026-07-15T07:46:26.554Z] [unzip] Entry: client/android-chrome-192x192.png (compressed_size=2684 bytes, uncompressed_size=2684 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.554Z] [unzip] Processing entry: client/android-chrome-192x192.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.554Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.554Z] [unzip] Writing file: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/android-chrome-192x192.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.555Z] [unzip] Entry: client/apple-touch-icon.png (compressed_size=2123 bytes, uncompressed_size=2152 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.555Z] [unzip] Processing entry: client/apple-touch-icon.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.555Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.555Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/apple-touch-icon.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.556Z] [unzip] Entry: client/android-chrome-512x512.png (compressed_size=5369 bytes, uncompressed_size=5411 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.557Z] [unzip] Processing entry: client/android-chrome-512x512.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.557Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.557Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/android-chrome-512x512.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.561Z] [unzip] Entry: client/manifest.json (compressed_size=245 bytes, uncompressed_size=551 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.561Z] [unzip] Processing entry: client/manifest.json
+[2m[WebServer] [22m[2026-07-15T07:46:26.561Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.562Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/manifest.json
+[2m[WebServer] [22m[2026-07-15T07:46:26.564Z] [unzip] Entry: client/robots.txt (compressed_size=26 bytes, uncompressed_size=26 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] Processing entry: client/robots.txt
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] Writing file: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/robots.txt
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] Entry: client/mstile-150x150.png (compressed_size=2034 bytes, uncompressed_size=2034 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] Processing entry: client/mstile-150x150.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.565Z] [unzip] Writing file: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/mstile-150x150.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] Entry: client/assets/ (compressed_size=0 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] Processing entry: client/assets/
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] Entry: client/assets/index-BX-A56oj.js (compressed_size=582089 bytes, uncompressed_size=2092775 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] Processing entry: client/assets/index-BX-A56oj.js
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets
+[2m[WebServer] [22m[2026-07-15T07:46:26.566Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/index-BX-A56oj.js
+[2m[WebServer] [22m[2026-07-15T07:46:26.582Z] [unzip] Entry: client/assets/index-CjB9C900.css (compressed_size=35979 bytes, uncompressed_size=298654 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.582Z] [unzip] Processing entry: client/assets/index-CjB9C900.css
+[2m[WebServer] [22m[2026-07-15T07:46:26.582Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets
+[2m[WebServer] [22m[2026-07-15T07:46:26.582Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/index-CjB9C900.css
+[2m[WebServer] [22m[2026-07-15T07:46:26.585Z] [unzip] Entry: client/assets/index-BX-A56oj.js.map (compressed_size=2362482 bytes, uncompressed_size=10036679 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.585Z] [unzip] Processing entry: client/assets/index-BX-A56oj.js.map
+[2m[WebServer] [22m[2026-07-15T07:46:26.585Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets
+[2m[WebServer] [22m[2026-07-15T07:46:26.585Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/index-BX-A56oj.js.map
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] Entry: client/assets/extensions/ (compressed_size=0 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] Processing entry: client/assets/extensions/
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/extensions/
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] Entry: client/assets/extensions/default-extension.png (compressed_size=1646 bytes, uncompressed_size=1657 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] Processing entry: client/assets/extensions/default-extension.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/extensions
+[2m[WebServer] [22m[2026-07-15T07:46:26.802Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/extensions/default-extension.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] Entry: client/assets/img/ (compressed_size=0 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] Processing entry: client/assets/img/
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/img/
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] Entry: client/assets/img/database.png (compressed_size=29449 bytes, uncompressed_size=29988 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] Processing entry: client/assets/img/database.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/img
+[2m[WebServer] [22m[2026-07-15T07:46:26.803Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/img/database.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] Entry: client/assets/provider-icons/ (compressed_size=0 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] Processing entry: client/assets/provider-icons/
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] Entry: client/assets/provider-icons/auth_service_saml.svg (compressed_size=575 bytes, uncompressed_size=1226 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_saml.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_saml.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] Entry: client/assets/provider-icons/auth_service_phone.svg (compressed_size=261 bytes, uncompressed_size=414 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_phone.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.804Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_phone.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] Entry: client/assets/provider-icons/auth_service_facebook.svg (compressed_size=289 bytes, uncompressed_size=457 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_facebook.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_facebook.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] Entry: client/assets/provider-icons/auth_service_game_center.svg (compressed_size=991 bytes, uncompressed_size=3921 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_game_center.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_game_center.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] Entry: client/assets/provider-icons/auth_service_apple.svg (compressed_size=230 bytes, uncompressed_size=334 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_apple.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.805Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_apple.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] Entry: client/assets/provider-icons/auth_service_github.svg (compressed_size=466 bytes, uncompressed_size=838 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_github.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_github.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] Entry: client/assets/provider-icons/auth_service_mslive.svg (compressed_size=203 bytes, uncompressed_size=378 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_mslive.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_mslive.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.806Z] [unzip] Entry: client/assets/provider-icons/auth_service_yahoo.svg (compressed_size=577 bytes, uncompressed_size=1182 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_yahoo.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_yahoo.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] Entry: client/assets/provider-icons/auth_service_twitter.svg (compressed_size=444 bytes, uncompressed_size=751 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_twitter.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_twitter.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] Entry: client/assets/provider-icons/auth_service_play_games.svg (compressed_size=565 bytes, uncompressed_size=1173 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_play_games.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.807Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_play_games.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] Entry: client/assets/provider-icons/auth_service_email.svg (compressed_size=228 bytes, uncompressed_size=326 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_email.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_email.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] Entry: client/assets/provider-icons/auth_service_google.svg (compressed_size=409 bytes, uncompressed_size=720 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_google.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.808Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_google.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] Entry: client/assets/provider-icons/auth_service_oidc.svg (compressed_size=414 bytes, uncompressed_size=858 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] Processing entry: client/assets/provider-icons/auth_service_oidc.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/assets/provider-icons/auth_service_oidc.svg
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] Entry: client/browserconfig.xml (compressed_size=491 bytes, uncompressed_size=822 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] Processing entry: client/browserconfig.xml
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.809Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/browserconfig.xml
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Entry: client/favicon-32x32.png (compressed_size=475 bytes, uncompressed_size=475 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Processing entry: client/favicon-32x32.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Writing file: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/client/favicon-32x32.png
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Entry: server/ (compressed_size=0 bytes, uncompressed_size=0 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Processing entry: server/
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/server/
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Entry: server/server.mjs.map (compressed_size=217845 bytes, uncompressed_size=944978 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] Processing entry: server/server.mjs.map
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/server
+[2m[WebServer] [22m[2026-07-15T07:46:26.810Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/server/server.mjs.map
+[2m[WebServer] [22m[2026-07-15T07:46:26.825Z] [unzip] Entry: server/server.mjs (compressed_size=276407 bytes, uncompressed_size=933701 bytes)
+[2m[WebServer] [22m[2026-07-15T07:46:26.826Z] [unzip] Processing entry: server/server.mjs
+[2m[WebServer] [22m[2026-07-15T07:46:26.826Z] [unzip] else mkdir: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/server
+[2m[WebServer] [22m[2026-07-15T07:46:26.826Z] [unzip] deflating: /private/tmp/fom-firebase-home/.cache/firebase/emulators/ui-v1.15.0/server/server.mjs
+[2m[WebServer] [22mi  functions: Watching "/Users/code-with-a/Dev/FOM/Field-Operational-Manager/firebase-functions" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"/Users/code-with-a/Dev/FOM/Field-Operational-Manager/firebase-functions\" for Cloud Functions..."}}
+[2m[WebServer] [22m[2026-07-15T07:46:26.844Z] Validating nodejs source
+2026-07-15T07:46:26.911Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:26.914Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:26.915Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:27.916Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:27.919Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:27.919Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:28.920Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:28.973Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:28.973Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[2m[WebServer] [22m⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[2m[WebServer] [22m[2026-07-15T07:46:29.038Z] > [functions] package.json contents: {
+[2m[WebServer] [22m  "name": "fom-firebase-functions",
+[2m[WebServer] [22m  "description": "Firebase Functions for Field Operational Manager",
+[2m[WebServer] [22m  "version": "1.0.0",
+[2m[WebServer] [22m  "private": true,
+[2m[WebServer] [22m  "scripts": {
+[2m[WebServer] [22m    "build": "tsc",
+[2m[WebServer] [22m    "serve": "npm run build && firebase emulators:start --only functions",
+[2m[WebServer] [22m    "shell": "npm run build && firebase functions:shell",
+[2m[WebServer] [22m    "start": "npm run shell",
+[2m[WebServer] [22m    "deploy": "firebase deploy --only functions",
+[2m[WebServer] [22m    "logs": "firebase functions:log"
+[2m[WebServer] [22m  },
+[2m[WebServer] [22m  "engines": {
+[2m[WebServer] [22m    "node": "20"
+[2m[WebServer] [22m  },
+[2m[WebServer] [22m  "main": "lib/index.js",
+[2m[WebServer] [22m  "dependencies": {
+[2m[WebServer] [22m    "firebase-admin": "^12.7.0",
+[2m[WebServer] [22m    "firebase-functions": "^4.9.0"
+[2m[WebServer] [22m  },
+[2m[WebServer] [22m  "devDependencies": {
+[2m[WebServer] [22m    "@types/node": "^20.10.0",
+[2m[WebServer] [22m    "typescript": "^5.3.0"
+[2m[WebServer] [22m  }
+[2m[WebServer] [22m}
+[2m[WebServer] [22m[2026-07-15T07:46:29.038Z] Building nodejs source
+[2m[WebServer] [22m[2026-07-15T07:46:29.038Z] Failed to find version of module node: reached end of search path /Users/code-with-a/Dev/FOM/Field-Operational-Manager/firebase-functions/node_modules
+[2m[WebServer] [22m⚠  functions: Your requested "node" version "20" doesn't match your global version "25". Using node@25 from host. 
+[2m[WebServer] [22mi  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[2m[WebServer] [22m[2026-07-15T07:46:29.039Z] Could not find functions.yaml. Must use http discovery
+[2m[WebServer] [22m[2026-07-15T07:46:29.057Z] Found firebase-functions binary at '/Users/code-with-a/Dev/FOM/Field-Operational-Manager/firebase-functions/node_modules/.bin/firebase-functions'
+[2m[WebServer] [22mServing at port 8534
+[2m[WebServer] [22m
+2026-07-15T07:46:30.018Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:30.051Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:30.051Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:30.293Z] Got response from /__/functions.yaml {"endpoints":{"generateScheduledWorks":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"0 7,13 * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"generateScheduledWorks"},"autoCheckOutScheduleGrace":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"*/15 17-18 * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"autoCheckOutScheduleGrace"},"autoStopAttendanceSessions":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"59 23 * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"autoStopAttendanceSessions"},"onAttendanceCheckoutSync":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.update","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/attendance/{sessionId}"},"retry":false},"labels":{},"entryPoint":"onAttendanceCheckoutSync"},"runGenerateScheduledWorks":{"platform":"gcfv1","labels":{},"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"callableTrigger":{},"entryPoint":"runGenerateScheduledWorks"},"onCrmTaskCreatedEmail":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.create","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_tasks/{taskId}"},"retry":false},"labels":{},"entryPoint":"onCrmTaskCreatedEmail"},"onCrmTaskReassignedEmail":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.update","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_tasks/{taskId}"},"retry":false},"labels":{},"entryPoint":"onCrmTaskReassignedEmail"},"sendCrmTaskReminders15m":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"* * * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"sendCrmTaskReminders15m"},"onCrmInternalNoteCreatedEmail":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.create","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_internal_notes/{noteId}"},"retry":false},"labels":{},"entryPoint":"onCrmInternalNoteCreatedEmail"},"sendCrmInternalNoteOverdueDailyReminders":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"0 8 * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"sendCrmInternalNoteOverdueDailyReminders"},"onCrmInternalThreadMessageCreatedEmail":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.create","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_internal_threads/{threadId}/messages/{messageId}"},"retry":false},"labels":{},"entryPoint":"onCrmInternalThreadMessageCreatedEmail"},"sendCrmInternalThreadOverdueDailyReminders":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"0 8 * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"sendCrmInternalThreadOverdueDailyReminders"},"sendHrRequestPendingApprovalReminders":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"scheduleTrigger":{"schedule":"0 8 * * *","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":"Europe/Bucharest"},"labels":{},"entryPoint":"sendHrRequestPendingApprovalReminders"},"onHrRequestApproved":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.update","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}"},"retry":false},"labels":{},"entryPoint":"onHrRequestApproved"},"onHrRequestCreatedEmail":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.create","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}"},"retry":false},"labels":{},"entryPoint":"onHrRequestCreatedEmail"},"onHrRequestStatusChangedEmail":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"region":["europe-west1"],"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.update","eventFilters":{"resource":"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}"},"retry":false},"labels":{},"entryPoint":"onHrRequestStatusChangedEmail"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+2026-07-15T07:46:31.368Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:31.369Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:31.369Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:32.370Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:32.371Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:32.373Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:33.374Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:33.376Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:33.432Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m✔  functions: Loaded functions definitions from source: generateScheduledWorks, autoCheckOutScheduleGrace, autoStopAttendanceSessions, onAttendanceCheckoutSync, runGenerateScheduledWorks, onCrmTaskCreatedEmail, onCrmTaskReassignedEmail, sendCrmTaskReminders15m, onCrmInternalNoteCreatedEmail, sendCrmInternalNoteOverdueDailyReminders, onCrmInternalThreadMessageCreatedEmail, sendCrmInternalThreadOverdueDailyReminders, sendHrRequestPendingApprovalReminders, onHrRequestApproved, onHrRequestCreatedEmail, onHrRequestStatusChangedEmail. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: generateScheduledWorks, autoCheckOutScheduleGrace, autoStopAttendanceSessions, onAttendanceCheckoutSync, runGenerateScheduledWorks, onCrmTaskCreatedEmail, onCrmTaskReassignedEmail, sendCrmTaskReminders15m, onCrmInternalNoteCreatedEmail, sendCrmInternalNoteOverdueDailyReminders, onCrmInternalThreadMessageCreatedEmail, sendCrmInternalThreadOverdueDailyReminders, sendHrRequestPendingApprovalReminders, onHrRequestApproved, onHrRequestCreatedEmail, onHrRequestStatusChangedEmail."}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.346Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.346Z] [pubsub] addTrigger(firebase-schedule-generateScheduledWorks, europe-west1-generateScheduledWorks-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:34.349Z] [pubsub] Creating topic: firebase-schedule-generateScheduledWorks
+2026-07-15T07:46:34.433Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:34.434Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:34.434Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:34.449Z] Jul 15, 2026 10:46:34 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"Jul 15, 2026 10:46:34 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.525Z] [pubsub] Creating sub for topic: firebase-schedule-generateScheduledWorks
+[2m[WebServer] [22m✔  functions[europe-west1-generateScheduledWorks]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.544Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.544Z] [pubsub] addTrigger(firebase-schedule-autoCheckOutScheduleGrace, europe-west1-autoCheckOutScheduleGrace-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:34.544Z] [pubsub] Creating topic: firebase-schedule-autoCheckOutScheduleGrace
+[2m[WebServer] [22m[2026-07-15T07:46:34.552Z] [pubsub] Creating sub for topic: firebase-schedule-autoCheckOutScheduleGrace
+[2m[WebServer] [22m✔  functions[europe-west1-autoCheckOutScheduleGrace]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.555Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.555Z] [pubsub] addTrigger(firebase-schedule-autoStopAttendanceSessions, europe-west1-autoStopAttendanceSessions-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:34.555Z] [pubsub] Creating topic: firebase-schedule-autoStopAttendanceSessions
+[2m[WebServer] [22m[2026-07-15T07:46:34.559Z] [pubsub] Creating sub for topic: firebase-schedule-autoStopAttendanceSessions
+[2m[WebServer] [22m✔  functions[europe-west1-autoStopAttendanceSessions]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:34.561Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/attendance/{sessionId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:34.561Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onAttendanceCheckoutSync-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:34.561Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onAttendanceCheckoutSync-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/attendance/{sessionId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:34.758Z] Jul 15, 2026 10:46:34 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:46:34 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+2026-07-15T07:46:35.438Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:35.441Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:35.441Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:35.857Z] Jul 15, 2026 10:46:35 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:46:35 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected HTTP/2 connection.\n"}}
+2026-07-15T07:46:36.442Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:36.443Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:36.443Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m[2026-07-15T07:46:36.607Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onAttendanceCheckoutSync-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.607Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onAttendanceCheckoutSync-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onAttendanceCheckoutSync]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m✔  functions[europe-west1-runGenerateScheduledWorks]: http function initialized (http://127.0.0.1:5001/demo-fom-pontaj-e2e/europe-west1/runGenerateScheduledWorks). {"metadata":{"emulator":{"name":"functions"},"message":"http function initialized (http://127.0.0.1:5001/demo-fom-pontaj-e2e/europe-west1/runGenerateScheduledWorks)."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.609Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_tasks/{taskId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.609Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskCreatedEmail-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.609Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskCreatedEmail-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_tasks/{taskId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.615Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskCreatedEmail-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.615Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskCreatedEmail-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onCrmTaskCreatedEmail]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.615Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_tasks/{taskId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.615Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskReassignedEmail-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.615Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskReassignedEmail-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_tasks/{taskId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.619Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskReassignedEmail-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.619Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmTaskReassignedEmail-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onCrmTaskReassignedEmail]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.619Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.619Z] [pubsub] addTrigger(firebase-schedule-sendCrmTaskReminders15m, europe-west1-sendCrmTaskReminders15m-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:36.619Z] [pubsub] Creating topic: firebase-schedule-sendCrmTaskReminders15m
+[2m[WebServer] [22m[2026-07-15T07:46:36.633Z] [pubsub] Creating sub for topic: firebase-schedule-sendCrmTaskReminders15m
+[2m[WebServer] [22m✔  functions[europe-west1-sendCrmTaskReminders15m]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.639Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_internal_notes/{noteId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.639Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalNoteCreatedEmail-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.639Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalNoteCreatedEmail-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_internal_notes/{noteId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.644Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalNoteCreatedEmail-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.644Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalNoteCreatedEmail-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onCrmInternalNoteCreatedEmail]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.644Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.644Z] [pubsub] addTrigger(firebase-schedule-sendCrmInternalNoteOverdueDailyReminders, europe-west1-sendCrmInternalNoteOverdueDailyReminders-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:36.644Z] [pubsub] Creating topic: firebase-schedule-sendCrmInternalNoteOverdueDailyReminders
+[2m[WebServer] [22m[2026-07-15T07:46:36.646Z] [pubsub] Creating sub for topic: firebase-schedule-sendCrmInternalNoteOverdueDailyReminders
+[2m[WebServer] [22m✔  functions[europe-west1-sendCrmInternalNoteOverdueDailyReminders]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.649Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_internal_threads/{threadId}/messages/{messageId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.649Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalThreadMessageCreatedEmail-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.649Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalThreadMessageCreatedEmail-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/crm_internal_threads/{threadId}/messages/{messageId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.653Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalThreadMessageCreatedEmail-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.653Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onCrmInternalThreadMessageCreatedEmail-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onCrmInternalThreadMessageCreatedEmail]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.653Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.653Z] [pubsub] addTrigger(firebase-schedule-sendCrmInternalThreadOverdueDailyReminders, europe-west1-sendCrmInternalThreadOverdueDailyReminders-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:36.653Z] [pubsub] Creating topic: firebase-schedule-sendCrmInternalThreadOverdueDailyReminders
+[2m[WebServer] [22m[2026-07-15T07:46:36.656Z] [pubsub] Creating sub for topic: firebase-schedule-sendCrmInternalThreadOverdueDailyReminders
+[2m[WebServer] [22m✔  functions[europe-west1-sendCrmInternalThreadOverdueDailyReminders]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.660Z] addPubsubTrigger {"eventTrigger":{"eventType":"pubsub","resource":""}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.660Z] [pubsub] addTrigger(firebase-schedule-sendHrRequestPendingApprovalReminders, europe-west1-sendHrRequestPendingApprovalReminders-0, event)
+[2m[WebServer] [22m[2026-07-15T07:46:36.660Z] [pubsub] Creating topic: firebase-schedule-sendHrRequestPendingApprovalReminders
+[2m[WebServer] [22m[2026-07-15T07:46:36.664Z] [pubsub] Creating sub for topic: firebase-schedule-sendHrRequestPendingApprovalReminders
+[2m[WebServer] [22m✔  functions[europe-west1-sendHrRequestPendingApprovalReminders]: pubsub function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"pubsub function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.667Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.667Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestApproved-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.667Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestApproved-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.673Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestApproved-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.673Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestApproved-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onHrRequestApproved]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.673Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.673Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestCreatedEmail-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.673Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestCreatedEmail-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.create\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.676Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestCreatedEmail-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.676Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestCreatedEmail-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onHrRequestCreatedEmail]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.676Z] addFirestoreTrigger "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.676Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestStatusChangedEmail-0 [none]
+[2m[WebServer] [22m[2026-07-15T07:46:36.676Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestStatusChangedEmail-0 "{\"eventTrigger\":{\"eventType\":\"providers/cloud.firestore/eventTypes/document.update\",\"resource\":\"projects/demo-fom-pontaj-e2e/databases/(default)/documents/hrRequests/{requestId}\",\"service\":\"firestore.googleapis.com\"}}"
+[2m[WebServer] [22m[2026-07-15T07:46:36.680Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestStatusChangedEmail-0 200
+[2m[WebServer] [22m[2026-07-15T07:46:36.680Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-fom-pontaj-e2e/triggers/europe-west1-onHrRequestStatusChangedEmail-0 {}
+[2m[WebServer] [22m✔  functions[europe-west1-onHrRequestStatusChangedEmail]: firestore function initialized. {"metadata":{"emulator":{"name":"functions"},"message":"firestore function initialized."}}
+[2m[WebServer] [22m[2026-07-15T07:46:36.691Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[2m[WebServer] [22m
+[2m[WebServer] [22m┌─────────────────────────────────────────────────────────────┐
+[2m[WebServer] [22m│ ✔  All emulators ready! It is now safe to connect your app. │
+[2m[WebServer] [22m│ i  View Emulator UI at http://127.0.0.1:4000/               │
+[2m[WebServer] [22m└─────────────────────────────────────────────────────────────┘
+[2m[WebServer] [22m
+[2m[WebServer] [22m┌────────────────┬────────────────┬─────────────────────────────────┐
+[2m[WebServer] [22m│ Emulator       │ Host:Port      │ View in Emulator UI             │
+[2m[WebServer] [22m├────────────────┼────────────────┼─────────────────────────────────┤
+[2m[WebServer] [22m│ Authentication │ 127.0.0.1:9099 │ http://127.0.0.1:4000/auth      │
+[2m[WebServer] [22m├────────────────┼────────────────┼─────────────────────────────────┤
+[2m[WebServer] [22m│ Functions      │ 127.0.0.1:5001 │ http://127.0.0.1:4000/functions │
+[2m[WebServer] [22m├────────────────┼────────────────┼─────────────────────────────────┤
+[2m[WebServer] [22m│ Firestore      │ 127.0.0.1:8080 │ http://127.0.0.1:4000/firestore │
+[2m[WebServer] [22m├────────────────┼────────────────┼─────────────────────────────────┤
+[2m[WebServer] [22m│ Pub/Sub        │ 127.0.0.1:8085 │ n/a                             │
+[2m[WebServer] [22m├────────────────┼────────────────┼─────────────────────────────────┤
+[2m[WebServer] [22m│ Storage        │ 127.0.0.1:9199 │ http://127.0.0.1:4000/storage   │
+[2m[WebServer] [22m└────────────────┴────────────────┴─────────────────────────────────┘
+[2m[WebServer] [22m  Emulator Hub host: 127.0.0.1 port: 4400
+[2m[WebServer] [22m  Other reserved ports: 4500, 9150
+[2m[WebServer] [22m
+[2m[WebServer] [22mIssues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+[2m[WebServer] [22m 
+2026-07-15T07:46:37.444Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:37.445Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:37.445Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:38.447Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:38.448Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:38.448Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:39.450Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:39.450Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:39.450Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:40.452Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:40.453Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:40.453Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:41.457Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:41.461Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:41.461Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:42.462Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:42.472Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:42.472Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m ✓ Compiled successfully
+[2m[WebServer] [22m   Skipping validation of types
+[2m[WebServer] [22m   Skipping linting
+2026-07-15T07:46:43.473Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:43.474Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:43.474Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m   Collecting page data ...
+2026-07-15T07:46:44.475Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:44.480Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:44.481Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m(node:3345) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3346) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3343) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3344) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3347) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3341) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3342) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+2026-07-15T07:46:45.482Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:45.483Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:45.483Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:46.483Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:46.484Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:46.484Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:47.486Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:47.487Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:47.487Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:48.488Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:48.489Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:48.489Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:49.490Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:49.491Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:49.491Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:50.492Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:50.492Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:50.492Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m   Generating static pages (0/96) ...
+[2m[WebServer] [22m(node:3363) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3361) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3360) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:3362) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m   Generating static pages (24/96) 
+2026-07-15T07:46:51.976Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:51.978Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:51.979Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m   Generating static pages (48/96) 
+[2m[WebServer] [22m   Generating static pages (72/96) 
+[2m[WebServer] [22mRendering UtilizatoriLayout
+[2m[WebServer] [22mRendering UtilizatoriLayout
+[2m[WebServer] [22m ✓ Generating static pages (96/96)
+2026-07-15T07:46:52.981Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:52.981Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:52.981Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m   Finalizing page optimization ...
+[2m[WebServer] [22m   Collecting build traces ...
+2026-07-15T07:46:53.981Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:53.982Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:53.982Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:54.983Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:54.984Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:54.984Z pw:webserver Waiting 1000ms
+2026-07-15T07:46:55.985Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:55.985Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:55.985Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m
+[2m[WebServer] [22mRoute (app)                                           Size  First Load JS
+[2m[WebServer] [22m┌ ○ /                                              1.57 kB         178 kB
+[2m[WebServer] [22m├ ○ /_not-found                                    1.15 kB         178 kB
+[2m[WebServer] [22m├ ƒ /api/admin/migrate-equipment                     496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/admin/offer-certified-pdf-backfill          497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/admin/seed-hr-reminder-test                 496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/auth/custom-token                           495 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/auth/session                                496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/build-info                                  496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/files/[fileId]/download                 495 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/inbox/link                              497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/inbox/list                              496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/inbox/sync                              496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/inbox/update                            496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers                                  496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/[offerId]/certified-pdf          496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/[offerId]/offer-evidence         497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/issue                            495 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/public                           497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/respond                          496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/send-code                        497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/send-email                       495 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/offers/verify-code                      497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/opportunities/[id]/offer-evidence       497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/opportunities/search                    497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/crm/opportunities/send-email                497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/download                                    497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/e2e/attendance-fixture                      497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/email/send-test                             496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/email/test-smtp                             495 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/email/webhook                               496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/image-proxy                                 496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/lucrari/[id]/offer-certified-pdf            497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/lucrari/[id]/offer-evidence                 496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/lucrari/[id]/offer-prepared                 496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/notifications/hr-request                    497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/notifications/work-order                    496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer                                       496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer/confirmation-sent                     496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer/reissue                               496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer/report-error                          496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer/respond                               497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer/send-code                             497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/offer/verify-code                           496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/reverse-geocode                             496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/scan-issues                                 497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/scan-issues/approve                         497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/send-email                                  496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/create                                498 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/delete                                496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/invite                                497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/mail-credentials                      497 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/reset-password                        496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/update-email                          496 B         177 kB
+[2m[WebServer] [22m├ ƒ /api/users/update-password                       497 B         177 kB
+[2m[WebServer] [22m├ ○ /crm                                             496 B         177 kB
+[2m[WebServer] [22m├ ○ /crm/dashboard                                 5.11 kB         409 kB
+[2m[WebServer] [22m├ ○ /crm/inbox                                     10.4 kB         484 kB
+[2m[WebServer] [22m├ ○ /crm/interne                                     495 B         177 kB
+[2m[WebServer] [22m├ ○ /crm/opportunities                             9.94 kB         502 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]                          496 B         177 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/calendar               92.1 kB         515 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/emails                 6.01 kB         428 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/files                  5.12 kB         428 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/interne                  495 B         177 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/notes                  3.93 kB         426 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/offers                 17.6 kB         555 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/tasks                  4.65 kB         427 kB
+[2m[WebServer] [22m├ ƒ /crm/opportunities/[id]/timeline               7.67 kB         412 kB
+[2m[WebServer] [22m├ ○ /dashboard                                     16.7 kB         560 kB
+[2m[WebServer] [22m├ ○ /dashboard/admin                               2.56 kB         388 kB
+[2m[WebServer] [22m├ ○ /dashboard/admin/client-data-repair            7.42 kB         354 kB
+[2m[WebServer] [22m├ ○ /dashboard/admin/email-debug                   13.4 kB         202 kB
+[2m[WebServer] [22m├ ○ /dashboard/admin/email-logs                    7.04 kB         353 kB
+[2m[WebServer] [22m├ ○ /dashboard/admin/migration                     5.11 kB         351 kB
+[2m[WebServer] [22m├ ○ /dashboard/admin/scan-issues                   3.41 kB         389 kB
+[2m[WebServer] [22m├ ○ /dashboard/arhivate                            9.77 kB         455 kB
+[2m[WebServer] [22m├ ƒ /dashboard/arhivate/[id]                       19.2 kB         576 kB
+[2m[WebServer] [22m├ ○ /dashboard/cereri                              3.16 kB         662 kB
+[2m[WebServer] [22m├ ○ /dashboard/cereri-aprobari                     6.38 kB         642 kB
+[2m[WebServer] [22m├ ○ /dashboard/clienti                             14.1 kB         494 kB
+[2m[WebServer] [22m├ ƒ /dashboard/clienti/[id]                        17.8 kB         478 kB
+[2m[WebServer] [22m├ ○ /dashboard/contracte                             24 kB         483 kB
+[2m[WebServer] [22m├ ƒ /dashboard/contracte/[id]                       5.3 kB         398 kB
+[2m[WebServer] [22m├ ○ /dashboard/facturi                             8.73 kB         415 kB
+[2m[WebServer] [22m├ ○ /dashboard/istoric-interventii                   12 kB         632 kB
+[2m[WebServer] [22m├ ○ /dashboard/istoric-interventii/echipament      5.46 kB         391 kB
+[2m[WebServer] [22m├ ○ /dashboard/kiosk                                 496 B         177 kB
+[2m[WebServer] [22m├ ○ /dashboard/loguri                              13.8 kB         460 kB
+[2m[WebServer] [22m├ ○ /dashboard/lucrari                             32.6 kB         579 kB
+[2m[WebServer] [22m├ ƒ /dashboard/lucrari/[id]                        71.9 kB         834 kB
+[2m[WebServer] [22m├ ƒ /dashboard/lucrari/[id]/edit                   13.1 kB         479 kB
+[2m[WebServer] [22m├ ƒ /dashboard/lucrari/[id]/revizie/[equipmentId]  18.1 kB         509 kB
+[2m[WebServer] [22m├ ○ /dashboard/lucrari/new                         14.1 kB         480 kB
+[2m[WebServer] [22m├ ○ /dashboard/note-interne                        10.7 kB         410 kB
+[2m[WebServer] [22m├ ○ /dashboard/rapoarte                              54 kB         731 kB
+[2m[WebServer] [22m├ ○ /dashboard/resurse-umane/condica-prezenta      40.3 kB         703 kB
+[2m[WebServer] [22m├ ○ /dashboard/resurse-umane/departamente          8.16 kB         410 kB
+[2m[WebServer] [22m├ ƒ /dashboard/resurse-umane/pontaj                  496 B         177 kB
+[2m[WebServer] [22m├ ○ /dashboard/resurse-umane/pontaj/dashboard      8.44 kB         394 kB
+[2m[WebServer] [22m├ ○ /dashboard/resurse-umane/pontaj/sync           10.7 kB         413 kB
+[2m[WebServer] [22m├ ○ /dashboard/resurse-umane/rapoarte              2.48 kB         518 kB
+[2m[WebServer] [22m├ ○ /dashboard/resurse-umane/salariati             12.6 kB         453 kB
+[2m[WebServer] [22m├ ƒ /dashboard/resurse-umane/salariati/[id]          11 kB         680 kB
+[2m[WebServer] [22m├ ○ /dashboard/setari                              30.5 kB         451 kB
+[2m[WebServer] [22m├ ○ /dashboard/utilizatori                         25.9 kB         498 kB
+[2m[WebServer] [22m├ ○ /dashboard/utilizatori/grupuri-tehnicieni       4.3 kB         390 kB
+[2m[WebServer] [22m├ ○ /debug                                          1.9 kB         341 kB
+[2m[WebServer] [22m├ ○ /e2e/condica-summary                           5.56 kB         182 kB
+[2m[WebServer] [22m├ ○ /e2e/pontaj-auto-checkout                      3.33 kB         180 kB
+[2m[WebServer] [22m├ ○ /e2e/pontaj-full                                6.8 kB         183 kB
+[2m[WebServer] [22m├ ○ /e2e/pontaj-human                              7.63 kB         184 kB
+[2m[WebServer] [22m├ ○ /firebase-check                                4.14 kB         189 kB
+[2m[WebServer] [22m├ ○ /kiosk                                         14.9 kB         392 kB
+[2m[WebServer] [22m├ ○ /login                                         9.67 kB         359 kB
+[2m[WebServer] [22m├ ○ /manifest.webmanifest                            497 B         177 kB
+[2m[WebServer] [22m├ ƒ /offer/[id]                                    11.6 kB         491 kB
+[2m[WebServer] [22m├ ƒ /offer/crm/[offerId]                           4.25 kB         189 kB
+[2m[WebServer] [22m├ ○ /portal                                        10.1 kB         407 kB
+[2m[WebServer] [22m├ ƒ /portal/[id]                                   10.4 kB         521 kB
+[2m[WebServer] [22m├ ƒ /raport/[id]                                   31.9 kB         577 kB
+[2m[WebServer] [22m├ ƒ /review/[id]                                   3.82 kB         346 kB
+[2m[WebServer] [22m└ ○ /sentry-example-page                             691 B         177 kB
+[2m[WebServer] [22m+ First Load JS shared by all                       176 kB
+[2m[WebServer] [22m  ├ chunks/4bd1b696-dd2ceebbd4b9cc01.js            53.4 kB
+[2m[WebServer] [22m  ├ chunks/8333-e5a51d9ecba815d4.js                 120 kB
+[2m[WebServer] [22m  └ other shared chunks (total)                    3.45 kB
+[2m[WebServer] [22m
+[2m[WebServer] [22m
+[2m[WebServer] [22mƒ Middleware                                       98.8 kB
+[2m[WebServer] [22m
+[2m[WebServer] [22m○  (Static)   prerendered as static content
+[2m[WebServer] [22mƒ  (Dynamic)  server-rendered on demand
+[2m[WebServer] [22m
+2026-07-15T07:46:56.986Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:56.987Z pw:webserver Error while checking if http://127.0.0.1:3100/login is available: connect ECONNREFUSED 127.0.0.1:3100
+2026-07-15T07:46:56.987Z pw:webserver Waiting 1000ms
+[2m[WebServer] [22m
+[2m[WebServer] [22m> my-v0-project@0.1.0 start
+[2m[WebServer] [22m> next start --hostname 127.0.0.1 --port 3100
+[2m[WebServer] [22m
+[2m[WebServer] [22m(node:3407) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m   ▲ Next.js 15.2.6
+[2m[WebServer] [22m   - Local:        http://127.0.0.1:3100
+[2m[WebServer] [22m   - Network:      http://127.0.0.1:3100
+[2m[WebServer] [22m
+[2m[WebServer] [22m ✓ Starting...
+[2m[WebServer] [22m ✓ Ready in 631ms
+2026-07-15T07:46:57.987Z pw:webserver HTTP GET: http://127.0.0.1:3100/login
+2026-07-15T07:46:58.813Z pw:webserver HTTP Status: 200
+2026-07-15T07:46:58.814Z pw:webserver WebServer available
+[2m[WebServer] [22m[2026-07-15T07:46:59.209Z] Jul 15, 2026 10:46:59 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:46:59 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.547Z] Functions emulator received unknown request at path /
+[2m[WebServer] [22m[2026-07-15T07:46:59.655Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.655Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"df94f2b0-a120-4d9d-8467-6cc531cd4057","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.655Z","data":{"uid":"admin_e2e_pontaj_stage5","email":"admin.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Admin","metadata":{"creationTime":"2026-07-15T07:46:59.654Z","lastSignInTime":"2026-07-15T07:46:59.654Z"},"customClaims":{},"providerData":[{"rawId":"admin.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Admin","email":"admin.e2e_pontaj_stage5@e2e.invalid","federatedId":"admin.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.658Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.658Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"3e0d647e-7229-41c2-aabe-248e53d053e7","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.658Z","data":{"uid":"tech_e2e_pontaj_stage5","email":"tech.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Tehnician","metadata":{"creationTime":"2026-07-15T07:46:59.658Z","lastSignInTime":"2026-07-15T07:46:59.658Z"},"customClaims":{},"providerData":[{"rawId":"tech.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Tehnician","email":"tech.e2e_pontaj_stage5@e2e.invalid","federatedId":"tech.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.660Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.660Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"cddd6ce1-9d72-4598-9563-fb7203edf8f2","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.659Z","data":{"uid":"dispatcher_e2e_pontaj_stage5","email":"dispatcher.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Dispecer","metadata":{"creationTime":"2026-07-15T07:46:59.659Z","lastSignInTime":"2026-07-15T07:46:59.659Z"},"customClaims":{},"providerData":[{"rawId":"dispatcher.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Dispecer","email":"dispatcher.e2e_pontaj_stage5@e2e.invalid","federatedId":"dispatcher.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.661Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.661Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"eff6f57f-0042-46a0-a1d0-e46074848609","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.661Z","data":{"uid":"client_e2e_pontaj_stage5","email":"client.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Client","metadata":{"creationTime":"2026-07-15T07:46:59.661Z","lastSignInTime":"2026-07-15T07:46:59.661Z"},"customClaims":{},"providerData":[{"rawId":"client.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Client","email":"client.e2e_pontaj_stage5@e2e.invalid","federatedId":"client.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.662Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.662Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"61a75d54-1434-44ab-b0b8-7cb34894cddd","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.662Z","data":{"uid":"kiosk_e2e_pontaj_stage5","email":"kiosk.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Kiosk","metadata":{"creationTime":"2026-07-15T07:46:59.662Z","lastSignInTime":"2026-07-15T07:46:59.662Z"},"customClaims":{},"providerData":[{"rawId":"kiosk.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Kiosk","email":"kiosk.e2e_pontaj_stage5@e2e.invalid","federatedId":"kiosk.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.663Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.663Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.664Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.664Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.665Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.665Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"433d31bf-17a8-44ee-922d-138dc5efcee6","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.665Z","data":{"uid":"unknown_e2e_pontaj_stage5","email":"unknown.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Unknown","metadata":{"creationTime":"2026-07-15T07:46:59.665Z","lastSignInTime":"2026-07-15T07:46:59.665Z"},"customClaims":{},"providerData":[{"rawId":"unknown.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Unknown","email":"unknown.e2e_pontaj_stage5@e2e.invalid","federatedId":"unknown.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.666Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.666Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.666Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.666Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"6795ac76-b744-462e-a66c-cc2f738faa0b","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.666Z","data":{"uid":"norole_e2e_pontaj_stage5","email":"norole.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 No Role","metadata":{"creationTime":"2026-07-15T07:46:59.666Z","lastSignInTime":"2026-07-15T07:46:59.666Z"},"customClaims":{},"providerData":[{"rawId":"norole.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 No Role","email":"norole.e2e_pontaj_stage5@e2e.invalid","federatedId":"norole.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.667Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.667Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.667Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:46:59.667Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"37112f36-9b47-4c23-ac74-0c145855c9ec","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:46:59.667Z","data":{"uid":"nouserdoc_e2e_pontaj_stage5","email":"nouserdoc.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 No User Doc","metadata":{"creationTime":"2026-07-15T07:46:59.667Z","lastSignInTime":"2026-07-15T07:46:59.667Z"},"customClaims":{},"providerData":[{"rawId":"nouserdoc.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 No User Doc","email":"nouserdoc.e2e_pontaj_stage5@e2e.invalid","federatedId":"nouserdoc.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:46:59.668Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+
+Running 3 tests using 1 worker
+
+(node:3413) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3413) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[2026-07-15T07:47:01.389Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.396Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.458Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.465Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.561Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.574Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.666Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:01.690Z] Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:01 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.152Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.154Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.159Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.162Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.163Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.169Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.552Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.556Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.560Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.565Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.565Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.574Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.648Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:02.657Z] Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:02 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.004Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.007Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.010Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.013Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.014Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.020Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.056Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.066Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.069Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.384Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.386Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.390Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.393Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.393Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.398Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.440Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.467Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.767Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.769Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.772Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.776Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.777Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.783Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.849Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:03.859Z] Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:03 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.185Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.188Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.191Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.290Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.570Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.572Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.575Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.578Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.579Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.584Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.657Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[2m[WebServer] [22m[2026-07-15T07:47:04.667Z] Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected non-HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:04 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+  ✓  1 [setup] › tests/e2e/auth.setup.ts:44:5 › salvează autentificarea rolurilor ETAPA 7 din Auth Emulator (4.0s)
+(node:3433) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3433) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[2026-07-15T07:47:05.305Z] Jul 15, 2026 10:47:05 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:47:05 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected HTTP/2 connection.\n"}}
+  ✘  2 [pontaj-vectors] › tests/e2e/pontaj/resilience/external-failures.spec.ts:14:7 › RES-003 dependinte externe › RES-003 notificarea esuata dupa commit nu anuleaza si nu dubleaza cererea (1.5m)
+(node:3583) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3583) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m[2026-07-15T07:48:36.122Z] Jul 15, 2026 10:48:36 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+[2m[WebServer] [22mINFO: Detected HTTP/2 connection.
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 15, 2026 10:48:36 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected HTTP/2 connection.\n"}}
+  ✓  3 [pontaj-vectors] › tests/e2e/pontaj/resilience/external-failures.spec.ts:34:7 › RES-003 dependinte externe › RES-003 storage respins nu produce obiect orphan (191ms)
+[2m[WebServer] [22m[2026-07-15T07:48:36.252Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.252Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"17190cf3-c6ba-4f87-819c-cf7cff6af734","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.251Z","data":{"uid":"admin_e2e_pontaj_stage5","email":"admin.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Admin","metadata":{"creationTime":"2026-07-15T07:46:59.654Z","lastSignInTime":"2026-07-15T07:47:01.372Z"},"customClaims":{},"providerData":[{"rawId":"admin.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Admin","email":"admin.e2e_pontaj_stage5@e2e.invalid","federatedId":"admin.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.253Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.253Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.253Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.253Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"03d387f9-d109-403c-b98d-bc97bbdf9d83","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.253Z","data":{"uid":"tech_e2e_pontaj_stage5","email":"tech.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Tehnician","metadata":{"creationTime":"2026-07-15T07:46:59.658Z","lastSignInTime":"2026-07-15T07:47:02.139Z"},"customClaims":{},"providerData":[{"rawId":"tech.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Tehnician","email":"tech.e2e_pontaj_stage5@e2e.invalid","federatedId":"tech.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.254Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.254Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.254Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.254Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"9604fcfd-297b-4bad-bd70-dfb638993b7d","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.254Z","data":{"uid":"dispatcher_e2e_pontaj_stage5","email":"dispatcher.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Dispecer","metadata":{"creationTime":"2026-07-15T07:46:59.659Z","lastSignInTime":"2026-07-15T07:47:02.539Z"},"customClaims":{},"providerData":[{"rawId":"dispatcher.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Dispecer","email":"dispatcher.e2e_pontaj_stage5@e2e.invalid","federatedId":"dispatcher.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.255Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.255Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.255Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.255Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"538ef93b-89c6-455e-b5b7-e3f03482e809","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.255Z","data":{"uid":"kiosk_e2e_pontaj_stage5","email":"kiosk.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Kiosk","metadata":{"creationTime":"2026-07-15T07:46:59.662Z","lastSignInTime":"2026-07-15T07:47:02.992Z"},"customClaims":{},"providerData":[{"rawId":"kiosk.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Kiosk","email":"kiosk.e2e_pontaj_stage5@e2e.invalid","federatedId":"kiosk.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.255Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.255Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.256Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.256Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"fbb0a09f-8f91-4b1b-a651-4c2e44b96b51","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.256Z","data":{"uid":"client_e2e_pontaj_stage5","email":"client.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Client","metadata":{"creationTime":"2026-07-15T07:46:59.661Z","lastSignInTime":"2026-07-15T07:47:03.372Z"},"customClaims":{},"providerData":[{"rawId":"client.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Client","email":"client.e2e_pontaj_stage5@e2e.invalid","federatedId":"client.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.256Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.256Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.256Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.256Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"3f07746b-a294-4db9-a593-9b974e5f5fd3","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.256Z","data":{"uid":"unknown_e2e_pontaj_stage5","email":"unknown.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 Unknown","metadata":{"creationTime":"2026-07-15T07:46:59.665Z","lastSignInTime":"2026-07-15T07:47:03.755Z"},"customClaims":{},"providerData":[{"rawId":"unknown.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 Unknown","email":"unknown.e2e_pontaj_stage5@e2e.invalid","federatedId":"unknown.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.257Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.257Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.257Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.257Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"899212d4-a030-4604-be0b-d4da4b8cf609","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.257Z","data":{"uid":"norole_e2e_pontaj_stage5","email":"norole.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 No Role","metadata":{"creationTime":"2026-07-15T07:46:59.666Z","lastSignInTime":"2026-07-15T07:47:04.173Z"},"customClaims":{},"providerData":[{"rawId":"norole.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 No Role","email":"norole.e2e_pontaj_stage5@e2e.invalid","federatedId":"norole.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.258Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast [none]
+[2m[WebServer] [22m[2026-07-15T07:48:36.258Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"eventId":"e9ddb71c-bf9c-4263-97cd-4370284d8916","eventType":"providers/firebase.auth/eventTypes/user.delete","resource":{"name":"projects/demo-fom-pontaj-e2e","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-07-15T07:48:36.258Z","data":{"uid":"nouserdoc_e2e_pontaj_stage5","email":"nouserdoc.e2e_pontaj_stage5@e2e.invalid","emailVerified":true,"displayName":"E2E_PONTAJ_STAGE5 No User Doc","metadata":{"creationTime":"2026-07-15T07:46:59.667Z","lastSignInTime":"2026-07-15T07:47:04.556Z"},"customClaims":{},"providerData":[{"rawId":"nouserdoc.e2e_pontaj_stage5@e2e.invalid","providerId":"password","displayName":"E2E_PONTAJ_STAGE5 No User Doc","email":"nouserdoc.e2e_pontaj_stage5@e2e.invalid","federatedId":"nouserdoc.e2e_pontaj_stage5@e2e.invalid"}]}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.258Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.258Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+[2m[WebServer] [22m[2026-07-15T07:48:36.258Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast 200
+[2m[WebServer] [22m[2026-07-15T07:48:36.258Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/demo-fom-pontaj-e2e/trigger_multicast {"status":"multicast_acknowledged"}
+2026-07-15T07:48:36.337Z pw:webserver Terminating the WebServer
+2026-07-15T07:48:36.357Z pw:webserver Terminated the WebServer
+2026-07-15T07:48:36.357Z pw:webserver Terminating the WebServer
+[2m[WebServer] [22m[2026-07-15T07:48:36.357Z] Received signal SIGTERM 1
+[2m[WebServer] [22m 
+[2m[WebServer] [22mi  emulators: Received SIGTERM for the first time. Starting a clean shutdown. 
+[2m[WebServer] [22mi  emulators: Please wait for a clean shutdown or send the SIGTERM signal again to stop right now. 
+[2m[WebServer] [22mi  emulators: Shutting down emulators. {"metadata":{"emulator":{"name":"hub"},"message":"Shutting down emulators."}}
+[2m[WebServer] [22mi  ui: Stopping Emulator UI {"metadata":{"emulator":{"name":"ui"},"message":"Stopping Emulator UI"}}
+[2m[WebServer] [22mi  functions: Stopping Functions Emulator {"metadata":{"emulator":{"name":"functions"},"message":"Stopping Functions Emulator"}}
+[2m[WebServer] [22mi  firestore: Stopping Firestore Emulator {"metadata":{"emulator":{"name":"firestore"},"message":"Stopping Firestore Emulator"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.359Z] *** shutting down gRPC server since JVM is shutting down
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"*** shutting down gRPC server since JVM is shutting down\n"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.361Z] *** server shut down
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"firestore"},"message":"*** server shut down\n"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.366Z] Ignoring signal SIGTERM due to short delay of 9ms
+[2m[WebServer] [22mi  pubsub: Stopping Pub/Sub Emulator {"metadata":{"emulator":{"name":"pubsub"},"message":"Stopping Pub/Sub Emulator"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.756Z] *** shutting down gRPC server since JVM is shutting down
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"*** shutting down gRPC server since JVM is shutting down\n"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.770Z] *** server shut down
+[2m[WebServer] [22m {"metadata":{"emulator":{"name":"pubsub"},"message":"*** server shut down\n"}}
+[2m[WebServer] [22mi  auth: Stopping Authentication Emulator {"metadata":{"emulator":{"name":"auth"},"message":"Stopping Authentication Emulator"}}
+[2m[WebServer] [22mi  storage: Stopping Storage Emulator {"metadata":{"emulator":{"name":"storage"},"message":"Stopping Storage Emulator"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.781Z] Stopping rules runtime. {"metadata":{"emulator":{"name":"storage"},"message":"Stopping rules runtime."}}
+[2m[WebServer] [22mi  eventarc: Stopping Eventarc Emulator {"metadata":{"emulator":{"name":"eventarc"},"message":"Stopping Eventarc Emulator"}}
+[2m[WebServer] [22mi  tasks: Stopping Cloud Tasks Emulator {"metadata":{"emulator":{"name":"tasks"},"message":"Stopping Cloud Tasks Emulator"}}
+[2m[WebServer] [22mi  hub: Stopping emulator hub {"metadata":{"emulator":{"name":"hub"},"message":"Stopping emulator hub"}}
+[2m[WebServer] [22mi  logging: Stopping Logging Emulator {"metadata":{"emulator":{"name":"logging"},"message":"Stopping Logging Emulator"}}
+[2m[WebServer] [22m[2026-07-15T07:48:36.784Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+2026-07-15T07:48:37.107Z pw:webserver Terminated the WebServer
+
+
+  1) [pontaj-vectors] › tests/e2e/pontaj/resilience/external-failures.spec.ts:14:7 › RES-003 dependinte externe › RES-003 notificarea esuata dupa commit nu anuleaza si nu dubleaza cererea 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.click: Test ended.
+    Call log:
+    [2m  - waiting for getByRole('button', { name: 'Cerere' })[22m
+
+
+      18 |     await page.route("**/api/notifications/hr-request", (route) => route.fulfill({ status: 503, body: "mail unavailable" }))
+      19 |     await page.goto("/dashboard/cereri")
+    > 20 |     await page.getByRole("button", { name: "Cerere" }).click()
+         |                                                        ^
+      21 |     const dialog = page.getByRole("dialog", { name: "Cerere nouă" })
+      22 |     await dialog.getByPlaceholder("dd MMM yyyy").nth(0).fill("2026-07-10")
+      23 |     await dialog.getByPlaceholder("dd MMM yyyy").nth(0).blur()
+        at /Users/code-with-a/Dev/FOM/Field-Operational-Manager/tests/e2e/pontaj/resilience/external-failures.spec.ts:20:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/pontaj-resilience-external-adf8e-eaza-si-nu-dubleaza-cererea-pontaj-vectors/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pontaj-resilience-external-adf8e-eaza-si-nu-dubleaza-cererea-pontaj-vectors/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/pontaj-resilience-external-adf8e-eaza-si-nu-dubleaza-cererea-pontaj-vectors/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/pontaj-resilience-external-adf8e-eaza-si-nu-dubleaza-cererea-pontaj-vectors/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [pontaj-vectors] › tests/e2e/pontaj/resilience/external-failures.spec.ts:14:7 › RES-003 dependinte externe › RES-003 notificarea esuata dupa commit nu anuleaza si nu dubleaza cererea 
+  2 passed (2.6m)

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import type { Department, Employee } from "@/lib/hr/types"
 import { createOrUpdateEmployee } from "@/lib/hr/storage"
 import { deleteEmployeeProfilePhoto, uploadEmployeeProfilePhoto } from "@/lib/hr/profile-photo"
+import { normalizeEmployeeSectorAssignment } from "@/lib/hr/employee-sector-assignment"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -91,19 +92,21 @@ export function EmployeeEditDialog({
   // Workplace fields
   const [poziteCOR, setPoziteCOR] = useState("")
   const [superiorUid, setSuperiorUid] = useState<string | undefined>(undefined)
-  const [sectorIds, setSectorIds] = useState<string[]>([])
-  const [managerUidBySector, setManagerUidBySector] = useState<Record<string, string>>({})
+  const [managerDraft, setManagerDraft] = useState({ sectorIds: [] as string[], managerUidBySector: {} as Record<string, string> })
+  const { sectorIds, managerUidBySector } = managerDraft
   const [loculDeMunca, setLoculDeMunca] = useState("")
   const [programLucruStart, setProgramLucruStart] = useState("")
   const [programLucruEnd, setProgramLucruEnd] = useState("")
   const [pauzaStart, setPauzaStart] = useState("")
   const [pauzaEnd, setPauzaEnd] = useState("")
   const [zileConcediuAnuale, setZileConcediuAnuale] = useState("21")
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
 
     if (!employee) {
+      setValidationError(null)
       setDraftEmployeeId(makeId())
       setNume("")
       setPrenume("")
@@ -121,8 +124,7 @@ export function EmployeeEditDialog({
       setCiEmitent("")
       setPoziteCOR("")
       setSuperiorUid(undefined)
-      setSectorIds([])
-      setManagerUidBySector({})
+      setManagerDraft({ sectorIds: [], managerUidBySector: {} })
       setLoculDeMunca("")
       setProgramLucruStart(defaultProgramStart || "")
       setProgramLucruEnd(defaultProgramEnd || "")
@@ -133,6 +135,7 @@ export function EmployeeEditDialog({
     }
 
     setDraftEmployeeId("")
+    setValidationError(null)
     setNume(employee.nume)
     setPrenume(employee.prenume)
     setTitle(employee.title || "")
@@ -149,15 +152,15 @@ export function EmployeeEditDialog({
     setCiEmitent(employee.ciEmitent || "")
     setPoziteCOR(employee.poziteCOR || "")
     setSuperiorUid(employee.superiorUid)
-    setSectorIds(employee.sectorIds || [])
-    setManagerUidBySector(employee.managerUidBySector || {})
+    setManagerDraft({ sectorIds: employee.sectorIds || [], managerUidBySector: employee.managerUidBySector || {} })
     setLoculDeMunca(employee.loculDeMunca || "")
     setProgramLucruStart(employee.programLucruStart || "")
     setProgramLucruEnd(employee.programLucruEnd || "")
     setPauzaStart(employee.pauzaStart || "")
     setPauzaEnd(employee.pauzaEnd || "")
     setZileConcediuAnuale(String(employee.zileConcediuAnuale || 21))
-  }, [open, employee, defaultProgramStart, defaultProgramEnd, defaultBreakStart, defaultBreakEnd])
+  // Defaults initialize only a new employee. A late defaults snapshot must not reset an edit draft.
+  }, [open, employee])
 
   useEffect(() => {
     if (!photoFile) {
@@ -179,7 +182,9 @@ export function EmployeeEditDialog({
     const trimmedNume = nume.trim()
     const trimmedPrenume = prenume.trim()
     if (!trimmedNume || !trimmedPrenume) {
-      toast({ title: "Eroare", description: "Numele și prenumele sunt obligatorii.", variant: "destructive" })
+      const message = "Numele și prenumele sunt obligatorii."
+      setValidationError(message)
+      toast({ title: "Eroare", description: message, variant: "destructive" })
       return
     }
 
@@ -188,17 +193,21 @@ export function EmployeeEditDialog({
     const normalizedBreakStart = normalizeTimeHHmmLoose(pauzaStart)
     const normalizedBreakEnd = normalizeTimeHHmmLoose(pauzaEnd)
     if (normalizedStart === null || normalizedEnd === null || normalizedBreakStart === null || normalizedBreakEnd === null) {
+      const message = "Completează orele în format 24h HH:mm (ex: 08:00–16:30, pauză 12:00–12:30)."
+      setValidationError(message)
       toast({
         title: "Program / pauză invalidă",
-        description: "Completează orele în format 24h HH:mm (ex: 08:00–16:30, pauză 12:00–12:30).",
+        description: message,
         variant: "destructive",
       })
       return
     }
     if ((normalizedBreakStart && !normalizedBreakEnd) || (!normalizedBreakStart && normalizedBreakEnd)) {
+      const message = "Completează atât pauză start cât și pauză end (sau lasă ambele goale)."
+      setValidationError(message)
       toast({
         title: "Pauză incompletă",
-        description: "Completează atât pauză start cât și pauză end (sau lasă ambele goale).",
+        description: message,
         variant: "destructive",
       })
       return
@@ -211,6 +220,7 @@ export function EmployeeEditDialog({
     const employeeId = employee?.id ?? (draftEmployeeId || makeId())
 
     try {
+      setValidationError(null)
       setPhotoSaving(true)
 
       let finalPhotoURL = photoURL.trim() || ""
@@ -226,12 +236,9 @@ export function EmployeeEditDialog({
         photoUpdatedAt = Date.now()
       }
 
-      const nextSectorIds = sectorIds.filter(Boolean)
-      const nextManagerUidBySector = Object.fromEntries(
-        Object.entries(managerUidBySector || {})
-          .map(([k, v]) => [String(k).trim(), String(v || "").trim()])
-          .filter(([k, v]) => k && v && nextSectorIds.includes(k)),
-      )
+      const assignment = normalizeEmployeeSectorAssignment(managerDraft)
+      const nextSectorIds = assignment.sectorIds
+      const nextManagerUidBySector = assignment.managerUidBySector
 
       const next: Employee = employee
         ? {
@@ -311,6 +318,7 @@ export function EmployeeEditDialog({
               {isEdit ? "Editează salariat" : "Adaugă salariat"}
             </DialogTitle>
           </DialogHeader>
+          {validationError ? <p role="alert" className="text-sm font-medium text-destructive">{validationError}</p> : null}
 
           <div className="grid gap-6 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start">
             <div className="space-y-6">
@@ -543,27 +551,25 @@ export function EmployeeEditDialog({
                           checked={sectorIds.includes(dept.id)}
                           onCheckedChange={(checked) => {
                             const managerUid = dept.managerUid ? String(dept.managerUid) : ""
-                            if (checked) {
-                              const nextSectorIds = [...sectorIds, dept.id]
-                              setSectorIds(nextSectorIds)
+                            if (checked === true) {
+                              const nextSectorIds = sectorIds.includes(dept.id) ? sectorIds : [...sectorIds, dept.id]
+                              const nextManagerUidBySector = { ...managerUidBySector }
                               if (managerUid) {
-                                setManagerUidBySector((prev) => ({ ...(prev || {}), [dept.id]: managerUid }))
+                                nextManagerUidBySector[dept.id] = managerUid
                                 if (!superiorUid) setSuperiorUid(managerUid)
                               }
+                              setManagerDraft({ sectorIds: nextSectorIds, managerUidBySector: nextManagerUidBySector })
                             } else {
                               const nextSectorIds = sectorIds.filter((id) => id !== dept.id)
-                              setSectorIds(nextSectorIds)
-                              setManagerUidBySector((prev) => {
-                                const next = { ...prev }
-                                delete next[dept.id]
-                                return next
-                              })
+                              const nextManagerUidBySector = { ...managerUidBySector }
+                              delete nextManagerUidBySector[dept.id]
                               if (superiorUid && managerUid && superiorUid === managerUid) {
-                                const remainingManagers = nextSectorIds
-                                  .map((id) => departments.find((d) => d.id === id)?.managerUid)
-                                  .filter(Boolean) as string[]
-                                setSuperiorUid(remainingManagers[0] || undefined)
+                                const remainingManager = nextSectorIds
+                                  .map((id) => departments.find((department) => department.id === id)?.managerUid)
+                                  .find(Boolean)
+                                setSuperiorUid(remainingManager || undefined)
                               }
+                              setManagerDraft({ sectorIds: nextSectorIds, managerUidBySector: nextManagerUidBySector })
                             }
                           }}
                         />
@@ -587,14 +593,12 @@ export function EmployeeEditDialog({
                         <Label className="text-xs text-muted-foreground">Departament: {dept?.name || sectorId}</Label>
                         <Select
                           value={managerUidBySector?.[sectorId] ?? "__none__"}
-                          onValueChange={(v) =>
-                            setManagerUidBySector((prev) => {
-                              const next = { ...(prev || {}) }
-                              if (v === "__none__") delete next[sectorId]
-                              else next[sectorId] = v
-                              return next
-                            })
-                          }
+                          onValueChange={(v) => {
+                            const nextManagerUidBySector = { ...managerUidBySector }
+                            if (v === "__none__") delete nextManagerUidBySector[sectorId]
+                            else nextManagerUidBySector[sectorId] = v
+                            setManagerDraft({ sectorIds, managerUidBySector: nextManagerUidBySector })
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Alege șef ierarhic" />
@@ -632,13 +636,13 @@ export function EmployeeEditDialog({
                     inputMode="numeric"
                     autoComplete="off"
                     placeholder="08:00"
-                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
                     title="Format 24h: HH:mm (ex: 08:00, 16:30)"
                     value={programLucruStart}
                     onChange={(e) => setProgramLucruStart(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
                     onBlur={() => {
                       const normalized = normalizeTimeHHmmLoose(programLucruStart)
                       if (normalized === null) {
+                        setValidationError("Folosește formatul 24h HH:mm (ex: 08:00).")
                         toast({
                           title: "Oră invalidă",
                           description: "Folosește formatul 24h HH:mm (ex: 08:00).",
@@ -658,13 +662,13 @@ export function EmployeeEditDialog({
                     inputMode="numeric"
                     autoComplete="off"
                     placeholder="16:30"
-                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
                     title="Format 24h: HH:mm (ex: 08:00, 16:30)"
                     value={programLucruEnd}
                     onChange={(e) => setProgramLucruEnd(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
                     onBlur={() => {
                       const normalized = normalizeTimeHHmmLoose(programLucruEnd)
                       if (normalized === null) {
+                        setValidationError("Folosește formatul 24h HH:mm (ex: 16:30).")
                         toast({
                           title: "Oră invalidă",
                           description: "Folosește formatul 24h HH:mm (ex: 16:30).",
@@ -686,13 +690,13 @@ export function EmployeeEditDialog({
                     inputMode="numeric"
                     autoComplete="off"
                     placeholder="12:00"
-                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
                     title="Format 24h: HH:mm (ex: 12:00, 12:30)"
                     value={pauzaStart}
                     onChange={(e) => setPauzaStart(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
                     onBlur={() => {
                       const normalized = normalizeTimeHHmmLoose(pauzaStart)
                       if (normalized === null) {
+                        setValidationError("Folosește formatul 24h HH:mm (ex: 12:00).")
                         toast({
                           title: "Oră invalidă",
                           description: "Folosește formatul 24h HH:mm (ex: 12:00).",
@@ -712,13 +716,13 @@ export function EmployeeEditDialog({
                     inputMode="numeric"
                     autoComplete="off"
                     placeholder="12:30"
-                    pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
                     title="Format 24h: HH:mm (ex: 12:00, 12:30)"
                     value={pauzaEnd}
                     onChange={(e) => setPauzaEnd(e.target.value.replace(/[^\d:]/g, "").slice(0, 5))}
                     onBlur={() => {
                       const normalized = normalizeTimeHHmmLoose(pauzaEnd)
                       if (normalized === null) {
+                        setValidationError("Folosește formatul 24h HH:mm (ex: 12:30).")
                         toast({
                           title: "Oră invalidă",
                           description: "Folosește formatul 24h HH:mm (ex: 12:30).",

@@ -1,37 +1,27 @@
 # ETAPA 8B - rezultate Condica
 
-Data executiei: 2026-07-12. Toate mutatiile au folosit exclusiv proiectul emulator `demo-fom-pontaj-e2e`.
+Data ultimei executii: 2026-07-13. Toate mutatiile au folosit exclusiv proiectul emulator `demo-fom-pontaj-e2e`.
 
-## Poarta istorica
-
-Selectia atomica din etapa 8A.1 a trecut: **107/107**.
+## Executie unificata Condica
 
 ```sh
-npx playwright test tests/e2e/pontaj/calculations tests/e2e/pontaj/flow/v01-complete-flow.spec.ts tests/e2e/pontaj/routes/access-smoke.spec.ts tests/e2e/pontaj/start/start-basic.spec.ts tests/e2e/pontaj/stop/stop-minimum.spec.ts --config=playwright.pontaj.config.ts --workers=1
+npx playwright test tests/e2e/pontaj/condica tests/e2e/pontaj/infrastructure/production-boundary.spec.ts --config=playwright.pontaj.config.ts --workers=1
 ```
 
-## Contracte executate
-
-| Caz | Fisier | Rezultat |
-| --- | --- | --- |
-| CON-001..004 | `read.spec.ts` | PASS, 4 cazuri |
-| CON-005..007 | `summary.spec.ts` | PASS, 3 cazuri |
-| CON-008 | `realtime.spec.ts` | PASS, 1 caz |
-| CON-011..014, CON-016 | `write.spec.ts` | PASS, 4 cazuri |
-| CON-022 | `export.spec.ts` | PASS, 1 caz |
-
-Comenzi executate local: `read + summary` (8/8, din care 7 Condica si setup Auth), `write` (5/5, din care 4 Condica si setup Auth), `realtime + export` (3/3, din care 2 Condica si setup Auth). Cleanup-ul global Playwright a rulat de doua ori si a raportat `remaining: {}` pentru fiecare rulare.
+**35 passed, 0 failed, 0 skipped**: setup Auth = 1; teste CON = 33, care acopera CON-001..CON-022; production-boundary = 1. CON-017 are doua clasificari: contractul atomic este PASS, iar injectarea de fault prin UI real este `TESTABILITY_BLOCKED_NON_BLOCKING` prin restrictie de productie.
 
 ## Corectii validate
 
-- Adaugarea manuala nu accepta intervale intre luni sau in afara lunii afisate.
-- Adaugarea pe mai multe zile scrie celulele intr-un singur commit Firestore pentru documentul lunar.
-- Sumarul de traseu recunoaste `travelToClient`, campul scris de dialogul actual, si pastreaza compatibilitatea cu etichetele legacy din `project`.
-- Condica expune loading, error, empty si hook-uri stabile pentru celule/rezumate/dati.
-- `DateInput` accepta explicit ISO si `dd.MM.yyyy`, pe langa formatul local deja afisat.
+- Stergerea cu interval inversat respinge submit-ul, pastreaza dialogul si nu scrie nimic.
+- `Elimina CO` inlocuieste efectiv mapa zilei: `sourceRequestId`, `sourceRequestKind`, `hours`, intervalele si pauzele stale dispar.
+- Editarea unei cereri CO aprobate resincronizeaza zilele si pastreaza auditul managerului.
+- Sarbatorile raman draft pana la Save, sunt sortate, deduplicate, primesc metadata si singletonul este restaurat exact dupa test.
+- Stergerea multi-zi are contract atomic, retry idempotent si convergenta in doua taburi.
+- Dialogurile testate au role/nume accesibile, contract de focus/Escape si constrangeri responsive DOM, fara screenshot-only comparison.
+- Adapterele de fault raman sub `tests/` si nu apar in `.next`.
 
-## Limite ale executiei
+## Caracterizare, nu promisiune de atomicitate
 
-CON-009, 010, 015, 017, 018, 019, 020 si 021 nu sunt inca executate. In special, CON-017/018 necesita un adapter sigur pentru eroare determinista de scriere, care nu a fost adaugat in aceasta rulare.
+Pentru eroarea de resync CO, request update-ul si auditul pot ramane comise, iar timesheet-ul vechi pana la retry. Testul verifica starea reala si absenta duplicatelor; nu afirma fals ca cele doua documente au un commit atomic comun.
 
-Verdict intermediar: **CONDICA_EXECUTABLE_INCOMPLETE**.
+Verdict: **CONDICA_EXECUTABLE_COMPLETE_WITH_DECLARED_TESTABILITY_GAP**.

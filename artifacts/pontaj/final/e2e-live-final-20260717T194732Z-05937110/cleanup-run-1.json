@@ -1,0 +1,38 @@
+{
+  "run": 1,
+  "deleted": {
+    "firestoreDocuments": [
+      "users/livefinal-20260717-05937110-tech",
+      "users/livefinal-20260717-05937110-outsider",
+      "users/livefinal-20260717-05937110-manager",
+      "users/livefinal-20260717-05937110-admin",
+      "logs/vQ8V2ADqfNJbZSJbovZM",
+      "logs/auth_1784322218483",
+      "logs/auth_1784322207299",
+      "logs/auth_1784322191770",
+      "logs/auth_1784322189800",
+      "logs/NnSUaQcaosKIFSbvXsJ3",
+      "logs/J4KwkTVWz8EMpQSmsjw1",
+      "hrTimesheets/e2e-live-final-20260717-05937110-employee_2026-07",
+      "hrRequests/e2e-live-final-20260717-05937110-owner",
+      "hrRequests/e2e-live-final-20260717-05937110-functional",
+      "hrRequests/e2e-live-final-20260717-05937110-decision",
+      "hrRequests/e2e-live-final-20260717-05937110-concurrent",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-owner__created__pending",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-functional__status_changed__approved",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-decision__status_changed__approved",
+      "hrNotificationDispatches/e2e-live-final-20260717-05937110-concurrent__created__pending",
+      "hrEmployees/e2e-live-final-20260717-05937110-employee",
+      "hrDepartments/e2e-live-final-20260717-05937110-department",
+      "attendance/att_livefinal-20260717-05937110-tech_1784322210437"
+    ],
+    "storageObjects": [],
+    "authUsers": [
+      "livefinal-20260717-05937110-admin",
+      "livefinal-20260717-05937110-tech",
+      "livefinal-20260717-05937110-manager",
+      "livefinal-20260717-05937110-outsider"
+    ]
+  },
+  "remaining": {}
+}

@@ -20,6 +20,45 @@ async function resolveRoleForUid(uid: string, allowedRoles: string[]) {
   return { uid, role }
 }
 
+async function resolveVerifiedIdentity(allowedRoles: string[], request?: NextRequest) {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get("__session")?.value
+  const authHeader = request?.headers.get("authorization") ?? request?.headers.get("Authorization") ?? ""
+  const bearer =
+    typeof authHeader === "string" && authHeader.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : ""
+
+  if (sessionCookie) {
+    try {
+      const decoded = await adminAuth.verifySessionCookie(sessionCookie, true)
+      return await resolveRoleForUid(decoded.uid, allowedRoles)
+    } catch (error) {
+      if (error instanceof RequireRoleError) throw error
+    }
+  }
+
+  if (bearer) {
+    try {
+      const decoded = await adminAuth.verifyIdToken(bearer)
+      return await resolveRoleForUid(decoded.uid, allowedRoles)
+    } catch (error) {
+      if (error instanceof RequireRoleError) throw error
+      throw new RequireRoleError("Sesiune invalidă sau expirată.", 401)
+    }
+  }
+
+  throw new RequireRoleError("Autentificare necesară.", 401)
+}
+
+/**
+ * Variantă strictă pentru endpointuri privilegiate. Nu acceptă cookie-ul
+ * client-side `userRole`; identitatea trebuie verificată de Firebase Auth.
+ */
+export async function requireVerifiedRole(allowedRoles: string[], request?: NextRequest) {
+  return resolveVerifiedIdentity(allowedRoles, request)
+}
+
 /**
  * Server-side auth for API routes. Supports (in order):
  * 1. `__session` — cookie creat la login prin `POST /api/auth/session` (fluxul principal).

@@ -10,6 +10,7 @@ import { CalendarIcon, RefreshCw, CheckCircle2, XCircle, Loader2 } from "lucide-
 import { syncAttendanceToTimesheet, syncAttendanceRangeToTimesheet, getAttendanceSyncStatus } from "@/lib/attendance/sync-timesheet"
 import { cn } from "@/lib/utils"
 import { formatRomanianDate, formatRomanianDateTimeLong } from "@/lib/utils/date-utils"
+import { DashboardShell } from "@/components/dashboard-shell"
 
 export default function AttendanceSyncPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -92,7 +93,8 @@ export default function AttendanceSyncPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <DashboardShell>
+      <div className="container mx-auto py-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Sincronizare Pontaj → Condică</h1>
         <p className="text-muted-foreground mt-2">
@@ -308,6 +310,7 @@ export default function AttendanceSyncPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </DashboardShell>
   )
 }

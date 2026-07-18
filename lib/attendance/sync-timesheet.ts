@@ -98,6 +98,21 @@ async function getEmployeeDefaultBreak(employeeId: string): Promise<HMRange | nu
   }
 }
 
+function getAttendanceBreakSnapshot(sessions: AttendanceSession[]): HMRange | null {
+  for (const session of sessions) {
+    const range = {
+      start: String((session as any)?.pauzaStart || "").trim(),
+      end: String((session as any)?.pauzaEnd || "").trim(),
+    }
+    if (isValidHMRange(range)) return range
+  }
+  return null
+}
+
+async function getSyncBreak(employeeId: string, sessions: AttendanceSession[]): Promise<HMRange | null> {
+  return getAttendanceBreakSnapshot(sessions) ?? getEmployeeDefaultBreak(employeeId)
+}
+
 /**
  * Sync attendance sessions to HR timesheet system
  * This should be run daily (e.g., at end of day or start of next day)
@@ -165,7 +180,7 @@ export async function syncAttendanceToTimesheet(date: Date): Promise<void> {
       }, 0)
 
       const computedEntries = buildAttendanceEntriesFromSessions(sorted)
-      const defaultBreak = await getEmployeeDefaultBreak(employeeId)
+      const defaultBreak = await getSyncBreak(employeeId, sorted)
 
       const timesheetRef = doc(db, "hrTimesheets", timesheetDocId(employeeId, monthKey as TimesheetMonthKey))
       let existingDay: TimesheetCell | undefined = undefined
@@ -437,7 +452,7 @@ export async function syncAttendanceUserDayToTimesheet(userId: string, date: Dat
   const existingDay = existingSnap.exists() ? ((existingSnap.data() as any)?.days?.[dayKey] as TimesheetCell | undefined) : undefined
 
   const computedEntries = buildAttendanceEntriesFromSessions(sessions)
-  const defaultBreak = await getEmployeeDefaultBreak(employeeId)
+  const defaultBreak = await getSyncBreak(employeeId, sessions)
   const merged = buildAttendanceTimesheetCell({
     existingDay,
     computedEntries,

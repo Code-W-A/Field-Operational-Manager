@@ -89,18 +89,18 @@ export default function KioskOnlyPage() {
 
   if (loading) {
     return (
-      <div data-testid="kiosk-roster-loading" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <main data-testid="kiosk-roster-loading" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-white animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Se încarcă...</p>
         </div>
-      </div>
+      </main>
     )
   }
 
   if (error) {
     return (
-      <div data-testid="kiosk-roster-error" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <main data-testid="kiosk-roster-error" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="text-red-400 text-xl font-semibold">{error}</div>
           <button
@@ -111,19 +111,23 @@ export default function KioskOnlyPage() {
             Încearcă din nou
           </button>
         </div>
-      </div>
+      </main>
     )
   }
 
   if (users.length === 0) {
     return (
-      <div data-testid="kiosk-roster-empty" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <main data-testid="kiosk-roster-empty" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center text-white">
           <p className="text-xl">Nu sunt utilizatori eligibili disponibili.</p>
         </div>
-      </div>
+      </main>
     )
   }
 
-  return <KioskCheckIn users={users} officeLocation={DEFAULT_OFFICE_LOCATION} />
+  return (
+    <main>
+      <KioskCheckIn users={users} officeLocation={DEFAULT_OFFICE_LOCATION} />
+    </main>
+  )
 }

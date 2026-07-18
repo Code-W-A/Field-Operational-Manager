@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,7 @@ import {
   overtimeHoursFromParts,
   type OvertimeDurationParts,
 } from "@/lib/hr/overtime-duration"
+import { validateHrRequestPayload, validateMedicalDocumentFile } from "@/lib/hr/request-validation"
 
 const BLOCKED_OVERLAP_KINDS: HrRequestKind[] = ["CO", "CFP", "CM", "DEL", "IN"]
 
@@ -100,6 +101,7 @@ export function CreateHrRequestDialog({
   const [overtimeDuration, setOvertimeDuration] = useState<OvertimeDurationParts>({ hours: 1, minutes: 0 })
 
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [existingRequests, setExistingRequests] = useState<HrRequest[]>([])
 
   const todayIso = useMemo(() => formatISODate(new Date()), [])
@@ -214,6 +216,7 @@ export function CreateHrRequestDialog({
   }
 
   const submit = async () => {
+    if (submittingRef.current) return
     try {
       if (overlapHint) {
         toast({ title: "Cerere blocată", description: overlapHint, variant: "destructive" })
@@ -244,9 +247,9 @@ export function CreateHrRequestDialog({
         let medicalDocumentUrl: string | undefined
         let medicalDocumentName: string | undefined
         if (kind === "CM") {
-          if (!medicalDocumentFile) {
-            throw new Error("Pentru concediu medical trebuie să încarci documentul de la medic.")
-          }
+          const medicalFileError = validateMedicalDocumentFile(medicalDocumentFile)
+          if (medicalFileError) throw new Error(medicalFileError)
+          if (!medicalDocumentFile) throw new Error("Pentru concediu medical trebuie să încarci documentul de la medic.")
           const safeName = medicalDocumentFile.name.replace(/\s+/g, "_")
           const path = `hr/requests/cm/${employee.id}/${Date.now()}_${safeName}`
           const uploaded = await uploadFile(medicalDocumentFile, path)
@@ -287,6 +290,10 @@ export function CreateHrRequestDialog({
         }
       }
 
+      const validationError = validateHrRequestPayload(kind, payload)
+      if (validationError) throw new Error(validationError)
+
+      submittingRef.current = true
       setSubmitting(true)
       const { documentSerial } = await createHrRequest({
         employeeId: employee.id,
@@ -308,6 +315,7 @@ export function CreateHrRequestDialog({
     } catch (e: any) {
       toast({ title: "Eroare", description: e?.message || "Nu am putut crea cererea.", variant: "destructive" })
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }
@@ -394,15 +402,17 @@ export function CreateHrRequestDialog({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label>De la *</Label>
+                  <Label htmlFor="hr-request-start-date">De la *</Label>
                   <DateInput
+                    id="hr-request-start-date"
                     value={startDate}
                     onChange={setStartDate}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Până la *</Label>
+                  <Label htmlFor="hr-request-end-date">Până la *</Label>
                   <DateInput
+                    id="hr-request-end-date"
                     value={endDate}
                     onChange={setEndDate}
                   />

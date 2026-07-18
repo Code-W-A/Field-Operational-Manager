@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function role() {
+      return signedIn()
+        ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+    function adminOrDispatcher() { return role() == 'admin' || role() == 'dispecer'; }
+    function kiosk() { return role() == 'kiosk'; }
+    function ownEmployee(employeeId) {
+      return signedIn() &&
+        firestore.get(/databases/(default)/documents/hrEmployees/$(employeeId)).data.userUid == request.auth.uid;
+    }
+    function imageUpload() {
+      return request.resource.size > 0 && request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+    function medicalUpload() {
+      return request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024 &&
+        (request.resource.contentType == 'application/pdf' || request.resource.contentType.matches('image/.*'));
+    }
+
+    match /attendance/selfies/{userId}/{sessionId}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == userId || adminOrDispatcher() || kiosk());
+      allow create, update: if signedIn() && (request.auth.uid == userId || adminOrDispatcher() || kiosk()) && imageUpload();
+      allow delete: if signedIn() && (request.auth.uid == userId || adminOrDispatcher() || kiosk());
+    }
+
+    match /hrEmployees/{employeeId}/{fileName} {
+      allow read: if signedIn() && (adminOrDispatcher() || ownEmployee(employeeId));
+      allow create, update: if adminOrDispatcher() && imageUpload();
+      allow delete: if adminOrDispatcher();
+    }
+
+    match /hr/requests/cm/{employeeId}/{fileName} {
+      allow read: if signedIn() && (adminOrDispatcher() || ownEmployee(employeeId));
+      allow create, update: if signedIn() && (adminOrDispatcher() || ownEmployee(employeeId)) && medicalUpload();
+      allow delete: if signedIn() && (adminOrDispatcher() || ownEmployee(employeeId));
+    }
+
+    match /crm/opportunities/{opportunityId}/{fileName} {
+      allow read, write: if adminOrDispatcher();
+    }
+
+    // Deliberately no authenticated fallback. New paths require their own reviewed rule.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

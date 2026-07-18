@@ -114,6 +114,7 @@ export function LegalHolidaysDialog({
                 placeholder="dd MMM yyyy"
                 format="dd MMM yyyy"
                 locale="ro"
+                name="condica-holiday-date"
               />
             </div>
             <div className="grid gap-2">
@@ -183,4 +184,3 @@ export function LegalHolidaysDialog({
     </Dialog>
   )
 }
-

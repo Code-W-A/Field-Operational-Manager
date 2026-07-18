@@ -25,6 +25,10 @@ Object.assign(process.env, {
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: `${projectId}.appspot.com`,
   NEXT_PUBLIC_FIREBASE_APP_ID: "demo-app-id",
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000",
+  APP_DEPLOYMENT_ENV: "local",
+  MAIL_TRANSPORT_MODE: process.env.MAIL_TRANSPORT_MODE || "sink",
+  MAIL_SINK_ALLOWED_DOMAINS: "e2e.invalid",
+  PONTAJ_REUSE_NEXT_BUILD: "true",
 })
 
 const webServerEnv = Object.fromEntries(
@@ -56,10 +60,10 @@ export default defineConfig({
   webServer: [
     {
       command: "node tests/e2e/pontaj/infrastructure/start-emulators.mjs",
-      url: "http://127.0.0.1:8080",
+      url: "http://127.0.0.1:4401",
       reuseExistingServer: false,
       timeout: 120_000,
-      gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
+      gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
       env: {
         ...webServerEnv,
         HOME: "/private/tmp/fom-firebase-home",
@@ -75,7 +79,7 @@ export default defineConfig({
       url: `${baseURL}/login`,
       reuseExistingServer: false,
       timeout: 300_000,
-      gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
+      gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
       env: webServerEnv,
       stdout: "pipe",
       stderr: "pipe",

@@ -1,0 +1,9 @@
+{
+  "run": 2,
+  "deleted": {
+    "firestoreDocuments": [],
+    "storageObjects": [],
+    "authUsers": []
+  },
+  "remaining": {}
+}

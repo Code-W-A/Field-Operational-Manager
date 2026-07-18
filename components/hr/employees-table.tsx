@@ -7,21 +7,47 @@ import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
-import type { Employee } from "@/lib/hr/types"
+import type { Department, Employee } from "@/lib/hr/types"
 import { getEmployeeFullName } from "@/lib/hr/types"
 import { Pencil, UserRoundSearch } from "lucide-react"
 
 export function EmployeesTable({
   employees,
+  users = [],
+  departments = [],
   onEdit,
 }: {
   employees: Employee[]
+  users?: Array<{ uid: string; email: string | null; displayName: string | null }>
+  departments?: Department[]
   onEdit: (employee: Employee) => void
 }) {
   const router = useRouter()
 
   const columns: ColumnDef<Employee, any>[] = useMemo(
     () => [
+      {
+        id: "search",
+        accessorFn: (employee) => {
+          const user = users.find((item) => item.uid === employee.userUid)
+          const departmentNames = (employee.sectorIds ?? [])
+            .map((id) => departments.find((department) => department.id === id)?.name ?? id)
+            .join(" ")
+          return [
+            getEmployeeFullName(employee),
+            employee.nume,
+            employee.prenume,
+            employee.title,
+            employee.active ? "activ" : "inactiv",
+            user?.email,
+            user?.displayName,
+            departmentNames,
+          ].filter(Boolean).join(" ").toLowerCase()
+        },
+        header: () => null,
+        cell: () => null,
+        enableHiding: true,
+      },
       {
         accessorKey: "nume",
         header: "Nume",
@@ -77,13 +103,14 @@ export function EmployeesTable({
         ),
       },
     ],
-    [onEdit, router]
+    [departments, onEdit, router, users]
   )
 
   return (
     <DataTable
       columns={columns}
       data={employees}
+      initialColumnVisibility={{ search: false }}
       showFilters={true}
       defaultSort={{ id: "nume", desc: false }}
       onRowClick={(row) => router.push(`/dashboard/resurse-umane/salariati/${(row as Employee).id}`)}
@@ -92,5 +119,3 @@ export function EmployeesTable({
     />
   )
 }
-
-
