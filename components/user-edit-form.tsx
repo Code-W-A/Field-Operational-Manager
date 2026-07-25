@@ -25,6 +25,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DynamicDialogFields } from "@/components/DynamicDialogFields"
 import { useAuth } from "@/contexts/AuthContext"
+import {
+  isKioskPinEligibleRole,
+  normalizeKioskPinInput,
+  resolveKioskPinForSave,
+} from "@/lib/attendance/kiosk-pin"
 // Schema de validare pentru formular
 const formSchema = z.object({
   displayName: z.string().min(2, {
@@ -36,6 +41,12 @@ const formSchema = z.object({
   role: z.string(),
   phoneNumber: z.string().optional(),
   notes: z.string().optional(),
+  kioskPin: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^\d{4}$/.test(value), {
+      message: "PIN-ul kiosk trebuie să aibă exact 4 cifre.",
+    }),
 })
 
 interface UserEditFormProps {
@@ -128,6 +139,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       role: user.role || "tehnician",
       phoneNumber: user.phoneNumber || (user as any).telefon || "",
       notes: user.notes || "",
+      kioskPin: typeof user.kioskPin === "string" ? user.kioskPin : "",
     },
   })
 
@@ -317,6 +329,18 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       // Actualizăm datele utilizatorului în Firestore
       // Acest cod ar trebui să fie adaptat la structura aplicației tale
       const userRef = doc(db, "users", user.uid)
+      let resolvedPin: string | null
+      try {
+        resolvedPin = resolveKioskPinForSave({ role: values.role, kioskPin: values.kioskPin })
+      } catch (pinError) {
+        toast({
+          variant: "destructive",
+          title: "PIN kiosk invalid",
+          description: pinError instanceof Error ? pinError.message : "PIN-ul trebuie să aibă exact 4 cifre.",
+        })
+        setIsSubmitting(false)
+        return
+      }
       const baseUpdate: Record<string, unknown> = {
         displayName: values.displayName,
         email: values.email,
@@ -326,6 +350,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
         notes: values.notes || "",
         clientAccess: values.role === "client" ? clientAccess : [],
         updatedAt: new Date(),
+        kioskPin: resolvedPin ?? deleteField(),
       }
       if (values.role === "tehnician") {
         baseUpdate.technicianGroupIds = technicianGroupIds
@@ -421,6 +446,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
 
   const watchedRole = form.watch("role")
   const isClientUser = watchedRole === "client"
+  const showKioskPinField = isKioskPinEligibleRole(watchedRole)
   const useWideTwoColumnLayout = canManageMailCredentials || isClientUser
 
   return (
@@ -510,6 +536,32 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
               </FormItem>
             )}
           />
+
+          {showKioskPinField && (
+            <FormField
+              control={form.control}
+              name="kioskPin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>PIN kiosk (4 cifre)</FormLabel>
+                  <FormControl>
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      placeholder="Ex: 1234"
+                      value={field.value || ""}
+                      onChange={(e) => field.onChange(normalizeKioskPinInput(e.target.value))}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Folosit la pontajul pe kiosk după selectarea numelui. Exact 4 cifre.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           {watchedRole === "tehnician" && (
             <div className="space-y-2">

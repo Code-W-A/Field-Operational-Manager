@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue, Timestamp } from "firebase-admin/firestore"
 import { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { resolveKioskPinForSave } from "@/lib/attendance/kiosk-pin"
 
 const ALLOWED_ROLES = new Set(["admin", "dispecer", "tehnician", "client", "kiosk"])
 
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
     const rawTechnicianGroupIds = Array.isArray(body?.technicianGroupIds)
       ? body.technicianGroupIds.map((id: unknown) => String(id || "").trim()).filter(Boolean)
       : []
+    const rawKioskPin = typeof body?.kioskPin === "string" ? body.kioskPin.trim() : ""
 
     if (!rawEmail || !rawPassword || !rawDisplayName || !rawRole) {
       return NextResponse.json({ error: "Date obligatorii lipsă" }, { status: 400 })
@@ -30,6 +32,16 @@ export async function POST(request: NextRequest) {
 
     if (rawPassword.length < 6) {
       return NextResponse.json({ error: "Parola trebuie să aibă cel puțin 6 caractere" }, { status: 400 })
+    }
+
+    let kioskPin: string | null = null
+    try {
+      kioskPin = resolveKioskPinForSave({ role: rawRole, kioskPin: rawKioskPin })
+    } catch (pinError) {
+      return NextResponse.json(
+        { error: pinError instanceof Error ? pinError.message : "PIN kiosk invalid" },
+        { status: 400 },
+      )
     }
 
     const authUser = await adminAuth.createUser({
@@ -53,6 +65,7 @@ export async function POST(request: NextRequest) {
       ...(rawRole === "tehnician" && rawTechnicianGroupIds.length > 0
         ? { technicianGroupIds: rawTechnicianGroupIds }
         : {}),
+      ...(kioskPin ? { kioskPin } : {}),
       createdAt: FieldValue.serverTimestamp(),
       lastLogin: FieldValue.serverTimestamp(),
     }
@@ -86,6 +99,7 @@ export async function POST(request: NextRequest) {
       ...(rawRole === "tehnician" && rawTechnicianGroupIds.length > 0
         ? { technicianGroupIds: rawTechnicianGroupIds }
         : {}),
+      ...(kioskPin ? { kioskPin } : {}),
     }
 
     return NextResponse.json({ success: true, user: responseUser })

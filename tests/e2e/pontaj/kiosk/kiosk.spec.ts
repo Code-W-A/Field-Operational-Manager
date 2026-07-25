@@ -8,6 +8,7 @@ import {
   DISPATCHER_EMPLOYEE_ID,
   DISPATCHER_UID,
   EMPLOYEE_ID,
+  KIOSK_PIN,
   KIOSK_UID,
   PASSWORD,
   RUN_ID,
@@ -53,13 +54,26 @@ async function removeKioskExtras() {
   await batch.commit()
 }
 
-async function seedKioskUser(params: { uid: string; employeeId: string; fullName: string; email?: string; role?: string; active?: boolean }) {
+async function seedKioskUser(params: {
+  uid: string
+  employeeId: string
+  fullName: string
+  email?: string
+  role?: string
+  active?: boolean
+  kioskPin?: string
+}) {
   const batch = e2eDb.batch()
   batch.set(e2eDb.collection("users").doc(params.uid), {
     uid: params.uid,
     displayName: params.fullName,
     ...(params.email !== undefined ? { email: params.email } : {}),
     ...(params.role !== undefined ? { role: params.role } : {}),
+    ...(params.kioskPin !== undefined
+      ? { kioskPin: params.kioskPin }
+      : params.email
+        ? { kioskPin: KIOSK_PIN }
+        : {}),
     ownerRunId: RUN_ID,
     updatedAt: FieldValue.serverTimestamp(),
   })
@@ -92,6 +106,18 @@ async function chooseUser(page: Page, action: "start" | "stop", uid = TECH_UID) 
   await candidate.click()
 }
 
+async function enterKioskPin(page: Page, pin = KIOSK_PIN) {
+  await expect(page.getByTestId("kiosk-pin-dialog")).toBeVisible()
+  for (const digit of pin) {
+    await page.getByTestId(`kiosk-pin-key-${digit}`).click()
+  }
+}
+
+async function confirmAndEnterPin(page: Page, confirmLabel: string | RegExp, pin = KIOSK_PIN) {
+  await page.getByRole("button", { name: confirmLabel }).click()
+  await enterKioskPin(page, pin)
+}
+
 async function captureSelfieAndExpectSuccess(page: Page, kind: "Check-In" | "Check-Out") {
   await expect(page.getByRole("heading", { name: "Selfie pontaj" })).toBeVisible()
   await page.getByRole("button", { name: "Fă selfie" }).click()
@@ -101,14 +127,14 @@ async function captureSelfieAndExpectSuccess(page: Page, kind: "Check-In" | "Che
 async function startKioskSession(page: Page, uid = TECH_UID, specialDay = false) {
   await chooseUser(page, "start", uid)
   await expect(page.getByRole("heading", { name: "Confirmare Start" })).toBeVisible()
-  await page.getByRole("button", { name: specialDay ? "Da, mă pontez" : "Da, continuă" }).click()
+  await confirmAndEnterPin(page, specialDay ? "Da, mă pontez" : "Da, continuă")
   await captureSelfieAndExpectSuccess(page, "Check-In")
 }
 
 async function stopKioskSession(page: Page, uid = TECH_UID) {
   await chooseUser(page, "stop", uid)
   await expect(page.getByRole("heading", { name: "Confirmare Stop" })).toBeVisible()
-  await page.getByRole("button", { name: "Da, continuă" }).click()
+  await confirmAndEnterPin(page, "Da, continuă")
   await captureSelfieAndExpectSuccess(page, "Check-Out")
 }
 
@@ -207,7 +233,7 @@ test.describe("Kiosk attendance", () => {
     const names = await page.getByTestId("kiosk-user").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-user-name") || ""))
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "ro")))
     await page.locator(`[data-user-uid="${SAME_NAME_UID}"]`).click()
-    await page.getByRole("button", { name: "Da, continuă" }).click()
+    await confirmAndEnterPin(page, "Da, continuă")
     await captureSelfieAndExpectSuccess(page, "Check-In")
     expect((await sessionsFor(SAME_NAME_UID)).map((session) => session.userId)).toEqual([SAME_NAME_UID])
     expect(await getAttendanceForTechnician()).toHaveLength(0)
@@ -360,6 +386,7 @@ test.describe("Kiosk attendance", () => {
 
       await chooseUser(page, "start")
       await page.getByRole("button", { name: "Da, mă pontez" }).click()
+      await enterKioskPin(page)
       await captureSelfieAndExpectSuccess(page, "Check-In")
       expect((await getAttendanceForTechnician() as any[])[0].specialDayConfirmation).toMatchObject({
         required: true,
@@ -372,14 +399,20 @@ test.describe("Kiosk attendance", () => {
     })
   }
 
-  test("KSK-009 caracterizează flag-ul actual: fără parolă salariat, parola kiosk numai la logout", async ({ browser }) => {
+  test("KSK-009 cere PIN 4 cifre după confirmare; parola kiosk rămâne doar la logout", async ({ browser }) => {
     const context = await kioskContext(browser)
     const page = await context.newPage()
     await openKiosk(page)
     await chooseUser(page, "start")
     await page.getByRole("button", { name: "Da, continuă" }).click()
-    await expect(page.getByRole("heading", { name: "Selfie pontaj" })).toBeVisible()
+    await expect(page.getByTestId("kiosk-pin-dialog")).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Introdu PIN" })).toBeVisible()
     await expect(page.getByRole("heading", { name: "Confirmare parolă" })).toHaveCount(0)
+    await enterKioskPin(page, "0000")
+    await expect(page.getByText("PIN invalid", { exact: true }).first()).toBeVisible()
+    await expect(page.getByTestId("kiosk-pin-dialog")).toBeVisible()
+    await enterKioskPin(page, KIOSK_PIN)
+    await expect(page.getByRole("heading", { name: "Selfie pontaj" })).toBeVisible()
     await page.getByRole("button", { name: "Close" }).click()
     await page.getByRole("button", { name: "Deconectare" }).click()
     await expect(page.getByPlaceholder("Parola contului Kiosk")).toBeVisible()
@@ -406,7 +439,7 @@ test.describe("Kiosk attendance", () => {
     const deniedPage = await deniedContext.newPage()
     await openKiosk(deniedPage)
     await chooseUser(deniedPage, "start")
-    await deniedPage.getByRole("button", { name: "Da, continuă" }).click()
+    await confirmAndEnterPin(deniedPage, "Da, continuă")
     await expect(deniedPage.getByText(/Permisiunea camerei a fost refuzată/).first()).toBeVisible()
     await expectNoTechnicianKioskWrites()
     await deniedContext.close()
@@ -418,7 +451,7 @@ test.describe("Kiosk attendance", () => {
     const absentPage = await absentContext.newPage()
     await openKiosk(absentPage)
     await chooseUser(absentPage, "start")
-    await absentPage.getByRole("button", { name: "Da, continuă" }).click()
+    await confirmAndEnterPin(absentPage, "Da, continuă")
     await expect(absentPage.getByText(/Camera nu este disponibilă/).first()).toBeVisible()
     await expectNoTechnicianKioskWrites()
     await absentContext.close()
@@ -458,7 +491,7 @@ test.describe("Kiosk attendance", () => {
     const storagePage = await storageContext.newPage()
     await openKiosk(storagePage)
     await chooseUser(storagePage, "start")
-    await storagePage.getByRole("button", { name: "Da, continuă" }).click()
+    await confirmAndEnterPin(storagePage, "Da, continuă")
     await storagePage.getByRole("button", { name: "Fă selfie" }).click()
     await expect(storagePage.getByText("Upload selfie eșuat", { exact: true }).first()).toBeVisible()
     await expectNoTechnicianKioskWrites()
@@ -474,7 +507,7 @@ test.describe("Kiosk attendance", () => {
     const offlinePage = await offlineContext.newPage()
     await openKiosk(offlinePage)
     await chooseUser(offlinePage, "start")
-    await offlinePage.getByRole("button", { name: "Da, continuă" }).click()
+    await confirmAndEnterPin(offlinePage, "Da, continuă")
     await offlineContext.setOffline(true)
     await offlinePage.getByRole("button", { name: "Fă selfie" }).click()
     await expect(offlinePage.getByText("Upload selfie eșuat", { exact: true }).first()).toBeVisible()
@@ -523,7 +556,7 @@ test.describe("Kiosk attendance", () => {
     const startPages = await Promise.all(startContexts.map((context) => context.newPage()))
     await Promise.all(startPages.map((page) => openKiosk(page)))
     await Promise.all(startPages.map((page) => chooseUser(page, "start")))
-    await Promise.all(startPages.map((page) => page.getByRole("button", { name: "Da, continuă" }).click()))
+    await Promise.all(startPages.map((page) => confirmAndEnterPin(page, "Da, continuă")))
     await Promise.all(startPages.map((page) => page.getByRole("button", { name: "Fă selfie" }).click()))
     await expect.poll(async () => (await sessionsFor(TECH_UID)).filter((session) => session.status === "active").length).toBe(1)
     const [active] = (await sessionsFor(TECH_UID)).filter((session) => session.status === "active")
@@ -535,7 +568,7 @@ test.describe("Kiosk attendance", () => {
     await Promise.all(stopPages.map(async (page) => {
       await openKiosk(page, STOP_V01_INSTANT)
       await chooseUser(page, "stop")
-      await page.getByRole("button", { name: "Da, continuă" }).click()
+      await confirmAndEnterPin(page, "Da, continuă")
       await page.getByRole("button", { name: "Fă selfie" }).click()
     }))
     await expect.poll(async () => (await sessionsFor(TECH_UID)).filter((session) => session.status === "completed").length).toBe(1)

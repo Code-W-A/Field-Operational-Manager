@@ -4,6 +4,7 @@ export const RUN_ID = process.env.E2E_PONTAJ_RUN_ID || "E2E_PONTAJ_STAGE5"
 if (!/^E2E_PONTAJ_[A-Z0-9_]+$/.test(RUN_ID)) throw new Error(`E2E_ABORT: invalid runId ${RUN_ID}`)
 
 export const PASSWORD = "Pontaj-E2E-2026!"
+export const KIOSK_PIN = "1234"
 export const ADMIN_UID = `admin_${RUN_ID.toLowerCase()}`
 export const TECH_UID = `tech_${RUN_ID.toLowerCase()}`
 export const DISPATCHER_UID = `dispatcher_${RUN_ID.toLowerCase()}`
@@ -30,9 +31,9 @@ export const NO_ROLE_EMAIL = `norole.${RUN_ID.toLowerCase()}@e2e.invalid`
 export const NO_USER_DOC_EMAIL = `nouserdoc.${RUN_ID.toLowerCase()}@e2e.invalid`
 
 export const E2E_USERS = [
-  { uid: ADMIN_UID, email: ADMIN_EMAIL, displayName: `${RUN_ID} Admin`, role: "admin" },
-  { uid: TECH_UID, email: TECH_EMAIL, displayName: `${RUN_ID} Tehnician`, role: "tehnician" },
-  { uid: DISPATCHER_UID, email: DISPATCHER_EMAIL, displayName: `${RUN_ID} Dispecer`, role: "dispecer" },
+  { uid: ADMIN_UID, email: ADMIN_EMAIL, displayName: `${RUN_ID} Admin`, role: "admin", kioskPin: KIOSK_PIN },
+  { uid: TECH_UID, email: TECH_EMAIL, displayName: `${RUN_ID} Tehnician`, role: "tehnician", kioskPin: KIOSK_PIN },
+  { uid: DISPATCHER_UID, email: DISPATCHER_EMAIL, displayName: `${RUN_ID} Dispecer`, role: "dispecer", kioskPin: KIOSK_PIN },
   { uid: KIOSK_UID, email: KIOSK_EMAIL, displayName: `${RUN_ID} Kiosk`, role: "kiosk" },
   { uid: CLIENT_UID, email: CLIENT_EMAIL, displayName: `${RUN_ID} Client`, role: "client" },
   { uid: UNKNOWN_UID, email: UNKNOWN_EMAIL, displayName: `${RUN_ID} Unknown`, role: "rol-necunoscut" },
@@ -63,6 +64,7 @@ export async function seedMinimalPontajFixture(options: { auth?: boolean } = {})
     batch.set(e2eDb.collection("users").doc(user.uid), {
       uid: user.uid, email: user.email, displayName: user.displayName,
       ...("role" in user ? { role: user.role } : {}),
+      ...("kioskPin" in user && user.kioskPin ? { kioskPin: user.kioskPin } : {}),
       ownerRunId: RUN_ID, updatedAt: FieldValue.serverTimestamp(),
     })
   }

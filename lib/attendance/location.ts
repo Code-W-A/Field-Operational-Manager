@@ -1,12 +1,80 @@
 import type { AttendanceLocation, AttendanceMode } from "@/types/attendance"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 
+export type AttendanceLocationErrorCode =
+  | "permission_denied"
+  | "position_unavailable"
+  | "timeout"
+  | "unsupported"
+
+const LOCATION_ERROR_MESSAGES: Record<AttendanceLocationErrorCode, string> = {
+  permission_denied: "Permisiunea pentru locație a fost refuzată.",
+  position_unavailable: "Locația GPS nu este disponibilă momentan.",
+  timeout: "Determinarea locației a durat prea mult.",
+  unsupported: "Acest browser nu permite determinarea locației.",
+}
+
+export class AttendanceLocationError extends Error {
+  readonly code: AttendanceLocationErrorCode
+
+  constructor(code: AttendanceLocationErrorCode) {
+    super(LOCATION_ERROR_MESSAGES[code])
+    this.name = "AttendanceLocationError"
+    this.code = code
+  }
+}
+
+export function isAttendanceLocationError(error: unknown): error is AttendanceLocationError {
+  return error instanceof AttendanceLocationError
+}
+
+export function classifyGeolocationError(error: { code: number }): AttendanceLocationError {
+  if (error.code === 1) return new AttendanceLocationError("permission_denied")
+  if (error.code === 2) return new AttendanceLocationError("position_unavailable")
+  if (error.code === 3) return new AttendanceLocationError("timeout")
+  return new AttendanceLocationError("position_unavailable")
+}
+
+export function getGoogleMapsUrl(location: Pick<AttendanceLocation, "lat" | "lng">): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${location.lat},${location.lng}`)}`
+}
+
+export type LocationGuidancePlatform = "ios" | "android" | "desktop"
+
+export function detectLocationGuidancePlatform(userAgent: string): LocationGuidancePlatform {
+  if (/iPad|iPhone|iPod/i.test(userAgent)) return "ios"
+  if (/Android/i.test(userAgent)) return "android"
+  return "desktop"
+}
+
+export function getLocationPermissionGuidance(platform: LocationGuidancePlatform): string[] {
+  if (platform === "ios") {
+    return [
+      "Deschide Configurări → Confidențialitate și securitate → Servicii de localizare.",
+      "Alege browserul folosit (de exemplu Safari Websites) și permite locația în timpul utilizării.",
+      "Revino în aplicație și apasă „Încearcă din nou”.",
+    ]
+  }
+  if (platform === "android") {
+    return [
+      "Activează Locația (GPS) din setările rapide ale telefonului.",
+      "În browser, deschide informațiile/setările site-ului → Permisiuni → Locație → Permite.",
+      "Revino în aplicație și apasă „Încearcă din nou”.",
+    ]
+  }
+  return [
+    "Deschide setările site-ului din bara de adrese a browserului.",
+    "Setează permisiunea Locație pe „Permite” și verifică dacă serviciile de localizare sunt active.",
+    "Revino în aplicație și apasă „Încearcă din nou”.",
+  ]
+}
+
 /**
  * Get current location from browser GPS
  */
 export async function getCurrentLocation(): Promise<AttendanceLocation> {
   if (!navigator.geolocation) {
-    throw new Error("Geolocation is not supported by your browser")
+    throw new AttendanceLocationError("unsupported")
   }
 
   return new Promise((resolve, reject) => {
@@ -28,21 +96,7 @@ export async function getCurrentLocation(): Promise<AttendanceLocation> {
         resolve(location)
       },
       (error) => {
-        let errorMessage = "Could not get your location"
-        
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "Location permission denied. Please enable location access."
-            break
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information is unavailable"
-            break
-          case error.TIMEOUT:
-            errorMessage = "Location request timed out"
-            break
-        }
-
-        reject(new Error(errorMessage))
+        reject(classifyGeolocationError(error))
       },
       {
         enableHighAccuracy: true,

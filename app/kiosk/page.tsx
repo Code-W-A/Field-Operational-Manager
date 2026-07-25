@@ -67,11 +67,13 @@ export default function KioskOnlyPage() {
           )
           return snapshot.docs.map((d) => {
             const data = d.data() as any
+            const pin = data.kioskPin ? String(data.kioskPin).trim() : ""
             return {
               uid: d.id,
               email: data.email ? String(data.email) : undefined,
               role: data.role ? String(data.role) : undefined,
               displayName: data.displayName ? String(data.displayName) : undefined,
+              ...(pin ? { kioskPin: pin } : {}),
             }
           })
         },

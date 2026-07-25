@@ -662,6 +662,13 @@ export default function CondicaPrezentaPage() {
     return meta.startLabel
   }, [activeMetaByEmployee, selectedEmployeeId, selectedDay, monthKey])
 
+  const selectedActiveSession = useMemo(() => {
+    if (!selectedEmployeeId || !selectedDay) return null
+    const meta = activeMetaByEmployee[selectedEmployeeId]
+    if (!meta || meta.monthKey !== monthKey || meta.day !== selectedDay) return null
+    return activeSessions[selectedEmployeeId] ?? null
+  }, [activeMetaByEmployee, activeSessions, selectedEmployeeId, selectedDay, monthKey])
+
   useEffect(() => {
     if (!debugEnabled) return
     if (!selectedEmployeeId || !selectedDay) return
@@ -1575,6 +1582,7 @@ export default function CondicaPrezentaPage() {
         subtitle={subtitle}
         cell={selectedCell}
         activeSessionStart={activeSessionStart}
+        activeSession={selectedActiveSession}
         anchorRect={anchorRect}
         approvedRequestLabel={selectedApprovedRequestLabel}
         onOpenEditApprovedRequest={selectedApprovedRequest ? openEditApprovedRequest : null}

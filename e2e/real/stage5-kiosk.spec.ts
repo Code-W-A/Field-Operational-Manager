@@ -14,6 +14,7 @@ import {
   selectKioskUser,
   setFakeNow,
   setRuntimeFakeNow,
+  enterKioskPin,
 } from "./attendance-helpers"
 
 async function cancelCurrentKioskFlow(page: Page) {
@@ -65,10 +66,7 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     }
 
     await userButton.click()
-    await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Pontaj deja pornit|Confirmare parolă|Confirmare parola/i)
-    if (await page.getByText(/Confirmare parolă|Confirmare parola/i).count()) {
-      await expect(page.getByRole("button", { name: /Continuă|Continua/i })).toBeDisabled()
-    }
+    await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Pontaj deja pornit/i)
     await closeTopmostDialog(page)
     await cancelCurrentKioskFlow(page)
   })
@@ -242,6 +240,7 @@ test.describe("Etapa 5 - kiosk si pontaj", () => {
     }
 
     await page.getByRole("button", { name: /Da, mă pontez|Da, ma pontez|Da, continuă|Da, continua/i }).click()
+    await enterKioskPin(page)
     await expect(page.getByRole("dialog")).toContainText(/Selfie pontaj/i, { timeout: 20_000 })
     await clickKioskSelfieCapture(page)
     await expect(page.locator("body")).toContainText(/Selfie indisponibil|Permisiune cameră refuzată|Permisiune camera refuzata|Selfie obligatoriu|Nu am putut accesa camera|Permission denied|Eroare camera/i, {

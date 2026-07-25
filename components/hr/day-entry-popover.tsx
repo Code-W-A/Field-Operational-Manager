@@ -16,6 +16,72 @@ import { markHrRequestTimesheetCleared } from "@/lib/hr/storage"
 import { normalizeTimeHHmmLoose } from "@/lib/utils/time-input"
 import { calcEffectiveMinutes, type HMRange, minutesToHM as minutesToHMUtil } from "@/lib/hr/time-calc"
 import { db } from "@/lib/firebase/config"
+import type { AttendanceLocation, AttendanceSession } from "@/types/attendance"
+import { getGoogleMapsUrl } from "@/lib/attendance/location"
+
+type LocationDialogData = {
+  startTime: string
+  endTime?: string
+  startLocation?: AttendanceLocation
+  endLocation?: AttendanceLocation
+  endMissingMessage: string
+}
+
+function isValidAttendanceLocation(value: unknown): value is AttendanceLocation {
+  const location = value as AttendanceLocation | undefined
+  return Boolean(
+    location &&
+    Number.isFinite(location.lat) &&
+    Number.isFinite(location.lng) &&
+    Math.abs(location.lat) <= 90 &&
+    Math.abs(location.lng) <= 180
+  )
+}
+
+function LocationDetails({
+  title,
+  time,
+  location,
+  missingMessage,
+}: {
+  title: string
+  time?: string
+  location?: AttendanceLocation
+  missingMessage: string
+}) {
+  const validLocation = isValidAttendanceLocation(location) ? location : undefined
+  return (
+    <section className="rounded-lg border bg-slate-50 p-4 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-semibold text-slate-900">{title}</h3>
+        {time ? <span className="font-mono text-sm text-slate-600">{time}</span> : null}
+      </div>
+      {validLocation ? (
+        <>
+          <div className="flex items-start gap-2 text-sm text-slate-700">
+            <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+            <div className="min-w-0 space-y-1">
+              {validLocation.address ? <p className="break-words">{validLocation.address}</p> : null}
+              <p className="font-mono text-xs text-slate-600">
+                {validLocation.lat.toFixed(6)}, {validLocation.lng.toFixed(6)}
+              </p>
+            </div>
+          </div>
+          <a
+            href={getGoogleMapsUrl(validLocation)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
+          >
+            Deschide în Google Maps <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">{missingMessage}</p>
+      )}
+    </section>
+  )
+}
 
 function parseHM(v: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim())
@@ -84,6 +150,7 @@ export function DayEntryPopover({
   subtitle,
   cell,
   activeSessionStart,
+  activeSession,
   anchorRect,
   approvedRequestLabel,
   onOpenEditApprovedRequest,
@@ -99,6 +166,7 @@ export function DayEntryPopover({
   subtitle: string
   cell: TimesheetCell | undefined
   activeSessionStart?: string | null
+  activeSession?: AttendanceSession | null
   anchorRect: { top: number; left: number; right: number; bottom: number; width: number; height: number } | null
   approvedRequestLabel?: string | null
   onOpenEditApprovedRequest?: (() => void) | null
@@ -121,6 +189,10 @@ export function DayEntryPopover({
   const [selfieDialogTitle, setSelfieDialogTitle] = useState<string>("Selfie")
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
   const [selfieLoading, setSelfieLoading] = useState(false)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [locationDialogData, setLocationDialogData] = useState<LocationDialogData | null>(null)
+  const [locationLoading, setLocationLoading] = useState(false)
+  const attendanceCacheRef = useRef(new Map<string, Record<string, any> | null>())
   const [clearCoBusy, setClearCoBusy] = useState(false)
 
   const minutes = useMemo(() => calcMinutes(cell, defaultBreak), [cell, defaultBreak])
@@ -137,6 +209,16 @@ export function DayEntryPopover({
     setSelfieDialogTitle(title)
     setSelfieUrl(url)
     setSelfieDialogOpen(true)
+  }
+
+  const loadAttendanceSession = async (sessionId: string) => {
+    if (attendanceCacheRef.current.has(sessionId)) {
+      return attendanceCacheRef.current.get(sessionId) ?? null
+    }
+    const snap = await getDoc(doc(db, "attendance", sessionId))
+    const data = snap.exists() ? (snap.data() as Record<string, any>) : null
+    attendanceCacheRef.current.set(sessionId, data)
+    return data
   }
 
   const openSelfieForEntry = async (title: string, entry: Entry, kind: "start" | "end") => {
@@ -158,8 +240,7 @@ export function DayEntryPopover({
 
     try {
       setSelfieLoading(true)
-      const snap = await getDoc(doc(db, "attendance", sessionId))
-      const data = snap.exists() ? (snap.data() as any) : null
+      const data = await loadAttendanceSession(sessionId)
       const url =
         kind === "start" ? (data?.checkInSelfieUrl as string | undefined) : (data?.checkOutSelfieUrl as string | undefined)
       if (!url) {
@@ -180,6 +261,59 @@ export function DayEntryPopover({
     } finally {
       setSelfieLoading(false)
     }
+  }
+
+  const openLocationsForEntry = async (entry: Entry) => {
+    if (!canViewSelfies) return
+    const sessionId = (entry as any).attendanceSessionId ? String((entry as any).attendanceSessionId) : ""
+    if (!sessionId) {
+      toast({
+        title: "Locații indisponibile",
+        description: "Intervalul nu este asociat unei sesiuni de pontaj.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      setLocationLoading(true)
+      const data = await loadAttendanceSession(sessionId)
+      if (!data) {
+        toast({
+          title: "Sesiune indisponibilă",
+          description: "Documentul de pontaj asociat nu mai există.",
+          variant: "destructive",
+        })
+        return
+      }
+      setLocationDialogData({
+        startTime: entry.start,
+        endTime: entry.end,
+        startLocation: isValidAttendanceLocation(data.location) ? data.location : undefined,
+        endLocation: isValidAttendanceLocation(data.checkOutLocation) ? data.checkOutLocation : undefined,
+        endMissingMessage: data.checkOutAuto
+          ? "Depontarea a fost automată; locația de stop nu a fost înregistrată."
+          : "Locația de stop nu a fost înregistrată.",
+      })
+      setLocationDialogOpen(true)
+    } catch (error) {
+      toast({
+        title: "Eroare",
+        description: error instanceof Error ? error.message : "Nu am putut încărca locațiile pontajului.",
+        variant: "destructive",
+      })
+    } finally {
+      setLocationLoading(false)
+    }
+  }
+
+  const openActiveSessionLocation = () => {
+    if (!canViewSelfies || !activeSession) return
+    setLocationDialogData({
+      startTime: activeSessionStart || "În lucru",
+      startLocation: isValidAttendanceLocation(activeSession.location) ? activeSession.location : undefined,
+      endMissingMessage: "Sesiunea este încă activă; locația de stop va fi disponibilă după depontare.",
+    })
+    setLocationDialogOpen(true)
   }
 
   const clearCo = async () => {
@@ -512,6 +646,18 @@ export function DayEntryPopover({
                           <div className="font-mono text-sm font-bold text-emerald-900">
                             {activeSessionStart}
                           </div>
+                          {canViewSelfies && activeSession ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="ml-auto h-7 px-2 text-xs"
+                              onClick={openActiveSessionLocation}
+                            >
+                              <MapPin className="h-3.5 w-3.5 mr-1" />
+                              Locație start
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -524,7 +670,7 @@ export function DayEntryPopover({
                   ) : (
                     <div className="space-y-2">
                       {entries.map((e, idx) => (
-                        <div key={idx} data-testid={`condica-day-entry-${idx}`} className="flex items-center justify-between rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 px-3 py-2 hover:border-blue-400 transition-all">
+                        <div key={idx} data-testid={`condica-day-entry-${idx}`} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 px-3 py-2 hover:border-blue-400 transition-all">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-blue-600" />
                             <div className="font-mono text-sm font-bold text-gray-900">
@@ -536,7 +682,20 @@ export function DayEntryPopover({
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+                            {canViewSelfies && Boolean((e as any).attendanceSessionId) ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => void openLocationsForEntry(e as Entry)}
+                                disabled={locationLoading}
+                                aria-label={`Locații pontaj ${e.start}–${e.end}`}
+                              >
+                                <MapPin className="h-3.5 w-3.5 mr-1" />
+                                Locații
+                              </Button>
+                            ) : null}
                             {canViewSelfies && (
                               <div className="flex items-center gap-1 mr-1">
                                 {(Boolean((e as any).selfieStartUrl) || Boolean((e as any).attendanceSessionId)) && (
@@ -588,6 +747,27 @@ export function DayEntryPopover({
                           </div>
                         </div>
                       ))}
+                      {activeSessionStart && activeSession ? (
+                        <div className="rounded-lg bg-emerald-50 border-2 border-emerald-200 px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-emerald-600" />
+                            <div className="text-xs font-medium text-emerald-700">În lucru din</div>
+                            <div className="font-mono text-sm font-bold text-emerald-900">{activeSessionStart}</div>
+                            {canViewSelfies ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="ml-auto h-7 px-2 text-xs"
+                                onClick={openActiveSessionLocation}
+                              >
+                                <MapPin className="h-3.5 w-3.5 mr-1" />
+                                Locație start
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -619,6 +799,37 @@ export function DayEntryPopover({
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">Nu există selfie pentru acest interval.</div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={locationDialogOpen}
+        onOpenChange={(open) => {
+          setLocationDialogOpen(open)
+          if (!open) setLocationDialogData(null)
+        }}
+      >
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Locații pontaj</DialogTitle>
+          </DialogHeader>
+          {locationDialogData ? (
+            <div className="space-y-3">
+              <LocationDetails
+                title="Pontare / Start"
+                time={locationDialogData.startTime}
+                location={locationDialogData.startLocation}
+                missingMessage="Locația de start nu a fost înregistrată."
+              />
+              <LocationDetails
+                title="Depontare / Stop"
+                time={locationDialogData.endTime}
+                location={locationDialogData.endLocation}
+                missingMessage={locationDialogData.endMissingMessage}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Locațiile nu sunt disponibile.</p>
           )}
         </DialogContent>
       </Dialog>
@@ -938,4 +1149,3 @@ function VerificariDialog({
     </Dialog>
   )
 }
-

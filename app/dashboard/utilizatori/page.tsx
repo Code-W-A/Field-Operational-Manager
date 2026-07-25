@@ -22,6 +22,11 @@ import { Plus, Pencil, Trash2, Loader2, AlertCircle, ChevronsUpDown, Check, Eye,
 import { collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { registerUser, deleteUserAccount, type UserData, type UserRole } from "@/lib/firebase/auth"
+import {
+  isKioskPinEligibleRole,
+  normalizeKioskPinInput,
+  resolveKioskPinForSave,
+} from "@/lib/attendance/kiosk-pin"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 import { UserEditForm } from "@/components/user-edit-form"
@@ -120,6 +125,7 @@ export default function Utilizatori() {
     confirmPassword: "",
     displayName: "",
     phoneNumber: "",
+    kioskPin: "",
     role: "" as UserRole,
     clientId: "",
     allowedLocationNames: [] as string[],
@@ -462,7 +468,10 @@ export default function Utilizatori() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
-    setFormData((prev) => ({ ...prev, [id]: value }))
+    setFormData((prev) => ({
+      ...prev,
+      [id]: id === "kioskPin" ? normalizeKioskPinInput(value) : value,
+    }))
   }
 
   const handleSelectChange = (value: string) => {
@@ -568,6 +577,17 @@ export default function Utilizatori() {
         return
       }
 
+      let resolvedKioskPin: string | null = null
+      try {
+        resolvedKioskPin = resolveKioskPinForSave({ role: formData.role, kioskPin: formData.kioskPin })
+      } catch (pinError) {
+        const msg = pinError instanceof Error ? pinError.message : "PIN-ul kiosk trebuie să aibă exact 4 cifre."
+        setFormError(msg)
+        toast({ variant: "destructive", title: "PIN kiosk invalid", description: msg })
+        setIsSubmitting(false)
+        return
+      }
+
       // Register the user (support clientAccess for client role)
       const access = formData.role === "client" ? clientAccess : []
       await registerUser(
@@ -578,6 +598,7 @@ export default function Utilizatori() {
         formData.phoneNumber,
         access,
         formData.role === "tehnician" ? formData.technicianGroupIds : undefined,
+        resolvedKioskPin ?? undefined,
       )
 
       toast({ title: "Utilizator creat", description: `Contul pentru ${formData.displayName} a fost creat cu succes.` })
@@ -624,6 +645,7 @@ export default function Utilizatori() {
         confirmPassword: "",
         displayName: "",
         phoneNumber: "",
+        kioskPin: "",
         role: "" as UserRole,
         clientId: "",
         allowedLocationNames: [],
@@ -682,6 +704,7 @@ export default function Utilizatori() {
       confirmPassword: "",
       displayName: "",
       phoneNumber: "",
+      kioskPin: "",
       role: "" as UserRole,
       clientId: "",
       allowedLocationNames: [],
@@ -1085,6 +1108,26 @@ export default function Utilizatori() {
                       placeholder="Selectați grupuri (opțional)"
                       emptyText="Nu există grupuri. Definiți-le din Setări → Grupuri tehnicieni."
                     />
+                  </div>
+                )}
+
+                {isKioskPinEligibleRole(formData.role) && (
+                  <div className="space-y-2">
+                    <label htmlFor="kioskPin" className="text-sm font-medium">
+                      PIN kiosk (4 cifre)
+                    </label>
+                    <Input
+                      id="kioskPin"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      placeholder="Ex: 1234"
+                      value={formData.kioskPin}
+                      onChange={handleInputChange}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Folosit la pontajul pe kiosk. Exact 4 cifre.
+                    </p>
                   </div>
                 )}
 

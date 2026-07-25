@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Play, Square, UserCircle2, LogOut } from "lucide-react"
+import { Play, Square, UserCircle2, LogOut, Delete } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { createCheckIn, createCheckOut, getActiveSession } from "@/lib/attendance/storage"
 import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
@@ -20,12 +20,12 @@ import { useRouter } from "next/navigation"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import type { KioskEligibleRole } from "@/lib/attendance/kiosk-eligible-users"
+import { isValidKioskPin } from "@/lib/attendance/kiosk-pin"
 import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
 import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 
-/** Temporar: false = pontaj kiosk fără parolă angajat, doar selfie. Codul parolei rămâne. */
-const KIOSK_EMPLOYEE_PASSWORD_ENABLED = false
 const KIOSK_SELFIE_UPLOAD_TIMEOUT_MS = 10_000
+const KIOSK_PIN_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"] as const
 
 function withKioskSelfieUploadTimeout<T>(request: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -43,6 +43,7 @@ export interface KioskUser {
   role: KioskEligibleRole
   email?: string
   photoURL?: string
+  kioskPin?: string
   disabled?: boolean
   disabledReason?: string
 }
@@ -52,7 +53,7 @@ export interface KioskCheckInProps {
   officeLocation?: OfficeLocation
 }
 
-type FlowState = "idle" | "select-action" | "select-user" | "verify-password" | "selfie" | "processing" | "success"
+type FlowState = "idle" | "select-action" | "select-user" | "verify-pin" | "selfie" | "processing" | "success"
 
 export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const { user, userData } = useAuth()
@@ -64,9 +65,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   const [debugSimMinutes, setDebugSimMinutes] = useState<number | null>(null)
   const [selectedUser, setSelectedUser] = useState<KioskUser | null>(null)
   const [showDialog, setShowDialog] = useState(false)
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
-  const [password, setPassword] = useState("")
-  const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  const [showPinDialog, setShowPinDialog] = useState(false)
+  const [pinDigits, setPinDigits] = useState("")
+  const [pinSubmitting, setPinSubmitting] = useState(false)
   const [userSelectBusyUid, setUserSelectBusyUid] = useState<string | null>(null)
 
   const [alreadyStartedOpen, setAlreadyStartedOpen] = useState(false)
@@ -127,9 +128,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     setDebugSimMinutes(null)
     setSelectedUser(null)
     setShowDialog(false)
-    setShowPasswordDialog(false)
-    setPassword("")
-    setPasswordSubmitting(false)
+    setShowPinDialog(false)
+    setPinDigits("")
+    setPinSubmitting(false)
     setUserSelectBusyUid(null)
     setAlreadyStartedOpen(false)
     setAlreadyStartedAt(null)
@@ -228,7 +229,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
 
     setUserSelectBusyUid(user.uid)
     setSelectedUser(user)
-    setPassword("")
+    setPinDigits("")
 
     try {
       // Double-start guard: if Start selected but user already has an active session, offer Stop.
@@ -248,7 +249,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         }
       }
 
-      // Confirmation comes before password (per requirement)
+      // Confirmation comes before PIN
       setSpecialDayWarning(action === "check-in" ? resolveAttendanceSpecialDay(new Date(getAppNowMs()), holidays) : null)
       setSpecialDayConfirmed(null)
       setConfirmOpen(true)
@@ -265,7 +266,9 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
   }
 
   const proceedToSelfieCapture = () => {
-    setShowPasswordDialog(false)
+    setShowPinDialog(false)
+    setPinDigits("")
+    setPinSubmitting(false)
     setShowDialog(true)
     setFlowState("selfie")
   }
@@ -282,40 +285,57 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
       setSpecialDayConfirmed(null)
     }
     setConfirmOpen(false)
-    if (KIOSK_EMPLOYEE_PASSWORD_ENABLED) {
-      setShowPasswordDialog(true)
-      setFlowState("verify-password")
-    } else {
-      proceedToSelfieCapture()
-    }
+    setPinDigits("")
+    setShowPinDialog(true)
+    setFlowState("verify-pin")
   }
 
-  const handlePasswordVerify = async () => {
-    if (!selectedUser || !action) return
-    const email = selectedUser.email
-    if (!email) {
+  const handlePinVerify = async (candidate?: string) => {
+    if (!selectedUser || !action || pinSubmitting) return
+    const entered = candidate ?? pinDigits
+    if (!isValidKioskPin(entered)) return
+
+    const expected = String(selectedUser.kioskPin || "").trim()
+    if (!isValidKioskPin(expected)) {
       toast({
-        title: "Email lipsă",
-        description: "Acest utilizator nu are email setat, nu se poate verifica parola.",
+        title: "PIN neconfigurat",
+        description: "PIN-ul kiosk nu este setat pentru acest utilizator. Contactează administratorul.",
         variant: "destructive",
       })
+      setPinDigits("")
       return
     }
 
     try {
-      setPasswordSubmitting(true)
-      await verifyUserPassword(email, password)
-      // Success: continue to selfie capture (audit)
+      setPinSubmitting(true)
+      if (entered !== expected) {
+        toast({
+          title: "PIN invalid",
+          description: "Codul introdus nu este corect. Încearcă din nou.",
+          variant: "destructive",
+        })
+        setPinDigits("")
+        return
+      }
       proceedToSelfieCapture()
-    } catch (error) {
-      toast({
-        title: "Parolă invalidă",
-        description: error instanceof Error ? error.message : "Nu s-a putut verifica parola.",
-        variant: "destructive",
-      })
     } finally {
-      setPasswordSubmitting(false)
+      setPinSubmitting(false)
     }
+  }
+
+  const handlePinDigit = (digit: string) => {
+    if (pinSubmitting) return
+    if (pinDigits.length >= 4) return
+    const next = pinDigits + digit
+    setPinDigits(next)
+    if (next.length === 4) {
+      void handlePinVerify(next)
+    }
+  }
+
+  const handlePinBackspace = () => {
+    if (pinSubmitting) return
+    setPinDigits((prev) => prev.slice(0, -1))
   }
 
   const uploadSelfie = async (blob: Blob, kind: "checkin" | "checkout") => {
@@ -762,7 +782,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
                 setAction("check-out")
                 setSpecialDayWarning(null)
                 setSpecialDayConfirmed(null)
-                // Confirmation before password
+                // Confirmation before PIN
                 setConfirmOpen(true)
               }}
             >
@@ -816,14 +836,14 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Start/Stop dialog (before password) */}
+      {/* Confirm Start/Stop dialog (before PIN) */}
       <Dialog
         open={confirmOpen}
         onOpenChange={(open) => {
           if (!open) {
             setConfirmOpen(false)
             setSelectedUser(null)
-            setPassword("")
+            setPinDigits("")
             setFlowState("select-user")
             setSpecialDayWarning(null)
             setSpecialDayConfirmed(null)
@@ -865,7 +885,7 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
               onClick={() => {
                 setConfirmOpen(false)
                 setSelectedUser(null)
-                setPassword("")
+                setPinDigits("")
                 setFlowState("select-user")
                 setSpecialDayWarning(null)
                 setSpecialDayConfirmed(null)
@@ -880,26 +900,25 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Password verification dialog (before face recognition) */}
+      {/* PIN verification dialog (before face recognition) */}
       <Dialog
-        open={showPasswordDialog}
+        open={showPinDialog}
         onOpenChange={(open) => {
           if (!open) {
-            // Back out to user selection
-            setShowPasswordDialog(false)
-            setPassword("")
-            setPasswordSubmitting(false)
+            setShowPinDialog(false)
+            setPinDigits("")
+            setPinSubmitting(false)
             setFlowState("select-user")
             setSpecialDayWarning(null)
             setSpecialDayConfirmed(null)
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md" data-testid="kiosk-pin-dialog">
           <DialogHeader>
-            <DialogTitle className="text-center text-2xl">Confirmare parolă</DialogTitle>
+            <DialogTitle className="text-center text-2xl">Introdu PIN</DialogTitle>
             <DialogDescription className="text-center">
-              Introdu parola contului tău pentru {action === "check-in" ? "Start" : "Stop"}.
+              Introdu PIN-ul de 4 cifre pentru {action === "check-in" ? "Start" : "Stop"}.
             </DialogDescription>
           </DialogHeader>
 
@@ -911,38 +930,76 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Parolă</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Introduceți parola"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handlePasswordVerify()
-              }}
-              disabled={passwordSubmitting}
-            />
+          <div className="flex justify-center gap-3 py-2" data-testid="kiosk-pin-slots" aria-label="PIN introdus">
+            {[0, 1, 2, 3].map((index) => (
+              <div
+                key={index}
+                className="h-12 w-12 rounded-xl border-2 border-slate-300 bg-white flex items-center justify-center text-2xl font-semibold text-slate-900"
+                data-testid={`kiosk-pin-slot-${index}`}
+              >
+                {pinDigits[index] ? "•" : ""}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto w-full" data-testid="kiosk-pin-keypad">
+            {KIOSK_PIN_KEYS.map((key, index) => {
+              if (key === "") {
+                return <div key={`empty-${index}`} />
+              }
+              if (key === "back") {
+                return (
+                  <Button
+                    key="back"
+                    type="button"
+                    variant="outline"
+                    className="h-14 text-lg"
+                    onClick={handlePinBackspace}
+                    disabled={pinSubmitting || pinDigits.length === 0}
+                    data-testid="kiosk-pin-backspace"
+                    aria-label="Șterge"
+                  >
+                    <Delete className="h-5 w-5" />
+                  </Button>
+                )
+              }
+              return (
+                <Button
+                  key={key}
+                  type="button"
+                  variant="outline"
+                  className="h-14 text-2xl font-semibold"
+                  onClick={() => handlePinDigit(key)}
+                  disabled={pinSubmitting || pinDigits.length >= 4}
+                  data-testid={`kiosk-pin-key-${key}`}
+                >
+                  {key}
+                </Button>
+              )
+            })}
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
-                setShowPasswordDialog(false)
-                setPassword("")
-                setPasswordSubmitting(false)
+                setShowPinDialog(false)
+                setPinDigits("")
+                setPinSubmitting(false)
                 setFlowState("select-user")
                 setSpecialDayWarning(null)
                 setSpecialDayConfirmed(null)
               }}
-              disabled={passwordSubmitting}
+              disabled={pinSubmitting}
             >
               Înapoi
             </Button>
-            <Button onClick={handlePasswordVerify} disabled={!password || passwordSubmitting}>
-              {passwordSubmitting ? "Verific..." : "Continuă"}
+            <Button
+              onClick={() => void handlePinVerify()}
+              disabled={!isValidKioskPin(pinDigits) || pinSubmitting}
+              data-testid="kiosk-pin-continue"
+            >
+              {pinSubmitting ? "Verific..." : "Continuă"}
             </Button>
           </DialogFooter>
         </DialogContent>

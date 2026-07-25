@@ -7,6 +7,7 @@ export interface KioskSourceUser {
   role?: string
   email?: string
   displayName?: string
+  kioskPin?: string
 }
 
 export interface KioskEligibleUser {
@@ -15,6 +16,7 @@ export interface KioskEligibleUser {
   role: KioskEligibleRole
   email: string
   photoURL?: string
+  kioskPin?: string
 }
 
 function isKioskEligibleRole(role: unknown): role is KioskEligibleRole {
@@ -53,12 +55,14 @@ export function buildKioskEligibleUsers(params: { employees: Employee[]; users: 
     if (!matched) continue
     if (!isKioskEligibleRole(matched.role)) continue
 
+    const pin = String(matched.kioskPin || "").trim()
     const candidate: KioskEligibleUser = {
       uid: userUid,
       displayName: getEmployeeFullName(employee) || String(matched.displayName || "").trim() || "Salariat",
       role: matched.role,
       email: String(matched.email || "").trim(),
       photoURL: employee.photoURL,
+      ...(pin ? { kioskPin: pin } : {}),
     }
 
     const existing = deduped.get(userUid)

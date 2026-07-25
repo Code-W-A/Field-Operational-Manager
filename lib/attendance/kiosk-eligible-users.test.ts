@@ -9,6 +9,7 @@ type UserInput = {
   role?: string
   email?: string
   displayName?: string
+  kioskPin?: string
 }
 
 function employee(input: Partial<Employee> & Pick<Employee, "id" | "nume" | "prenume">): Employee {
@@ -90,4 +91,15 @@ test("deduplicates by uid and keeps stable sorted output", () => {
   assert.deepEqual(result.map((u) => u.displayName), ["Ana Beta", "Mihai Alpha"])
   const mihai = result.find((u) => u.uid === "u-1")
   assert.equal(mihai?.photoURL, "https://img.test/mihai.jpg")
+})
+
+test("propagates kioskPin from source user when present", () => {
+  const employees = [employee({ id: "e1", nume: "Popescu", prenume: "Ana", userUid: "u-tech" })]
+  const users: UserInput[] = [
+    { uid: "u-tech", role: "tehnician", email: "tech@company.ro", kioskPin: "4321" },
+  ]
+
+  const result = buildKioskEligibleUsers({ employees, users })
+  assert.equal(result.length, 1)
+  assert.equal(result[0]?.kioskPin, "4321")
 })

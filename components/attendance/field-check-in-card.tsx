@@ -14,7 +14,14 @@ import {
   startExtraTimeLog,
   endExtraTimeLog,
 } from "@/lib/attendance/storage"
-import { getCurrentLocation, determineMode } from "@/lib/attendance/location"
+import {
+  getCurrentLocation,
+  determineMode,
+  detectLocationGuidancePlatform,
+  getLocationPermissionGuidance,
+  isAttendanceLocationError,
+  type AttendanceLocationError,
+} from "@/lib/attendance/location"
 import { resolveAttendanceSpecialDay, type AttendanceSpecialDayInfo } from "@/lib/attendance/special-day-confirmation"
 import { subscribeHrHolidays } from "@/lib/hr/storage"
 import { toast } from "@/hooks/use-toast"
@@ -60,6 +67,9 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
   const [specialConfirmOpen, setSpecialConfirmOpen] = useState(false)
   const [specialDayWarning, setSpecialDayWarning] = useState<AttendanceSpecialDayInfo | null>(null)
   const [specialDayConfirmed, setSpecialDayConfirmed] = useState<AttendanceSpecialDayConfirmation | null>(null)
+  const [locationHelpOpen, setLocationHelpOpen] = useState(false)
+  const [locationError, setLocationError] = useState<AttendanceLocationError | null>(null)
+  const [pendingLocationResult, setPendingLocationResult] = useState<FaceRecognitionResult | null>(null)
 
   // Extra time tracking
   const [clientRouteActive, setClientRouteActive] = useState(false)
@@ -383,8 +393,19 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       setDebugSimMinutes(null)
       setPendingAuditId(null)
       setSpecialDayConfirmed(null)
+      setPendingLocationResult(null)
+      setLocationError(null)
+      setLocationHelpOpen(false)
     } catch (error) {
       console.error("Field check-in/out error:", error)
+      if (isAttendanceLocationError(error)) {
+        setPendingLocationResult(result)
+        setLocationError(error)
+        setShowFaceDialog(false)
+        setFlowState("idle")
+        setLocationHelpOpen(true)
+        return
+      }
       const message = error instanceof Error ? error.message : "A apărut o eroare"
       const isLeaveBlock = message.toLowerCase().includes("ești în concediu")
       toast({
@@ -398,7 +419,21 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
       setDebugSimMinutes(null)
       setPendingAuditId(null)
       setSpecialDayConfirmed(null)
+      setPendingLocationResult(null)
+      setLocationError(null)
+      setLocationHelpOpen(false)
     }
+  }
+
+  const cancelLocationRetry = () => {
+    setLocationHelpOpen(false)
+    setLocationError(null)
+    setPendingLocationResult(null)
+    setFlowState("idle")
+    setAction(null)
+    setDebugSimMinutes(null)
+    setPendingAuditId(null)
+    setSpecialDayConfirmed(null)
   }
 
   const uploadSelfie = async (blob: Blob, kind: "checkin" | "checkout") => {
@@ -536,6 +571,9 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
   const isCheckedIn = activeSession && activeSession.status === "active"
   const isKioskStartedActive = activeSession?.status === "active" && activeSession?.deviceInfo?.type === "kiosk"
   const actionsBlocked = Boolean(disabled)
+  const locationGuidance = getLocationPermissionGuidance(
+    detectLocationGuidancePlatform(typeof navigator === "undefined" ? "" : navigator.userAgent)
+  )
 
   return (
     <>
@@ -772,6 +810,49 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
               <p className="text-lg">Procesăm...</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={locationHelpOpen}
+        onOpenChange={(open) => {
+          if (!open && flowState !== "processing") cancelLocationRetry()
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Locația este necesară pentru pontaj</DialogTitle>
+            <DialogDescription>
+              {locationError?.message || "Nu am putut determina locația telefonului."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-slate-700">
+            {locationError?.code === "unsupported" ? (
+              <p>Folosește un browser care permite accesul la locație sau încearcă de pe alt dispozitiv.</p>
+            ) : (
+              <ol className="list-decimal space-y-2 pl-5">
+                {locationGuidance.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Din motive de securitate, aplicația web nu poate deschide direct setările telefonului.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelLocationRetry} disabled={flowState === "processing"}>
+              Închide
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingLocationResult) void handleFaceRecognitionSuccess(pendingLocationResult)
+              }}
+              disabled={!pendingLocationResult || flowState === "processing"}
+            >
+              {flowState === "processing" ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se verifică...</>
+              ) : "Încearcă din nou"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

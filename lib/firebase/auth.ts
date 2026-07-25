@@ -29,6 +29,8 @@ export interface UserData {
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>
   // Kiosk mode - prevents auto-logout
   isKioskMode?: boolean
+  /** 4-digit PIN used at kiosk check-in/out identity verification */
+  kioskPin?: string
   // Office location for GPS verification
   officeLocation?: OfficeLocation
   createdAt?: Date
@@ -47,6 +49,7 @@ export const registerUser = async (
   phoneNumber?: string,
   clientAccess?: Array<{ clientId: string; locationNames: string[] }>,
   technicianGroupIds?: string[],
+  kioskPin?: string,
 ): Promise<UserData> => {
   try {
     // Creare cont prin API server-side (Admin SDK), pentru a evita conturi orfane în Auth.
@@ -61,6 +64,7 @@ export const registerUser = async (
         phoneNumber,
         clientAccess: clientAccess || [],
         technicianGroupIds: Array.isArray(technicianGroupIds) ? technicianGroupIds : [],
+        ...(typeof kioskPin === "string" && kioskPin.trim() ? { kioskPin: kioskPin.trim() } : {}),
       }),
     })
 

@@ -140,9 +140,17 @@ export async function clickKioskSelfieCapture(page: Page) {
   await captureButton.click()
 }
 
+export async function enterKioskPin(page: Page, pin = readOptionalEnv("E2E_KIOSK_PIN") || "1234") {
+  await expect(page.getByTestId("kiosk-pin-dialog")).toBeVisible({ timeout: 20_000 })
+  for (const digit of String(pin).replace(/\D/g, "").slice(0, 4)) {
+    await page.getByTestId(`kiosk-pin-key-${digit}`).click()
+  }
+}
+
 export async function finishKioskConfirmAndSelfie(page: Page, options?: { allowError?: RegExp }) {
   await expect(page.getByRole("dialog")).toContainText(/Confirmare Start|Confirmare Stop|Pontaj în zi nelucrătoare|Pontaj in zi nelucratoare/i)
   await page.getByRole("button", { name: /Da, mă pontez|Da, ma pontez|Da, continuă|Da, continua/i }).click()
+  await enterKioskPin(page)
   await expect(page.getByRole("dialog")).toContainText(/Selfie pontaj/i, { timeout: 20_000 })
   await clickKioskSelfieCapture(page)
   const successPattern = /Succes|Check-In Reușit|Check-Out Reușit|Ți-ai|Ti-ai/i

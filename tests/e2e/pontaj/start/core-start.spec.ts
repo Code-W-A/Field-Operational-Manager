@@ -236,16 +236,33 @@ test("STA-015 pragurile GPS 49/50/51m sunt determinate fără rotunjire", async 
   expect(determineMode(pointAt(51), office)).toBe("field")
 })
 
-test("STA-016 GPS refuzat oprește Start fără document orphan", async ({ browser }) => {
+test("STA-016 GPS refuzat afișează instrucțiuni și reia același Start fără document orphan", async ({ browser }) => {
   const context = await browser.newContext({
     baseURL: "http://127.0.0.1:3100", storageState: path.resolve("tests/e2e/.auth/technician.json"),
   })
   await context.addInitScript(() => {
+    let attempts = 0
     Object.defineProperty(navigator, "geolocation", {
       configurable: true,
       value: {
-        getCurrentPosition: (_success: PositionCallback, error: PositionErrorCallback) => {
-          error({ code: 1, message: "Permission denied", PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError)
+        getCurrentPosition: (success: PositionCallback, error: PositionErrorCallback) => {
+          attempts += 1
+          if (attempts === 1) {
+            error({ code: 1, message: "Permission denied", PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError)
+            return
+          }
+          success({
+            coords: {
+              latitude: 44.4268,
+              longitude: 26.1025,
+              accuracy: 5,
+              altitude: null,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          } as GeolocationPosition)
         },
       },
     })
@@ -253,9 +270,13 @@ test("STA-016 GPS refuzat oprește Start fără document orphan", async ({ brows
   const page = await context.newPage()
   await openField(page)
   await clickStart(page)
-  await expect(page.getByText("Eroare", { exact: true }).first()).toBeVisible()
+  const dialog = page.getByRole("dialog", { name: "Locația este necesară pentru pontaj" })
+  await expect(dialog).toContainText("Permisiunea pentru locație a fost refuzată")
+  await expect(dialog).toContainText("aplicația web nu poate deschide direct setările telefonului")
   expect(await getAttendanceForTechnician()).toHaveLength(0)
   expect(await getLock()).toBeNull()
+  await dialog.getByRole("button", { name: "Încearcă din nou" }).click()
+  await expectSingleActive()
   await context.close()
 })
 
