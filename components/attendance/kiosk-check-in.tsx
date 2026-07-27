@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation"
 import { SelfieCapture } from "@/components/attendance/selfie-capture"
 import { uploadFile } from "@/lib/firebase/storage"
 import type { KioskEligibleRole } from "@/lib/attendance/kiosk-eligible-users"
-import { isValidKioskPin } from "@/lib/attendance/kiosk-pin"
+import { isValidKioskPin, normalizeStoredKioskPin } from "@/lib/attendance/kiosk-pin"
 import { getAppNowMs, getE2eFakeNowRequestMs } from "@/lib/utils/test-clock"
 import { formatAttendanceTimeHHmm } from "@/lib/attendance/attendance-timezone"
 
@@ -295,8 +295,8 @@ export function KioskCheckIn({ users, officeLocation }: KioskCheckInProps) {
     const entered = candidate ?? pinDigits
     if (!isValidKioskPin(entered)) return
 
-    const expected = String(selectedUser.kioskPin || "").trim()
-    if (!isValidKioskPin(expected)) {
+    const expected = normalizeStoredKioskPin(selectedUser.kioskPin)
+    if (!expected) {
       toast({
         title: "PIN neconfigurat",
         description: "PIN-ul kiosk nu este setat pentru acest utilizator. Contactează administratorul.",

@@ -103,3 +103,13 @@ test("propagates kioskPin from source user when present", () => {
   assert.equal(result.length, 1)
   assert.equal(result[0]?.kioskPin, "4321")
 })
+
+test("recovers leading-zero PIN coerced to a shorter digit string", () => {
+  const employees = [employee({ id: "e1", nume: "Popescu", prenume: "Ana", userUid: "u-tech" })]
+  const users: UserInput[] = [
+    { uid: "u-tech", role: "tehnician", email: "tech@company.ro", kioskPin: "400" as any },
+  ]
+
+  const result = buildKioskEligibleUsers({ employees, users })
+  assert.equal(result[0]?.kioskPin, "0400")
+})

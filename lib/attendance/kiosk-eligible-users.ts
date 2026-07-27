@@ -1,4 +1,5 @@
 import { getEmployeeFullName, type Employee } from "@/lib/hr/types"
+import { normalizeStoredKioskPin } from "@/lib/attendance/kiosk-pin"
 
 export type KioskEligibleRole = "tehnician" | "admin" | "dispecer"
 
@@ -55,7 +56,7 @@ export function buildKioskEligibleUsers(params: { employees: Employee[]; users: 
     if (!matched) continue
     if (!isKioskEligibleRole(matched.role)) continue
 
-    const pin = String(matched.kioskPin || "").trim()
+    const pin = normalizeStoredKioskPin(matched.kioskPin)
     const candidate: KioskEligibleUser = {
       uid: userUid,
       displayName: getEmployeeFullName(employee) || String(matched.displayName || "").trim() || "Salariat",

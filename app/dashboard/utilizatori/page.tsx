@@ -1118,7 +1118,9 @@ export default function Utilizatori() {
                     </label>
                     <Input
                       id="kioskPin"
+                      type="text"
                       inputMode="numeric"
+                      pattern="[0-9]*"
                       autoComplete="off"
                       maxLength={4}
                       placeholder="Ex: 1234"

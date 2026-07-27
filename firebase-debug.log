@@ -68,3 +68,59 @@
 ├────────────────────────────────────────────┼─────────┼──────────────────────────────────────────────────────┼──────────────┼────────┼──────────┤
 │ sendHrRequestPendingApprovalReminders      │ v1      │ scheduled                                            │ europe-west1 │ 256    │ nodejs20 │
 └────────────────────────────────────────────┴─────────┴──────────────────────────────────────────────────────┴──────────────┴────────┴──────────┘
+[debug] [2026-07-25T13:57:54.065Z] ----------------------------------------------------------------------
+[debug] [2026-07-25T13:57:54.069Z] Command:       /opt/homebrew/Cellar/node/25.6.1/bin/node /opt/homebrew/bin/firebase projects:list
+[debug] [2026-07-25T13:57:54.069Z] CLI Version:   14.11.0
+[debug] [2026-07-25T13:57:54.069Z] Platform:      darwin
+[debug] [2026-07-25T13:57:54.069Z] Node Version:  v25.6.1
+[debug] [2026-07-25T13:57:54.069Z] Time:          Sat Jul 25 2026 16:57:54 GMT+0300 (Eastern European Summer Time)
+[debug] [2026-07-25T13:57:54.069Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-07-25T13:57:54.070Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-07-25T13:57:54.186Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-07-25T13:57:54.186Z] > authorizing via signed-in user (webdynamicx@gmail.com)
+[debug] [2026-07-25T13:57:54.190Z] Checked if tokens are valid: false, expires at: 1784577014866
+[debug] [2026-07-25T13:57:54.190Z] Checked if tokens are valid: false, expires at: 1784577014866
+[debug] [2026-07-25T13:57:54.190Z] > refreshing access token with scopes: []
+[debug] [2026-07-25T13:57:54.191Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-07-25T13:57:54.191Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-07-25T13:57:54.276Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 403
+[debug] [2026-07-25T13:57:54.276Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json "Blocked by sandbox network policy\nDestination: firebase-public.firebaseio.com:443\nReason: not on allow list\n"
+[warn] ⚠  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
+[debug] [2026-07-25T13:57:54.277Z] Failed to fetch MOTD FirebaseError: Unable to parse JSON: SyntaxError: Unexpected token 'B', "Blocked by"... is not valid JSON
+[debug] [2026-07-25T13:57:54.481Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-07-25T13:57:54.481Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-07-25T13:57:54.483Z] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-07-25T13:57:54.493Z] FirebaseError: Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+    at invalidCredentialError (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/auth.js:167:12)
+    at refreshTokens (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/auth.js:556:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async getAccessToken (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/apiv2.js:42:18)
+    at async Client.addAuthHeader (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/apiv2.js:169:21)
+    at async Client.request (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/apiv2.js:120:34)
+    at async getProjectPage (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/management/projects.js:267:17)
+    at async getFirebaseProjectPage (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/management/projects.js:284:23)
+    at async listFirebaseProjects (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/management/projects.js:315:29)
+    at async Command.actionFn (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/commands/projects-list.js:51:20)
+[error] 
+[error] Error: Failed to list Firebase projects. See firebase-debug.log for more info.
+[debug] [2026-07-25T13:57:54.768Z] Error: EPERM: operation not permitted, open '/Users/code-with-a/.config/configstore/firebase-tools.json.1888048253'
+    at Object.openSync (node:fs:555:18)
+    at writeFile.writeFileSync [as sync] (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/node_modules/write-file-atomic/index.js:205:13)
+    at set all (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/node_modules/configstore/index.js:61:20)
+    at Configstore.delete (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/node_modules/configstore/index.js:101:12)
+    at process.<anonymous> (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/bin/cli.js:65:45)
+    at process.emit (node:events:520:22)
+    at process.exit (node:internal/process/per_thread:236:15)
+    at Timeout._onTimeout (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/errorOut.js:20:17)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[error] 
+[error] Error: An unexpected error has occurred.

@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import {
   isKioskPinEligibleRole,
   normalizeKioskPinInput,
+  normalizeStoredKioskPin,
   resolveKioskPinForSave,
 } from "@/lib/attendance/kiosk-pin"
 // Schema de validare pentru formular
@@ -139,7 +140,7 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       role: user.role || "tehnician",
       phoneNumber: user.phoneNumber || (user as any).telefon || "",
       notes: user.notes || "",
-      kioskPin: typeof user.kioskPin === "string" ? user.kioskPin : "",
+      kioskPin: normalizeStoredKioskPin(user.kioskPin) ?? "",
     },
   })
 
@@ -546,7 +547,9 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
                   <FormLabel>PIN kiosk (4 cifre)</FormLabel>
                   <FormControl>
                     <Input
+                      type="text"
                       inputMode="numeric"
+                      pattern="[0-9]*"
                       autoComplete="off"
                       maxLength={4}
                       placeholder="Ex: 1234"

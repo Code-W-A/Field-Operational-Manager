@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react"
 import type { OfficeLocation } from "@/lib/firebase/auth"
 import type { Employee } from "@/lib/hr/types"
 import { loadKioskEligibleRoster } from "@/lib/attendance/kiosk-roster-loader"
+import { normalizeStoredKioskPin } from "@/lib/attendance/kiosk-pin"
 
 // Default office location (can be configured per deployment)
 const DEFAULT_OFFICE_LOCATION: OfficeLocation = {
@@ -67,7 +68,7 @@ export default function KioskOnlyPage() {
           )
           return snapshot.docs.map((d) => {
             const data = d.data() as any
-            const pin = data.kioskPin ? String(data.kioskPin).trim() : ""
+            const pin = normalizeStoredKioskPin(data.kioskPin)
             return {
               uid: d.id,
               email: data.email ? String(data.email) : undefined,
