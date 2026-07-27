@@ -85,6 +85,20 @@ test("calcEffectiveMinutes uses absolute attendance instants across the DST autu
   assert.equal(minutes, 60)
 })
 
+test("calcEffectiveMinutes rounds float ms diffs to whole minutes for display", () => {
+  // Simulate a wall clock span that yields a fractional ms/60000 result (condică overflow bug).
+  const minutes = calcEffectiveMinutes({
+    entries: [{
+      start: "08:00",
+      end: "14:39",
+      startTimestampMs: 1_000_000_000_000,
+      endTimestampMs: 1_000_000_000_000 + (6 * 60 + 38.994) * 60_000,
+    }],
+  })
+  assert.equal(Number.isInteger(minutes), true)
+  assert.equal(minutesToHM(minutes), "06:39")
+})
+
 test("getTimesheetCellMinutes treats a cell without entries or hours as zero", () => {
   assert.equal(getTimesheetCellMinutes({ cell: {} }), 0)
   assert.equal(getTimesheetCellMinutes({ cell: { hours: 6.5 } }), 390)

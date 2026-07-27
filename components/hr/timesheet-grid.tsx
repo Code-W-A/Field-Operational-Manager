@@ -6,7 +6,7 @@ import { getEmployeeFullName } from "@/lib/hr/types"
 import { daysInMonth } from "@/lib/hr/storage"
 import type React from "react"
 import { useState, useEffect } from "react"
-import { getTimesheetCellMinutes, type HMRange } from "@/lib/hr/time-calc"
+import { getTimesheetCellMinutes, minutesToHM, type HMRange } from "@/lib/hr/time-calc"
 
 function cellClasses(cell: TimesheetCell | undefined) {
   const code = cell?.code ?? "EMPTY"
@@ -57,14 +57,12 @@ function cellLabel(
   const shouldShowTime = code === "WORK" || code === "DEL" || code === "WE" || code === "SL"
   if (shouldShowTime) {
     const totalMinutes = getTimesheetCellMinutes({ cell, defaultBreak })
-    const hh = Math.floor(totalMinutes / 60)
-    const mm = totalMinutes % 60
     const hasTime = totalMinutes > 0 || entries.length > 0
     if (hasTime) {
       return (
         <div className="flex flex-col items-center leading-tight">
           <span className="text-sm font-semibold font-mono">
-            {String(hh).padStart(2, "0")}:{String(mm).padStart(2, "0")}
+            {minutesToHM(totalMinutes)}
           </span>
           {code !== "WORK" ? (
             <span className="text-[10px] font-bold opacity-80">{code}</span>

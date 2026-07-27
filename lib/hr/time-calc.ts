@@ -109,7 +109,7 @@ export function calcEffectiveMinutes(params: {
   const breaksToUse =
     manualBreaks.length > 0 ? manualBreaks : (isValidHMRange(params.defaultBreak) ? normalizeRanges([params.defaultBreak]) : [])
 
-  if (!breaksToUse.length) return entryMinutes
+  if (!breaksToUse.length) return Math.max(0, Math.round(entryMinutes))
 
   // Subtract break overlap with the union of entries.
   let breakOverlap = 0
@@ -119,7 +119,7 @@ export function calcEffectiveMinutes(params: {
     }
   }
 
-  return Math.max(0, entryMinutes - breakOverlap)
+  return Math.max(0, Math.round(entryMinutes - breakOverlap))
 }
 
 export function getTimesheetCellMinutes(params: {
