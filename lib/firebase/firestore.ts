@@ -393,6 +393,9 @@ export interface Echipament {
   dataInstalare?: string   // Alias pentru backward compatibility
   garantieLuni?: number    // Numărul de luni de garanție (implicit 12)
   observatii?: string      // Observații despre echipament
+  /** Fotografie opțională a echipamentului (Firebase Storage) */
+  fotoUrl?: string
+  fotoPath?: string
   // Documentație tehnică PDF atașată echipamentului (vizibilă pentru tehnicieni)
   documentatie?: Array<{
     url: string
@@ -621,7 +624,7 @@ function diffEquipments(oldEq: any[] = [], newEq: any[] = []): string[] {
   for (const [k, newVal] of newMap) {
     const oldVal = oldMap.get(k)
     if (oldVal) {
-      const fields = ["nume", "cod", "model", "serie", "dataInstalare", "ultimaInterventie", "observatii", "garantieLuni"]
+      const fields = ["nume", "cod", "model", "serie", "dataInstalare", "ultimaInterventie", "observatii", "garantieLuni", "fotoUrl"]
       const fieldChanges: string[] = []
       fields.forEach((f) => {
         const oldStr = valueToComparableString((oldVal as any)[f])

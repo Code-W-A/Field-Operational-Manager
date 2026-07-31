@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { ArrowLeft, ArrowRightLeft, Pencil, Trash2, MapPin, Wrench, Calendar, Clock, FileText, Building2, Phone, Mail, User, Hash, FileCheck, Plus, AlertCircle, Search } from "lucide-react"
+import { ArrowLeft, ArrowRightLeft, Pencil, Trash2, MapPin, Wrench, Calendar, Clock, FileText, Building2, Phone, Mail, User, Hash, FileCheck, Plus, AlertCircle, Search, Image as ImageIcon } from "lucide-react"
 import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import { getClientById, deleteClient, type Client, type Echipament } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -144,6 +144,8 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   >(undefined)
 
   const [migrateWizardOpen, setMigrateWizardOpen] = useState(false)
+  const [equipmentPhotoPreviewUrl, setEquipmentPhotoPreviewUrl] = useState<string | null>(null)
+  const [equipmentPhotoPreviewTitle, setEquipmentPhotoPreviewTitle] = useState("")
   const [migrateContext, setMigrateContext] = useState<{
     sourceLocationId: string
     sourceLocationName: string
@@ -713,16 +715,38 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                               </div>
                                             )}
 
-                                            {/* Observații */}
-                                            {echipament.observatii && (
-                                              <div className="rounded-md bg-yellow-50 px-2 py-1.5">
-                                                <div className="flex items-start gap-2">
-                                                  <FileText className="h-4 w-4 text-yellow-700 mt-0.5 flex-shrink-0" />
-                                                  <div className="min-w-0 flex-1">
-                                                    <span className="mb-0.5 block text-xs font-medium">Observații</span>
-                                                    <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground" title={echipament.observatii}>{echipament.observatii}</p>
+                                            {/* Observații + fotografie */}
+                                            {(echipament.observatii || echipament.fotoUrl) && (
+                                              <div className="rounded-md bg-yellow-50 px-2 py-1.5 space-y-2">
+                                                {echipament.observatii ? (
+                                                  <div className="flex items-start gap-2">
+                                                    <FileText className="h-4 w-4 text-yellow-700 mt-0.5 flex-shrink-0" />
+                                                    <div className="min-w-0 flex-1">
+                                                      <span className="mb-0.5 block text-xs font-medium">Observații</span>
+                                                      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground" title={echipament.observatii}>{echipament.observatii}</p>
+                                                    </div>
                                                   </div>
-                                                </div>
+                                                ) : (
+                                                  <div className="flex items-center gap-2">
+                                                    <FileText className="h-4 w-4 text-yellow-700 flex-shrink-0" />
+                                                    <span className="text-xs font-medium">Observații</span>
+                                                  </div>
+                                                )}
+                                                {echipament.fotoUrl ? (
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 gap-1.5 bg-white"
+                                                    onClick={() => {
+                                                      setEquipmentPhotoPreviewTitle(echipament.nume || echipament.cod || "Echipament")
+                                                      setEquipmentPhotoPreviewUrl(String(echipament.fotoUrl))
+                                                    }}
+                                                  >
+                                                    <ImageIcon className="h-3.5 w-3.5" />
+                                                    Vezi fotografie
+                                                  </Button>
+                                                ) : null}
                                               </div>
                                             )}
 
@@ -865,6 +889,32 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                 initialEquipmentSelection={initialEquipmentSelection}
               />
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={Boolean(equipmentPhotoPreviewUrl)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEquipmentPhotoPreviewUrl(null)
+              setEquipmentPhotoPreviewTitle("")
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{equipmentPhotoPreviewTitle || "Fotografie echipament"}</DialogTitle>
+              <DialogDescription>Fotografie atașată echipamentului</DialogDescription>
+            </DialogHeader>
+            {equipmentPhotoPreviewUrl ? (
+              <div className="flex items-center justify-center bg-muted/30 rounded-md p-2">
+                <img
+                  src={equipmentPhotoPreviewUrl}
+                  alt={equipmentPhotoPreviewTitle || "Fotografie echipament"}
+                  className="max-h-[70vh] w-auto max-w-full rounded-md object-contain"
+                />
+              </div>
+            ) : null}
           </DialogContent>
         </Dialog>
 

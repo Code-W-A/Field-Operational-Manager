@@ -5,8 +5,9 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "re
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText, Check, ChevronsUpDown, Folder, ChevronRight } from "lucide-react"
+import { AlertCircle, Loader2, Plus, Trash2, MapPin, Wrench, AlertTriangle, FileText, Check, ChevronsUpDown, Folder, ChevronRight, ImagePlus, X } from "lucide-react"
 import { addClient, updateClient, type Client, type PersoanaContact, type Locatie, type Echipament, isEchipamentCodeUnique } from "@/lib/firebase/firestore"
+import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
@@ -203,6 +204,13 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     dynamicSettings: {} as any,
   })
   const [echipamentDataInstalareInput, setEchipamentDataInstalareInput] = useState<string>("")
+  const [echipamentPhotoFile, setEchipamentPhotoFile] = useState<File | null>(null)
+  const [echipamentPhotoPreview, setEchipamentPhotoPreview] = useState<string>("")
+  const [echipamentPhotoRemoved, setEchipamentPhotoRemoved] = useState(false)
+  const [echipamentPhotoUploading, setEchipamentPhotoUploading] = useState(false)
+  /** Pending local photos for equipment created before the client has an ID (add mode). */
+  const pendingEquipmentPhotosRef = useRef<Map<string, File>>(new Map())
+  const echipamentPhotoInputRef = useRef<HTMLInputElement | null>(null)
   // Capture child selection from TemplateSelector (first-level under template)
   useEffect(() => {
     const handler = (e: any) => {
@@ -590,6 +598,14 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     setLocatii(updatedLocatii)
   }
 
+  const resetEchipamentPhotoState = (existing?: { fotoUrl?: string }) => {
+    setEchipamentPhotoFile(null)
+    setEchipamentPhotoRemoved(false)
+    setEchipamentPhotoUploading(false)
+    setEchipamentPhotoPreview(existing?.fotoUrl || "")
+    if (echipamentPhotoInputRef.current) echipamentPhotoInputRef.current.value = ""
+  }
+
   // Funcție pentru deschiderea dialogului de adăugare echipament
   const handleOpenAddEchipamentDialog = (locatieIndex: number) => {
     setSelectedLocatieIndex(locatieIndex)
@@ -602,12 +618,15 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       dataInstalare: "",
       ultimaInterventie: "",
       observatii: "",
+      fotoUrl: "",
+      fotoPath: "",
       documentationFolderId: "",
       documentationSubfolderId: "",
       documentationFileIds: [],
       documentationLabel: "",
       dynamicSettings: {} as any,
     })
+    resetEchipamentPhotoState()
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
     setIsEchipamentDialogOpen(true)
@@ -635,6 +654,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     }
 
     setEchipamentFormData({ ...echipament, dynamicSettings: (echipament as any).dynamicSettings || {} })
+    resetEchipamentPhotoState({ fotoUrl: (echipament as any).fotoUrl || "" })
     setEchipamentFormErrors([])
     setIsCodeUnique(true)
     setIsEchipamentDialogOpen(true)
@@ -706,32 +726,86 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       updatedLocatii[selectedLocatieIndex].echipamente = []
     }
 
-    // Nu încărcăm aici. Doar stocăm fișierele selectate pentru a fi încărcate la salvarea clientului.
-    const equipmentToSave: any = { ...echipamentFormData }
+    const location = updatedLocatii[selectedLocatieIndex]
+    const locationId = String((location as any)?.id || `loc_${selectedLocatieIndex}`)
+    const existingId =
+      selectedEchipamentIndex !== null
+        ? updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex].id
+        : undefined
+    const equipmentId = String(existingId || uuidv4())
 
-    // Adăugăm sau actualizăm echipamentul
-    if (selectedEchipamentIndex !== null) {
-      // Editare echipament existent
-      const existingId = updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex].id
-      updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex] = {
-        ...equipmentToSave,
-        id: existingId,
-      }
-      // Documentații: nu mai încărcăm fișiere aici (folosim folder-based selection)
-    } else {
-      // Adăugare echipament nou
-      // IMPORTANT: ID stabil (nu "temp-*") ca să prevenim ambiguități la selecție/salvare în lucrări.
-      const generatedId = uuidv4()
-      updatedLocatii[selectedLocatieIndex].echipamente!.push({
-        ...equipmentToSave,
-        id: generatedId,
-      })
-      // Documentații: nu mai încărcăm fișiere aici (folosim folder-based selection)
+    const equipmentToSave: any = {
+      ...echipamentFormData,
+      id: equipmentId,
     }
 
-    setLocatii(updatedLocatii)
-    setIsEchipamentDialogOpen(false)
-    // Documentații: nu mai gestionăm fișiere locale aici
+    if (echipamentPhotoRemoved) {
+      delete equipmentToSave.fotoUrl
+      delete equipmentToSave.fotoPath
+    } else {
+      if (echipamentFormData.fotoUrl) equipmentToSave.fotoUrl = echipamentFormData.fotoUrl
+      else delete equipmentToSave.fotoUrl
+      if (echipamentFormData.fotoPath) equipmentToSave.fotoPath = echipamentFormData.fotoPath
+      else delete equipmentToSave.fotoPath
+    }
+
+    try {
+      setEchipamentPhotoUploading(true)
+
+      const clientId = client?.id ? String(client.id) : ""
+      const previousPath = String((echipamentFormData as any).fotoPath || "").trim()
+
+      if (echipamentPhotoRemoved && previousPath) {
+        try {
+          await deleteFile(previousPath)
+        } catch (err) {
+          console.warn("Nu s-a putut șterge fotografia veche a echipamentului:", err)
+        }
+        pendingEquipmentPhotosRef.current.delete(equipmentId)
+      }
+
+      if (echipamentPhotoFile) {
+        if (clientId) {
+          if (previousPath) {
+            try {
+              await deleteFile(previousPath)
+            } catch (err) {
+              console.warn("Nu s-a putut șterge fotografia anterioară:", err)
+            }
+          }
+          const ext = (echipamentPhotoFile.name.split(".").pop() || "jpg").toLowerCase()
+          const path = `clients/${clientId}/locations/${locationId}/equipment/${equipmentId}/photo-${Date.now()}.${ext}`
+          const uploaded = await uploadFile(echipamentPhotoFile, path)
+          equipmentToSave.fotoUrl = uploaded.url
+          equipmentToSave.fotoPath = path
+          pendingEquipmentPhotosRef.current.delete(equipmentId)
+        } else {
+          // Client not yet created — keep file until client save.
+          pendingEquipmentPhotosRef.current.set(equipmentId, echipamentPhotoFile)
+          equipmentToSave.fotoUrl = echipamentPhotoPreview || undefined
+          equipmentToSave.fotoPath = undefined
+        }
+      }
+
+      if (selectedEchipamentIndex !== null) {
+        updatedLocatii[selectedLocatieIndex].echipamente![selectedEchipamentIndex] = equipmentToSave
+      } else {
+        updatedLocatii[selectedLocatieIndex].echipamente!.push(equipmentToSave)
+      }
+
+      setLocatii(updatedLocatii)
+      setIsEchipamentDialogOpen(false)
+      resetEchipamentPhotoState()
+    } catch (err) {
+      console.error("Eroare la salvarea fotografiei echipamentului:", err)
+      toast({
+        title: "Eroare fotografie",
+        description: err instanceof Error ? err.message : "Nu s-a putut încărca fotografia echipamentului.",
+        variant: "destructive",
+      })
+    } finally {
+      setEchipamentPhotoUploading(false)
+    }
   }
 
   // Funcție pentru ștergerea unui echipament
@@ -902,7 +976,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         }))
 
       // Filtrăm locațiile și persoanele de contact goale din locații
-      const filteredLocatii = locatii
+      let filteredLocatii = locatii
         .filter((locatie) => hasAnyLocationContent(locatie))
         .map((locatie) => ({
           ...locatie,
@@ -919,6 +993,42 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       const primaryClientContact = filteredClientContacts.length > 0 ? filteredClientContacts[0] : null
       const legacyPrimaryContactName =
         primaryClientContact?.nume || formData.reprezentantFirma || (client as any)?.persoanaContact || ""
+
+      const uploadPendingEquipmentPhotos = async (clientId: string, locations: Locatie[]) => {
+        const resolved: Locatie[] = []
+        for (let locIdx = 0; locIdx < locations.length; locIdx++) {
+          const locatie = locations[locIdx]
+          const locationId = String((locatie as any)?.id || `loc_${locIdx}`)
+          const echipamente: Echipament[] = []
+          for (const eq of locatie.echipamente || []) {
+            const equipmentId = String(eq.id || uuidv4())
+            const pendingFile = pendingEquipmentPhotosRef.current.get(equipmentId)
+            let fotoUrl = eq.fotoUrl
+            let fotoPath = eq.fotoPath
+            if (pendingFile) {
+              const ext = (pendingFile.name.split(".").pop() || "jpg").toLowerCase()
+              const path = `clients/${clientId}/locations/${locationId}/equipment/${equipmentId}/photo-${Date.now()}.${ext}`
+              const uploaded = await uploadFile(pendingFile, path)
+              fotoUrl = uploaded.url
+              fotoPath = path
+              pendingEquipmentPhotosRef.current.delete(equipmentId)
+            } else if (typeof fotoUrl === "string" && fotoUrl.startsWith("blob:")) {
+              fotoUrl = undefined
+              fotoPath = undefined
+            }
+            const rest = { ...eq, id: equipmentId } as Echipament
+            delete (rest as any).fotoUrl
+            delete (rest as any).fotoPath
+            echipamente.push({
+              ...rest,
+              ...(fotoUrl ? { fotoUrl } : {}),
+              ...(fotoPath ? { fotoPath } : {}),
+            })
+          }
+          resolved.push({ ...locatie, echipamente })
+        }
+        return resolved
+      }
 
       if (mode === "add") {
         // MODE: ADD - Create new client
@@ -939,7 +1049,11 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       const clientId = (created as any)?.id
       console.log("Client adăugat cu ID:", clientId)
 
-      // 2) Documentațiile sunt gestionate separat (folder-based); nu încărcăm aici fișiere.
+      // 2) Upload fotografii echipament pending + update locatii dacă e nevoie
+      if (clientId && pendingEquipmentPhotosRef.current.size > 0) {
+        filteredLocatii = await uploadPendingEquipmentPhotos(String(clientId), filteredLocatii)
+        await updateClient(String(clientId), { locatii: filteredLocatii })
+      }
 
         setFormModified(false)
       if (clientId) {
@@ -953,6 +1067,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         // MODE: EDIT - Update existing client
         if (!client?.id) {
           throw new Error("ID-ul clientului lipsește")
+        }
+
+        if (pendingEquipmentPhotosRef.current.size > 0) {
+          filteredLocatii = await uploadPendingEquipmentPhotos(String(client.id), filteredLocatii)
         }
 
         await updateClient(client.id, {
@@ -1718,6 +1836,79 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                 rows={6}
                 className="resize-none"
               />
+              <div className="pt-2 space-y-2">
+                <input
+                  ref={echipamentPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null
+                    if (!file) return
+                    if (echipamentPhotoPreview.startsWith("blob:")) {
+                      try {
+                        URL.revokeObjectURL(echipamentPhotoPreview)
+                      } catch {}
+                    }
+                    const previewUrl = URL.createObjectURL(file)
+                    setEchipamentPhotoFile(file)
+                    setEchipamentPhotoPreview(previewUrl)
+                    setEchipamentPhotoRemoved(false)
+                  }}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={echipamentPhotoUploading}
+                    onClick={() => echipamentPhotoInputRef.current?.click()}
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    {echipamentPhotoPreview && !echipamentPhotoRemoved ? "Schimbă fotografia" : "Încarcă fotografie"}
+                  </Button>
+                  {echipamentPhotoPreview && !echipamentPhotoRemoved ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-destructive hover:text-destructive"
+                      disabled={echipamentPhotoUploading}
+                      onClick={() => {
+                        if (echipamentPhotoPreview.startsWith("blob:")) {
+                          try {
+                            URL.revokeObjectURL(echipamentPhotoPreview)
+                          } catch {}
+                        }
+                        setEchipamentPhotoFile(null)
+                        setEchipamentPhotoPreview("")
+                        setEchipamentPhotoRemoved(true)
+                        if (echipamentPhotoInputRef.current) echipamentPhotoInputRef.current.value = ""
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                      Șterge poza
+                    </Button>
+                  ) : null}
+                  <span className="text-xs text-muted-foreground">Opțional</span>
+                </div>
+                {echipamentPhotoPreview && !echipamentPhotoRemoved ? (
+                  <div className="relative w-28 h-28 rounded-md border overflow-hidden bg-muted">
+                    <img
+                      src={echipamentPhotoPreview}
+                      alt="Previzualizare echipament"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : null}
+                {echipamentPhotoUploading ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Se încarcă fotografia…
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {/* Documentații (nou) – selectare dosar / subdosar */}
@@ -2038,13 +2229,15 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                 !echipamentFormData.nume ||
                 !echipamentFormData.cod ||
                 !isCodeUnique ||
-                isCheckingCode
+                isCheckingCode ||
+                echipamentPhotoUploading
               }
               className="w-full sm:w-auto"
             >
-              {isCheckingCode ? (
+              {isCheckingCode || echipamentPhotoUploading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificare...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+                  {echipamentPhotoUploading ? "Se încarcă poza..." : "Verificare..."}
                 </>
               ) : (
                 "Salvează"
