@@ -10,6 +10,7 @@ import {
   requireScheduledWorksAdmin,
 } from "./scheduled-works-auth"
 import { mayUseExternalSmtp } from "./mail-transport-policy"
+export { auditNestedDocumentWritten, auditTopLevelDocumentWritten } from "./audit-log"
 
 // Initialize the default Firebase app for Admin SDK
 initializeApp()

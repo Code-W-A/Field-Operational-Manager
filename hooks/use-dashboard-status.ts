@@ -9,6 +9,7 @@ import { selectLatestEquipmentStatusWinners } from "@/lib/utils/dashboard-equipm
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-settings"
+import { isUninvoicedWork } from "@/lib/reports/uninvoiced"
 import { toDateSafe } from "@/lib/utils/time-format"
 import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 
@@ -485,13 +486,8 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       }
 
       // Nefacturate - sortate după data generării raportului
-      const hasInvoice = Boolean((l as any).numarFactura || (l as any).facturaDocument)
-      const hasMotiv = Boolean((l as any).motivNefacturare)
       if (cfg.nefacturateEnabled) {
-        const reportOk = cfg.nefacturateRequireReportGenerated ? Boolean(l.raportGenerat) : true
-        const noInvoiceOk = cfg.nefacturateRequireNoInvoice ? !hasInvoice : true
-        const noReasonOk = cfg.nefacturateRequireNoReason ? !hasMotiv : true
-        if (reportOk && noInvoiceOk && noReasonOk) {
+        if (isUninvoicedWork(l)) {
         res.nefacturate.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
         }
       }

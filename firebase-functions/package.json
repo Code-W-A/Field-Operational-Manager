@@ -9,7 +9,8 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:audit": "../node_modules/.bin/tsx --test src/audit-log.test.ts"
   },
   "engines": {
     "node": "20"
