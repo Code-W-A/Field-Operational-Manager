@@ -48,7 +48,7 @@ const AUDITED_COLLECTIONS = new Set([
   "crm_inbox_messages",
 ])
 
-const SENSITIVE_FIELD = /password|passphrase|token|secret|credential|kioskpin|signature|semnatura|image|imagine|base64|privatekey|mailpassword/i
+const SENSITIVE_FIELD = /password|passphrase|token|secret|credential|kioskpin|signature|semnatura|image|imagine|photo|fotograf|base64|privatekey|mailpassword|filecontent|filedata|attachmentdata/i
 const INTERNAL_FIELD = /^(updatedAt|createdAt|notificationRead|notificationReadBy)$/
 
 type ChangeOperation = "create" | "update" | "delete"
@@ -136,13 +136,36 @@ function printable(value: unknown) {
   }
 }
 
+function printableRevisionSections(value: unknown) {
+  if (!Array.isArray(value)) return printable(value)
+  const sections = value.slice(0, 30).map((section: any) => ({
+    id: String(section?.id || "").slice(0, 160),
+    title: String(section?.title || section?.name || "").slice(0, 240),
+    items: Array.isArray(section?.items)
+      ? section.items.slice(0, 120).map((item: any) => ({
+          id: String(item?.id || "").slice(0, 160),
+          label: String(item?.label || item?.name || "").slice(0, 300),
+          state: item?.state == null ? undefined : String(item.state).slice(0, 60),
+          obs: item?.obs == null ? undefined : String(item.obs).slice(0, 1_000),
+        }))
+      : [],
+  }))
+  const serialized = JSON.stringify(sections)
+  return serialized.length > 40_000 ? `${serialized.slice(0, 40_000)}…` : serialized
+}
+
+function printableField(field: string, value: unknown) {
+  if (field === "sections") return printableRevisionSections(value)
+  return printable(value)
+}
+
 export function buildAuditChanges(before: Record<string, unknown>, after: Record<string, unknown>) {
   const fields = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
   const changes: AuditChangeValue[] = []
   for (const field of fields) {
     if (SENSITIVE_FIELD.test(field) || INTERNAL_FIELD.test(field)) continue
-    const oldValue = printable(before[field])
-    const newValue = printable(after[field])
+    const oldValue = printableField(field, before[field])
+    const newValue = printableField(field, after[field])
     if (oldValue === newValue) continue
     changes.push({ field, label: field, before: oldValue, after: newValue })
     if (changes.length >= 50) break

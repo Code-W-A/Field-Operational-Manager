@@ -25,6 +25,8 @@ export interface AuditValuePresentation {
 export interface AuditChangePresentation {
   label: string
   kind: AuditChangeKind
+  summary?: string
+  eventTitle?: string
   before: AuditValuePresentation
   after: AuditValuePresentation
 }

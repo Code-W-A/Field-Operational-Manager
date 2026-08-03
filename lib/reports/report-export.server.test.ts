@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import ExcelJS from "exceljs"
+import { presentAuditEvent } from "./activity-presentation"
 import { exportActivityPdf, exportActivityXlsx, exportUninvoicedPdf, exportUninvoicedXlsx } from "./report-export.server"
 import type { AuditEvent, UninvoicedReportRow } from "./types"
 
@@ -41,6 +42,27 @@ test("exportul de activitate folosește texte lizibile și nu expune JSON", asyn
   assert.match(text, /Status tichet: Nou → Finalizat/)
   assert.match(text, /Produse ofertă: Niciun element → 1 produs/)
   assert.doesNotMatch(text, /statusLucrare|\{"denumire"/)
+})
+
+test("exportul explică semantic timpii reviziei și ascunde ID-urile echipamentelor", async () => {
+  const revision = presentAuditEvent({
+    ...activity[0],
+    id: "revision-1",
+    changes: [{
+      field: "revisionEquipmentTimes",
+      label: "revisionEquipmentTimes",
+      before: '{"equipment-internal-id":{"startIso":"2026-08-01T08:00:00.000Z"}}',
+      after: '{"equipment-internal-id":{"startIso":"2026-08-01T08:00:00.000Z","endIso":"2026-08-01T09:00:00.000Z","durationText":"1h 0m"}}',
+    }],
+  }, { equipmentLabels: { "equipment-internal-id": "Centrală termică (CT-01)" } })
+  const output = await exportActivityXlsx([revision], generatedAt, "01.08.2026")
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(output.body as any)
+  const values = workbook.worksheets[0].getRow(2).values as ExcelJS.CellValue[]
+  const text = values.slice(1).map(String).join(" | ")
+  assert.match(text, /A finalizat revizia pentru Centrală termică \(CT-01\)/)
+  assert.match(text, /Revizie – Centrală termică \(CT-01\)/)
+  assert.doesNotMatch(text, /equipment-internal-id|revisionEquipmentTimes|\{"/)
 })
 
 test("exporturile PDF sunt documente multipaginabile valide", () => {

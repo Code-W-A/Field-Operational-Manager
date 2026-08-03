@@ -186,6 +186,7 @@ function ActivityDetailsSheet({ event, onOpenChange }: { event: AuditEvent | nul
                                 changeDisplay.kind === "removed" && "border-rose-200 bg-rose-50 text-rose-700",
                               )}>{changeKindLabel(change)}</Badge>
                             </div>
+                            {changeDisplay.summary ? <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{changeDisplay.summary}</p> : null}
                             <div className="grid gap-3 sm:grid-cols-2">
                               <ValueDetails value={changeDisplay.before} tone="before" />
                               <ValueDetails value={changeDisplay.after} tone="after" />

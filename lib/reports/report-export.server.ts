@@ -260,7 +260,7 @@ export function exportUninvoicedPdf(rows: UninvoicedReportRow[], generatedAt: Da
 }
 
 export function exportActivityPdf(rows: AuditEvent[], generatedAt: Date, periodLabel: string) {
-  const presentedRows = rows.map(presentAuditEvent)
+  const presentedRows = rows.map((row) => presentAuditEvent(row))
   return renderTablePdf({
     title: "Activitate utilizator",
     subtitle: periodLabel,

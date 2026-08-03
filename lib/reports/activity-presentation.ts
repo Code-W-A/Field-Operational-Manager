@@ -7,8 +7,14 @@ import type {
   AuditValuePresentation,
 } from "@/lib/reports/types"
 
-const SENSITIVE_FIELD = /password|passphrase|token|secret|credential|kioskpin|pin$|signature|semnatura|image|imagine|base64|privatekey|mailpassword/i
+const SENSITIVE_FIELD = /password|passphrase|token|secret|credential|kioskpin|pin$|signature|semnatura|image|imagine|photo|fotograf|base64|privatekey|mailpassword|filecontent|filedata|attachmentdata/i
 const BINARY_VALUE = /^(?:data:[^;]+;base64,|[A-Za-z0-9+/]{500,}={0,2}$)/i
+
+export interface AuditPresentationContext {
+  ticketLabel?: string
+  revisionEquipmentName?: string
+  equipmentLabels?: Record<string, string>
+}
 
 const FIELD_LABELS: Record<string, string> = {
   status: "Status",
@@ -35,6 +41,21 @@ const FIELD_LABELS: Record<string, string> = {
   echipamentCod: "Cod echipament",
   echipamentModel: "Model echipament",
   equipmentIds: "Echipamente selectate",
+  revisionEquipmentTimes: "Timpii reviziei pe echipamente",
+  revision: "Progresul reviziei",
+  equipmentStatus: "Starea reviziei pe echipamente",
+  checklistVersionId: "Fișă de verificare utilizată",
+  sections: "Puncte de verificare",
+  finalObservations: "Observații finale",
+  overallState: "Starea generală a echipamentului",
+  qrVerified: "Cod QR verificat",
+  qrVerifiedAt: "Data verificării codului QR",
+  completedAt: "Data finalizării",
+  completedBy: "Finalizat de",
+  startIso: "Începutul reviziei",
+  endIso: "Finalul reviziei",
+  durationMinutes: "Durată",
+  durationText: "Durată",
   equipmentVerified: "Echipament verificat",
   persoanaContact: "Persoană de contact",
   persoaneContact: "Persoane de contact",
@@ -149,7 +170,7 @@ function sanitizeStructuredValue(value: unknown, depth = 0): unknown {
     return value.length > 4_000 ? `${value.slice(0, 4_000)}…` : value
   }
   if (typeof value === "number" || typeof value === "boolean") return value
-  if (depth >= 3) return "[date complexe]"
+  if (depth >= 5) return "[date complexe]"
   if (Array.isArray(value)) return value.slice(0, 30).map((item) => sanitizeStructuredValue(item, depth + 1))
   if (typeof value === "object") {
     const result: Record<string, unknown> = {}
@@ -211,6 +232,7 @@ function booleanText(field: string, value: boolean) {
   if (field === "preluatDispecer") return value ? "Preluat" : "Nepreluat"
   if (field === "necesitaOferta") return value ? "Necesită ofertă" : "Nu necesită ofertă"
   if (field === "equipmentVerified") return value ? "Verificat" : "Neverificat"
+  if (field === "qrVerified") return value ? "Verificat" : "Neverificat"
   return value ? "Da" : "Nu"
 }
 
@@ -219,6 +241,7 @@ function primitiveText(value: unknown, field: string): string {
   if (typeof value === "boolean") return booleanText(field, value)
   if (typeof value === "number") return new Intl.NumberFormat("ro-RO", { maximumFractionDigits: 2 }).format(value)
   const stringValue = String(value)
+  if (field === "overallState" || field.endsWith(".state")) return revisionChecklistStateLabel(stringValue)
   return formatDateValue(stringValue) || stringValue
 }
 
@@ -275,13 +298,266 @@ function valueSummary(value: unknown, field: string): string {
   return primitiveText(value, field)
 }
 
-export function formatAuditValue(value: string | undefined, field: string): AuditValuePresentation {
-  const parsed = parseStoredValue(value)
+function replaceEquipmentIdentifiers(value: unknown, context?: AuditPresentationContext) {
+  if (!Array.isArray(value) || !context?.equipmentLabels) return value
+  return value.map((item) => {
+    const key = String(item ?? "")
+    return context.equipmentLabels?.[key] || item
+  })
+}
+
+export function formatAuditValue(value: string | undefined, field: string, context?: AuditPresentationContext): AuditValuePresentation {
+  const stored = parseStoredValue(value)
+  const parsed = field === "equipmentIds" ? replaceEquipmentIdentifiers(stored, context) : stored
   return {
     text: valueSummary(parsed, field),
     empty: parsed === undefined || parsed === null || parsed === "",
     items: structuredItems(parsed, field),
   }
+}
+
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {}
+}
+
+function equipmentLabel(id: string, index: number, context?: AuditPresentationContext) {
+  const resolved = String(context?.equipmentLabels?.[id] || "").trim()
+  if (resolved && resolved !== id) return resolved
+  if (id && id.length <= 18 && !/^[a-f0-9-]{16,}$/i.test(id)) return id
+  return `Echipamentul ${index + 1}`
+}
+
+function durationLabel(value: Record<string, any>) {
+  const explicit = String(value.durationText || "").trim()
+  if (explicit) return explicit
+  const minutes = Number(value.durationMinutes)
+  if (!Number.isFinite(minutes)) return "Necompletată"
+  const hours = Math.floor(minutes / 60)
+  const rest = Math.max(0, Math.round(minutes % 60))
+  if (!hours) return `${rest} min`
+  return rest ? `${hours} h ${rest} min` : `${hours} h`
+}
+
+function revisionTimeValue(value: Record<string, any> | undefined): AuditValuePresentation {
+  if (!value || !Object.keys(value).length) return { text: "Revizia nu era înregistrată", empty: true, items: [] }
+  const start = value.startIso ? formatDateValue(String(value.startIso)) || String(value.startIso) : null
+  const end = value.endIso ? formatDateValue(String(value.endIso)) || String(value.endIso) : null
+  const items: AuditValueItem[] = []
+  if (start) items.push({ label: "Începută la", value: start })
+  if (end) items.push({ label: "Finalizată la", value: end })
+  if (value.durationText || value.durationMinutes !== undefined) items.push({ label: "Durată", value: durationLabel(value) })
+  return {
+    text: end ? "Revizie finalizată" : start ? "Revizie în desfășurare" : "Timpi necompletați",
+    empty: false,
+    items,
+  }
+}
+
+function revisionTimeText(params: {
+  before?: Record<string, any>
+  after?: Record<string, any>
+  equipment: string
+}) {
+  const before = params.before || {}
+  const after = params.after || {}
+  const started = !before.startIso && Boolean(after.startIso)
+  const finished = !before.endIso && Boolean(after.endIso)
+  const removed = Boolean(Object.keys(before).length) && !Object.keys(after).length
+  if (finished) {
+    return {
+      eventTitle: `A finalizat revizia pentru ${params.equipment}`,
+      summary: `Revizia a fost finalizată. Durata înregistrată este ${durationLabel(after)}.`,
+    }
+  }
+  if (started) {
+    const at = formatDateValue(String(after.startIso)) || String(after.startIso)
+    return {
+      eventTitle: `A început revizia pentru ${params.equipment}`,
+      summary: `Revizia a fost începută la ${at}.`,
+    }
+  }
+  if (removed) {
+    return {
+      eventTitle: `A eliminat timpii reviziei pentru ${params.equipment}`,
+      summary: "Înregistrarea timpului de revizie a fost eliminată.",
+    }
+  }
+  return {
+    eventTitle: `A actualizat timpul reviziei pentru ${params.equipment}`,
+    summary: "Ora sau durata reviziei a fost corectată.",
+  }
+}
+
+function presentRevisionEquipmentTimes(change: AuditChange, context?: AuditPresentationContext): AuditChange[] | null {
+  const before = asRecord(parseStoredValue(change.before))
+  const after = asRecord(parseStoredValue(change.after))
+  if (!Object.keys(before).length && !Object.keys(after).length) return null
+  const equipmentIds = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+  const changedIds = equipmentIds.filter((id) => JSON.stringify(before[id]) !== JSON.stringify(after[id]))
+  if (!changedIds.length) return []
+
+  return changedIds.map((id) => {
+    const index = equipmentIds.indexOf(id)
+    const name = equipmentLabel(id, index, context)
+    const beforeTime = Object.keys(asRecord(before[id])).length ? asRecord(before[id]) : undefined
+    const afterTime = Object.keys(asRecord(after[id])).length ? asRecord(after[id]) : undefined
+    const wording = revisionTimeText({ before: beforeTime, after: afterTime, equipment: name })
+    const synthetic: AuditChange = {
+      field: `revisionEquipmentTimes.${id}`,
+      label: `Revizie – ${name}`,
+      before: beforeTime ? JSON.stringify(beforeTime) : undefined,
+      after: afterTime ? JSON.stringify(afterTime) : undefined,
+    }
+    return {
+      ...synthetic,
+      presentation: {
+        label: synthetic.label,
+        kind: changeKind(synthetic),
+        summary: wording.summary,
+        eventTitle: wording.eventTitle,
+        before: revisionTimeValue(beforeTime),
+        after: revisionTimeValue(afterTime),
+      },
+    }
+  })
+}
+
+function revisionStatusLabel(value: unknown) {
+  const status = String(value || "").toLocaleLowerCase("ro-RO")
+  if (status === "pending") return "În așteptare"
+  if (status === "in_progress") return "Revizie în lucru"
+  if (status === "done") return "Revizie finalizată"
+  return value ? capitalize(splitTechnicalName(String(value))) : "Necompletat"
+}
+
+function presentRevisionStatuses(change: AuditChange, context?: AuditPresentationContext): AuditChange[] | null {
+  const beforeRoot = asRecord(parseStoredValue(change.before))
+  const afterRoot = asRecord(parseStoredValue(change.after))
+  const before = asRecord(beforeRoot.equipmentStatus)
+  const after = asRecord(afterRoot.equipmentStatus)
+  if (!Object.keys(before).length && !Object.keys(after).length) return null
+  const equipmentIds = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+  const changedIds = equipmentIds.filter((id) => before[id] !== after[id])
+  if (!changedIds.length) return null
+
+  return changedIds.map((id) => {
+    const name = equipmentLabel(id, equipmentIds.indexOf(id), context)
+    const beforeLabel = revisionStatusLabel(before[id])
+    const afterLabel = revisionStatusLabel(after[id])
+    const eventTitle = after[id] === "done"
+      ? `A finalizat revizia pentru ${name}`
+      : after[id] === "in_progress"
+        ? `A început revizia pentru ${name}`
+        : `A actualizat starea reviziei pentru ${name}`
+    return {
+      field: `revision.equipmentStatus.${id}`,
+      label: `Starea reviziei – ${name}`,
+      before: before[id] === undefined ? undefined : String(before[id]),
+      after: after[id] === undefined ? undefined : String(after[id]),
+      presentation: {
+        label: `Starea reviziei – ${name}`,
+        kind: before[id] === undefined ? "added" : after[id] === undefined ? "removed" : "changed",
+        summary: `Starea reviziei a trecut de la „${beforeLabel}” la „${afterLabel}”.`,
+        eventTitle,
+        before: { text: beforeLabel, empty: before[id] === undefined, items: [] },
+        after: { text: afterLabel, empty: after[id] === undefined, items: [] },
+      },
+    }
+  })
+}
+
+function revisionChecklistStateLabel(value: unknown) {
+  const state = String(value || "").toLocaleLowerCase("ro-RO")
+  if (state === "functional") return "Funcțional"
+  if (state === "nefunctional") return "Nefuncțional"
+  if (state === "na" || state === "n/a") return "Nu se aplică"
+  return value ? capitalize(splitTechnicalName(String(value))) : "Necompletat"
+}
+
+interface RevisionChecklistAuditItem {
+  id: string
+  label: string
+  section: string
+  state?: string
+  obs?: string
+}
+
+function revisionChecklistItems(value: unknown) {
+  const result = new Map<string, RevisionChecklistAuditItem>()
+  if (!Array.isArray(value)) return result
+  for (const [sectionIndex, sectionValue] of value.entries()) {
+    const section = asRecord(sectionValue)
+    const sectionName = String(section.title || section.name || `Secțiunea ${sectionIndex + 1}`).trim()
+    const items = Array.isArray(section.items) ? section.items : []
+    for (const [itemIndex, itemValue] of items.entries()) {
+      const item = asRecord(itemValue)
+      const id = String(item.id || `${section.id || sectionIndex}:${itemIndex}`)
+      result.set(id, {
+        id,
+        label: String(item.label || item.name || `Punctul ${itemIndex + 1}`).trim(),
+        section: sectionName,
+        state: item.state == null ? undefined : String(item.state),
+        obs: item.obs == null ? undefined : String(item.obs),
+      })
+    }
+  }
+  return result
+}
+
+function checklistEventTitle(context?: AuditPresentationContext) {
+  return `A actualizat fișa de revizie${context?.revisionEquipmentName ? ` pentru ${context.revisionEquipmentName}` : ""}`
+}
+
+function presentRevisionSections(change: AuditChange, context?: AuditPresentationContext): AuditChange[] | null {
+  const beforeItems = revisionChecklistItems(parseStoredValue(change.before))
+  const afterItems = revisionChecklistItems(parseStoredValue(change.after))
+  if (!beforeItems.size && !afterItems.size) return null
+  const ids = Array.from(new Set([...beforeItems.keys(), ...afterItems.keys()]))
+  const result: AuditChange[] = []
+
+  for (const id of ids) {
+    const before = beforeItems.get(id)
+    const after = afterItems.get(id)
+    const label = after?.label || before?.label || "Punct de verificare"
+    const section = after?.section || before?.section
+    if (before?.state !== after?.state) {
+      const beforeState = revisionChecklistStateLabel(before?.state)
+      const afterState = revisionChecklistStateLabel(after?.state)
+      result.push({
+        field: `sections.${id}.state`,
+        label: label,
+        before: before?.state,
+        after: after?.state,
+        presentation: {
+          label: label,
+          kind: before?.state === undefined ? "added" : after?.state === undefined ? "removed" : "changed",
+          summary: `${section ? `${section}: ` : ""}starea punctului „${label}” a trecut de la „${beforeState}” la „${afterState}”.`,
+          eventTitle: checklistEventTitle(context),
+          before: { text: beforeState, empty: before?.state === undefined, items: [] },
+          after: { text: afterState, empty: after?.state === undefined, items: [] },
+        },
+      })
+    }
+    if ((before?.obs || "") !== (after?.obs || "")) {
+      const beforeObservation = String(before?.obs || "").trim()
+      const afterObservation = String(after?.obs || "").trim()
+      result.push({
+        field: `sections.${id}.obs`,
+        label: `Observație – ${label}`,
+        before: beforeObservation || undefined,
+        after: afterObservation || undefined,
+        presentation: {
+          label: `Observație – ${label}`,
+          kind: !beforeObservation ? "added" : !afterObservation ? "removed" : "changed",
+          summary: `${section ? `${section}: ` : ""}observația pentru „${label}” a fost actualizată.`,
+          eventTitle: checklistEventTitle(context),
+          before: { text: beforeObservation || "Fără observație", empty: !beforeObservation, items: [] },
+          after: { text: afterObservation || "Fără observație", empty: !afterObservation, items: [] },
+        },
+      })
+    }
+  }
+  return result.length ? result : null
 }
 
 function changeKind(change: AuditChange): AuditChangeKind {
@@ -292,7 +568,7 @@ function changeKind(change: AuditChange): AuditChangeKind {
   return "changed"
 }
 
-export function presentAuditChange(change: AuditChange): AuditChange | null {
+export function presentAuditChange(change: AuditChange, context?: AuditPresentationContext): AuditChange | null {
   if (isSensitiveAuditField(change.field)) return null
   const before = sanitizeAuditRawValue(change.before)
   const after = sanitizeAuditRawValue(change.after)
@@ -303,8 +579,8 @@ export function presentAuditChange(change: AuditChange): AuditChange | null {
     presentation: {
       label: humanizeAuditField(change.field, change.label),
       kind: changeKind(sanitized),
-      before: formatAuditValue(before, change.field),
-      after: formatAuditValue(after, change.field),
+      before: formatAuditValue(before, change.field, context),
+      after: formatAuditValue(after, change.field, context),
     },
   }
 }
@@ -315,6 +591,7 @@ function humanizeModule(module: string) {
 }
 
 function humanizeEntity(entityType: string) {
+  if (/tichet\s*\/\s*revisions?/i.test(entityType)) return "Fișă de revizie"
   return capitalize(splitTechnicalName(entityType || "Entitate"))
 }
 
@@ -356,25 +633,69 @@ function eventTitle(event: AuditEvent, entityDisplay: string) {
   return entityDisplay ? `${action}: ${entityDisplay}` : action
 }
 
+export function ticketIdFromAuditEvent(event: Pick<AuditEvent, "entityId" | "entityType">) {
+  if (!event.entityId || !event.entityType.toLocaleLowerCase("ro-RO").includes("tichet")) return undefined
+  const segments = event.entityId.split("/")
+  return segments[0] === "lucrari" && segments[1] ? segments[1] : event.entityId
+}
+
 function entityHref(event: AuditEvent) {
-  if (!event.entityId) return undefined
   const entity = event.entityType.toLocaleLowerCase("ro-RO")
   if (entity.includes("tichet")) {
-    const segments = event.entityId.split("/")
-    const ticketId = segments[0] === "lucrari" && segments[1] ? segments[1] : event.entityId
-    return `/dashboard/lucrari/${encodeURIComponent(ticketId)}`
+    const ticketId = ticketIdFromAuditEvent(event)
+    if (ticketId) return `/dashboard/lucrari/${encodeURIComponent(ticketId)}`
   }
   return undefined
 }
 
-export function presentAuditEvent(event: AuditEvent): AuditEvent {
-  const changes = event.changes.map(presentAuditChange).filter((change): change is AuditChange => Boolean(change))
-  const displayEntity = String(event.entityLabel || event.entityId || "").trim()
-  const title = eventTitle(event, displayEntity)
+function presentAuditChanges(change: AuditChange, context?: AuditPresentationContext): AuditChange[] {
+  if (change.field === "revisionEquipmentTimes") {
+    const revisions = presentRevisionEquipmentTimes(change, context)
+    if (revisions) return revisions
+  }
+  if (change.field === "revision") {
+    const statuses = presentRevisionStatuses(change, context)
+    if (statuses) return statuses
+  }
+  if (change.field === "sections") {
+    const checklist = presentRevisionSections(change, context)
+    if (checklist) return checklist
+  }
+  const presented = presentAuditChange(change, context)
+  return presented ? [presented] : []
+}
+
+function isRevisionEntity(event: AuditEvent) {
+  return /tichet\s*\/\s*revisions?/i.test(event.entityType) || String(event.entityId || "").includes("/revisions/")
+}
+
+export function presentAuditEvent(event: AuditEvent, context?: AuditPresentationContext): AuditEvent {
+  if (!context && event.presentation && event.changes.every((change) => Boolean(change.presentation))) return event
+  const changes = event.changes.flatMap((change) => presentAuditChanges(change, context))
+  const displayEntity = String(
+    isRevisionEntity(event)
+      ? context?.revisionEquipmentName || context?.ticketLabel || event.entityLabel || event.entityId || ""
+      : context?.ticketLabel || event.entityLabel || event.entityId || "",
+  ).trim()
+  const semanticTitles = Array.from(new Set(changes.map((change) => change.presentation?.eventTitle).filter((value): value is string => Boolean(value))))
+  const semanticSummaries = changes.map((change) => change.presentation?.summary).filter((value): value is string => Boolean(value))
+  const title = semanticTitles.length === 1
+    ? semanticTitles[0]
+    : semanticTitles.length > 1
+      ? `A actualizat revizia pentru ${semanticTitles.length} echipamente`
+      : isRevisionEntity(event)
+        ? `${actionVerb(event.action) || "A actualizat"} fișa de revizie${displayEntity ? ` pentru ${displayEntity}` : ""}`
+        : eventTitle(event, displayEntity)
   const rawSummary = String(event.summary || "").trim()
   const genericSummary = rawSummary === event.action || rawSummary === `${event.action}: ${displayEntity}`
-  const description = changes.length
-    ? `${changes.length} ${changes.length === 1 ? "câmp modificat" : "câmpuri modificate"}`
+  const description = semanticSummaries.length === 1
+    ? semanticSummaries[0]
+    : semanticSummaries.length > 1
+      ? `${semanticSummaries.length} modificări sunt explicate mai jos.`
+      : changes.length
+        ? `${changes.length} ${changes.length === 1 ? "informație modificată" : "informații modificate"}`
+        : isRevisionEntity(event)
+          ? "A salvat informațiile din fișa de verificare a echipamentului."
     : genericSummary || !rawSummary
       ? "Activitate înregistrată fără diferențe de câmp."
       : rawSummary

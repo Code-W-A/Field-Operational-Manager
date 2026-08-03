@@ -1,6 +1,10 @@
 import { Timestamp } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
-import { presentAuditEvent } from "@/lib/reports/activity-presentation"
+import {
+  presentAuditEvent,
+  ticketIdFromAuditEvent,
+  type AuditPresentationContext,
+} from "@/lib/reports/activity-presentation"
 import { parseActivityDateRange } from "@/lib/reports/date-range"
 import type {
   ActivityReportResponse,
@@ -349,6 +353,94 @@ function dedupeActivityRows(rows: AuditEvent[]) {
   return result
 }
 
+async function getDocumentsInChunks(refs: FirebaseFirestore.DocumentReference[]) {
+  const snapshots: FirebaseFirestore.DocumentSnapshot[] = []
+  for (let index = 0; index < refs.length; index += 100) {
+    const chunk = refs.slice(index, index + 100)
+    if (chunk.length) snapshots.push(...await adminDb.getAll(...chunk))
+  }
+  return snapshots
+}
+
+function ticketDisplayLabel(data: FirebaseFirestore.DocumentData | undefined, fallback: string) {
+  const value = cleanText(data?.nrLucrareDisplay || data?.nrLucrare || data?.numarRaport, fallback)
+  if (!value || value === "—") return fallback
+  return value.startsWith("#") ? value : `#${value}`
+}
+
+function addEquipmentLabels(target: Record<string, string>, equipments: unknown) {
+  if (!Array.isArray(equipments)) return
+  for (const equipment of equipments) {
+    if (!equipment || typeof equipment !== "object") continue
+    const item = equipment as Record<string, unknown>
+    const id = cleanText(item.id, "")
+    const code = cleanText(item.cod || item.code, "")
+    const name = cleanText(item.nume || item.name || item.model, "")
+    const label = [name, code && code !== name ? `(${code})` : ""].filter(Boolean).join(" ") || code || id
+    if (!label) continue
+    if (id) target[id] = label
+    if (code) target[code] = label
+  }
+}
+
+function addEquipmentLabelsFromOwner(target: Record<string, string>, owner: FirebaseFirestore.DocumentData | undefined) {
+  if (!owner) return
+  addEquipmentLabels(target, owner.echipamente)
+  const locations = Array.isArray(owner.locatii) ? owner.locatii : []
+  for (const location of locations) addEquipmentLabels(target, location?.echipamente)
+}
+
+async function buildAuditPresentationContexts(rows: AuditEvent[]) {
+  const ticketIds = Array.from(new Set(rows.map(ticketIdFromAuditEvent).filter((id): id is string => Boolean(id))))
+  if (!ticketIds.length) return new Map<string, AuditPresentationContext>()
+
+  const workSnapshots = await getDocumentsInChunks(ticketIds.map((id) => adminDb.collection("lucrari").doc(id)))
+  const works = new Map(workSnapshots.filter((snapshot) => snapshot.exists).map((snapshot) => [snapshot.id, snapshot.data() || {}]))
+  const clientIds = Array.from(new Set(Array.from(works.values()).map((work) => cleanText(work.clientId, "")).filter(Boolean)))
+  const clientSnapshots = await getDocumentsInChunks(clientIds.map((id) => adminDb.collection("clienti").doc(id)))
+  const clients = new Map(clientSnapshots.filter((snapshot) => snapshot.exists).map((snapshot) => [snapshot.id, snapshot.data() || {}]))
+
+  const revisionPaths = Array.from(new Set(rows
+    .map((row) => String(row.entityId || ""))
+    .filter((path) => /^lucrari\/[^/]+\/revisions\/[^/]+$/.test(path))))
+  const revisionSnapshots = await getDocumentsInChunks(revisionPaths.map((path) => adminDb.doc(path)))
+  const revisions = new Map(revisionSnapshots.filter((snapshot) => snapshot.exists).map((snapshot) => [snapshot.ref.path, snapshot.data() || {}]))
+
+  const result = new Map<string, AuditPresentationContext>()
+  for (const row of rows) {
+    const ticketId = ticketIdFromAuditEvent(row)
+    if (!ticketId) continue
+    const work = works.get(ticketId)
+    const equipmentLabels: Record<string, string> = {}
+    addEquipmentLabelsFromOwner(equipmentLabels, work?.clientInfo)
+    const clientId = cleanText(work?.clientId, "")
+    if (clientId) addEquipmentLabelsFromOwner(equipmentLabels, clients.get(clientId))
+
+    const revisionList = Array.isArray(work?.revision?.equipment) ? work.revision.equipment : []
+    addEquipmentLabels(equipmentLabels, revisionList.map((item: any) => ({
+      id: item?.equipmentId,
+      cod: item?.equipmentCode,
+      nume: item?.equipmentName || item?.name,
+    })))
+
+    const path = String(row.entityId || "")
+    const revision = revisions.get(path)
+    const revisionEquipmentId = /^lucrari\/[^/]+\/revisions\/([^/]+)$/.exec(path)?.[1]
+    const revisionEquipmentName = cleanText(
+      revision?.equipmentName || revision?.name || (revisionEquipmentId ? equipmentLabels[revisionEquipmentId] : ""),
+      "",
+    ) || undefined
+    if (revisionEquipmentId && revisionEquipmentName) equipmentLabels[revisionEquipmentId] = revisionEquipmentName
+
+    result.set(row.id, {
+      ticketLabel: ticketDisplayLabel(work, cleanText(row.entityLabel, ticketId)),
+      revisionEquipmentName,
+      equipmentLabels,
+    })
+  }
+  return result
+}
+
 export async function loadAllActivityRows(params: { userId: string; from: string; to: string }) {
   const range = parseActivityDateRange(params.from, params.to)
   const userSnapshot = await adminDb.collection("users").doc(params.userId).get()
@@ -390,7 +482,16 @@ export async function loadAllActivityRows(params: { userId: string; from: string
       .map((doc) => normalizeLegacyAudit(kinds[index], doc, fallbackUser))
       .filter((row): row is AuditEvent => Boolean(row)),
   )
-  const rows = dedupeActivityRows([...completeRows, ...legacyRows]).map(presentAuditEvent)
+  const dedupedRows = dedupeActivityRows([...completeRows, ...legacyRows])
+  const presentationContexts = await buildAuditPresentationContexts(dedupedRows)
+  const rows = dedupedRows
+    .map((row) => presentAuditEvent(row, presentationContexts.get(row.id)))
+    .filter((row) => !(
+      row.coverage === "complete" &&
+      row.module === "Tichete" &&
+      /actualiz|modific/i.test(row.action) &&
+      row.changes.length === 0
+    ))
 
   return {
     rows,
