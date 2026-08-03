@@ -2,8 +2,9 @@ import fs from "node:fs"
 import path from "node:path"
 import ExcelJS from "exceljs"
 import { jsPDF } from "jspdf"
+import { presentAuditEvent } from "@/lib/reports/activity-presentation"
 import { formatBucharestDateTime } from "@/lib/reports/date-range"
-import type { AuditEvent, UninvoicedReportRow } from "@/lib/reports/types"
+import type { AuditEvent, AuditValuePresentation, UninvoicedReportRow } from "@/lib/reports/types"
 
 export type ReportExportFormat = "xlsx" | "pdf"
 
@@ -85,9 +86,20 @@ export async function exportUninvoicedXlsx(rows: UninvoicedReportRow[], generate
   return workbookToResult(workbook)
 }
 
-function activityChanges(row: AuditEvent) {
+function exportedActivityValue(value: AuditValuePresentation) {
+  if (!value.items.length) return value.text
+  return `${value.text} (${value.items.map((item) => `${item.label}: ${item.value}`).join("; ")})`
+}
+
+function activityChanges(input: AuditEvent) {
+  const row = presentAuditEvent(input)
   return row.changes
-    .map((change) => `${change.label}: ${change.before ?? "—"} → ${change.after ?? "—"}`)
+    .map((change) => {
+      const display = change.presentation
+      if (!display) return ""
+      return `${display.label}: ${exportedActivityValue(display.before)} → ${exportedActivityValue(display.after)}`
+    })
+    .filter(Boolean)
     .join("; ")
 }
 
@@ -96,17 +108,19 @@ export async function exportActivityXlsx(rows: AuditEvent[], generatedAt: Date, 
   workbook.creator = "Field Operational Manager"
   workbook.created = generatedAt
   const sheet = workbook.addWorksheet("Activitate utilizator")
-  sheet.addRow(["Data și ora", "Utilizator", "Rol", "Modul", "Acțiune", "Rezultat", "Entitate", "Descriere", "Modificări", "Acoperire"])
-  for (const row of rows) {
+  sheet.addRow(["Data și ora", "Utilizator", "Rol", "Modul", "Activitate", "Rezultat", "Entitate", "Detalii", "Modificări", "Acoperire"])
+  for (const input of rows) {
+    const row = presentAuditEvent(input)
+    const display = row.presentation!
     sheet.addRow([
       formatBucharestDateTime(row.occurredAt),
       row.actorName,
       row.actorRole || "—",
-      row.module,
-      row.action,
+      display.moduleLabel,
+      display.title,
       row.outcome === "success" ? "Reușit" : "Eșuat",
-      [row.entityType, row.entityLabel || row.entityId].filter(Boolean).join(": "),
-      row.summary,
+      [row.entityType, display.entityLabel].filter(Boolean).join(": "),
+      display.description,
       activityChanges(row),
       row.coverage === "complete" ? "Complet" : "Istoric parțial",
     ])
@@ -246,20 +260,21 @@ export function exportUninvoicedPdf(rows: UninvoicedReportRow[], generatedAt: Da
 }
 
 export function exportActivityPdf(rows: AuditEvent[], generatedAt: Date, periodLabel: string) {
+  const presentedRows = rows.map(presentAuditEvent)
   return renderTablePdf({
     title: "Activitate utilizator",
     subtitle: periodLabel,
     generatedAt,
-    rows,
+    rows: presentedRows,
     columns: [
       { label: "Data și ora", width: 31, value: (row) => formatBucharestDateTime(row.occurredAt) },
       { label: "Utilizator", width: 31, value: (row) => row.actorName },
-      { label: "Modul", width: 24, value: (row) => row.module },
-      { label: "Acțiune", width: 34, value: (row) => row.action },
+      { label: "Modul", width: 24, value: (row) => row.presentation?.moduleLabel || row.module },
+      { label: "Activitate", width: 48, value: (row) => row.presentation?.title || row.action },
       { label: "Rezultat", width: 17, value: (row) => (row.outcome === "success" ? "Reușit" : "Eșuat") },
-      { label: "Entitate", width: 42, value: (row) => [row.entityType, row.entityLabel || row.entityId].filter(Boolean).join(": ") },
-      { label: "Descriere", width: 58, value: (row) => row.summary },
-      { label: "Modificări", width: 40, value: activityChanges },
+      { label: "Entitate", width: 42, value: (row) => [row.entityType, row.presentation?.entityLabel].filter(Boolean).join(": ") },
+      { label: "Detalii", width: 50, value: (row) => row.presentation?.description || row.summary },
+      { label: "Modificări", width: 38, value: activityChanges },
     ],
   })
 }

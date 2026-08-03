@@ -60,9 +60,34 @@ test.describe("Rapoarte operaționale", () => {
     await page.getByRole("option", { name: /Administrator/ }).click()
     await page.getByRole("button", { name: "Generează" }).click()
 
-    await expect(page.getByText("Actualizare tichet", { exact: true })).toBeVisible()
-    await expect(page.getByText("Statusul tichetului a fost actualizat")).toBeVisible()
+    await expect(page.getByText("A actualizat tichetul #00125", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 câmp modificat")).toBeVisible()
     await expect(page.getByText(/pot fi incomplete/)).toBeVisible()
     await expect(page.getByText(/01\.08\.2026/).first()).toBeVisible()
+
+    await page.getByRole("button", { name: /Detalii: A actualizat tichetul/ }).click()
+    const details = page.getByRole("dialog")
+    await expect(details.getByRole("heading", { name: "Modificări efectuate" })).toBeVisible()
+    await expect(details.getByText("Înainte", { exact: true })).toBeVisible()
+    await expect(details.getByText("După", { exact: true })).toBeVisible()
+    await expect(details.getByText("Nou", { exact: true })).toBeVisible()
+    await expect(details.getByText("Finalizat", { exact: true })).toBeVisible()
+    await expect(details.getByRole("link", { name: /Deschide tichetul/ })).toHaveAttribute("href", "/dashboard/lucrari/work-1")
+
+    await details.getByText("Date tehnice", { exact: true }).click()
+    await expect(details.getByText("status", { exact: true })).toBeVisible()
+  })
+
+  test("comută între jurnalul cronologic și tabel și păstrează alegerea în URL", async ({ page }) => {
+    await page.goto("/dashboard/rapoarte?tab=activity")
+    await page.getByRole("combobox").click()
+    await page.getByRole("option", { name: /Administrator/ }).click()
+    await page.getByRole("button", { name: "Generează" }).click()
+
+    await expect(page.getByTestId("activity-timeline")).toBeVisible()
+    await page.getByRole("button", { name: "Tabel" }).click()
+    await expect(page).toHaveURL(/activityView=table/)
+    await expect(page.getByTestId("activity-table")).toBeVisible()
+    await expect(page.getByText("A actualizat tichetul #00125", { exact: true })).toBeVisible()
   })
 })

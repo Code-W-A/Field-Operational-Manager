@@ -1,5 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore"
 import { adminDb } from "@/lib/firebase/admin"
+import { presentAuditEvent } from "@/lib/reports/activity-presentation"
 import { parseActivityDateRange } from "@/lib/reports/date-range"
 import type {
   ActivityReportResponse,
@@ -389,7 +390,7 @@ export async function loadAllActivityRows(params: { userId: string; from: string
       .map((doc) => normalizeLegacyAudit(kinds[index], doc, fallbackUser))
       .filter((row): row is AuditEvent => Boolean(row)),
   )
-  const rows = dedupeActivityRows([...completeRows, ...legacyRows])
+  const rows = dedupeActivityRows([...completeRows, ...legacyRows]).map(presentAuditEvent)
 
   return {
     rows,

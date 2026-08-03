@@ -6,6 +6,37 @@ export interface AuditChange {
   label: string
   before?: string
   after?: string
+  presentation?: AuditChangePresentation
+}
+
+export type AuditChangeKind = "added" | "removed" | "changed"
+
+export interface AuditValueItem {
+  label: string
+  value: string
+}
+
+export interface AuditValuePresentation {
+  text: string
+  empty: boolean
+  items: AuditValueItem[]
+}
+
+export interface AuditChangePresentation {
+  label: string
+  kind: AuditChangeKind
+  before: AuditValuePresentation
+  after: AuditValuePresentation
+}
+
+export interface AuditEventPresentation {
+  title: string
+  description: string
+  actionLabel: string
+  moduleLabel: string
+  entityLabel: string
+  entityHref?: string
+  changeCount: number
 }
 
 export interface AuditEvent {
@@ -24,6 +55,7 @@ export interface AuditEvent {
   changes: AuditChange[]
   source: string
   coverage: AuditCoverage
+  presentation?: AuditEventPresentation
 }
 
 export interface UninvoicedReportRow {
