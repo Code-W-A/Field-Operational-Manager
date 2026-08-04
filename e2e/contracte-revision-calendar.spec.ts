@@ -67,4 +67,29 @@ test.describe("Contracte — calendar revizii din edit", () => {
     await expect(page.getByTestId("contract-calendar-clear-filter")).not.toBeVisible()
     await expect(page.getByRole("heading", { name: "Calendar", exact: true })).toBeVisible()
   })
+
+  test("pagina contractului deschide calendarul filtrat și permite întoarcerea", async ({ page }) => {
+    await page.goto("/dashboard/contracte/sm-1")
+    await expect(page.getByRole("heading", { name: "Mentenanță centrală Acme" })).toBeVisible()
+
+    await page.getByTestId("contract-details-view-calendar").click()
+
+    await expect(page.getByText("Calendar — Mentenanță centrală Acme")).toBeVisible()
+    await expect(page.getByTestId("contract-calendar-back-to-contract")).toBeVisible()
+
+    await page.getByTestId("contract-calendar-back-to-contract").click()
+    await expect(page).toHaveURL(/\/dashboard\/contracte\/sm-1$/)
+    await expect(page.getByRole("heading", { name: "Mentenanță centrală Acme" })).toBeVisible()
+  })
+
+  test("contractul fără recurență deschide starea goală și permite întoarcerea", async ({ page }) => {
+    await page.goto("/dashboard/contracte/sm-5")
+    await expect(page.getByRole("heading", { name: "Gamma fără recurență" })).toBeVisible()
+
+    await page.getByTestId("contract-details-view-calendar").click()
+
+    await expect(page.getByTestId("contract-calendar-empty")).toBeVisible()
+    await page.getByTestId("contract-calendar-back-to-contract").click()
+    await expect(page).toHaveURL(/\/dashboard\/contracte\/sm-5$/)
+  })
 })

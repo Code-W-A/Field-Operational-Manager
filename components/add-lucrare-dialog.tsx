@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -69,7 +69,6 @@ export const AddLucrareDialog: React.FC<AddLucrareDialogProps> = ({
   missingFieldsMessage,
   onSave,
 }) => {
-  const router = useRouter()
   const originalInfo = (formData as any)?.originalWorkOrderInfo
   const hasActiveWork = activeWorkCount > 0
 
@@ -150,13 +149,14 @@ export const AddLucrareDialog: React.FC<AddLucrareDialogProps> = ({
                         ) : null}
                       </div>
                       <Button
-                        type="button"
+                        asChild
                         variant="outline"
                         size="sm"
                         className="h-6 px-2 text-xs"
-                        onClick={() => router.push(`/dashboard/lucrari/${work.id}`)}
                       >
-                        Deschide
+                        <Link href={`/dashboard/lucrari/${work.id}`}>
+                          Deschide
+                        </Link>
                       </Button>
                     </div>
                   ))}

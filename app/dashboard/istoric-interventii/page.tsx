@@ -954,6 +954,10 @@ export default function IstoricInterventiiPage() {
                 const id = (row as any)?.id
                 if (id) router.push(`/dashboard/lucrari/${id}`)
               }}
+              getRowHref={(row) => {
+                const id = String((row as any)?.id || "").trim()
+                return id ? `/dashboard/lucrari/${id}` : undefined
+              }}
               getRowClassName={(row) =>
                 selectedId && (row as any)?.id === selectedId
                   ? "bg-blue-50 border-l-4 border-blue-600"
@@ -1000,7 +1004,19 @@ export default function IstoricInterventiiPage() {
               <Card
                 key={r.id}
                 className="border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => router.push(`/dashboard/lucrari/${r.id}`)}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey) {
+                    event.preventDefault()
+                    window.open(`/dashboard/lucrari/${r.id}`, "_blank", "noopener,noreferrer")
+                    return
+                  }
+                  router.push(`/dashboard/lucrari/${r.id}`)
+                }}
+                onAuxClick={(event) => {
+                  if (event.button !== 1) return
+                  event.preventDefault()
+                  window.open(`/dashboard/lucrari/${r.id}`, "_blank", "noopener,noreferrer")
+                }}
               >
                 <CardHeader className="py-3">
                   <div className="flex items-start justify-between gap-3">

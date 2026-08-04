@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
+import Link from "next/link"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardCheck, FileText, Loader2, Mail, Menu, MessageSquare, Pencil, Phone, Star, Timer, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -786,9 +787,17 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
           <Badge variant="outline">{relatedOpportunities.length} oportunități conexe</Badge>
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/dashboard/clienti/${client?.id || ""}`)} disabled={!client?.id}>
-            Deschide client
-          </Button>
+          {client?.id ? (
+            <Button asChild type="button" variant="outline" size="sm" className="h-7 text-xs">
+              <Link href={`/dashboard/clienti/${client.id}`}>
+                Deschide client
+              </Link>
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" disabled>
+              Deschide client
+            </Button>
+          )}
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void copyTextToClipboard(client?.name || "", "Numele clientului")}>
             Copiază nume
           </Button>
@@ -834,8 +843,10 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-neutral-700">Oportunități conexe</p>
           <div className="flex items-center gap-1">
-            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => router.push("/crm/opportunities")}>
-              Vezi toate
+            <Button asChild type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs">
+              <Link href="/crm/opportunities">
+                Vezi toate
+              </Link>
             </Button>
             <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={openRelatedOpportunityCreate}>
               Oportunitate nouă
@@ -847,18 +858,17 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         ) : (
           <div className="space-y-2">
             {relatedOpportunities.map((related) => (
-              <button
+              <Link
                 key={related.id}
-                type="button"
-                onClick={() => router.push(`/crm/opportunities/${related.id}/timeline`)}
-                className="w-full rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:bg-neutral-50"
+                href={`/crm/opportunities/${related.id}/timeline`}
+                className="block w-full rounded-lg border border-neutral-200 bg-white p-3 text-left no-underline transition hover:bg-neutral-50"
               >
                 <p className="text-sm font-medium text-neutral-800">{related.displayTitle || `${related.code} - ${related.title}`}</p>
                 <p className="mt-1 text-xs text-neutral-500">
                   {stageLabel(related.pipelineStage)} • {priorityLabel(related.priority)} • {workStatusLabel(related.workStatus)}
                 </p>
                 <p className="mt-1 text-xs text-neutral-500">Actualizat: {formatDateTime(related.updatedAt)}</p>
-              </button>
+              </Link>
             ))}
           </div>
         )}

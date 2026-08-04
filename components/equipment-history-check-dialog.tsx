@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Scanner } from "@yudiel/react-qr-scanner"
 
 import { Button } from "@/components/ui/button"
@@ -49,8 +49,6 @@ export function EquipmentHistoryCheckDialog({
   description = defaultDescription,
   onOpenHistory,
 }: Props) {
-  const router = useRouter()
-
   const [isOpen, setIsOpen] = useState(false)
   const [historyCode, setHistoryCode] = useState("")
   const [historyFailedScanAttempts, setHistoryFailedScanAttempts] = useState(0)
@@ -82,10 +80,14 @@ export function EquipmentHistoryCheckDialog({
     return () => window.clearTimeout(t)
   }, [isOpen, historyCode, historyFailedScanAttempts, showHistoryManualInput])
 
+  const historyHref = isValidEquipmentCode(historyCode)
+    ? `/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(historyCode.trim())}`
+    : undefined
+
   const openHistory = (code: string) => {
     if (onOpenHistory) return onOpenHistory(code)
     console.log("[ISTORIC_ECHIP] openHistory()", { code, url: `/dashboard/istoric-interventii/echipament?cod=${code}` })
-    router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
+    window.location.assign(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
   }
 
   return (
@@ -179,25 +181,39 @@ export function EquipmentHistoryCheckDialog({
           <Button variant="outline" onClick={() => setIsOpen(false)}>
             Închide
           </Button>
-          <Button
-            onClick={() => {
-              const code = historyCode.trim()
-              if (!isValidEquipmentCode(code)) {
-                toast({
-                  title: "Cod invalid",
-                  description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
-                  variant: "destructive",
-                })
-                return
-              }
-              console.log("[ISTORIC_ECHIP] Open history clicked", { code })
-              setIsOpen(false)
-              openHistory(code)
-            }}
-            disabled={!isValidEquipmentCode(historyCode)}
-          >
-            Deschide istoricul
-          </Button>
+          {historyHref && !onOpenHistory ? (
+            <Button asChild>
+              <Link
+                href={historyHref}
+                onClick={() => {
+                  console.log("[ISTORIC_ECHIP] Open history clicked", { code: historyCode.trim() })
+                  setIsOpen(false)
+                }}
+              >
+                Deschide istoricul
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                const code = historyCode.trim()
+                if (!isValidEquipmentCode(code)) {
+                  toast({
+                    title: "Cod invalid",
+                    description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                console.log("[ISTORIC_ECHIP] Open history clicked", { code })
+                setIsOpen(false)
+                openHistory(code)
+              }}
+              disabled={!isValidEquipmentCode(historyCode)}
+            >
+              Deschide istoricul
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

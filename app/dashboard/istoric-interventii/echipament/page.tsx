@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { collection, getDocs, limit, orderBy, query, where } from "firebase/firestore"
 
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -125,7 +125,6 @@ function TechnicianHistoryCard({ r }: { r: Row }) {
 }
 
 export default function IstoricEchipamentPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const codRaw = (searchParams.get("cod") || "").trim()
   const cod = codRaw.toUpperCase()
@@ -349,16 +348,8 @@ export default function IstoricEchipamentPage() {
       />
 
       <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            // Back în istoric; dacă nu există, revino la pagina listă.
-            if (typeof window !== "undefined" && window.history.length > 1) router.back()
-            else router.push("/dashboard/lucrari")
-          }}
-        >
-          Înapoi la lucrări
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/lucrari">Înapoi la lucrări</Link>
         </Button>
         {cod ? (
           <div className="text-sm text-muted-foreground">

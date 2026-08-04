@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
+import Link from "next/link"
+import { useParams } from "next/navigation"
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit, Timestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -28,6 +29,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getClienti, type Client } from "@/lib/firebase/firestore"
 import { formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { useAuth } from "@/contexts/AuthContext"
+import { E2E_CONTRACTS } from "@/lib/contracts/e2e-fixtures"
+import { isE2eTestMode } from "@/lib/utils/environment"
 
 interface Contract {
   id: string
@@ -94,7 +97,6 @@ const computeFallbackUpcoming = (contract: Contract, count = 3): UpcomingGenerat
 }
 
 export default function ContractDetailsPage() {
-  const router = useRouter()
   const params = useParams()
   const { userData } = useAuth()
   const contractId = params.id as string
@@ -110,6 +112,14 @@ export default function ContractDetailsPage() {
   useEffect(() => {
     const fetchContractDetails = async () => {
       if (!contractId) return
+
+      if (isE2eTestMode()) {
+        const fixture = E2E_CONTRACTS.find((item) => item.id === contractId) as Contract | undefined
+        setContract(fixture || null)
+        setError(fixture ? null : "Contractul nu a fost găsit")
+        setLoading(false)
+        return
+      }
 
       try {
         setLoading(true)
@@ -155,6 +165,11 @@ export default function ContractDetailsPage() {
   useEffect(() => {
     const fetchUpcomingGenerations = async () => {
       if (!contractId || !contract) return
+      if (isE2eTestMode()) {
+        setUpcomingGenerations(computeFallbackUpcoming(contract))
+        setLoadingGenerations(false)
+        return
+      }
       try {
         setLoadingGenerations(true)
         const nowTs = Timestamp.fromDate(new Date())
@@ -223,9 +238,11 @@ export default function ContractDetailsPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error || "Contractul nu a fost găsit"}</AlertDescription>
         </Alert>
-        <Button onClick={() => router.push("/dashboard/contracte")} className="mt-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Înapoi la contracte
+        <Button asChild className="mt-4">
+          <Link href="/dashboard/contracte">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Înapoi la contracte
+          </Link>
         </Button>
       </DashboardShell>
     )
@@ -252,19 +269,24 @@ export default function ContractDetailsPage() {
         text={`Contract ${contract.number}`}
       >
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => router.push("/dashboard/contracte")}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Înapoi
+          <Button asChild variant="outline">
+            <Link href="/dashboard/contracte">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Înapoi
+            </Link>
+          </Button>
+          <Button asChild variant="secondary" data-testid="contract-details-view-calendar">
+            <Link href={`/dashboard/contracte?calendar=${contractId}`}>
+              <Calendar className="mr-2 h-4 w-4" />
+              Vezi calendar revizii
+            </Link>
           </Button>
           {!isReadOnlyDispatcher && (
-            <Button
-              onClick={() => router.push(`/dashboard/contracte?edit=${contractId}`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Editează
+            <Button asChild>
+              <Link href={`/dashboard/contracte?edit=${contractId}`}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Editează
+              </Link>
             </Button>
           )}
         </div>
@@ -319,12 +341,14 @@ export default function ContractDetailsPage() {
                         {client.nume}
                       </Badge>
                       <Button
+                        asChild
                         variant="link"
                         size="sm"
                         className="h-auto p-0 text-sm"
-                        onClick={() => router.push(`/dashboard/clienti/${client.id}`)}
                       >
-                        Vezi detalii →
+                        <Link href={`/dashboard/clienti/${client.id}`}>
+                          Vezi detalii →
+                        </Link>
                       </Button>
                     </div>
                   ) : (

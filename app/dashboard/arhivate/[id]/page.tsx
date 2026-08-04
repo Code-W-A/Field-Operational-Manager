@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -325,8 +326,10 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Lucrarea nu a fost găsită</h2>
             <p className="text-gray-500 mb-4">Nu s-a putut găsi lucrarea solicitată.</p>
-            <Button onClick={() => router.push("/dashboard/arhivate")}>
-              Înapoi la Lucrări Arhivate
+            <Button asChild>
+              <Link href="/dashboard/arhivate">
+                Înapoi la Lucrări Arhivate
+              </Link>
             </Button>
           </div>
         </div>
@@ -355,12 +358,11 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      onClick={() => router.push(`/raport/${paramsId}`)}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Descarcă Raport
+                    <Button asChild variant="outline">
+                      <Link href={`/raport/${paramsId}`}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Descarcă Raport
+                      </Link>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Descarcă raportul PDF generat</TooltipContent>
@@ -1285,13 +1287,11 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                   </div>
                 )}
                 <div className="pt-2">
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => router.push(`/raport/${paramsId}`)}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Accesează Raportul
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href={`/raport/${paramsId}`}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Accesează Raportul
+                    </Link>
                   </Button>
                 </div>
               </CardContent>

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useParams, useSearchParams, useRouter } from "next/navigation"
+import Link from "next/link"
+import { useParams, useSearchParams } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,7 +12,6 @@ import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 export default function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const search = useSearchParams()
-  const router = useRouter()
 
   const preselect = useMemo(() => {
     const r = Number(search.get("r"))
@@ -86,7 +86,9 @@ export default function ReviewPage() {
             <p>Feedback-ul a fost înregistrat pentru lucrarea {workNumber || String(id)}.</p>
           </CardContent>
           <CardFooter>
-            <Button onClick={() => router.push("/")}>Închide</Button>
+            <Button asChild>
+              <Link href="/">Închide</Link>
+            </Button>
           </CardFooter>
         </Card>
       </div>
@@ -126,7 +128,9 @@ export default function ReviewPage() {
           />
         </CardContent>
         <CardFooter className="justify-between">
-          <Button variant="outline" onClick={() => router.push("/")}>Anulează</Button>
+          <Button asChild variant="outline">
+            <Link href="/">Anulează</Link>
+          </Button>
           <Button disabled={!rating || saving} onClick={submit}>
             {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Se salvează...</> : "Trimite feedback"}
           </Button>

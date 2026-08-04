@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
@@ -84,12 +85,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/contexts/AuthContext"
 import {
   addMonthsDate,
+  buildCalendarEventsFromPreview,
   buildCalendarEventsFromContracts,
   buildEditDialogCalendarEvents,
   canOpenRevisionCalendar,
   computeRevisionSchedulePreview,
   filterCalendarEventsByContractId,
   getDefaultCalendarRange,
+  resolveContractRevisionPreview,
   resolveEditDialogCalendarPreview,
   startOfMonth,
   type CalendarEvent,
@@ -600,7 +603,29 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     setCalendarContractFilterId(null)
     setCalendarFilterContractName(null)
     setCalendarFilteredEvents(null)
-  }, [])
+    if (searchParams.get("calendar")) {
+      router.replace("/dashboard/contracte", { scroll: false })
+    }
+  }, [router, searchParams])
+
+  // Deschide calendarul filtrat atunci când utilizatorul vine din pagina unui contract.
+  useEffect(() => {
+    const calendarId = searchParams.get("calendar")
+    if (!calendarId || loading || contracts.length === 0) return
+
+    const selected = contracts.find((contract) => contract.id === calendarId)
+    if (!selected) return
+
+    const preview = resolveContractRevisionPreview(selected)
+
+    setCalendarContractFilterId(selected.id)
+    setCalendarFilterContractName(selected.name)
+    setCalendarFilteredEvents(
+      buildCalendarEventsFromPreview(preview, selected, calendarStart, calendarEnd),
+    )
+    setViewMode("calendar")
+    setCalendarMode("month")
+  }, [calendarEnd, calendarStart, contracts, loading, searchParams])
 
   const getEditFormRevisionParams = useCallback(
     () => ({
@@ -1843,20 +1868,32 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
 
                 {/* Butoane de acțiune */}
                 <div className="flex items-center gap-2">
-              
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      clearCalendarContractFilter()
-                      setViewMode("list")
-                    }}
-                    className="h-8"
-                    data-testid="contract-calendar-back-to-list"
-                  >
-                    Contracte
-                  </Button>
-              
+                  {searchParams.get("calendar") && calendarContractFilterId ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      data-testid="contract-calendar-back-to-contract"
+                    >
+                      <Link href={`/dashboard/contracte/${calendarContractFilterId}`}>
+                        Înapoi la contract
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        clearCalendarContractFilter()
+                        setViewMode("list")
+                      }}
+                      className="h-8"
+                      data-testid="contract-calendar-back-to-list"
+                    >
+                      Contracte
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -2456,6 +2493,10 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                 sorting={tableSorting}
                 onSortingChange={handleSortingChange}
                 onRowClick={(row) => router.push(`/dashboard/contracte/${row.id}`)}
+                getRowHref={(row) => {
+                  const id = String((row as any)?.id || "").trim()
+                  return id ? `/dashboard/contracte/${id}` : undefined
+                }}
                 getRowClassName={(row) => {
                   const missing = !Array.isArray((row as any)?.equipmentIds) || ((row as any).equipmentIds?.length ?? 0) === 0
                   return missing ? "bg-red-100/70" : ""
@@ -2523,15 +2564,17 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <Button
+                            asChild
                             size="sm"
                             variant="outline"
                             className="h-8"
-                            onClick={() => {
-                              setIsDayPanelOpen(false)
-                              router.push(`/dashboard/contracte/${ev.contractId}`)
-                            }}
                           >
-                            Vezi contract
+                            <Link
+                              href={`/dashboard/contracte/${ev.contractId}`}
+                              onClick={() => setIsDayPanelOpen(false)}
+                            >
+                              Vezi contract
+                            </Link>
                           </Button>
                         </div>
                       </div>

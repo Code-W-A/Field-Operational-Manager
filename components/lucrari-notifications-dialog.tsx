@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Bell, Edit, User, Clock, Eye, CheckCircle2, AlertTriangle, History, ArrowRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -91,15 +92,19 @@ export function LucrariNotificationsDialog({
 }: LucrariNotificationsDialogProps) {
   const router = useRouter()
 
-  const handleNotificationClick = (notification: LucrareNotification) => {
-    // Marchează ca citită automat când navighează la lucrare
+  const prepareNotificationNavigation = (notification: LucrareNotification) => {
     if (!notification.read) {
-      onMarkAsRead(notification.id) // Folosim notification.id acum
+      onMarkAsRead(notification.id)
     }
-    
-    // Navighează la lucrarea respectivă
     onClose()
-    router.push(`/dashboard/lucrari/${notification.lucrareId}`)
+  }
+
+  const notificationHref = (notification: LucrareNotification) =>
+    `/dashboard/lucrari/${notification.lucrareId}`
+
+  const handleNotificationClick = (notification: LucrareNotification) => {
+    prepareNotificationNavigation(notification)
+    router.push(notificationHref(notification))
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
@@ -149,7 +154,21 @@ export function LucrariNotificationsDialog({
                   className={`cursor-pointer transition-all hover:shadow-lg border-2 aspect-square ${
                     notification.read ? 'opacity-60' : getModificationColor(notification.priority, notification.isOverdue)
                   }`}
-                  onClick={() => handleNotificationClick(notification)}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey) {
+                      event.preventDefault()
+                      prepareNotificationNavigation(notification)
+                      window.open(notificationHref(notification), "_blank", "noopener,noreferrer")
+                      return
+                    }
+                    handleNotificationClick(notification)
+                  }}
+                  onAuxClick={(event) => {
+                    if (event.button !== 1) return
+                    event.preventDefault()
+                    prepareNotificationNavigation(notification)
+                    window.open(notificationHref(notification), "_blank", "noopener,noreferrer")
+                  }}
                 >
                   <CardContent className="p-3 sm:p-4 h-full flex flex-col justify-between">
                     {/* Header cu icon și badge */}
@@ -215,17 +234,22 @@ export function LucrariNotificationsDialog({
                     {/* Footer cu buton */}
                     <div className="mt-2">
                       <Button 
+                        asChild
                         variant="ghost" 
                         size="sm"
                         className="text-[10px] sm:text-xs h-6 px-2 w-full"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleNotificationClick(notification)
-                        }}
                       >
-                        <Eye className="h-3 w-3 mr-1" />
-                        <span className="hidden sm:inline">Vezi lucrarea</span>
-                        <span className="sm:hidden">Vezi</span>
+                        <Link
+                          href={notificationHref(notification)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            prepareNotificationNavigation(notification)
+                          }}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          <span className="hidden sm:inline">Vezi lucrarea</span>
+                          <span className="sm:hidden">Vezi</span>
+                        </Link>
                       </Button>
                     </div>
                   </CardContent>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { collection, getDocs } from "firebase/firestore"
 
@@ -354,9 +355,11 @@ export default function HrEmployeeDetailsPage() {
     return (
       <DashboardShell>
         <DashboardHeader heading="Fișa salariat" text="Salariat inexistent." />
-        <Button variant="outline" onClick={() => router.push("/dashboard/resurse-umane/salariati")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Înapoi la salariați
+        <Button asChild variant="outline">
+          <Link href="/dashboard/resurse-umane/salariati">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Înapoi la salariați
+          </Link>
         </Button>
       </DashboardShell>
     )
@@ -374,9 +377,11 @@ export default function HrEmployeeDetailsPage() {
         text={employee.title || "Angajat"}
       >
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => router.push("/dashboard/resurse-umane/salariati")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Înapoi
+          <Button asChild variant="outline">
+            <Link href="/dashboard/resurse-umane/salariati">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Înapoi
+            </Link>
           </Button>
           <Button onClick={() => setIsEditDialogOpen(true)}>
             <Pencil className="mr-2 h-4 w-4" />
@@ -666,8 +671,10 @@ export default function HrEmployeeDetailsPage() {
                         employee.userUid}
                     </span>
                   </span>
-                  <Button variant="link" size="sm" className="h-auto p-0" onClick={() => router.push("/dashboard/utilizatori")}>
-                    Deschide Utilizatori →
+                  <Button asChild variant="link" size="sm" className="h-auto p-0">
+                    <Link href="/dashboard/utilizatori">
+                      Deschide Utilizatori →
+                    </Link>
                   </Button>
                 </div>
               )}
@@ -682,8 +689,10 @@ export default function HrEmployeeDetailsPage() {
                     <Button variant="outline" size="sm" onClick={() => setUserUid(suggestionUid)}>
                       Asociază sugestia
                     </Button>
-                    <Button variant="link" size="sm" className="h-auto p-0" onClick={() => router.push("/dashboard/utilizatori")}>
-                      Verifică în Utilizatori →
+                    <Button asChild variant="link" size="sm" className="h-auto p-0">
+                      <Link href="/dashboard/utilizatori">
+                        Verifică în Utilizatori →
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -872,21 +881,25 @@ export default function HrEmployeeDetailsPage() {
           <div className="pb-12">
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
+                asChild
                 className="flex-1 h-12 shadow-md hover:shadow-lg transition-all"
-                onClick={() =>
-                  router.push(`/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`)
-                }
               >
-                <ClipboardList className="h-5 w-5 mr-2" />
-                Deschide condica completă
+                <Link
+                  href={`/dashboard/resurse-umane/condica-prezenta?employeeId=${encodeURIComponent(employee.id)}&month=${encodeURIComponent(monthKey)}`}
+                >
+                  <ClipboardList className="h-5 w-5 mr-2" />
+                  Deschide condica completă
+                </Link>
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                asChild
+                variant="outline"
                 className="flex-1 h-12 border-2 shadow-md hover:shadow-lg transition-all"
-                onClick={() => router.push(`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`)}
               >
-                <BarChart3 className="h-5 w-5 mr-2" />
-                Vezi rapoarte
+                <Link href={`/dashboard/resurse-umane/rapoarte?month=${encodeURIComponent(monthKey)}`}>
+                  <BarChart3 className="h-5 w-5 mr-2" />
+                  Vezi rapoarte
+                </Link>
               </Button>
             </div>
           </div>

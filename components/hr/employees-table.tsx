@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { Badge } from "@/components/ui/badge"
@@ -77,16 +78,14 @@ export function EmployeesTable({
         header: "",
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                router.push(`/dashboard/resurse-umane/salariati/${row.original.id}`)
-              }}
-            >
-              <UserRoundSearch className="h-4 w-4 mr-2" />
-              Fișă
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={`/dashboard/resurse-umane/salariati/${row.original.id}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <UserRoundSearch className="h-4 w-4 mr-2" />
+                Fișă
+              </Link>
             </Button>
             <Button
               variant="ghost"
@@ -114,6 +113,10 @@ export function EmployeesTable({
       showFilters={true}
       defaultSort={{ id: "nume", desc: false }}
       onRowClick={(row) => router.push(`/dashboard/resurse-umane/salariati/${(row as Employee).id}`)}
+      getRowHref={(row) => {
+        const id = String((row as Employee)?.id || "").trim()
+        return id ? `/dashboard/resurse-umane/salariati/${id}` : undefined
+      }}
       enablePagination={true}
       initialPageSize={20}
     />

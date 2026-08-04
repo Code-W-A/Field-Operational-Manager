@@ -1219,15 +1219,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   }, [lucrare])
 
   // Navigare unificată către istoricul echipamentului (același mecanism folosit în aplicație)
-  const openEquipmentHistoryByCode = useCallback(
-    (rawCode?: string | null) => {
-      const code = String(rawCode || "").trim()
-      if (!code) return
-      router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
-    },
-    [router],
-  )
-
   const reportGeneratorRef = useRef<HTMLButtonElement>(null)
 
   const handleReportPdfDownload = useCallback(
@@ -2153,11 +2144,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
           {/* Tehnician: verifică istoricul echipamentului (după echipamentCod) */}
           {role === "tehnician" && lucrare?.echipamentCod && (
-            <Button
-              variant="outline"
-              onClick={() => openEquipmentHistoryByCode(lucrare.echipamentCod)}
-            >
-              <History className="mr-2 h-4 w-4" /> Vezi istoric
+            <Button asChild variant="outline">
+              <Link
+                href={`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(String(lucrare.echipamentCod))}`}
+              >
+                <History className="mr-2 h-4 w-4" /> Vezi istoric
+              </Link>
             </Button>
           )}
 
@@ -2496,13 +2488,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   )}
                                 </div>
                                 <Button
-                                  type="button"
+                                  asChild
                                   variant="outline"
                                   size="sm"
                                   className="h-7 px-2 text-xs self-start sm:self-center"
-                                  onClick={() => router.push(relatedTicketUrl(conflict.id))}
                                 >
-                                  Deschide
+                                  <Link href={relatedTicketUrl(conflict.id)}>
+                                    Deschide
+                                  </Link>
                                 </Button>
                               </div>
                             )
@@ -2912,11 +2905,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                 {/* Buton mare pentru touch - ascuns pentru clienți */}
                                 {role !== "client" && (
                                   <Button
-                                    onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`)}
+                                    asChild
                                     className={`w-full h-12 text-base font-semibold rounded-lg ${statusConfig.buttonClass}`}
                                     size="lg"
                                   >
-                                    {statusConfig.buttonText}
+                                    <Link href={`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`}>
+                                      {statusConfig.buttonText}
+                                    </Link>
                                   </Button>
                                 )}
                                 
@@ -3044,12 +3039,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     <p className="text-sm text-blue-700">{lucrare.mesajReatribuire}</p>
                     {lucrare.lucrareOriginala && (
                       <Button
+                        asChild
                         variant="outline"
                         size="sm"
                         className="mt-2 h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-100"
-                        onClick={() => router.push(relatedTicketUrl(String(lucrare.lucrareOriginala)))}
                       >
-                        Vizualizează lucrarea originală
+                        <Link href={relatedTicketUrl(String(lucrare.lucrareOriginala))}>
+                          Vizualizează lucrarea originală
+                        </Link>
                       </Button>
                     )}
                   </div>
@@ -3090,13 +3087,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       {/* Buton pentru navigare la lucrarea originală */}
                       {lucrare.lucrareOriginala && (
                         <Button
+                          asChild
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(relatedTicketUrl(String(lucrare.lucrareOriginala)))}
                           className="text-xs px-2 py-1 h-7 text-orange-700 border-orange-300 hover:bg-orange-100"
                         >
-                          <ChevronLeft className="h-3 w-3 mr-1" />
-                          Vezi lucrarea inițială
+                          <Link href={relatedTicketUrl(String(lucrare.lucrareOriginala))}>
+                            <ChevronLeft className="h-3 w-3 mr-1" />
+                            Vezi lucrarea inițială
+                          </Link>
                         </Button>
                       )}
                     </div>
@@ -3253,13 +3252,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           )}
                               </div>
                               <Button
+                                asChild
                                 variant="outline"
                                 size="sm"
-                                onClick={() => router.push(relatedTicketUrl(reinterventie.id))}
                                 className="text-xs px-2 py-1 h-7 text-blue-700 border-blue-300 hover:bg-blue-100"
                               >
-                                <ChevronLeft className="h-3 w-3 mr-1 rotate-180" />
-                                Vezi reintervenția
+                                <Link href={relatedTicketUrl(reinterventie.id)}>
+                                  <ChevronLeft className="h-3 w-3 mr-1 rotate-180" />
+                                  Vezi reintervenția
+                                </Link>
                               </Button>
                             </div>
                           ))}
@@ -3399,15 +3400,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           <span className="font-medium text-blue-600">Cod:</span>
                           <span className="text-blue-600">{resolvedEquipment?.cod || lucrare.echipamentCod}</span>
                           <Button
-                            type="button"
+                            asChild
                             variant="outline"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => openEquipmentHistoryByCode(resolvedEquipment?.cod || lucrare.echipamentCod)}
                             aria-label="Vezi istoric echipament"
                             title="Vezi istoric echipament"
                           >
-                            <History className="h-3.5 w-3.5" />
+                            <Link
+                              href={`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(String(resolvedEquipment?.cod || lucrare.echipamentCod))}`}
+                            >
+                              <History className="h-3.5 w-3.5" />
+                            </Link>
                           </Button>
                           <EquipmentQRCode
                             equipment={{
@@ -4852,8 +4856,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </AlertDescription>
                     </Alert>
                     <div className="flex items-center justify-center gap-3">
-                      <Button onClick={() => router.push(relatedTicketUrl(otherActiveWork.id))}>
-                        Deschide lucrarea în lucru
+                      <Button asChild>
+                        <Link href={relatedTicketUrl(otherActiveWork.id)}>
+                          Deschide lucrarea în lucru
+                        </Link>
                       </Button>
                       {checkingOtherActive && (
                         <span className="text-xs text-gray-500">Se verifică starea lucrărilor...</span>

@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import Link from "next/link"
 import { Bell, Edit, User, Clock, Eye, CheckCircle2, X, AlertTriangle, ExternalLink, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -9,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent } from "@/components/ui/card"
-import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import { ro } from "date-fns/locale"
 import { useAuth } from "@/contexts/AuthContext"
@@ -77,22 +77,18 @@ const getModificationColor = (type: WorkModification['modificationType'], priori
 }
 
 export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDialogProps) {
-  const router = useRouter()
   const { userData } = useAuth()
   // Lazy loading - hook-ul citește doar când dialogul este deschis
   const { modifications, loading, unreadCount, markAsRead, markAllAsRead } = useWorkModifications(isOpen)
 
-  const handleViewLucrare = (modification: WorkModification) => {
-    // Navighează la lucrarea respectivă cu parametrul de modificare pentru a afișa detaliile
+  const lucrareHref = (modification: WorkModification) =>
+    `/dashboard/lucrari/${modification.lucrareId}?modificationId=${modification.id}`
+
+  const prepareViewLucrare = (modification: WorkModification) => {
     onClose()
-    
-    // Marchează automat modificarea ca citită când se navighează către lucrare
     if (!modification.read) {
       markAsRead(modification.id)
     }
-    
-    // Include parametrul modificationId pentru a afișa detaliile modificării
-    router.push(`/dashboard/lucrari/${modification.lucrareId}?modificationId=${modification.id}`)
   }
 
   const handleMarkAsRead = (modification: WorkModification, event: React.MouseEvent) => {
@@ -280,13 +276,18 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                             </Button>
                           )}
                           <Button
+                            asChild
                             variant="default"
                             size="sm"
-                            onClick={() => handleViewLucrare(modification)}
                             className="text-xs h-7 px-2 ml-auto"
                           >
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            Vezi lucrarea
+                            <Link
+                              href={lucrareHref(modification)}
+                              onClick={() => prepareViewLucrare(modification)}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Vezi lucrarea
+                            </Link>
                           </Button>
                         </div>
                       </div>
@@ -311,9 +312,11 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
               <X className="h-4 w-4 mr-2" />
               Închide
             </Button>
-            <Button onClick={() => { onClose(); router.push('/dashboard/lucrari') }}>
-              <Eye className="h-4 w-4 mr-2" />
-              Vezi toate lucrările
+            <Button asChild>
+              <Link href="/dashboard/lucrari" onClick={() => onClose()}>
+                <Eye className="h-4 w-4 mr-2" />
+                Vezi toate lucrările
+              </Link>
             </Button>
           </div>
         </div>

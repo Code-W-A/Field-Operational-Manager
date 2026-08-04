@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Download, ExternalLink, FileText, Pencil, X } from "lucide-react"
 
@@ -335,20 +336,22 @@ export default function FacturiPage() {
                 <Download className="mr-2 h-4 w-4" /> Descarcă
               </Button>
               <Button
+                asChild
                 variant="outline"
                 size="sm"
                 className="h-8"
-                onClick={() => router.push(`/dashboard/lucrari/${encodeURIComponent(r.lucrareId)}`)}
                 title="Deschide lucrarea"
               >
-                <ExternalLink className="mr-2 h-4 w-4" /> Lucrare
+                <Link href={`/dashboard/lucrari/${encodeURIComponent(r.lucrareId)}`}>
+                  <ExternalLink className="mr-2 h-4 w-4" /> Lucrare
+                </Link>
               </Button>
             </div>
           )
         },
       },
     ],
-    [router],
+    [],
   )
 
   if (!isAdminOrDispatcher) return null
@@ -433,6 +436,10 @@ export default function FacturiPage() {
             columns={columns}
             data={filteredRows}
             onRowClick={(r: any) => router.push(`/dashboard/lucrari/${encodeURIComponent(r.lucrareId)}`)}
+            getRowHref={(r: any) => {
+              const id = String(r?.lucrareId || "").trim()
+              return id ? `/dashboard/lucrari/${encodeURIComponent(id)}` : undefined
+            }}
             enablePagination
             initialPageSize={20}
             showFilters={false}

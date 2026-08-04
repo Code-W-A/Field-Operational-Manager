@@ -1,14 +1,13 @@
 "use client"
 
+import Link from "next/link"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useRouter } from "next/navigation"
 import { Settings, Mail, FileText, Database, PenToolIcon as Tool, FileCode, FileCheck } from "lucide-react"
 
 export default function AdminPage() {
-  const router = useRouter()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_PANEL === "true"
 
   const adminTools = [
@@ -85,13 +84,15 @@ export default function AdminPage() {
               <CardDescription>{tool.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                variant="default"
-                className="w-full"
-                onClick={tool.onClick ? tool.onClick : () => router.push(tool.href)}
-              >
-                Accesează
-              </Button>
+              {tool.onClick ? (
+                <Button variant="default" className="w-full" onClick={tool.onClick}>
+                  Accesează
+                </Button>
+              ) : (
+                <Button asChild variant="default" className="w-full">
+                  <Link href={tool.href}>Accesează</Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1451,8 +1452,10 @@ FOM by NRG`,
             </div>
             <h2 className="mt-4 text-xl font-semibold text-red-600">Eroare</h2>
             <p className="mt-2 text-center text-gray-500">{error || "Nu s-au putut încărca datele raportului."}</p>
-            <Button className="mt-6" onClick={() => router.push("/dashboard/lucrari")}>
-              Înapoi la lucrări
+            <Button asChild className="mt-6">
+              <Link href="/dashboard/lucrari">
+                Înapoi la lucrări
+              </Link>
             </Button>
           </CardContent>
         </Card>

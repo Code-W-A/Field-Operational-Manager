@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { AlertCircle, ArrowRight, CalendarClock, KanbanSquare, ListChecks, TrendingUp } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent } from "@/components/ui/card"
@@ -45,7 +44,6 @@ function getMostUrgentOpenTask(tasks: CrmTask[]) {
 
 export default function CrmDashboardPage() {
   const { user, userData } = useAuth()
-  const router = useRouter()
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
   const [stats, setStats] = useState<{ total: number; won: number; lost: number; stageStats: Record<string, number> } | null>(null)
@@ -138,12 +136,14 @@ export default function CrmDashboardPage() {
         description="KPI-uri, oportunități prioritizate după ToDo și sarcini curente"
         action={
           <Button
+            asChild
             size="sm"
             className="h-10 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold shadow-sm shadow-blue-600/10 hover:bg-blue-700"
-            onClick={() => router.push("/crm/opportunities")}
           >
-            Vezi oportunitățile
-            <ArrowRight className="ml-1.5 h-4 w-4" />
+            <Link href="/crm/opportunities">
+              Vezi oportunitățile
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
           </Button>
         }
       />

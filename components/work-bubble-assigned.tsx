@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -18,45 +19,49 @@ const BUBBLE_CONFIG = {
 }
 // ====================================
 
-export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLElement> {
   title?: string
   subtitle?: string
   emitent?: string
   status?: string
   equipmentList?: string[]
   colorClass?: string
+  href?: string
   onClick?: () => void
 }
 
-export function WorkBubbleAssigned({ title, subtitle, emitent, status, equipmentList, colorClass = "bg-slate-600", onClick, className, ...props }: WorkBubbleAssignedProps) {
+export function WorkBubbleAssigned({
+  title,
+  subtitle,
+  emitent,
+  status,
+  equipmentList,
+  colorClass = "bg-slate-600",
+  href,
+  onClick,
+  className,
+  ...props
+}: WorkBubbleAssignedProps) {
   const hasMultipleEquipment = Array.isArray(equipmentList) && equipmentList.length > 1
 
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault()
-          onClick?.()
-        }
-      }}
-      style={{
-        width: BUBBLE_CONFIG.width,
-        maxWidth: "100%",
-        marginLeft: BUBBLE_CONFIG.marginLeft,
-        marginRight: BUBBLE_CONFIG.marginRight,
-      }}
-      className={cn(
-        // Full width responsive - ocupă întreaga lățime disponibilă în CardContent
-        "group cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden min-w-0 w-full box-border",
-        "hover:shadow-sm active:scale-[0.99]",
-        colorClass ? `border-transparent text-white ${colorClass}` : "border-gray-200 bg-gray-50",
-        className,
-      )}
-      {...props}
-    >
+  const style = {
+    width: BUBBLE_CONFIG.width,
+    maxWidth: "100%",
+    marginLeft: BUBBLE_CONFIG.marginLeft,
+    marginRight: BUBBLE_CONFIG.marginRight,
+  }
+
+  const bubbleClassName = cn(
+    // Full width responsive - ocupă întreaga lățime disponibilă în CardContent
+    "group cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden min-w-0 w-full box-border",
+    "hover:shadow-sm active:scale-[0.99]",
+    "no-underline",
+    colorClass ? `border-transparent text-white ${colorClass}` : "border-gray-200 bg-gray-50",
+    className,
+  )
+
+  const content = (
+    <>
       <div className="text-sm leading-tight min-w-0 max-w-full w-full whitespace-normal break-words">{title || "-"}</div>
       <div className="text-xs opacity-90 leading-tight min-w-0 max-w-full w-full whitespace-normal break-words">
         {hasMultipleEquipment ? (
@@ -90,8 +95,33 @@ export function WorkBubbleAssigned({ title, subtitle, emitent, status, equipment
           Emitent: {emitent}
         </div>
       )}
+    </>
+  )
+
+  if (href) {
+    return (
+      <Link href={href} onClick={onClick} style={style} className={bubbleClassName} {...(props as any)}>
+        {content}
+      </Link>
+    )
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClick?.()
+        }
+      }}
+      style={style}
+      className={bubbleClassName}
+      {...props}
+    >
+      {content}
     </div>
   )
 }
-
-

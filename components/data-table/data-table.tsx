@@ -25,6 +25,8 @@ interface DataTableProps<TData, TValue> {
   sorting?: SortingState
   onSortingChange?: (sorting: SortingState) => void
   onRowClick?: (row: TData) => void
+  /** Dacă e setat, click pe scroll / Ctrl·Cmd+click deschide URL-ul în tab nou (fără schimbare UI). */
+  getRowHref?: (row: TData) => string | undefined
   table?: any
   setTable?: (table: any) => void
   showFilters?: boolean
@@ -44,6 +46,7 @@ export function DataTable<TData, TValue>({
   sorting: externalSorting,
   onSortingChange: onExternalSortingChange,
   onRowClick,
+  getRowHref,
   table: externalTable,
   setTable: setExternalTable,
   showFilters = true,
@@ -373,11 +376,26 @@ export function DataTable<TData, TValue>({
                   }
                 }
 
+                const rowHref = getRowHref?.(row.original)
+
                 return (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    onClick={() => onRowClick && onRowClick(row.original)}
+                    onClick={(event) => {
+                      if (!onRowClick) return
+                      if (rowHref && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault()
+                        window.open(rowHref, "_blank", "noopener,noreferrer")
+                        return
+                      }
+                      onRowClick(row.original)
+                    }}
+                    onAuxClick={(event) => {
+                      if (event.button !== 1 || !rowHref) return
+                      event.preventDefault()
+                      window.open(rowHref, "_blank", "noopener,noreferrer")
+                    }}
                     className={`${rowClass} hover:bg-gray-100 ${onRowClick ? "cursor-pointer" : ""} transition-colors`}
                   >
                     {row.getVisibleCells().map((cell) => (

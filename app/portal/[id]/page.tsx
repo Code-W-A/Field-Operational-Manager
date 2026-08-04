@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { addDoc, collection, serverTimestamp } from "firebase/firestore"
@@ -275,13 +276,11 @@ export default function PortalWorkDetail() {
       <div className="mx-auto max-w-4xl p-6">
         {/* Back Button */}
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => router.push('/portal')}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Înapoi la lucrări
+          <Button asChild variant="ghost" className="mb-4">
+            <Link href="/portal">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Înapoi la lucrări
+            </Link>
           </Button>
         </div>
 

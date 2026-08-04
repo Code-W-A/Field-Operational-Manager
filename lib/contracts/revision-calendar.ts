@@ -36,6 +36,8 @@ export type RevisionFormParams = {
   locationName?: string
 }
 
+export type RevisionCalendarContractSource = ContractCalendarSource & RevisionFormParams
+
 const addMonths = (date: Date, months: number) => {
   const d = new Date(date)
   d.setMonth(d.getMonth() + months)
@@ -112,6 +114,22 @@ export function computeRevisionSchedulePreview(params: RevisionFormParams): Revi
   }
 
   return occurrences
+}
+
+/** Folosește preview-ul salvat sau îl reconstruiește pentru contractele vechi. */
+export function resolveContractRevisionPreview(contract: RevisionCalendarContractSource): RevisionSchedulePreview[] {
+  if (Array.isArray(contract.revisionSchedulePreview)) return contract.revisionSchedulePreview
+
+  return computeRevisionSchedulePreview({
+    startDate: contract.startDate,
+    recurrenceInterval: contract.recurrenceInterval,
+    recurrenceUnit: contract.recurrenceUnit,
+    daysBeforeWork: contract.daysBeforeWork,
+    locationIds: contract.locationIds,
+    locationNames: contract.locationNames,
+    locationId: contract.locationId,
+    locationName: contract.locationName,
+  })
 }
 
 export function buildCalendarEventsFromPreview(

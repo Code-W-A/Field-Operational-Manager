@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -42,7 +42,6 @@ interface Contract {
 }
 
 export function ClientContractsManager({ clientId, clientName, onContractsChange }: ClientContractsManagerProps) {
-  const router = useRouter()
   const [clientContracts, setClientContracts] = useState<Contract[]>([])
   const [availableContracts, setAvailableContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
@@ -187,13 +186,15 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
             {availableContracts.length === 0 ? (
               <>
                 <Button
-                  onClick={() => router.push('/dashboard/contracte')}
+                  asChild
                   variant="outline"
                   size="sm"
                   className="h-8 px-2.5"
                 >
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                  Creează Contract
+                  <Link href="/dashboard/contracte">
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    Creează Contract
+                  </Link>
                 </Button>
                 <Button
                   onClick={() => setIsAssignDialogOpen(true)}
@@ -239,13 +240,15 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
                     <p className="mt-1 text-xs">Creați un contract nou pentru acest client.</p>
                   </div>
                   <Button
-                    onClick={() => router.push('/dashboard/contracte')}
+                    asChild
                     variant="outline"
                     size="sm"
                     className="h-8 px-2.5"
                   >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Creează Contract Nou
+                    <Link href="/dashboard/contracte">
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Creează Contract Nou
+                    </Link>
                   </Button>
                 </div>
               )}
@@ -255,15 +258,19 @@ export function ClientContractsManager({ clientId, clientName, onContractsChange
               {clientContracts.map((contract) => (
                 <div
                   key={contract.id}
-                  className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+                  className="flex items-center justify-between gap-3 rounded-md border p-2.5 transition-colors hover:border-primary/40 hover:bg-muted/50 focus-within:border-primary/40 focus-within:bg-muted/50"
                 >
-                  <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/dashboard/contracte/${contract.id}`}
+                    className="min-w-0 flex-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    aria-label={`Deschide contractul ${contract.name}, ${contract.number}`}
+                  >
                     <div className="flex flex-wrap items-center gap-1.5">
                       <h4 className="min-w-0 truncate text-sm font-medium">{contract.name}</h4>
                       <Badge variant="outline" className="text-xs">{contract.number}</Badge>
                       <Badge variant="secondary" className="text-xs">{contract.type}</Badge>
                     </div>
-                  </div>
+                  </Link>
                   <Button
                     variant="ghost"
                     size="sm"

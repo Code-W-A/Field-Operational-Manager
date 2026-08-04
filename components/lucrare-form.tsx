@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -216,7 +216,6 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     },
     ref,
   ) => {
-    const router = useRouter()
     const { userData } = useAuth()
     const userRole = userData?.role
     const isAdminOrDispatcher = userRole === "admin" || userRole === "dispecer"
@@ -2535,13 +2534,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                                 </Badge>
                               </div>
                               <Button
-                                type="button"
+                                asChild
                                 variant="outline"
                                 size="sm"
                                 className="h-6 px-2 text-xs"
-                                onClick={() => router.push(`/dashboard/lucrari/${work.id}`)}
                               >
-                                Deschide tichet
+                                <Link href={`/dashboard/lucrari/${work.id}`}>
+                                  Deschide tichet
+                                </Link>
                               </Button>
                             </div>
                             {work.matchReason && <div className="mt-1 text-xs text-amber-900">{work.matchReason}</div>}
@@ -2586,13 +2586,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                                   </Badge>
                                 )}
                                 <Button
-                                  type="button"
+                                  asChild
                                   variant="outline"
                                   size="sm"
                                   className="h-6 px-2 text-xs"
-                                  onClick={() => router.push(`/dashboard/lucrari/${work.id}`)}
                                 >
-                                  Deschide tichet
+                                  <Link href={`/dashboard/lucrari/${work.id}`}>
+                                    Deschide tichet
+                                  </Link>
                                 </Button>
                               </div>
                             </div>

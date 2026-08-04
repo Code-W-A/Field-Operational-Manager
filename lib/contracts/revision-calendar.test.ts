@@ -11,6 +11,7 @@ import {
   getDefaultCalendarRange,
   parsePreviewDate,
   resolveEditDialogCalendarPreview,
+  resolveContractRevisionPreview,
 } from "@/lib/contracts/revision-calendar"
 
 const contractA = { id: "ct-a", name: "Contract A", number: "MNT-001" }
@@ -150,6 +151,22 @@ test("resolveEditDialogCalendarPreview — folosește saved când formularul e i
   const saved = [{ scheduledIso: "2026-06-01T00:00:00.000Z", generateIso: "2026-05-22T00:00:00.000Z" }]
   const result = resolveEditDialogCalendarPreview({ startDate: "" }, saved)
   assert.deepEqual(result, saved)
+})
+
+test("resolveContractRevisionPreview — reconstruiește calendarul contractelor vechi", () => {
+  const preview = resolveContractRevisionPreview({
+    id: "legacy-1",
+    name: "Contract vechi",
+    number: "MNT-LEGACY-1",
+    startDate: "2026-06-01",
+    recurrenceInterval: 30,
+    recurrenceUnit: "zile",
+    daysBeforeWork: 5,
+    locationName: "Sediu",
+  })
+
+  assert.ok(preview.length > 0)
+  assert.equal(preview[0].locationName, "Sediu")
 })
 
 test("canOpenRevisionCalendar — true doar cu revizii", () => {

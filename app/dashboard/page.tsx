@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { StatusBox } from "@/components/status-box"
@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { History } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
@@ -26,7 +26,6 @@ import { Scanner } from "@yudiel/react-qr-scanner"
 import { Input } from "@/components/ui/input"
 
 export default function Dashboard() {
-  const router = useRouter()
   const { config: dashboardConfig } = useDashboardStatusSettings()
   const { buckets, personal, loading } = useDashboardStatus(dashboardConfig)
   const { userData } = useAuth()
@@ -362,7 +361,7 @@ export default function Dashboard() {
       subtitle={it.equipmentLabel}
       emitent={bubbleEmitent(it)}
       colorClass={color}
-      onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+      href={`/dashboard/lucrari/${it.id}`}
       className="mb-2"
     />
   )
@@ -374,11 +373,9 @@ export default function Dashboard() {
       subtitle={it.equipmentLabel}
       emitent={bubbleEmitent(it)}
       colorClass={color}
+      href={it.lucrareId ? `/dashboard/lucrari/${it.lucrareId}` : undefined}
       onClick={() => {
-        if (it.lucrareId) {
-          router.push(`/dashboard/lucrari/${it.lucrareId}`)
-          return
-        }
+        if (it.lucrareId) return
         toast({
           title: "Revizia nu este încă generată ca tichet",
           description: it.equipmentLabel || "Încă nu există o tichet asociată acestei revizii.",
@@ -396,7 +393,7 @@ export default function Dashboard() {
       emitent={bubbleEmitent(it)}
       equipmentList={it.equipmentList}
       colorClass={color}
-      onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+      href={`/dashboard/lucrari/${it.id}`}
       className="mb-2"
     />
   )
@@ -420,7 +417,7 @@ export default function Dashboard() {
       equipmentList={it.equipmentList}
       status={it.statusLucrare}
       colorClass={getTechnicianWorkColor(it.statusLucrare)}
-      onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+      href={`/dashboard/lucrari/${it.id}`}
       className="mb-2"
     />
   )
@@ -435,7 +432,7 @@ export default function Dashboard() {
         subtitle={it.equipmentLabel}
         emitent={bubbleEmitent(it)}
         colorClass={color}
-        onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+        href={`/dashboard/lucrari/${it.id}`}
         className="mb-2"
       />
     )
@@ -458,7 +455,7 @@ export default function Dashboard() {
         subtitle={it.equipmentLabel}
         emitent={bubbleEmitent(it)}
         colorClass={color}
-        onClick={() => router.push(`/dashboard/lucrari/${it.id}`)}
+        href={`/dashboard/lucrari/${it.id}`}
         className="mb-2"
       />
     )
@@ -634,24 +631,29 @@ export default function Dashboard() {
                 <Button variant="outline" onClick={() => setIsHistoryCheckOpen(false)}>
                   Închide
                 </Button>
-                <Button
-                  onClick={() => {
-                    const code = historyCode.trim()
-                    if (!isValidEquipmentCode(code)) {
+                {isValidEquipmentCode(historyCode) ? (
+                  <Button asChild>
+                    <Link
+                      href={`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(historyCode.trim())}`}
+                      onClick={() => setIsHistoryCheckOpen(false)}
+                    >
+                      Deschide istoricul
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    disabled
+                    onClick={() => {
                       toast({
                         title: "Cod invalid",
                         description: "Codul trebuie să aibă maxim 10 caractere și să conțină litere și cifre.",
                         variant: "destructive",
                       })
-                      return
-                    }
-                    setIsHistoryCheckOpen(false)
-                    router.push(`/dashboard/istoric-interventii/echipament?cod=${encodeURIComponent(code)}`)
-                  }}
-                  disabled={!isValidEquipmentCode(historyCode)}
-                >
-                  Deschide istoricul
-                </Button>
+                    }}
+                  >
+                    Deschide istoricul
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>

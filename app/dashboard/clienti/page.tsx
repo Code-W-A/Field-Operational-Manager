@@ -22,6 +22,7 @@ import { useClientLucrari } from "@/hooks/use-client-lucrari"
 import { ClientForm } from "@/components/client-form"
 import { ClientAddDialog } from "@/components/client-add-dialog"
 import { useSearchParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { type Client, deleteClient } from "@/lib/firebase/firestore"
 import { DataTable } from "@/components/data-table/data-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -858,6 +859,10 @@ export default function Clienti() {
               setTable={setTable}
               showFilters={false}
               onRowClick={(row) => handleViewDetails(row.id!)}
+              getRowHref={(row) => {
+                const id = String((row as any)?.id || "").trim()
+                return id ? `/dashboard/clienti/${id}` : undefined
+              }}
               persistenceKey="clienti"
             />
         ) : (
@@ -893,7 +898,23 @@ export default function Clienti() {
               <Card
                 key={client.id}
                 className="overflow-hidden cursor-pointer hover:shadow-md"
-                onClick={() => handleViewDetails(client.id!)}
+                onClick={(event) => {
+                  const id = String(client.id || "").trim()
+                  if (!id) return
+                  if (event.metaKey || event.ctrlKey) {
+                    event.preventDefault()
+                    window.open(`/dashboard/clienti/${id}`, "_blank", "noopener,noreferrer")
+                    return
+                  }
+                  handleViewDetails(id)
+                }}
+                onAuxClick={(event) => {
+                  if (event.button !== 1) return
+                  const id = String(client.id || "").trim()
+                  if (!id) return
+                  event.preventDefault()
+                  window.open(`/dashboard/clienti/${id}`, "_blank", "noopener,noreferrer")
+                }}
               >
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b p-4">
@@ -940,13 +961,13 @@ export default function Clienti() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleViewDetails(client.id!)
-                            }}
-                          >
-                            <Eye className="mr-2 h-4 w-4" /> Vizualizează
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/dashboard/clienti/${client.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Eye className="mr-2 h-4 w-4" /> Vizualizează
+                            </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={(e) => {

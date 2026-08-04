@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 import type { Department, Employee } from "@/lib/hr/types"
 import { createOrUpdateEmployee } from "@/lib/hr/storage"
@@ -61,7 +61,6 @@ export function EmployeeEditDialog({
   departments: Department[]
   onSaved?: (employee: Employee) => void
 }) {
-  const router = useRouter()
   const isEdit = Boolean(employee)
 
   // Draft ID for "add" (used to allow photo upload before save)
@@ -539,8 +538,10 @@ export function EmployeeEditDialog({
                   {activeDepartments.length === 0 ? (
                     <div className="text-sm text-muted-foreground">
                       Niciun departament disponibil.{" "}
-                      <Button variant="link" className="h-auto p-0" onClick={() => router.push("/dashboard/resurse-umane/departamente")}>
-                        Creează primul departament →
+                      <Button asChild variant="link" className="h-auto p-0">
+                        <Link href="/dashboard/resurse-umane/departamente">
+                          Creează primul departament →
+                        </Link>
                       </Button>
                     </div>
                   ) : (

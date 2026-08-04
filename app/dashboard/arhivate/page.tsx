@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -585,11 +586,13 @@ export default function LucrariArhivate() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  asChild
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push(`/dashboard/arhivate/${row.original.id}`)}
                 >
-                  <Eye className="h-4 w-4" />
+                  <Link href={`/dashboard/arhivate/${row.original.id}`}>
+                    <Eye className="h-4 w-4" />
+                  </Link>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Vizualizează detalii</TooltipContent>
@@ -618,11 +621,13 @@ export default function LucrariArhivate() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    asChild
                     variant="default"
                     size="sm"
-                    onClick={() => router.push(`/raport/${row.original.id}`)}
                   >
-                    <Download className="h-4 w-4" />
+                    <Link href={`/raport/${row.original.id}`}>
+                      <Download className="h-4 w-4" />
+                    </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Descarcă raport</TooltipContent>
@@ -850,7 +855,23 @@ export default function LucrariArhivate() {
             ) : (
               <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredLucrari.map((lucrare) => (
-                  <Card key={lucrare.id} className="border-gray-200 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/dashboard/arhivate/${lucrare.id}`)}>
+                  <Card
+                    key={lucrare.id}
+                    className="border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={(event) => {
+                      if (event.metaKey || event.ctrlKey) {
+                        event.preventDefault()
+                        window.open(`/dashboard/arhivate/${lucrare.id}`, "_blank", "noopener,noreferrer")
+                        return
+                      }
+                      router.push(`/dashboard/arhivate/${lucrare.id}`)
+                    }}
+                    onAuxClick={(event) => {
+                      if (event.button !== 1) return
+                      event.preventDefault()
+                      window.open(`/dashboard/arhivate/${lucrare.id}`, "_blank", "noopener,noreferrer")
+                    }}
+                  >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div>
@@ -915,11 +936,16 @@ export default function LucrariArhivate() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
+                                  asChild
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => router.push(`/dashboard/arhivate/${lucrare.id}`)}
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  <Link
+                                    href={`/dashboard/arhivate/${lucrare.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Link>
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Vizualizează detalii</TooltipContent>
@@ -933,7 +959,10 @@ export default function LucrariArhivate() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleDezarhivare(lucrare.id!)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDezarhivare(lucrare.id!)
+                                  }}
                                 >
                                   <ArchiveRestore className="h-4 w-4" />
                                 </Button>
@@ -949,12 +978,17 @@ export default function LucrariArhivate() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
+                                  asChild
                                   variant="default"
                                   size="sm"
-                                  onClick={() => router.push(`/raport/${lucrare.id}`)}
                                 >
-                                  <Download className="h-4 w-4 mr-1" />
-                                  Raport
+                                  <Link
+                                    href={`/raport/${lucrare.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Raport
+                                  </Link>
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Descarcă raport</TooltipContent>
@@ -1005,6 +1039,10 @@ export default function LucrariArhivate() {
                 sorting={tableSorting}
                 onSortingChange={handleSortingChange}
                 onRowClick={(row) => router.push(`/dashboard/arhivate/${row.id}`)}
+                getRowHref={(row) => {
+                  const id = String((row as any)?.id || "").trim()
+                  return id ? `/dashboard/arhivate/${id}` : undefined
+                }}
                 table={table}
                 setTable={setTable}
                 showFilters={false}

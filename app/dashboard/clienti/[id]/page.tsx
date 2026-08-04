@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -414,10 +415,10 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                   {lucrariClient.length > 0 ? (
                     <div className="space-y-2">
                       {lucrariClient.slice(0, 3).map((lucrare) => (
-                        <div
+                        <Link
                           key={lucrare.id}
-                          className="group cursor-pointer rounded-md border px-3 py-2 transition-all hover:bg-muted"
-                          onClick={() => router.push(`/dashboard/lucrari/${lucrare.id}`)}
+                          href={`/dashboard/lucrari/${lucrare.id}`}
+                          className="group block cursor-pointer rounded-md border px-3 py-2 transition-all hover:bg-muted no-underline text-inherit"
                         >
                           <p className="text-sm font-medium line-clamp-1">{lucrare.tipLucrare}</p>
                           <p className="text-xs text-muted-foreground mt-1">
@@ -426,21 +427,25 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                               return d ? formatUiDate(d) : String((lucrare as any).dataInterventie || "")
                             })()}
                           </p>
-                        </div>
+                        </Link>
                       ))}
                       {lucrariClient.length > 3 && (
                         <Button
+                          asChild
                           variant="ghost"
                           size="sm"
                           className="mt-1 w-full"
-                          onClick={() => {
-                            const qs = new URLSearchParams()
-                            qs.set("clientId", String(id))
-                            if (client?.nume) qs.set("clientName", String(client.nume))
-                            router.push(`/dashboard/istoric-interventii?${qs.toString()}`)
-                          }}
                         >
-                          Vezi toate ({lucrariClient.length})
+                          <Link
+                            href={`/dashboard/istoric-interventii?${(() => {
+                              const qs = new URLSearchParams()
+                              qs.set("clientId", String(id))
+                              if (client?.nume) qs.set("clientName", String(client.nume))
+                              return qs.toString()
+                            })()}`}
+                          >
+                            Vezi toate ({lucrariClient.length})
+                          </Link>
                         </Button>
                       )}
                     </div>

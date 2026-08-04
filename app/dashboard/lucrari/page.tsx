@@ -3307,6 +3307,17 @@ export default function Lucrari() {
                   ? (lucrare) => toggleWorkSelection(String((lucrare as any)?.id || ""))
                   : (lucrare) => handleViewDetails(lucrare)
               }
+              getRowHref={(lucrare) => {
+                if (showTableSelectionColumn) return undefined
+                if (
+                  isTechnician &&
+                  (isCompletedWithReportNotPickedUp(lucrare) || isPostponedNotPickedUp(lucrare))
+                ) {
+                  return undefined
+                }
+                const id = String((lucrare as any)?.id || "").trim()
+                return id ? `/dashboard/lucrari/${id}` : undefined
+              }}
               table={tableInstance}
               setTable={setTableInstance}
               showFilters={false}
@@ -3412,14 +3423,27 @@ export default function Lucrari() {
                     lucrare.statusLucrare === WORK_STATUS.NO_SIGNATURE &&
                       "ring-2 ring-amber-400/90 shadow-md shadow-amber-100/60",
                   )}
-                  onClick={() => {
+                  onClick={(event) => {
                     if (isBulkSelectionMode) {
                       if (workId) toggleWorkSelection(workId)
                       return
                     }
-                    if (!(isTechnician && isCompletedNotPickedUp)) {
-                      handleViewDetails(lucrare)
+                    if (isTechnician && isCompletedNotPickedUp) return
+                    if (!workId) return
+                    if (event.metaKey || event.ctrlKey) {
+                      event.preventDefault()
+                      window.open(`/dashboard/lucrari/${workId}`, "_blank", "noopener,noreferrer")
+                      return
                     }
+                    handleViewDetails(lucrare)
+                  }}
+                  onAuxClick={(event) => {
+                    if (event.button !== 1) return
+                    if (isBulkSelectionMode) return
+                    if (isTechnician && isCompletedNotPickedUp) return
+                    if (!workId) return
+                    event.preventDefault()
+                    window.open(`/dashboard/lucrari/${workId}`, "_blank", "noopener,noreferrer")
                   }}
                 >
                   {/* Decorative bubble - subtle */}

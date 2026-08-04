@@ -1,13 +1,12 @@
 "use client"
 
+import Link from "next/link"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
 
 export default function DebugPage() {
   const { user, userData, loading } = useAuth()
-  const router = useRouter()
 
   if (loading) {
     return (
@@ -60,9 +59,11 @@ export default function DebugPage() {
           )}
 
           <div className="flex flex-col gap-2 pt-4">
-            <Button onClick={() => router.push("/dashboard")}>Înapoi la Dashboard</Button>
-            <Button variant="outline" onClick={() => router.push("/dashboard/utilizatori")}>
-              Încearcă Pagina Utilizatori
+            <Button asChild>
+              <Link href="/dashboard">Înapoi la Dashboard</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/dashboard/utilizatori">Încearcă Pagina Utilizatori</Link>
             </Button>
           </div>
         </CardContent>
