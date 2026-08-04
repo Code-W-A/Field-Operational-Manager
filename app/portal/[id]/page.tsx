@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge"
 import { UserNav } from "@/components/user-nav"
 import { ArrowLeft, Calendar, MapPin, FileText, Download, CheckCircle, XCircle } from "lucide-react"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
-import Link from "next/link"
 import { generateRevisionOperationsPDF } from "@/lib/pdf/revision-operations"
 
 export default function PortalWorkDetail() {
