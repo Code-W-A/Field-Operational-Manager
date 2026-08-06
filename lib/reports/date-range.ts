@@ -93,3 +93,22 @@ export function formatBucharestDateTime(value: string | Date) {
     second: "2-digit",
   }).format(date)
 }
+
+/** Filename-safe stamp: YYYY-MM-DD_HH-mm-ss in Europe/Bucharest. */
+export function formatBucharestFileStamp(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return "invalid-date"
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: REPORT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || "00"
+  return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}-${get("minute")}-${get("second")}`
+}

@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DataTable } from "@/components/data-table/data-table"
@@ -119,6 +120,7 @@ interface Contract {
   lastAutoWorkGenerated?: string
   locatie?: string // Legacy field
   customFields?: Record<string, any> // Câmpuri dinamice din setări
+  observatii?: string
   createdAt: any
   revisionSchedulePreview?: RevisionSchedulePreview[]
   status?: ContractStatus
@@ -183,6 +185,7 @@ export default function ContractsPage() {
   const [newContractDaysBeforeWork, setNewContractDaysBeforeWork] = useState<number>(10)
   const [newContractPricing, setNewContractPricing] = useState<Record<string, number>>({})
   const [newContractPricingCustomFields, setNewContractPricingCustomFields] = useState<Record<string, any>>({})
+  const [newContractObservatii, setNewContractObservatii] = useState("")
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false)
   const [recurrenceIntervalInput, setRecurrenceIntervalInput] = useState<string>("90")
   const [daysBeforeWorkInput, setDaysBeforeWorkInput] = useState<string>("10")
@@ -1208,6 +1211,11 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
         ...(newContract?.customFields ? { customFields: newContract.customFields } : {}),
       }
 
+      const observatiiTrimmed = newContractObservatii.trim()
+      if (observatiiTrimmed) {
+        contractData.observatii = observatiiTrimmed
+      }
+
       // Adăugăm clientId doar dacă este selectat și nu este "UNASSIGNED"
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         contractData.clientId = newContractClientId
@@ -1301,6 +1309,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       setNewContractRecurrenceUnit("zile")
       setNewContractDaysBeforeWork(10)
       setNewContractPricing({})
+      setNewContractObservatii("")
       setClientLocations([])
       setClientEquipments([])
       setIsAddDialogOpen(false)
@@ -1373,6 +1382,8 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       // Backfill la orice editare: persistăm `id` în document (egal cu doc id)
       updateData.id = selectedContract.id
 
+      const observatiiTrimmed = newContractObservatii.trim()
+      updateData.observatii = observatiiTrimmed || null
       // Gestionăm clientId - poate fi null pentru neasignat
       if (newContractClientId && newContractClientId !== "UNASSIGNED") {
         updateData.clientId = newContractClientId
@@ -1468,6 +1479,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       setNewContractRecurrenceUnit("zile")
       setNewContractDaysBeforeWork(10)
       setNewContractPricing({})
+      setNewContractObservatii("")
       setClientLocations([])
       setClientEquipments([])
       setSelectedContract(null)
@@ -1634,6 +1646,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     // Sincronizează și inputul text pentru a afișa valoarea din contract (nu default-ul)
     setDaysBeforeWorkInput(String(contract.daysBeforeWork ?? defaultDaysBeforeWork ?? 10))
     setNewContractPricing(contract.pricing || {})
+    setNewContractObservatii(contract.observatii || "")
     // Inițializează câmpurile dinamice cu valorile salvate în contract (pentru afișare corectă în dialog)
     setNewContract((prev: any) => ({
       ...(prev || {}),
@@ -1706,7 +1719,8 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
         newContractRecurrenceInterval !== (selectedContract?.recurrenceInterval || 90) ||
         newContractRecurrenceUnit !== (selectedContract?.recurrenceUnit || "zile") ||
         newContractDaysBeforeWork !== (selectedContract?.daysBeforeWork || 10) ||
-        newContractClientId !== (selectedContract?.clientId || "UNASSIGNED"))
+        newContractClientId !== (selectedContract?.clientId || "UNASSIGNED") ||
+        newContractObservatii !== (selectedContract?.observatii || ""))
     ) {
       setActiveDialog(dialogType)
       setShowCloseAlert(true)
@@ -1736,6 +1750,7 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     setNewContractRecurrenceUnit("zile")
     setNewContractDaysBeforeWork(10)
     setNewContractPricing({})
+    setNewContractObservatii("")
     setClientLocations([])
     setClientEquipments([])
     setSelectedContract(null)
@@ -2920,6 +2935,17 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                 }))
               }}
             />
+
+            <div className="space-y-2">
+              <Label htmlFor="addContractObservatii">Observații</Label>
+              <Textarea
+                id="addContractObservatii"
+                value={newContractObservatii}
+                onChange={(e) => setNewContractObservatii(e.target.value)}
+                placeholder="Observații despre contract..."
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleCloseDialog("add")}>
@@ -3291,6 +3317,17 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                 }))
               }}
             />
+
+            <div className="space-y-2">
+              <Label htmlFor="editContractObservatii">Observații</Label>
+              <Textarea
+                id="editContractObservatii"
+                value={newContractObservatii}
+                onChange={(e) => setNewContractObservatii(e.target.value)}
+                placeholder="Observații despre contract..."
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">

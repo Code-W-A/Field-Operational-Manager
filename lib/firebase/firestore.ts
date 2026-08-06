@@ -437,6 +437,9 @@ export interface Contract {
   
   // Ultima dată când s-a generat o lucrare automată
   lastAutoWorkGenerated?: string
+
+  // Observații libere despre contract
+  observatii?: string
   
   // Câmpuri legacy pentru compatibilitate retroactivă
   numar?: string  // Alias pentru number

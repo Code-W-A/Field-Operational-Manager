@@ -66,6 +66,7 @@ export interface UninvoicedReportRow {
   client: string
   location: string
   workType: string
+  equipment: string
   interventionDate: string
   reportDate: string
   technicians: string[]

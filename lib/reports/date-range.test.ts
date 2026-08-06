@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { parseActivityDateRange } from "./date-range"
+import { formatBucharestFileStamp, parseActivityDateRange } from "./date-range"
 
 test("intervalul folosește miezul nopții Europe/Bucharest vara", () => {
   const range = parseActivityDateRange("2026-07-30", "2026-08-01")
@@ -16,4 +16,9 @@ test("intervalul respectă schimbarea la ora de iarnă", () => {
 
 test("respinge intervalele mai lungi de 31 de zile", () => {
   assert.throws(() => parseActivityDateRange("2026-01-01", "2026-02-01"), /maximum 31/)
+})
+
+test("formatBucharestFileStamp produce YYYY-MM-DD_HH-mm-ss în Bucharest", () => {
+  // 2026-08-05 17:04:29 EEST = 2026-08-05 14:04:29 UTC
+  assert.equal(formatBucharestFileStamp(new Date("2026-08-05T14:04:29.000Z")), "2026-08-05_17-04-29")
 })

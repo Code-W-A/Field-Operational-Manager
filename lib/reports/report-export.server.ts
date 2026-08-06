@@ -55,6 +55,7 @@ export async function exportUninvoicedXlsx(rows: UninvoicedReportRow[], generate
     "Client",
     "Locație",
     "Tip tichet",
+    "Echipament",
     "Data intervenției",
     "Data raportului",
     "Tehnicieni",
@@ -68,6 +69,7 @@ export async function exportUninvoicedXlsx(rows: UninvoicedReportRow[], generate
       row.client,
       row.location,
       row.workType,
+      row.equipment,
       row.interventionDate,
       row.reportDate ? formatBucharestDateTime(row.reportDate) : "—",
       row.technicians.join(", ") || "—",
@@ -76,7 +78,7 @@ export async function exportUninvoicedXlsx(rows: UninvoicedReportRow[], generate
       row.ageDays,
     ])
   }
-  styleWorksheet(sheet, [18, 26, 30, 24, 18, 22, 28, 18, 18, 14])
+  styleWorksheet(sheet, [18, 26, 30, 24, 32, 18, 22, 28, 18, 18, 14])
   const info = workbook.addWorksheet("Informații")
   info.addRows([
     ["Raport", "Tichete nefacturate"],
@@ -249,6 +251,7 @@ export function exportUninvoicedPdf(rows: UninvoicedReportRow[], generatedAt: Da
       { label: "Client", width: 34, value: (row) => row.client },
       { label: "Locație", width: 38, value: (row) => row.location },
       { label: "Tip", width: 30, value: (row) => row.workType },
+      { label: "Echipament", width: 36, value: (row) => row.equipment },
       { label: "Intervenție", width: 23, value: (row) => row.interventionDate },
       { label: "Raport", width: 28, value: (row) => (row.reportDate ? formatBucharestDateTime(row.reportDate) : "—") },
       { label: "Tehnicieni", width: 38, value: (row) => row.technicians.join(", ") },

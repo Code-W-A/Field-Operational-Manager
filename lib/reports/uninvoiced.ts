@@ -33,6 +33,15 @@ export function getUninvoicedReportDate(work: any) {
   )
 }
 
+export function formatEquipmentLabel(name?: unknown, code?: unknown) {
+  const equipmentName = String(name ?? "").trim()
+  const equipmentCode = String(code ?? "").trim()
+  if (equipmentName && equipmentCode) return `${equipmentName} (${equipmentCode})`
+  if (equipmentName) return equipmentName
+  if (equipmentCode) return equipmentCode
+  return "—"
+}
+
 export function toUninvoicedReportRow(work: any, generatedAt = new Date()): UninvoicedReportRow {
   const reportDate = getUninvoicedReportDate(work)
   const ageDays = reportDate
@@ -46,6 +55,7 @@ export function toUninvoicedReportRow(work: any, generatedAt = new Date()): Unin
     client: String(work?.client || "—"),
     location: String(work?.locatie || work?.locationName || "—"),
     workType: String(work?.tipLucrare || "—"),
+    equipment: formatEquipmentLabel(work?.echipament, work?.echipamentCod),
     interventionDate: String(work?.dataInterventie || "—"),
     reportDate: reportDate?.toISOString() || "",
     technicians: Array.isArray(work?.tehnicieni) ? work.tehnicieni.map(String) : [],

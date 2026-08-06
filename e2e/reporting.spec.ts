@@ -16,6 +16,7 @@ test.describe("Rapoarte operaționale", () => {
         body: JSON.stringify({
           rows: [{
             id: "work-1", ticketNumber: "#00125", client: "Client test", location: "București", workType: "Intervenție",
+            equipment: "Ușă (R72A123)",
             interventionDate: "01.08.2026", reportDate: generatedAt, technicians: ["Tehnician Test"], workStatus: "Finalizat",
             invoiceStatus: "Nefacturat", ageDays: 2, archived: false, href: "/dashboard/lucrari/work-1",
           }],

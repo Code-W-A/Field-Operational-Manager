@@ -8,6 +8,7 @@ import type { AuditEvent, UninvoicedReportRow } from "./types"
 const generatedAt = new Date("2026-08-01T09:00:00.000Z")
 const uninvoiced: UninvoicedReportRow[] = [{
   id: "w1", ticketNumber: "#001", client: "Șantier România", location: "București", workType: "Intervenție",
+  equipment: "Ușă secțională (R72A123)",
   interventionDate: "01.08.2026", reportDate: generatedAt.toISOString(), technicians: ["Ion"], workStatus: "Finalizat",
   invoiceStatus: "Nefacturat", ageDays: 0, archived: false, href: "/dashboard/lucrari/w1",
 }]
@@ -31,6 +32,15 @@ test("exporturile XLSX conțin același număr de rânduri", async () => {
   }
 })
 
+test("exportul nefacturate include coloana Echipament", async () => {
+  const output = await exportUninvoicedXlsx(uninvoiced, generatedAt)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(output.body as any)
+  const header = (workbook.worksheets[0].getRow(1).values as ExcelJS.CellValue[]).slice(1).map(String)
+  const row = (workbook.worksheets[0].getRow(2).values as ExcelJS.CellValue[]).slice(1).map(String)
+  assert.ok(header.includes("Echipament"))
+  assert.equal(row[header.indexOf("Echipament")], "Ușă secțională (R72A123)")
+})
 test("exportul de activitate folosește texte lizibile și nu expune JSON", async () => {
   const output = await exportActivityXlsx(activity, generatedAt, "01.08.2026")
   const workbook = new ExcelJS.Workbook()

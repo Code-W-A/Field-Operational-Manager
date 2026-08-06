@@ -50,6 +50,7 @@ interface Contract {
   pricing?: Record<string, number>
   lastAutoWorkGenerated?: string
   customFields?: Record<string, any>
+  observatii?: string
   createdAt: any
   updatedAt?: any
 }
@@ -469,7 +470,7 @@ export default function ContractDetailsPage() {
                     )}
                   </div>
                 </div>
-                {(contract.pricing && Object.keys(contract.pricing).length > 0) || (contract.customFields && Object.keys(contract.customFields).length > 0) ? (
+                {(contract.pricing && Object.keys(contract.pricing).length > 0) || (contract.customFields && Object.keys(contract.customFields).length > 0) || Boolean(contract.observatii?.trim()) ? (
                   <Separator className="my-4" />
                 ) : null}
               </>
@@ -492,30 +493,37 @@ export default function ContractDetailsPage() {
                     ))}
                   </div>
                 </div>
-                {contract.customFields && Object.keys(contract.customFields).length > 0 && (
+                {((contract.customFields && Object.keys(contract.customFields).length > 0) || Boolean(contract.observatii?.trim())) && (
                   <Separator className="my-4" />
                 )}
               </>
             )}
 
-            {/* Câmpuri custom */}
-            {contract.customFields && Object.keys(contract.customFields).length > 0 && (
+            {/* Câmpuri custom + observații */}
+            {((contract.customFields && Object.keys(contract.customFields).length > 0) || Boolean(contract.observatii?.trim())) && (
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Informații Suplimentare</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(contract.customFields).map(([key, value]) => (
-                    <div key={key}>
-                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 mt-1 text-sm">
-                        {String(value)}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                {contract.customFields && Object.keys(contract.customFields).length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(contract.customFields).map(([key, value]) => (
+                      <div key={key}>
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 mt-1 text-sm">
+                          {String(value)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {contract.observatii?.trim() && (
+                  <p className={`text-sm text-gray-700 whitespace-pre-wrap${contract.customFields && Object.keys(contract.customFields).length > 0 ? " mt-3" : ""}`}>
+                    {contract.observatii}
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Placeholder dacă nu există recurență, prețuri sau câmpuri custom */}
-            {!hasRecurrence && (!contract.pricing || Object.keys(contract.pricing).length === 0) && (!contract.customFields || Object.keys(contract.customFields).length === 0) && (
+            {/* Placeholder dacă nu există recurență, prețuri, câmpuri custom sau observații */}
+            {!hasRecurrence && (!contract.pricing || Object.keys(contract.pricing).length === 0) && (!contract.customFields || Object.keys(contract.customFields).length === 0) && !contract.observatii?.trim() && (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">Nu există configurații suplimentare pentru acest contract.</p>
               </div>

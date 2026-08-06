@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { isUninvoicedWork, toUninvoicedReportRow } from "./uninvoiced"
+import { formatEquipmentLabel, isUninvoicedWork, toUninvoicedReportRow } from "./uninvoiced"
 
 test("un tichet este nefacturat doar după generarea raportului", () => {
   assert.equal(isUninvoicedWork({ statusFacturare: "Nefacturat" }), false)
@@ -31,4 +31,24 @@ test("rândul raportului păstrează tichetele arhivate și calculează vechimea
   assert.equal(row.archived, true)
   assert.equal(row.href, "/dashboard/arhivate/work-1")
   assert.equal(row.ageDays, 3)
+  assert.equal(row.equipment, "—")
+})
+
+test("formatEquipmentLabel combină numele și codul", () => {
+  assert.equal(formatEquipmentLabel("Ușă secțională", "R72A123"), "Ușă secțională (R72A123)")
+  assert.equal(formatEquipmentLabel("Ușă secțională", ""), "Ușă secțională")
+  assert.equal(formatEquipmentLabel("", "R72A123"), "R72A123")
+  assert.equal(formatEquipmentLabel("", ""), "—")
+})
+
+test("rândul include echipamentul din câmpurile principale", () => {
+  const row = toUninvoicedReportRow({
+    id: "work-2",
+    nrLucrare: "#002",
+    raportGenerat: true,
+    statusLucrare: "Finalizat",
+    echipament: "Ușă secțională",
+    echipamentCod: "R72A123",
+  })
+  assert.equal(row.equipment, "Ușă secțională (R72A123)")
 })
