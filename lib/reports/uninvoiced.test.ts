@@ -41,6 +41,13 @@ test("formatEquipmentLabel combină numele și codul", () => {
   assert.equal(formatEquipmentLabel("", ""), "—")
 })
 
+test("formatEquipmentLabel ignorează whitespace și valori nule", () => {
+  assert.equal(formatEquipmentLabel("  Motor  ", "  M-01  "), "Motor (M-01)")
+  assert.equal(formatEquipmentLabel(null, undefined), "—")
+  assert.equal(formatEquipmentLabel("   ", "   "), "—")
+  assert.equal(formatEquipmentLabel(undefined, "COD"), "COD")
+})
+
 test("rândul include echipamentul din câmpurile principale", () => {
   const row = toUninvoicedReportRow({
     id: "work-2",
@@ -51,4 +58,14 @@ test("rândul include echipamentul din câmpurile principale", () => {
     echipamentCod: "R72A123",
   })
   assert.equal(row.equipment, "Ușă secțională (R72A123)")
+})
+
+test("rândul fără echipament folosește placeholder", () => {
+  const row = toUninvoicedReportRow({
+    id: "work-3",
+    nrLucrare: "#003",
+    raportGenerat: true,
+    statusLucrare: "Finalizat",
+  })
+  assert.equal(row.equipment, "—")
 })

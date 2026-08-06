@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { RequireRoleError, requireVerifiedRole } from "@/lib/auth/require-role"
-import { formatBucharestFileStamp, parseActivityDateRange } from "@/lib/reports/date-range"
+import { parseActivityDateRange } from "@/lib/reports/date-range"
+import { uninvoicedExportBasename } from "@/lib/reports/export-filename"
 import { writeServerAuditEvent } from "@/lib/reports/audit-writer.server"
 import {
   MAX_EXPORT_ROWS,
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
         entityLabel: "Tichete nefacturate",
         summary: `Export ${format.toUpperCase()} cu ${loaded.filteredRows.length} tichete nefacturate.`,
       })
-      return downloadResponse(result, `tichete-nefacturate_${formatBucharestFileStamp(generatedAt)}`)
+      return downloadResponse(result, uninvoicedExportBasename(generatedAt))
     }
 
     if (reportType === "activity") {

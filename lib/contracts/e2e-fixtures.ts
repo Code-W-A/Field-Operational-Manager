@@ -31,6 +31,8 @@ export const E2E_CONTRACTS: ContractFilterRecord[] = [
     recurrenceUnit: "luni",
     daysBeforeWork: 10,
     revisionSchedulePreview: computeRevisionSchedulePreview(SM1_REVISION_PARAMS),
+    observatii: "Acces prin poarta secundară.\nVerificare anuală obligatorie.",
+    customFields: { tipContract: "Abonament" },
     createdAt: { toDate: () => new Date(2026, 0, 10) },
   },
   {
@@ -43,6 +45,7 @@ export const E2E_CONTRACTS: ContractFilterRecord[] = [
     equipmentIds: [],
     recurrenceInterval: 1,
     recurrenceUnit: "luni",
+    observatii: "Doar observații, fără tip contract.",
     createdAt: { toDate: () => new Date(2026, 1, 5) },
   },
   {

@@ -21,6 +21,7 @@ export type ContractFilterRecord = {
     locationName?: string
   }>
   customFields?: Record<string, string>
+  observatii?: string
   createdAt?: unknown
   status?: "active" | "suspended"
 }

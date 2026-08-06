@@ -515,7 +515,10 @@ export default function ContractDetailsPage() {
                   </div>
                 )}
                 {contract.observatii?.trim() && (
-                  <p className={`text-sm text-gray-700 whitespace-pre-wrap${contract.customFields && Object.keys(contract.customFields).length > 0 ? " mt-3" : ""}`}>
+                  <p
+                    data-testid="contract-observatii"
+                    className={`text-sm text-gray-700 whitespace-pre-wrap${contract.customFields && Object.keys(contract.customFields).length > 0 ? " mt-3" : ""}`}
+                  >
                     {contract.observatii}
                   </p>
                 )}

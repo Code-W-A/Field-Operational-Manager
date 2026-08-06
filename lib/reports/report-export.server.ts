@@ -246,21 +246,24 @@ export function exportUninvoicedPdf(rows: UninvoicedReportRow[], generatedAt: Da
     subtitle: "Situația curentă a tichetelor cu raport generat și facturare nerezolvată",
     generatedAt,
     rows,
-    columns: [
-      { label: "Tichet", width: 18, value: (row) => row.ticketNumber },
-      { label: "Client", width: 34, value: (row) => row.client },
-      { label: "Locație", width: 38, value: (row) => row.location },
-      { label: "Tip", width: 30, value: (row) => row.workType },
-      { label: "Echipament", width: 36, value: (row) => row.equipment },
-      { label: "Intervenție", width: 23, value: (row) => row.interventionDate },
-      { label: "Raport", width: 28, value: (row) => (row.reportDate ? formatBucharestDateTime(row.reportDate) : "—") },
-      { label: "Tehnicieni", width: 38, value: (row) => row.technicians.join(", ") },
-      { label: "Status tichet", width: 25, value: (row) => row.workStatus },
-      { label: "Facturare", width: 25, value: (row) => row.invoiceStatus },
-      { label: "Zile", width: 12, value: (row) => String(row.ageDays) },
-    ],
+    columns: UNINVOICED_PDF_COLUMNS,
   })
 }
+
+/** Ordinea coloanelor PDF/XLSX pentru nefacturate — inclusă în teste. */
+export const UNINVOICED_PDF_COLUMNS: PdfColumn<UninvoicedReportRow>[] = [
+  { label: "Tichet", width: 18, value: (row) => row.ticketNumber },
+  { label: "Client", width: 34, value: (row) => row.client },
+  { label: "Locație", width: 38, value: (row) => row.location },
+  { label: "Tip", width: 30, value: (row) => row.workType },
+  { label: "Echipament", width: 36, value: (row) => row.equipment },
+  { label: "Intervenție", width: 23, value: (row) => row.interventionDate },
+  { label: "Raport", width: 28, value: (row) => (row.reportDate ? formatBucharestDateTime(row.reportDate) : "—") },
+  { label: "Tehnicieni", width: 38, value: (row) => row.technicians.join(", ") },
+  { label: "Status tichet", width: 25, value: (row) => row.workStatus },
+  { label: "Facturare", width: 25, value: (row) => row.invoiceStatus },
+  { label: "Zile", width: 12, value: (row) => String(row.ageDays) },
+]
 
 export function exportActivityPdf(rows: AuditEvent[], generatedAt: Date, periodLabel: string) {
   const presentedRows = rows.map((row) => presentAuditEvent(row))

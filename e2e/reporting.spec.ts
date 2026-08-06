@@ -77,6 +77,31 @@ test.describe("Rapoarte operaționale", () => {
     await expect(page.getByRole("link", { name: "Deschide #00125" })).toHaveAttribute("href", "/dashboard/lucrari/work-1")
   })
 
+  test("export XLSX nefacturate folosește nume cu oră de emisie Bucharest", async ({ page }) => {
+    const stamp = "2026-08-05_17-04-29"
+    await page.route("**/api/reports/export**", async (route) => {
+      const url = new URL(route.request().url())
+      expect(url.searchParams.get("report")).toBe("uninvoiced")
+      expect(url.searchParams.get("format")).toBe("xlsx")
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="tichete-nefacturate_${stamp}.xlsx"`,
+        },
+        body: Buffer.from("PK mock-xlsx"),
+      })
+    })
+
+    await page.goto("/dashboard/rapoarte")
+    await expect(page.getByText("#00125")).toBeVisible()
+
+    const downloadPromise = page.waitForEvent("download")
+    await page.getByRole("button", { name: "XLSX" }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe(`tichete-nefacturate_${stamp}.xlsx`)
+  })
+
   test("generează activitatea utilizatorului și semnalează istoricul parțial", async ({ page }) => {
     await page.goto("/dashboard/rapoarte?tab=activity")
     await page.getByRole("combobox").click()

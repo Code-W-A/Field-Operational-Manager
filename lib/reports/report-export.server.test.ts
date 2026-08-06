@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import ExcelJS from "exceljs"
 import { presentAuditEvent } from "./activity-presentation"
-import { exportActivityPdf, exportActivityXlsx, exportUninvoicedPdf, exportUninvoicedXlsx } from "./report-export.server"
+import { exportActivityPdf, exportActivityXlsx, exportUninvoicedPdf, exportUninvoicedXlsx, UNINVOICED_PDF_COLUMNS } from "./report-export.server"
 import type { AuditEvent, UninvoicedReportRow } from "./types"
 
 const generatedAt = new Date("2026-08-01T09:00:00.000Z")
@@ -39,7 +39,31 @@ test("exportul nefacturate include coloana Echipament", async () => {
   const header = (workbook.worksheets[0].getRow(1).values as ExcelJS.CellValue[]).slice(1).map(String)
   const row = (workbook.worksheets[0].getRow(2).values as ExcelJS.CellValue[]).slice(1).map(String)
   assert.ok(header.includes("Echipament"))
+  assert.equal(header.indexOf("Echipament"), 4)
   assert.equal(row[header.indexOf("Echipament")], "Ușă secțională (R72A123)")
+})
+
+test("exportul nefacturate XLSX păstrează echipament gol ca —", async () => {
+  const output = await exportUninvoicedXlsx([{
+    ...uninvoiced[0],
+    id: "w2",
+    ticketNumber: "#002",
+    equipment: "—",
+  }], generatedAt)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(output.body as any)
+  const header = (workbook.worksheets[0].getRow(1).values as ExcelJS.CellValue[]).slice(1).map(String)
+  const row = (workbook.worksheets[0].getRow(2).values as ExcelJS.CellValue[]).slice(1).map(String)
+  assert.equal(row[header.indexOf("Echipament")], "—")
+})
+
+test("exportul PDF nefacturate include coloana Echipament în ordine", () => {
+  const labels = UNINVOICED_PDF_COLUMNS.map((column) => column.label)
+  assert.equal(labels.indexOf("Echipament"), 4)
+  assert.equal(UNINVOICED_PDF_COLUMNS[4].value(uninvoiced[0]), "Ușă secțională (R72A123)")
+  const pdf = exportUninvoicedPdf(uninvoiced, generatedAt)
+  assert.equal(pdf.body.subarray(0, 4).toString(), "%PDF")
+  assert.ok(pdf.body.length > 1_000)
 })
 test("exportul de activitate folosește texte lizibile și nu expune JSON", async () => {
   const output = await exportActivityXlsx(activity, generatedAt, "01.08.2026")

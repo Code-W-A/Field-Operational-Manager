@@ -46,7 +46,7 @@
     "test:reports": "tsx --test lib/reports/*.test.ts",
     "test:auto-checkout-disabled": "npx tsx --test lib/attendance/auto-pontaj.test.ts",
     "test:e2e": "playwright test",
-    "test:e2e:contracte": "playwright test e2e/contracte-filters.spec.ts",
+    "test:e2e:contracte": "playwright test e2e/contracte-filters.spec.ts e2e/contracte-observatii.spec.ts e2e/contracte-revision-calendar.spec.ts",
     "test:e2e:install": "playwright install chromium",
     "seed:crm": "node scripts/seed-crm.mjs",
     "seed:hr-reminder-test": "tsx scripts/seed-hr-reminder-test.ts",
