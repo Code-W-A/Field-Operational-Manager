@@ -25,6 +25,13 @@ export const PREDEFINED_SETTINGS: PredefinedSetting[] = [
     defaultValue: 10,
     valueType: "number",
   },
+  {
+    id: "offers_default_vat_percent",
+    name: "Cota TVA oferte (%)",
+    description: "Cota TVA folosită în oferte (afișată pe PDF; prețurile rămân fără TVA).",
+    defaultValue: 21,
+    valueType: "number",
+  },
   // Dashboard: toggle-uri pentru boxurile de status și sub-condițiile lor
   {
     id: "dashboard_programator_revizii_enabled",

@@ -52,8 +52,8 @@ export function WorkBubbleAssigned({
   }
 
   const bubbleClassName = cn(
-    // Full width responsive - ocupă întreaga lățime disponibilă în CardContent
-    "group cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden min-w-0 w-full box-border",
+    // Full width: Link/<a> e inline by default — fără block/flex, pe mobil se colapsează la o fâșie
+    "group flex flex-col cursor-pointer rounded-lg border px-3 py-1.5 text-left transition-colors overflow-hidden min-w-0 w-full max-w-full box-border",
     "hover:shadow-sm active:scale-[0.99]",
     "no-underline",
     colorClass ? `border-transparent text-white ${colorClass}` : "border-gray-200 bg-gray-50",

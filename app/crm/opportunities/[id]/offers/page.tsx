@@ -27,6 +27,7 @@ import { crmStorageProvider } from "@/lib/crm/storage/provider"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
 import { blobToBase64, isValidEmail, normalizeEmail } from "@/lib/work-documents/shared"
 import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
+import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 import type { CrmClient, CrmClientContact, CrmOffer } from "@/lib/crm/types"
 
 function createEmptyProduct(): ProductItem {
@@ -74,7 +75,7 @@ export default function OpportunityOffersPage() {
   const [dossierOfferId, setDossierOfferId] = useState<string | null>(null)
 
   const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()])
-  const [vatPercent, setVatPercent] = useState("21")
+  const [vatPercent, setVatPercent] = useState(String(DEFAULT_OFFER_VAT_PERCENT))
   const [adjustmentPercent, setAdjustmentPercent] = useState("0")
   const [conditionsInput, setConditionsInput] = useState("Plata: conform contract\nLivrare: conform stoc\nInstalare: conform programare")
   const [comments, setComments] = useState("")
@@ -167,6 +168,11 @@ export default function OpportunityOffersPage() {
     }
   }, [clientName, message, opportunity, subject])
 
+  useEffect(() => {
+    if (!offerEditorOpen) return
+    void getDefaultOfferVatPercent().then((vat) => setVatPercent(String(vat)))
+  }, [offerEditorOpen])
+
   if (opportunityLoading) {
     return (
       <Panel title="Oferte" size="comfortable" className="[&>header]:hidden xl:[&>header]:block">
@@ -208,7 +214,6 @@ export default function OpportunityOffersPage() {
         ? (snapshot.products as ProductItem[])
         : [createEmptyProduct()]
     )
-    setVatPercent(String(snapshot.vatPercent ?? 21))
     setAdjustmentPercent(String(snapshot.adjustmentPercent ?? 0))
     setConditionsInput((snapshot.conditions || []).join("\n"))
     setComments(snapshot.comments || "")
@@ -364,7 +369,7 @@ export default function OpportunityOffersPage() {
   }
 
   const offerEditorGrid = (
-    <div className="grid min-h-0 min-w-0 grid-cols-1 gap-6 pb-1 lg:grid-cols-2 lg:items-start">
+    <div className="grid min-h-0 min-w-0 grid-cols-1 gap-6 pb-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:items-start">
         <Card className="border-neutral-200 shadow-sm">
           <CardHeader className="space-y-1 border-b border-neutral-100 bg-neutral-50/80 pb-4">
             <CardTitle className="flex items-center gap-2 text-base font-semibold text-neutral-900">
@@ -438,14 +443,14 @@ export default function OpportunityOffersPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="offer-vat" className="text-sm font-medium text-neutral-800">
-                  TVA (%)
+                  TVA (%) — din Setări
                 </Label>
                 <Input
                   id="offer-vat"
                   value={vatPercent}
-                  onChange={(event) => setVatPercent(event.target.value)}
-                  placeholder="21"
-                  className="h-10"
+                  readOnly
+                  title="Cota TVA se modifică în Setări → Sistem"
+                  className="h-10 bg-muted text-muted-foreground cursor-not-allowed"
                 />
               </div>
               <div className="grid gap-2">
@@ -596,7 +601,7 @@ export default function OpportunityOffersPage() {
         </div>
 
         <Dialog open={offerEditorOpen} onOpenChange={setOfferEditorOpen}>
-          <DialogContent className="flex max-h-[92vh] w-[min(100%,96vw)] max-w-6xl min-h-0 flex-col gap-0 overflow-hidden p-0 xl:max-w-7xl">
+          <DialogContent className="flex max-h-[95vh] w-[calc(100%-2rem)] max-w-[1600px] min-h-0 flex-col gap-0 overflow-hidden p-0">
             <DialogHeader className="min-w-0 shrink-0 space-y-2 border-b border-neutral-200/80 bg-neutral-50/50 px-5 py-4 text-left pr-10 sm:px-7 sm:py-5 sm:pr-12">
               <DialogTitle className="text-xl font-semibold tracking-tight text-neutral-900">Editor ofertă</DialogTitle>
               <p className="min-w-0 break-words text-sm leading-relaxed text-neutral-600">

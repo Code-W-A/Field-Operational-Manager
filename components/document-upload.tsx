@@ -491,10 +491,10 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             </div>
           )}
 
-          {/* Afișare motiv nefăcturare sub butoane */}
+          {/* Afișare motiv nefacturare sub butoane */}
           {lucrare.statusFacturare === "Nu se facturează" && (lucrare.motivNefacturare?.trim()?.length ?? 0) > 0 && (
             <div className="text-xs sm:text-sm text-gray-700 bg-yellow-50 border border-yellow-200 rounded-md p-2 sm:p-3">
-              <span className="font-medium">Motiv nefăcturare:</span> {lucrare.motivNefacturare}
+              <span className="font-medium">Motiv nefacturare:</span> {lucrare.motivNefacturare}
             </div>
           )}
         </div>

@@ -24,6 +24,7 @@ import {
   offerPdfAttachmentFileName,
   offerPdfPreviewFileName,
 } from "@/lib/work-documents/offer-pdf-input"
+import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 
 interface OfferEditorDialogProps {
   lucrareId: string
@@ -41,7 +42,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [saving, setSaving] = useState(false)
   const [versions, setVersions] = useState<Array<{ savedAt: string; savedBy?: string; total: number; products: ProductItem[] }>>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
-  const [vatPercent, setVatPercent] = useState<number>(21)
+  const [vatPercent, setVatPercent] = useState<number>(DEFAULT_OFFER_VAT_PERCENT)
   const [adjustmentPercent, setAdjustmentPercent] = useState<number>(0)
   const [adjustmentInput, setAdjustmentInput] = useState<string>("")
   const [isPickedUp, setIsPickedUp] = useState<boolean>(true)
@@ -65,7 +66,6 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const { items: paymentTermOptions } = useTargetList("offer.paymentTermsOptions")
   const { items: deliveryTermOptions } = useTargetList("offer.deliveryTermsOptions")
   const { items: installationTermOptions } = useTargetList("offer.installationTermsOptions")
-  const { value: defaultVatPercentSetting } = useTargetValue<number>("offer.defaultVatPercent")
 
   // Debug flag (client-side): set `localStorage.fom_debug_offer_email = "1"` then retry sending
   const isOfferEmailDebugEnabled = () => {
@@ -137,11 +137,7 @@ useEffect(() => {
         }
       } catch {}
       {
-        const rawVat = (current as any)?.offerVAT
-        const nextVat = (typeof rawVat === 'number' && rawVat > 0)
-          ? Number(rawVat)
-          : (typeof defaultVatPercentSetting === 'number' && defaultVatPercentSetting >= 0 ? Number(defaultVatPercentSetting) : 21)
-        setVatPercent(nextVat)
+        setVatPercent(await getDefaultOfferVatPercent())
         const rawAdj = (current as any)?.offerAdjustmentPercent
         const nextAdj = (typeof rawAdj === 'number') ? Number(rawAdj) : 0
         setAdjustmentPercent(nextAdj)
@@ -163,7 +159,7 @@ useEffect(() => {
       setCanSendOffer(Array.isArray(loadedVersions) && loadedVersions.length > 0 && !editingNewVersion)
     }
     if (open) void load()
-  }, [open, lucrareId, defaultVatPercentSetting, editingNewVersion])
+  }, [open, lucrareId, editingNewVersion])
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
 
@@ -615,11 +611,7 @@ useEffect(() => {
     setTermsInstallation("")
     setEditingNewVersion(false)
     setCanSendOffer(false)
-    // VAT: preferă setarea din settings dacă este disponibilă, altfel 21
-    const nextVat = (typeof defaultVatPercentSetting === 'number' && defaultVatPercentSetting >= 0)
-      ? Number(defaultVatPercentSetting)
-      : 21
-    setVatPercent(nextVat)
+    void getDefaultOfferVatPercent().then(setVatPercent)
   }
 
   return (
@@ -727,19 +719,14 @@ useEffect(() => {
                 </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">TVA (%)</label>
+                  <label className="block text-xs text-muted-foreground mb-1">TVA (%) — din Setări</label>
                   <input
                     type="text"
                     inputMode="numeric"
-                    pattern="[0-9]*"
                     value={String(vatPercent)}
-                    onChange={(e) => {
-                      const onlyDigits = e.target.value.replace(/\D+/g, "")
-                      setVatPercent(Number(onlyDigits || 0))
-                    }}
-                    onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    disabled={effectiveDisabled}
+                    readOnly
+                    className="w-full border rounded px-2 py-1 text-sm bg-muted text-muted-foreground cursor-not-allowed"
+                    title="Cota TVA se modifică în Setări → Sistem"
                   />
                 </div>
                 <div>

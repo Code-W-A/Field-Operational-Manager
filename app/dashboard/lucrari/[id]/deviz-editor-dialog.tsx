@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast"
 import { useTargetValue } from "@/hooks/use-settings"
 import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 import { buildAutoDevizProducts } from "@/lib/deviz/auto-deviz"
+import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 import {
   blobToBase64,
   formatPreparedDate,
@@ -57,13 +58,12 @@ export function DevizEditorDialog({
   const [isPickedUp, setIsPickedUp] = useState(true)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
-  const [vatPercent, setVatPercent] = useState<number>(21)
+  const [vatPercent, setVatPercent] = useState<number>(DEFAULT_OFFER_VAT_PERCENT)
   const [adjustmentPercent, setAdjustmentPercent] = useState<number>(0)
   const [adjustmentInput, setAdjustmentInput] = useState<string>("0")
   const [canSendDeviz, setCanSendDeviz] = useState(false)
   const [lastEmailDebug, setLastEmailDebug] = useState<any>(null)
   const [autoDevizBreakdown, setAutoDevizBreakdown] = useState<AutoDevizBreakdownState | null>(null)
-  const { value: defaultVatPercentSetting } = useTargetValue<number>("offer.defaultVatPercent")
   const { value: devizBaseVisitPriceSetting } = useTargetValue<number>("deviz.baseVisitPrice")
   const { value: devizLaborHourlyPriceSetting } = useTargetValue<number>("deviz.laborHourlyPrice")
   const { value: devizIncludedMinutesSetting } = useTargetValue<number>("deviz.includedMinutes")
@@ -106,13 +106,7 @@ export function DevizEditorDialog({
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
       setProducts(hasSavedDevizProducts ? savedDevizProducts : autoDeviz.products)
       setAutoDevizBreakdown(hasSavedDevizProducts ? null : autoDeviz.breakdown)
-      setVatPercent(
-        typeof (current as any)?.devizVAT === "number"
-          ? Number((current as any).devizVAT)
-          : typeof defaultVatPercentSetting === "number"
-            ? Number(defaultVatPercentSetting)
-            : 21,
-      )
+      setVatPercent(await getDefaultOfferVatPercent())
       const nextAdjustment =
         typeof (current as any)?.devizAdjustmentPercent === "number"
           ? Number((current as any).devizAdjustmentPercent)
@@ -137,7 +131,6 @@ export function DevizEditorDialog({
     open,
     lucrareId,
     initialProducts,
-    defaultVatPercentSetting,
     devizBaseVisitPriceSetting,
     devizLaborHourlyPriceSetting,
     devizIncludedMinutesSetting,
@@ -400,15 +393,14 @@ export function DevizEditorDialog({
             <div className="space-y-3 rounded border p-4 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 max-w-md">
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">TVA (%)</label>
+                  <label className="block text-xs text-muted-foreground mb-1">TVA (%) — din Setări</label>
                   <input
                     type="text"
                     inputMode="numeric"
-                    pattern="[0-9]*"
                     value={String(vatPercent)}
-                    onChange={(e) => setVatPercent(Number(e.target.value.replace(/\D+/g, "") || 0))}
-                    className="w-full border rounded px-2 py-1 text-sm bg-white"
-                    disabled={!isPickedUp || saving}
+                    readOnly
+                    className="w-full border rounded px-2 py-1 text-sm bg-muted text-muted-foreground cursor-not-allowed"
+                    title="Cota TVA se modifică în Setări → Sistem"
                   />
                 </div>
                 <div>

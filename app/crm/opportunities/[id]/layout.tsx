@@ -73,7 +73,7 @@ const PRIORITY_SUBTEXT_STYLES: Record<CrmOpportunity["priority"], string> = {
 const CRM_ACTIVITY_REFRESH_EVENT = "crm:activity-refresh"
 const OPPORTUNITY_HEADER_STORAGE_KEY = "crm:opportunity-header-collapsed"
 const OPPORTUNITY_LEFT_RAIL_STORAGE_KEY = "crm:opportunity-left-rail-open"
-const OPPORTUNITY_RIGHT_RAIL_STORAGE_KEY = "crm:opportunity-right-rail-open"
+const OPPORTUNITY_RIGHT_RAIL_STORAGE_KEY = "crm:opportunity-right-rail-open:v2"
 
 function isCalendarOpportunityTab(pathname: string | null) {
   return pathname?.endsWith("/calendar") ?? false
@@ -153,7 +153,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   const [isSavingContactEdit, setIsSavingContactEdit] = useState(false)
   const [isOpportunityHeaderCollapsed, setIsOpportunityHeaderCollapsed] = useState(() => isCalendarOpportunityTab(pathname))
   const [leftRailOpen, setLeftRailOpen] = useState(true)
-  const [rightRailOpen, setRightRailOpen] = useState(false)
+  const [rightRailOpen, setRightRailOpen] = useState(true)
   const [isCalendarFocusMode, setIsCalendarFocusMode] = useState(false)
   const opportunityHeaderStorageKey = useMemo(() => getHeaderCollapsedStorageKey(user?.uid, pathname), [pathname, user?.uid])
   const leftRailStorageKey = useMemo(() => getPerUserStorageKey(OPPORTUNITY_LEFT_RAIL_STORAGE_KEY, user?.uid), [user?.uid])
@@ -179,7 +179,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
   }, [leftRailStorageKey])
 
   useEffect(() => {
-    setRightRailOpen(readStoredBoolean(rightRailStorageKey, false))
+    setRightRailOpen(readStoredBoolean(rightRailStorageKey, true))
   }, [rightRailStorageKey])
 
   const handleLeftRailOpenChange = useCallback(
@@ -1010,6 +1010,15 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                       >
                         {opportunity.displayTitle}
                       </p>
+                      {client?.id ? (
+                        <Link
+                          href={`/dashboard/clienti/${client.id}`}
+                          className="mt-0.5 inline-flex max-w-full items-center truncate text-xs font-medium text-[#004b87] hover:underline xl:text-sm"
+                          title="Deschide pagina clientului"
+                        >
+                          {client.name?.trim() || "Deschide client"}
+                        </Link>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-1.5 xl:gap-2">
                       {!isOpportunityHeaderCollapsed ? (
