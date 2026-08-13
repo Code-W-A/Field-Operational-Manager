@@ -8,6 +8,7 @@ import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { hasOpportunityEditAccess } from "@/lib/crm/access"
 import { getEmailFrom } from "@/lib/email/from"
 import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server"
+import { normalizeOfferProducts } from "@/lib/crm/offer-products"
 import type { CrmOfferSnapshot } from "@/lib/crm/types"
 
 function normalizeString(value: unknown) {
@@ -72,9 +73,9 @@ function buildOfferEmailHtml(params: {
 function parseSnapshot(value: unknown): CrmOfferSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   const data = value as Record<string, unknown>
-  const products = Array.isArray(data.products) ? data.products : []
   return {
-    products: products as CrmOfferSnapshot["products"],
+    products: normalizeOfferProducts(data.products),
+    optionalProducts: normalizeOfferProducts(data.optionalProducts, { dropEmptyNames: true }),
     vatPercent: normalizeNumber(data.vatPercent, 0),
     adjustmentPercent: normalizeNumber(data.adjustmentPercent, 0),
     conditions: Array.isArray(data.conditions) ? data.conditions.map((item) => String(item || "")) : [],

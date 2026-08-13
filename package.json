@@ -36,6 +36,7 @@
     "test:e2e:real:lucrari": "playwright test -c playwright.real.config.ts e2e/real/stage6-lucrari.spec.ts",
     "test:offer-dates": "npx tsx --test lib/utils/time-format.ro-date.test.ts",
     "test:offer-pdf-input": "npx tsx --test lib/work-documents/offer-pdf-input.test.ts",
+    "test:offer-optionals": "npx tsx --test lib/crm/offer-products.test.ts lib/utils/offer-pdf.optionals.smoke.test.ts",
     "test:contract-filters": "npx tsx --test lib/contracts/contract-filters.test.ts lib/contracts/contract-filters.smoke.test.ts",
     "test:contract-suspension": "npx tsx --test lib/contracts/contract-status.test.ts lib/contracts/contract-suspension.smoke.test.ts lib/contracts/contract-suspension-regression.test.ts",
     "test:revision-calendar": "npx tsx --test lib/contracts/revision-calendar.test.ts lib/contracts/revision-calendar.smoke.test.ts",

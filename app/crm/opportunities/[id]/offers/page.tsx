@@ -28,6 +28,7 @@ import { generateOfferPdf } from "@/lib/utils/offer-pdf"
 import { blobToBase64, isValidEmail, normalizeEmail } from "@/lib/work-documents/shared"
 import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
+import { normalizeOfferProducts } from "@/lib/crm/offer-products"
 import type { CrmClient, CrmClientContact, CrmOffer } from "@/lib/crm/types"
 
 function createEmptyProduct(): ProductItem {
@@ -75,6 +76,7 @@ export default function OpportunityOffersPage() {
   const [dossierOfferId, setDossierOfferId] = useState<string | null>(null)
 
   const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()])
+  const [optionalProducts, setOptionalProducts] = useState<ProductItem[]>([])
   const [vatPercent, setVatPercent] = useState(String(DEFAULT_OFFER_VAT_PERCENT))
   const [adjustmentPercent, setAdjustmentPercent] = useState("0")
   const [conditionsInput, setConditionsInput] = useState("Plata: conform contract\nLivrare: conform stoc\nInstalare: conform programare")
@@ -198,6 +200,7 @@ export default function OpportunityOffersPage() {
       price: Number(row.price || 0),
       total: Number(row.total || Number(row.quantity || 0) * Number(row.price || 0)),
     })),
+    optionalProducts: normalizeOfferProducts(optionalProducts, { dropEmptyNames: true }),
     vatPercent: Number(vatPercent.replace(",", ".")) || 0,
     adjustmentPercent: adjustment,
     conditions: parseConditions(conditionsInput),
@@ -214,6 +217,7 @@ export default function OpportunityOffersPage() {
         ? (snapshot.products as ProductItem[])
         : [createEmptyProduct()]
     )
+    setOptionalProducts((snapshot.optionalProducts as ProductItem[] | undefined) || [])
     setAdjustmentPercent(String(snapshot.adjustmentPercent ?? 0))
     setConditionsInput((snapshot.conditions || []).join("\n"))
     setComments(snapshot.comments || "")
@@ -310,6 +314,12 @@ export default function OpportunityOffersPage() {
           price: row.price,
           um: row.um,
         })),
+        optionalProducts: snapshot.optionalProducts.map((row) => ({
+          name: row.name,
+          quantity: row.quantity,
+          price: row.price,
+          um: row.um,
+        })),
         offerVAT: snapshot.vatPercent,
         adjustmentPercent: snapshot.adjustmentPercent,
         conditions: snapshot.conditions,
@@ -401,6 +411,23 @@ export default function OpportunityOffersPage() {
                   Draft: {editingDraftOfferId}
                 </Badge>
               ) : null}
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold text-neutral-900">Opționale</h3>
+                <p className="text-xs text-neutral-500">
+                  Apar în PDF cu preț, dar nu se adaugă la totalul ofertei.
+                </p>
+              </div>
+              <ProductTableForm
+                products={optionalProducts}
+                onProductsChange={setOptionalProducts}
+                disabled={false}
+                showTitle={false}
+                tableScrollClassName="max-h-[min(36vh,320px)]"
+                footerTotalLabel="Total opționale (nu se adună la ofertă)"
+              />
             </div>
           </CardContent>
         </Card>

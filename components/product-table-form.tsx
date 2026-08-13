@@ -33,6 +33,8 @@ interface ProductTableFormProps {
   allowDecimalQuantity?: boolean
   /** Clase pentru containerul scrollabil al tabelului (desktop). Implicit max-h-[60vh]. */
   tableScrollClassName?: string
+  /** Eticheta totalului din subsolul tabelului (desktop). */
+  footerTotalLabel?: string
 }
 
 export const normalizeProductDecimalInput = (value: string) =>
@@ -50,6 +52,7 @@ export function ProductTableForm({
   showTitle = true,
   allowDecimalQuantity = false,
   tableScrollClassName = "max-h-[60vh]",
+  footerTotalLabel = "Total lei fără TVA",
 }: ProductTableFormProps) {
   const isMobile = useIsMobile()
   const [editingId, setEditingId] = React.useState<string | null>(null)
@@ -306,7 +309,7 @@ export function ProductTableForm({
           <tfoot>
             <tr className="border-t-2 border-amber-200/80 bg-amber-50/90">
               <td colSpan={4} className="px-3 py-3 text-right text-sm font-semibold text-amber-950">
-                Total lei fără TVA
+                {footerTotalLabel}
               </td>
               <td className="px-3 py-3 text-right text-base font-bold tabular-nums text-amber-950">
                 {totalWithoutVAT.toFixed(2)}

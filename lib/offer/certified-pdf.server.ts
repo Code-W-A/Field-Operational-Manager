@@ -176,6 +176,7 @@ export async function generateCertifiedCrmOfferPdf(params: {
     attentionTo: String(offer.recipientName || ""),
     fromCompany: "NRG Access Systems SRL",
     products,
+    optionalProducts: mapProducts(snapshot.optionalProducts),
     offerVAT: Number(snapshot.vatPercent || 0),
     adjustmentPercent: Number(snapshot.adjustmentPercent || 0),
     conditions: Array.isArray(snapshot.conditions) ? snapshot.conditions : undefined,

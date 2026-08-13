@@ -23,6 +23,7 @@ function mapOffer(docId: string, data: Record<string, unknown>): CrmOffer {
     status: normalizeOfferStatus(data.status),
     snapshot: (data.snapshot as CrmOffer["snapshot"]) || {
       products: [],
+      optionalProducts: [],
       vatPercent: 0,
       adjustmentPercent: 0,
       conditions: [],

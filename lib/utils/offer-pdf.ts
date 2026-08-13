@@ -21,6 +21,8 @@ export interface OfferPdfInput {
   date?: string
   damages?: string[]
   products: OfferItem[]
+  /** Poziții afișate cu preț sub totaluri, excluse din subtotal/total. */
+  optionalProducts?: OfferItem[]
   offerVAT?: number
   conditions?: string[]
   adjustmentPercent?: number
@@ -348,7 +350,62 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   
   // Reset text color to black
   doc.setTextColor(0, 0, 0)
-  
+
+  // Optionals: shown with prices, deliberately excluded from subtotal/total above
+  const optionalItems = (input.optionalProducts || [])
+    .filter((p) => String(p.name || "").trim().length > 0)
+    .map((p) => ({
+      name: normalizeForPdf(p.name),
+      qty: Number(p.quantity || 0),
+      price: Number(p.price || 0),
+      total: Number(p.quantity || 0) * Number(p.price || 0),
+    }))
+
+  if (optionalItems.length) {
+    y += 10
+    checkPage(12)
+    doc.setFont("NotoSans", "bold").setFontSize(10).text("Opționale", M, y)
+    y += 6
+
+    checkPage(9)
+    doc.setTextColor(73, 100, 155)
+    doc.setFont("NotoSans", "bold").setFontSize(9)
+    headers.forEach((h, i) => {
+      if (i === 0) {
+        doc.text(h, xPos[i] + 2, y + 4)
+      } else {
+        doc.text(h, xPos[i] + colW[i] - 1, y + 4, { align: "right" })
+      }
+    })
+    y += 6
+    doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+    doc.line(M, y, M + W, y)
+    doc.setTextColor(0)
+
+    doc.setFont("NotoSans", "normal").setFontSize(9)
+    optionalItems.forEach((r) => {
+      const lineH = 6
+      checkPage(lineH)
+      const nameLines = doc.splitTextToSize(r.name, colW[0] - 2)
+      const cellH = Math.max(lineH, nameLines.length * 4.5 + 2)
+      doc.text(nameLines, xPos[0] + 2, y + 5)
+      doc.text(String(r.qty), xPos[1] + colW[1] - 1, y + 5, { align: "right" })
+      doc.text(`${r.price.toLocaleString("ro-RO")}`, xPos[2] + colW[2] - 1, y + 5, { align: "right" })
+      doc.text(`${r.total.toLocaleString("ro-RO")}`, xPos[3] + colW[3] - 1, y + 5, { align: "right" })
+      y += cellH
+      doc.setDrawColor(209, 213, 219).setLineWidth(0.2)
+      doc.line(M, y, M + W, y)
+    })
+
+    y += 5
+    checkPage(6)
+    doc.setFont("NotoSans", "normal").setFontSize(8.5)
+    doc.setTextColor(107, 114, 128)
+    doc.text(normalizeForPdf("Prețurile de mai sus nu sunt incluse în total."), M, y)
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(9)
+  }
+
   // Add extra gap before terms
   y += 12
 

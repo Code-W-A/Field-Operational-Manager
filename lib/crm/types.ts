@@ -111,6 +111,8 @@ export interface CrmOfferProduct {
 
 export interface CrmOfferSnapshot {
   products: CrmOfferProduct[]
+  /** Poziții afișate cu preț, dar excluse din subtotal/discount/total. */
+  optionalProducts?: CrmOfferProduct[]
   vatPercent: number
   adjustmentPercent: number
   conditions: string[]
