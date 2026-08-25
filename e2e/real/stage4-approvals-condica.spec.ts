@@ -11,17 +11,30 @@ import {
 test.describe("Etapa 4 - admin aprobari si condica", () => {
   test.use({ storageState: STORAGE_STATE.admin })
 
-  test("cereri-aprobari: tabs, lista si empty states", async ({ appPage: page }) => {
+  test("cereri-aprobari: filtre tip/angajat/status si empty states", async ({ appPage: page }) => {
     await page.goto("/dashboard/cereri-aprobari", { waitUntil: "domcontentloaded" })
     await expect(page).toHaveURL(/\/dashboard\/cereri-aprobari(?:$|[/?#])/)
     await expect(page.locator("body")).toContainText(/Cererile primite|Concedii/i)
 
-    await expect(page.getByRole("tab", { name: /Pending/i })).toBeVisible()
-    await expect(page.getByRole("tab", { name: /Toate/i })).toBeVisible()
-    await page.getByRole("tab", { name: /Toate/i }).click()
-    await expect(page.getByRole("tab", { name: /Toate/i })).toHaveAttribute("data-state", "active")
-    await page.getByRole("tab", { name: /Pending/i }).click()
-    await expect(page.locator("body")).toContainText(/Pending|Nu există|Nu exista|Aprobat|Respins/i)
+    await expect(page.locator("#hr-filter-kind")).toBeVisible()
+    await expect(page.locator("#hr-filter-employee")).toBeVisible()
+    await expect(page.locator("#hr-filter-status")).toBeVisible()
+    await expect(page.getByTestId("hr-approvals-count")).toBeVisible()
+
+    await page.locator("#hr-filter-status").click()
+    await page.getByRole("option", { name: "Aprobat", exact: true }).click()
+    await expect(page.locator("#hr-filter-status")).toContainText(/Aprobat/)
+
+    await page.locator("#hr-filter-status").click()
+    await page.getByRole("option", { name: "Toate statusurile", exact: true }).click()
+    await expect(page.locator("#hr-filter-status")).toContainText(/Toate statusurile/)
+    await expect(page.getByTestId("hr-approvals-count")).toBeVisible()
+    await expect(page.getByTestId("hr-approvals-count")).toContainText(/Afișate/)
+    await expect(page.getByRole("button", { name: "Resetează" })).toBeVisible()
+
+    await page.getByRole("button", { name: "Resetează" }).click()
+    await expect(page.locator("#hr-filter-status")).toContainText(/În așteptare/)
+    await expect(page.getByTestId("hr-approvals-count")).toBeVisible()
   })
 
   test("cereri-aprobari: detalii, edit si refuz fara mutatie", async ({ appPage: page }) => {

@@ -29,6 +29,13 @@ import {
 } from "@/lib/crm/constants"
 import { hasOpportunityViewAccess } from "@/lib/crm/access"
 import { logCrmActivity, getDateValue } from "@/lib/crm/activity"
+import {
+  E2E_CRM_CLIENTS,
+  E2E_CRM_CONTACTS,
+  E2E_CRM_OPPORTUNITIES,
+  E2E_CRM_USERS,
+} from "@/lib/crm/e2e-fixtures"
+import { isE2eTestMode } from "@/lib/utils/environment"
 import { listResolvedCrmClientContacts } from "@/lib/crm/client-contacts"
 import { rebuildOpportunitySearchIndex } from "@/lib/crm/opportunity-search-index"
 import { createCrmTaskIfMissing } from "@/lib/crm/tasks"
@@ -94,6 +101,8 @@ function chunk<T>(items: T[], size = OPPORTUNITY_BATCH_SIZE) {
 }
 
 export async function listCrmUsers(): Promise<CrmUserOption[]> {
+  if (isE2eTestMode()) return E2E_CRM_USERS
+
   const userRows = await getDocs(query(collection(db, "users"), orderBy("displayName", "asc"), limit(300)))
   return userRows.docs
     .map((snap) => {
@@ -158,6 +167,10 @@ export async function listCrmClients(): Promise<CrmClient[]> {
 }
 
 export async function getCrmClientById(clientId: string): Promise<CrmClient | null> {
+  if (isE2eTestMode()) {
+    return E2E_CRM_CLIENTS.find((item) => item.id === clientId) || null
+  }
+
   const crmSnap = await getDoc(doc(db, CRM_COLLECTIONS.clients, clientId))
   if (crmSnap.exists()) {
     const data = crmSnap.data() as Record<string, unknown>
@@ -201,6 +214,10 @@ export async function createCrmClient(input: { name: string; type: string; addre
 }
 
 export async function listCrmClientContacts(clientId: string): Promise<CrmClientContact[]> {
+  if (isE2eTestMode()) {
+    return E2E_CRM_CONTACTS.filter((contact) => contact.clientId === clientId)
+  }
+
   return listResolvedCrmClientContacts(clientId)
 }
 
@@ -414,6 +431,8 @@ async function getOpportunitySearchContactMap(opportunities: CrmOpportunity[]) {
 }
 
 export async function listCrmOpportunitiesForUser(userId: string, filters?: CrmFilters) {
+  if (isE2eTestMode()) return E2E_CRM_OPPORTUNITIES
+
   const accessibleIds = await listAccessibleOpportunityIds(userId)
   if (!accessibleIds.length) return []
 
@@ -465,6 +484,10 @@ export async function listCrmOpportunitiesForUser(userId: string, filters?: CrmF
 }
 
 export async function getCrmOpportunityById(opportunityId: string, userId?: string) {
+  if (isE2eTestMode()) {
+    return E2E_CRM_OPPORTUNITIES.find((item) => item.id === opportunityId) || null
+  }
+
   const snap = await getDoc(doc(db, CRM_COLLECTIONS.opportunities, opportunityId))
   if (!snap.exists()) return null
 

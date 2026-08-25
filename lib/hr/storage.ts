@@ -24,6 +24,8 @@ import {
   writeBatch,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { isE2eTestMode } from "@/lib/utils/environment"
+import { E2E_HR_DEPARTMENTS, E2E_HR_REQUESTS } from "@/lib/hr/e2e-fixtures"
 import { HR_SEED_EMPLOYEES, buildSeedTimesheets } from "./mock"
 import {
   buildTimesheetCellForHrRequest,
@@ -725,6 +727,14 @@ export function subscribeHrRequestsForManager(params: {
   onChange: (requests: HrRequest[]) => void
   onError?: (err: unknown) => void
 }): Unsubscribe {
+  if (isE2eTestMode()) {
+    const items = E2E_HR_REQUESTS.filter((request) => request.managerUid === params.managerUid).sort(
+      (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
+    )
+    params.onChange(items)
+    return () => {}
+  }
+
   const q = query(collection(db, "hrRequests"), where("managerUid", "==", params.managerUid))
   return onSnapshot(
     q,
@@ -1047,6 +1057,11 @@ export function subscribeDepartments(params: {
   onChange: (departments: Department[]) => void
   onError?: (err: unknown) => void
 }): Unsubscribe {
+  if (isE2eTestMode()) {
+    params.onChange(E2E_HR_DEPARTMENTS)
+    return () => {}
+  }
+
   const q = query(collection(db, "hrDepartments"), orderBy("name", "asc"))
   return onSnapshot(
     q,

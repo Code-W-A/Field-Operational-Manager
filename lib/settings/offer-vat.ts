@@ -1,3 +1,5 @@
+import { isE2eTestMode } from "@/lib/utils/environment"
+
 export const DEFAULT_OFFER_VAT_PERCENT = 21
 export const OFFERS_DEFAULT_VAT_SETTING_ID = "offers_default_vat_percent"
 
@@ -14,6 +16,8 @@ export function normalizeVatPercent(value: unknown, fallback = DEFAULT_OFFER_VAT
  * Fallback: 21.
  */
 export async function getDefaultOfferVatPercent(): Promise<number> {
+  if (isE2eTestMode()) return DEFAULT_OFFER_VAT_PERCENT
+
   try {
     const { getPredefinedSettingValue } = await import("@/lib/firebase/predefined-settings")
     const value = await getPredefinedSettingValue(OFFERS_DEFAULT_VAT_SETTING_ID)

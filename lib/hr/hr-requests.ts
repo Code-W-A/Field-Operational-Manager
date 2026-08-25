@@ -1,6 +1,39 @@
-import type { HrRequest, HrRequestKind } from "@/lib/hr/types"
+import type { HrRequest, HrRequestKind, HrRequestStatus } from "@/lib/hr/types"
 import { formatOvertimeDuration } from "@/lib/hr/overtime-duration"
 import { formatRomanianDateISO } from "@/lib/utils/date-utils"
+
+export const HR_REQUEST_KINDS: HrRequestKind[] = [
+  "CO",
+  "CFP",
+  "CM",
+  "IN",
+  "DEL",
+  "CORRECT_HOURS",
+  "ADD_OVERTIME",
+]
+
+export const HR_APPROVAL_FILTER_ALL = "ALL"
+
+export function filterHrApprovalRequests(
+  requests: HrRequest[],
+  filters: {
+    kind?: typeof HR_APPROVAL_FILTER_ALL | HrRequestKind
+    employeeId?: typeof HR_APPROVAL_FILTER_ALL | string
+    status?: typeof HR_APPROVAL_FILTER_ALL | HrRequestStatus
+  } = {},
+): HrRequest[] {
+  if (!Array.isArray(requests)) return []
+  const kind = filters.kind || HR_APPROVAL_FILTER_ALL
+  const employeeId = filters.employeeId || HR_APPROVAL_FILTER_ALL
+  const status = filters.status || HR_APPROVAL_FILTER_ALL
+
+  return requests.filter((request) => {
+    if (kind !== HR_APPROVAL_FILTER_ALL && request.kind !== kind) return false
+    if (employeeId !== HR_APPROVAL_FILTER_ALL && request.employeeId !== employeeId) return false
+    if (status !== HR_APPROVAL_FILTER_ALL && request.status !== status) return false
+    return true
+  })
+}
 
 export function hrRequestKindLabel(kind: HrRequestKind) {
   switch (kind) {

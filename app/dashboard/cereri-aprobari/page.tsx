@@ -10,12 +10,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
 import { ClipboardList, Pencil, Download, ExternalLink, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import type { HrRequest, HrRequestKind, HrRequestPayload } from "@/lib/hr/types"
+import type { HrRequest, HrRequestKind, HrRequestPayload, HrRequestStatus } from "@/lib/hr/types"
 import {
   decideHrRequest,
   deletePendingHrRequest,
@@ -25,7 +24,10 @@ import {
   updateHrRequestByManager,
 } from "@/lib/hr/storage"
 import {
+  filterHrApprovalRequests,
   formatHrRequestSerial,
+  HR_APPROVAL_FILTER_ALL,
+  HR_REQUEST_KINDS,
   hrRequestDateLabel,
   hrRequestKindLabel,
   hrRequestStatusLabel,
@@ -57,7 +59,9 @@ export default function CereriAprobariPage() {
   const { user } = useAuth()
   const [requests, setRequests] = useState<HrRequest[]>([])
   const [departmentsById, setDepartmentsById] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<"pending" | "all">("pending")
+  const [filterKind, setFilterKind] = useState<typeof HR_APPROVAL_FILTER_ALL | HrRequestKind>(HR_APPROVAL_FILTER_ALL)
+  const [filterEmployeeId, setFilterEmployeeId] = useState<string>(HR_APPROVAL_FILTER_ALL)
+  const [filterStatus, setFilterStatus] = useState<typeof HR_APPROVAL_FILTER_ALL | HrRequestStatus>("pending")
   const [selected, setSelected] = useState<HrRequest | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -88,10 +92,37 @@ export default function CereriAprobariPage() {
     return () => unsub()
   }, [])
 
-  const filtered = useMemo(() => {
-    if (activeTab === "pending") return requests.filter((r) => r.status === "pending")
-    return requests
-  }, [requests, activeTab])
+  const employeeOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const request of requests) {
+      if (!request.employeeId || byId.has(request.employeeId)) continue
+      byId.set(request.employeeId, request.employeeName?.trim() || request.employeeId)
+    }
+    return Array.from(byId.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ro"))
+  }, [requests])
+
+  const filtersAreDefault =
+    filterKind === HR_APPROVAL_FILTER_ALL &&
+    filterEmployeeId === HR_APPROVAL_FILTER_ALL &&
+    filterStatus === "pending"
+
+  const filtered = useMemo(
+    () =>
+      filterHrApprovalRequests(requests, {
+        kind: filterKind,
+        employeeId: filterEmployeeId,
+        status: filterStatus,
+      }),
+    [requests, filterKind, filterEmployeeId, filterStatus],
+  )
+
+  const resetFilters = () => {
+    setFilterKind(HR_APPROVAL_FILTER_ALL)
+    setFilterEmployeeId(HR_APPROVAL_FILTER_ALL)
+    setFilterStatus("pending")
+  }
 
   const openDetail = (r: HrRequest) => {
     setSelected(r)
@@ -261,100 +292,113 @@ export default function CereriAprobariPage() {
           {!user?.uid ? (
             <div className="text-sm text-muted-foreground">Trebuie să fii autentificat.</div>
           ) : (
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-              <TabsList className="grid w-full max-w-[360px] grid-cols-2">
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-                <TabsTrigger value="all">Toate</TabsTrigger>
-              </TabsList>
-
-              <div className="mt-4">
-                <TabsContent value="pending">
-                  {filtered.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nu există concedii si evenimente.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {filtered.map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => openDetail(r)}
-                          className="w-full text-left flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-medium truncate flex flex-wrap items-center gap-2">
-                              <Badge variant="outline" className="font-mono shrink-0">
-                                #{formatHrRequestSerial(r.documentSerial)}
-                              </Badge>
-                              <span>
-                                {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
-                              </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
-                              <span>{hrRequestDateLabel(r)}</span>
-                              <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
-                            </div>
-                            {r.timesheetClearedAt ? (
-                              <div className="text-xs text-amber-700 mt-1">
-                                Notă: șters din condică după aprobare.
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="flex items-center gap-2 ml-3">
-                            <Badge variant="secondary">{hrRequestStatusLabel(r.status)}</Badge>
-                          </div>
-                        </button>
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="hr-filter-kind">Tip</Label>
+                  <Select value={filterKind} onValueChange={(value) => setFilterKind(value as typeof filterKind)}>
+                    <SelectTrigger id="hr-filter-kind" className="w-[240px]">
+                      <SelectValue placeholder="Toate tipurile" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={HR_APPROVAL_FILTER_ALL}>Toate tipurile</SelectItem>
+                      {HR_REQUEST_KINDS.map((kind) => (
+                        <SelectItem key={kind} value={kind}>
+                          {hrRequestKindLabel(kind)}
+                        </SelectItem>
                       ))}
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="all">
-                  {filtered.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nu există cereri.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {filtered.map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => openDetail(r)}
-                          className="w-full text-left flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-medium truncate flex flex-wrap items-center gap-2">
-                              <Badge variant="outline" className="font-mono shrink-0">
-                                #{formatHrRequestSerial(r.documentSerial)}
-                              </Badge>
-                              <span>
-                                {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
-                              </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
-                              <span>{hrRequestDateLabel(r)}</span>
-                              <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
-                            </div>
-                            {r.timesheetClearedAt ? (
-                              <div className="text-xs text-amber-700 mt-1">
-                                Notă: șters din condică după aprobare.
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="flex items-center gap-2 ml-3">
-                            <Badge
-                              variant={
-                                r.status === "approved" ? "default" : r.status === "pending" ? "secondary" : "destructive"
-                              }
-                            >
-                              {hrRequestStatusLabel(r.status)}
-                            </Badge>
-                          </div>
-                        </button>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="hr-filter-employee">Angajat</Label>
+                  <Select value={filterEmployeeId} onValueChange={setFilterEmployeeId}>
+                    <SelectTrigger id="hr-filter-employee" className="w-[240px]">
+                      <SelectValue placeholder="Toți angajații" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={HR_APPROVAL_FILTER_ALL}>Toți angajații</SelectItem>
+                      {employeeOptions.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </SelectItem>
                       ))}
-                    </div>
-                  )}
-                </TabsContent>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="hr-filter-status">Status</Label>
+                  <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as typeof filterStatus)}>
+                    <SelectTrigger id="hr-filter-status" className="w-[200px]">
+                      <SelectValue placeholder="Toate statusurile" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={HR_APPROVAL_FILTER_ALL}>Toate statusurile</SelectItem>
+                      <SelectItem value="pending">{hrRequestStatusLabel("pending")}</SelectItem>
+                      <SelectItem value="approved">{hrRequestStatusLabel("approved")}</SelectItem>
+                      <SelectItem value="rejected">{hrRequestStatusLabel("rejected")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!filtersAreDefault ? (
+                  <Button type="button" variant="outline" onClick={resetFilters}>
+                    Resetează
+                  </Button>
+                ) : null}
               </div>
-            </Tabs>
+
+              <p data-testid="hr-approvals-count" className="text-sm text-muted-foreground">
+                Afișate {filtered.length} din {requests.length}
+              </p>
+
+              {requests.length === 0 ? (
+                <div className="text-sm text-muted-foreground">Nu există concedii si evenimente.</div>
+              ) : filtered.length === 0 ? (
+                <div data-testid="hr-approvals-empty-filtered" className="text-sm text-muted-foreground">
+                  Nicio cerere nu corespunde filtrelor.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filtered.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => openDetail(r)}
+                      className="w-full text-left flex items-center justify-between rounded-lg border p-3 bg-muted/20 hover:bg-muted/40 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium truncate flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="font-mono shrink-0">
+                            #{formatHrRequestSerial(r.documentSerial)}
+                          </Badge>
+                          <span>
+                            {r.employeeName || r.employeeId} • {hrRequestKindLabel(r.kind)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
+                          <span>{hrRequestDateLabel(r)}</span>
+                          <span>Departament: {r.sectorId ? (departmentsById[r.sectorId] || "—") : "—"}</span>
+                        </div>
+                        {r.timesheetClearedAt ? (
+                          <div className="text-xs text-amber-700 mt-1">
+                            Notă: șters din condică după aprobare.
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2 ml-3">
+                        <Badge
+                          variant={
+                            r.status === "approved" ? "default" : r.status === "pending" ? "secondary" : "destructive"
+                          }
+                        >
+                          {hrRequestStatusLabel(r.status)}
+                        </Badge>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

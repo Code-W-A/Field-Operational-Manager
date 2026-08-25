@@ -5,6 +5,7 @@ function normalizeString(value: unknown) {
 }
 
 function normalizeNumber(value: unknown, fallback = 0) {
+  if (value === null || value === undefined || value === "") return fallback
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
@@ -31,7 +32,8 @@ export function normalizeOfferProducts(
         um: normalizeString(item.um) || "buc",
         quantity,
         price,
-        total: normalizeNumber(item.total, quantity * price),
+        // Aceeași regulă ca în editor: un total absent, invalid sau 0 se recalculează.
+        total: normalizeNumber(item.total, 0) || quantity * price,
       }
     })
     .filter((row): row is CrmOfferProduct => Boolean(row))

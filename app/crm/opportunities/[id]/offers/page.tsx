@@ -29,6 +29,7 @@ import { blobToBase64, isValidEmail, normalizeEmail } from "@/lib/work-documents
 import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 import { normalizeOfferProducts } from "@/lib/crm/offer-products"
+import { applyAdjustment, computeOfferSubtotal, parseAdjustmentPercent } from "@/lib/crm/offer-totals"
 import type { CrmClient, CrmClientContact, CrmOffer } from "@/lib/crm/types"
 
 function createEmptyProduct(): ProductItem {
@@ -87,12 +88,9 @@ export default function OpportunityOffersPage() {
   const [savingDraft, setSavingDraft] = useState(false)
   const [issuingOffer, setIssuingOffer] = useState(false)
 
-  const subtotal = useMemo(
-    () => products.reduce((sum, row) => sum + (Number(row.total) || Number(row.quantity || 0) * Number(row.price || 0)), 0),
-    [products]
-  )
-  const adjustment = Number(adjustmentPercent.replace(",", ".")) || 0
-  const total = subtotal * (1 - adjustment / 100)
+  const subtotal = useMemo(() => computeOfferSubtotal(products), [products])
+  const adjustment = parseAdjustmentPercent(adjustmentPercent)
+  const total = applyAdjustment(subtotal, adjustment)
 
   /** Same resolution as opportunity layout Context CRM rail (all client contacts + primary). */
   const primaryContact = useMemo(
@@ -391,20 +389,28 @@ export default function OpportunityOffersPage() {
             <CardDescription>Completați denumirile pe mai multe rânduri dacă e nevoie; tabelul poate fi derulat orizontal pe ecrane înguste.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
-            <ProductTableForm
-              products={products}
-              onProductsChange={setProducts}
-              disabled={false}
-              showTitle={false}
-              tableScrollClassName="max-h-[min(52vh,440px)]"
-            />
+            <div data-testid="offer-products-section">
+              <ProductTableForm
+                products={products}
+                onProductsChange={setProducts}
+                disabled={false}
+                showTitle={false}
+                tableScrollClassName="max-h-[min(52vh,440px)]"
+              />
+            </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-neutral-200 bg-neutral-50/90 px-3 py-2.5 text-sm text-neutral-700">
               <span>
-                Total fără TVA: <strong className="tabular-nums text-neutral-900">{subtotal.toFixed(2)} lei</strong>
+                Total fără TVA:{" "}
+                <strong data-testid="offer-subtotal" className="tabular-nums text-neutral-900">
+                  {subtotal.toFixed(2)} lei
+                </strong>
               </span>
               <span className="hidden sm:inline text-neutral-300">|</span>
               <span>
-                Total ajustat: <strong className="tabular-nums text-neutral-900">{total.toFixed(2)} lei</strong>
+                Total ajustat:{" "}
+                <strong data-testid="offer-total" className="tabular-nums text-neutral-900">
+                  {total.toFixed(2)} lei
+                </strong>
               </span>
               {editingDraftOfferId ? (
                 <Badge variant="outline" className="ml-auto">
@@ -413,7 +419,10 @@ export default function OpportunityOffersPage() {
               ) : null}
             </div>
 
-            <div className="space-y-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
+            <div
+              data-testid="offer-optionals-section"
+              className="space-y-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3"
+            >
               <div className="space-y-0.5">
                 <h3 className="text-sm font-semibold text-neutral-900">Opționale</h3>
                 <p className="text-xs text-neutral-500">
@@ -733,6 +742,7 @@ export default function OpportunityOffersPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            data-testid={`offer-load-draft-${offer.id}`}
                             onClick={() => loadOfferInEditor(offer)}
                             disabled={editorUnavailable}
                             className={editorUnavailable ? "cursor-not-allowed opacity-60" : ""}

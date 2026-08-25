@@ -1,4 +1,6 @@
 import { auth } from "@/lib/firebase/config"
+import { listE2eCrmOffers, saveE2eCrmOfferDraft } from "@/lib/crm/e2e-fixtures"
+import { isE2eTestMode } from "@/lib/utils/environment"
 import type { CrmOffer, IssueCrmOfferInput, SaveCrmOfferDraftInput } from "@/lib/crm/types"
 
 async function firebaseBearerHeader(): Promise<Record<string, string>> {
@@ -55,6 +57,7 @@ function mapOffer(docId: string, data: Record<string, unknown>): CrmOffer {
 
 export async function listCrmOffers(opportunityId: string) {
   if (!opportunityId) return []
+  if (isE2eTestMode()) return listE2eCrmOffers(opportunityId)
 
   const query = new URLSearchParams({ opportunityId })
   const response = await fetch(`/api/crm/offers?${query.toString()}`, {
@@ -81,6 +84,7 @@ export async function listCrmOffers(opportunityId: string) {
 
 export async function saveCrmOfferDraft(input: SaveCrmOfferDraftInput) {
   if (!input.opportunityId) throw new Error("opportunityId este obligatoriu")
+  if (isE2eTestMode()) return saveE2eCrmOfferDraft(input)
 
   const response = await fetch("/api/crm/offers", {
     method: "POST",

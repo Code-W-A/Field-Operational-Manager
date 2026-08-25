@@ -1,6 +1,7 @@
 import { getStorage } from "firebase-admin/storage"
 import { adminApp } from "@/lib/firebase/admin"
 import { formatOfferResponseProofText, generateOfferPdf, type OfferPdfInput, type OfferResponseProof } from "@/lib/utils/offer-pdf"
+import { toOfferPdfItems } from "@/lib/offer/offer-pdf-items"
 import type { OfferResponseCertifiedPdf } from "@/lib/offer/evidence-types"
 
 function toIso(value: unknown): string {
@@ -22,15 +23,7 @@ function safeFilePart(value: string) {
     .slice(0, 80) || "oferta"
 }
 
-function mapProducts(rows: unknown): OfferPdfInput["products"] {
-  if (!Array.isArray(rows)) return []
-  return rows.map((row: any) => ({
-    name: String(row?.name || row?.denumire || ""),
-    quantity: Number(row?.quantity || row?.cantitate || 0),
-    price: Number(row?.price || row?.pretUnitar || 0),
-    um: row?.um ? String(row.um) : undefined,
-  }))
-}
+const mapProducts = toOfferPdfItems
 
 function formatPreparedDate(value: unknown): string {
   const date = value ? new Date(toIso(value)) : new Date()
