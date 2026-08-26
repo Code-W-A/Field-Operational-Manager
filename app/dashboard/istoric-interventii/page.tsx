@@ -28,6 +28,7 @@ import { ensurePdfFont } from "@/lib/pdf/font-loader"
 import { drawFooter, drawSimpleHeader } from "@/lib/pdf/common"
 import { Input } from "@/components/ui/input"
 import { EquipmentHistoryCheckDialog } from "@/components/equipment-history-check-dialog"
+import { isPrimaryUnmodifiedClick, openHrefInNewTab, preventMiddleClickAutoscroll } from "@/lib/utils/open-in-new-tab"
 
 type HistoryRow = {
   id: string
@@ -1000,22 +1001,26 @@ export default function IstoricInterventiiPage() {
               </div>
             </div>
 
-            {pagedCardRows.map((r) => (
+            {pagedCardRows.map((r) => {
+              const href = `/dashboard/lucrari/${r.id}`
+              return (
               <Card
                 key={r.id}
                 className="border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                onMouseDown={(event) => preventMiddleClickAutoscroll(event, Boolean(r.id))}
                 onClick={(event) => {
                   if (event.metaKey || event.ctrlKey) {
                     event.preventDefault()
-                    window.open(`/dashboard/lucrari/${r.id}`, "_blank", "noopener,noreferrer")
+                    openHrefInNewTab(href)
                     return
                   }
-                  router.push(`/dashboard/lucrari/${r.id}`)
+                  if (!isPrimaryUnmodifiedClick(event)) return
+                  router.push(href)
                 }}
                 onAuxClick={(event) => {
                   if (event.button !== 1) return
                   event.preventDefault()
-                  window.open(`/dashboard/lucrari/${r.id}`, "_blank", "noopener,noreferrer")
+                  openHrefInNewTab(href)
                 }}
               >
                 <CardHeader className="py-3">
@@ -1070,7 +1075,8 @@ export default function IstoricInterventiiPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              )
+            })}
 
             {cardsTotalPages > 1 ? (
               <div className="flex items-center justify-between gap-4 flex-wrap pt-3 px-1">

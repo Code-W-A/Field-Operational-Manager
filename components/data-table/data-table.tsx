@@ -17,6 +17,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { isPrimaryUnmodifiedClick, openHrefInNewTab, preventMiddleClickAutoscroll } from "@/lib/utils/open-in-new-tab"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -382,19 +383,21 @@ export function DataTable<TData, TValue>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    onMouseDown={(event) => preventMiddleClickAutoscroll(event, Boolean(rowHref))}
                     onClick={(event) => {
                       if (!onRowClick) return
                       if (rowHref && (event.metaKey || event.ctrlKey)) {
                         event.preventDefault()
-                        window.open(rowHref, "_blank", "noopener,noreferrer")
+                        openHrefInNewTab(rowHref)
                         return
                       }
+                      if (!isPrimaryUnmodifiedClick(event)) return
                       onRowClick(row.original)
                     }}
                     onAuxClick={(event) => {
                       if (event.button !== 1 || !rowHref) return
                       event.preventDefault()
-                      window.open(rowHref, "_blank", "noopener,noreferrer")
+                      openHrefInNewTab(rowHref)
                     }}
                     className={`${rowClass} hover:bg-gray-100 ${onRowClick ? "cursor-pointer" : ""} transition-colors`}
                   >
