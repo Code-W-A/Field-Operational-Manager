@@ -32,6 +32,7 @@ import { useTablePersistence } from "@/hooks/use-table-persistence"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORK_TYPES, WORK_STATUS } from "@/lib/utils/constants"
 import { isLucrareAnulata } from "@/lib/utils/work-canceled"
+import { groupWorksByScheduledDay } from "@/lib/lucrari/group-works-by-day"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import {
   buildRecentRevisionBlockMessage,
@@ -1040,6 +1041,11 @@ export default function Lucrari() {
     const endIndex = startIndex + cardsPageSize
     return sortedByNrDesc.slice(startIndex, endIndex)
   }, [filteredData, cardsCurrentPage, cardsPageSize, isTechnician])
+
+  const technicianCardSections = useMemo(
+    () => (isTechnician ? groupWorksByScheduledDay(paginatedCardsData) : null),
+    [isTechnician, paginatedCardsData],
+  )
 
   const totalCardsPages = Math.ceil(filteredData.length / cardsPageSize)
   const showTableSelectionColumn = canDeleteWorks && !isTechnician && activeTab === "tabel" && multiSelectMode
@@ -3353,9 +3359,32 @@ export default function Lucrari() {
             </div>
             )}
 
-            {/* Grid cu cards */}
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-x-hidden">
-              {paginatedCardsData.map((lucrare) => {
+            {isTechnician && paginatedCardsData.length === 0 && filteredData.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-muted-foreground mb-2">Nu aveți lucrări active în acest moment.</p>
+              </div>
+            ) : (
+            <div className="space-y-8">
+              {(technicianCardSections ?? [
+                { key: "all", title: "", overdue: false, items: paginatedCardsData, kind: "today" as const, dateKey: null },
+              ]).map((section) => (
+                <section key={section.key} className="space-y-3">
+                  {isTechnician ? (
+                    <h2 className="flex flex-wrap items-center gap-2 px-1">
+                      <span className="text-base font-semibold text-gray-900">{section.title}</span>
+                      {section.overdue ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-semibold border-amber-400 bg-amber-50 text-amber-900"
+                        >
+                          Întârziat
+                        </Badge>
+                      ) : null}
+                      <span className="text-sm text-muted-foreground">{section.items.length}</span>
+                    </h2>
+                  ) : null}
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 w-full overflow-x-hidden">
+              {section.items.map((lucrare) => {
               // Check if the work order is completed with report but not picked up
               const isCompletedNotPickedUp = isCompletedWithReportNotPickedUp(lucrare)
               const isRevisionWork = String((lucrare as any)?.tipLucrare || "").toLowerCase() === "revizie"
@@ -3503,6 +3532,12 @@ export default function Lucrari() {
                           {lucrare.tipLucrare || "-"}
                         </Badge>
                       </div>
+                      {isTechnician ? (
+                        <div className="text-sm">
+                          <span className="text-gray-500 text-xs">Programat: </span>
+                          <span className="font-medium text-gray-900">{dataInterventieText || "—"}</span>
+                        </div>
+                      ) : null}
 
                       {/* Locație + Echipament */}
                       <div className="space-y-3 text-sm">
@@ -3631,22 +3666,19 @@ export default function Lucrari() {
                 </Card>
               )
             })}
-              {paginatedCardsData.length === 0 && filteredData.length === 0 && (
-                <div className="col-span-full text-center py-10">
-                  {userData?.role === "tehnician" ? (
-                    <div>
-                      <p className="text-muted-foreground mb-2">Nu aveți lucrări active în acest moment.</p>
-                 
+                  {!isTechnician && paginatedCardsData.length === 0 && filteredData.length === 0 ? (
+                    <div className="col-span-full text-center py-10">
+                      <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground">Nu există lucrări care să corespundă criteriilor de căutare.</p>
-                  )}
-                </div>
-              )}
+                  ) : null}
+                  </div>
+                </section>
+              ))}
             </div>
+            )}
 
             {/* Paginația pentru cards */}
-            {totalCardsPages > 1 && (
+            {totalCardsPages > 1 && !isTechnician && (
               <div className="flex items-center justify-center space-x-2">
                 <Button
                   variant="outline"
