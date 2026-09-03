@@ -10,6 +10,7 @@ import {
   requireScheduledWorksAdmin,
 } from "./scheduled-works-auth"
 import { mayUseExternalSmtp } from "./mail-transport-policy"
+import { selectRevisionEquipmentIdsForLocation } from "./revision-equipment-selection"
 export { auditNestedDocumentWritten, auditTopLevelDocumentWritten } from "./audit-log"
 
 // Initialize the default Firebase app for Admin SDK
@@ -2104,30 +2105,18 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
 
         const nrLucrare = await getNextReportNumberAdmin()
         const locEqList = locationEquipments.get(entry.locationName || "") || []
-        const locEqMatchSet = new Set(
-          locEqList
-            .flatMap((eq) => [eq.id, eq.cod])
-            .filter((v) => typeof v === "string" && v.length > 0)
-            .map((v) => String(v)),
-        )
-        let equipmentIdsForWork: string[] | undefined
-        if (contractEquipmentIds.length > 0) {
-          const filtered = contractEquipmentIds.filter((id: string) => locEqMatchSet.has(id))
-          if (filtered.length === 0) {
-            console.warn("generateRevisionWorks: contract has equipmentIds but none match location", {
-              contractId: contract.id,
-              locationName: entry.locationName,
-              contractEquipmentIds,
-              locEqList,
-            })
-            continue
-          }
-          equipmentIdsForWork = filtered
-        } else {
-          const fallbackIds = locEqList
-            .map((eq) => (eq.id ? eq.id : eq.cod))
-            .filter((v): v is string => typeof v === "string" && v.length > 0)
-          equipmentIdsForWork = fallbackIds.length ? fallbackIds : undefined
+        const equipmentIdsForWork = selectRevisionEquipmentIdsForLocation({
+          contractEquipmentIds,
+          locationEquipments: locEqList,
+        })
+        if (contractEquipmentIds.length > 0 && equipmentIdsForWork.length === 0) {
+          console.warn("generateRevisionWorks: contract has equipmentIds but none match location", {
+            contractId: contract.id,
+            locationName: entry.locationName,
+            contractEquipmentIds,
+            locEqList,
+          })
+          continue
         }
 
         const normalizedEquipmentIdsForWork = Array.isArray(equipmentIdsForWork)
