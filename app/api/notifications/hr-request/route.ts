@@ -18,7 +18,7 @@ import {
 } from "@/lib/hr/hr-notification-authorization.server"
 import { areSinkRecipientsAllowed, resolveMailTransportPolicy } from "@/lib/email/mail-transport-policy.server"
 
-type HrRequestEvent = "created" | "status_changed"
+type HrRequestEvent = "created" | "status_changed" | "updated"
 
 const DISPATCH_COLLECTION = "hrNotificationDispatches"
 const DISPATCH_LEASE_MS = 60_000
@@ -28,7 +28,10 @@ type DispatchClaim =
   | { state: "completed"; deliveryCount: number }
   | { state: "processing" }
 
-function dispatchDocumentId(requestId: string, event: HrRequestEvent, status: string) {
+function dispatchDocumentId(requestId: string, event: HrRequestEvent, status: string, revision?: string) {
+  if (event === "updated") {
+    return `${requestId}__updated__${revision || status}`
+  }
   return `${requestId}__${event}__${status}`
 }
 
@@ -37,9 +40,10 @@ async function claimDispatch(params: {
   event: HrRequestEvent
   requestStatus: string
   actorUid: string
+  revision?: string
 }): Promise<{ ref: FirebaseFirestore.DocumentReference; claim: DispatchClaim }> {
   const ref = adminDb.collection(DISPATCH_COLLECTION).doc(
-    dispatchDocumentId(params.requestId, params.event, params.requestStatus),
+    dispatchDocumentId(params.requestId, params.event, params.requestStatus, params.revision),
   )
   const now = Date.now()
   const claim = await adminDb.runTransaction<DispatchClaim>(async (transaction) => {
@@ -259,10 +263,24 @@ export async function POST(request: NextRequest) {
     const requester = await getUserEmail(String(data.requesterUid || ""))
     const manager = await getUserEmail(String(data.managerUid || ""))
 
-    const intendedRecipients = (event === "created"
-      ? [manager.email, requester.email, employee.email]
-      : [requester.email]
-    ).filter((email): email is string => Boolean(email))
+    const uniqueEmails = (emails: Array<string | null>): string[] => {
+      const seen = new Set<string>()
+      const out: string[] = []
+      for (const email of emails) {
+        if (!email || seen.has(email)) continue
+        seen.add(email)
+        out.push(email)
+      }
+      return out
+    }
+
+    const intendedRecipients = uniqueEmails(
+      event === "created"
+        ? [manager.email, requester.email, employee.email]
+        : event === "updated"
+          ? [requester.email, employee.email]
+          : [requester.email],
+    )
     if (
       transportPolicy.mode === "sink" &&
       !areSinkRecipientsAllowed(intendedRecipients, transportPolicy.sinkAllowedDomains)
@@ -275,6 +293,9 @@ export async function POST(request: NextRequest) {
       event,
       requestStatus: String(data.status || ""),
       actorUid: actor.uid,
+      revision: event === "updated"
+        ? String(toMillis(data.editedAt) || toMillis(data.updatedAt))
+        : undefined,
     })
     dispatchRef = dispatch.ref
     if (dispatch.claim.state === "completed") {
@@ -287,6 +308,7 @@ export async function POST(request: NextRequest) {
     const title = `${kindLabel(String(data.kind || ""))} • ${requestDateLabel(data)}`
     const employeeName = data.employeeName || data.employeeId || "—"
     const rejectReason = String(data.rejectionReason || "").trim()
+    const payloadReason = String((data.payload as any)?.reason || "").trim()
     const departmentName = await getDepartmentName(String(data.sectorId || ""))
     const departmentLabel = departmentName || "—"
     const baseUrl = buildBaseUrl(request)
@@ -499,6 +521,45 @@ export async function POST(request: NextRequest) {
             recipientType: "requester",
             subject: `Status cerere actualizat: ${statusLabel(String(data.status || ""))} • ${title}`,
             text: baseText,
+            attachments: finalAttachments,
+          }),
+        )
+      }
+    } else if (event === "updated") {
+      const baseText =
+        `Cererea a fost modificată.\n\n` +
+        `Angajat: ${employeeName}\n` +
+        `Tip: ${kindLabel(String(data.kind || ""))}\n` +
+        `Perioadă/zi: ${requestDateLabel(data)}\n` +
+        `Departament: ${departmentLabel || "—"}\n` +
+        `Status: ${statusLabel(String(data.status || ""))}\n` +
+        (payloadReason ? `Motiv: ${payloadReason}\n` : "")
+
+      if (requester.email) {
+        results.push(
+          await sendMail({
+            to: requester.email,
+            recipientType: "requester",
+            subject: `Cerere modificată: ${title}`,
+            text: baseText,
+            attachments: finalAttachments,
+          }),
+        )
+      }
+
+      if (employee.email && employee.email !== requester.email) {
+        results.push(
+          await sendMail({
+            to: employee.email,
+            recipientType: "employee",
+            subject: `A fost modificată o cerere pentru tine: ${title}`,
+            text:
+              `A fost modificată o cerere pe numele tău.\n\n` +
+              `Tip: ${kindLabel(String(data.kind || ""))}\n` +
+              `Perioadă/zi: ${requestDateLabel(data)}\n` +
+              `Departament: ${departmentLabel || "—"}\n` +
+              `Status: ${statusLabel(String(data.status || ""))}\n` +
+              (payloadReason ? `Motiv: ${payloadReason}\n` : ""),
             attachments: finalAttachments,
           }),
         )

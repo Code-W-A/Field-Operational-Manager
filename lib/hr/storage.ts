@@ -748,7 +748,7 @@ export function subscribeHrRequestsForManager(params: {
   )
 }
 
-async function notifyHrRequestEmail(params: { requestId: string; event: "created" | "status_changed" }) {
+async function notifyHrRequestEmail(params: { requestId: string; event: "created" | "status_changed" | "updated" }) {
   try {
     const res = await fetch("/api/notifications/hr-request", {
       method: "POST",
@@ -827,6 +827,7 @@ export async function updateHrRequestByManager(params: {
     editedByUid: params.managerUid,
     editedAt: serverTimestamp(),
   } as any)
+  void notifyHrRequestEmail({ requestId: params.requestId, event: "updated" })
 }
 
 export async function decideHrRequest(params: {

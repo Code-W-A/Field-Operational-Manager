@@ -1,4 +1,4 @@
-export type HrNotificationEvent = "created" | "status_changed"
+export type HrNotificationEvent = "created" | "status_changed" | "updated"
 
 export class HrNotificationRequestError extends Error {
   status: number
@@ -24,7 +24,7 @@ export function parseHrNotificationPayload(body: unknown): {
   if (typeof row.requestId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(row.requestId)) {
     throw new HrNotificationRequestError("Payload invalid.", 400)
   }
-  if (row.event !== "created" && row.event !== "status_changed") {
+  if (row.event !== "created" && row.event !== "status_changed" && row.event !== "updated") {
     throw new HrNotificationRequestError("Payload invalid.", 400)
   }
   return { requestId: row.requestId, event: row.event }
@@ -52,6 +52,12 @@ export function authorizeHrNotification(params: {
       throw new HrNotificationRequestError("Nu ai permisiune pentru această notificare.", 403)
     }
     return
+  }
+
+  if (params.event === "updated") {
+    if (params.actorRole === "admin") return
+    if (params.actorRole === "tehnician" && params.actorUid === managerUid) return
+    throw new HrNotificationRequestError("Nu ai permisiune pentru această notificare.", 403)
   }
 
   if (status !== "approved" && status !== "rejected") {

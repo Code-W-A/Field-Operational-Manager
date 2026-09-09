@@ -47,6 +47,39 @@ test("created notification requires the pending request owner", () => {
   }), 409)
 })
 
+test("updated notification permits admin or assigned technician manager on any status", () => {
+  for (const actor of [
+    { actorUid: "admin", actorRole: "admin" },
+    { actorUid: "manager", actorRole: "tehnician" },
+  ]) {
+    for (const status of ["pending", "approved", "rejected"]) {
+      assert.doesNotThrow(() => authorizeHrNotification({
+        ...actor,
+        event: "updated",
+        request: { requesterUid: "requester", managerUid: "manager", status },
+      }))
+    }
+  }
+
+  assert.deepEqual(parseHrNotificationPayload({ requestId: "request_1-A", event: "updated" }), {
+    requestId: "request_1-A",
+    event: "updated",
+  })
+
+  expectStatus(() => authorizeHrNotification({
+    actorUid: "requester",
+    actorRole: "tehnician",
+    event: "updated",
+    request: { requesterUid: "requester", managerUid: "manager", status: "pending" },
+  }), 403)
+  expectStatus(() => authorizeHrNotification({
+    actorUid: "dispatcher",
+    actorRole: "dispecer",
+    event: "updated",
+    request: { requesterUid: "requester", managerUid: "manager", status: "pending" },
+  }), 403)
+})
+
 test("status_changed permits admin or the assigned technician manager only", () => {
   for (const actor of [
     { actorUid: "admin", actorRole: "admin" },
