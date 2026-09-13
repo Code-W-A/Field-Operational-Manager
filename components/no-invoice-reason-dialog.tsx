@@ -29,6 +29,7 @@ interface NoInvoiceReasonDialogProps {
 
 const PREDEFINED_REASONS = [
   { value: "contract-abonament", label: "Contract abonament" },
+  { value: "revizie-abonament", label: "Revizie cuprinsă în abonament" },
   { value: "garantie", label: "Garantie" },
   { value: "discount-100", label: "Discount 100%" },
   { value: "reinterventie-nrg", label: "Reintervenție pe cheltuiala NRG" },
@@ -228,4 +229,3 @@ export function NoInvoiceReasonDialog({
     </Dialog>
   )
 }
-

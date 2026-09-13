@@ -8,6 +8,7 @@ import { adminDb } from "@/lib/firebase/admin"
 import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
+import { getRevisionClientNotice } from "@/lib/email/work-order-revision-notice"
 
 // Add this function at the top of the file
 async function validateEmails(data: any) {
@@ -240,6 +241,7 @@ export async function POST(request: NextRequest) {
 
     // Detect postponed event
     const isPostponed = details?.eventType === "postponed"
+    const revisionClientNotice = getRevisionClientNotice(details?.workType, isPostponed)
 
     // Prepare email content for technicians - include all details and rename "Descriere" to "Sfaturi pt tehnician"
     const technicianWorkOrderInfo = `
@@ -574,6 +576,7 @@ export async function POST(request: NextRequest) {
               <h3 style="margin-top: 0;">Detalii tichet</h3>
               ${clientWorkOrderInfo}
             </div>
+            ${revisionClientNotice?.html || ""}
             ${!isPostponed ? `
             <div style=\"background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0f56b3;\">
               <h3 style=\"margin-top: 0; color: #0f56b3;\">Tehnicieni</h3>
@@ -596,7 +599,7 @@ export async function POST(request: NextRequest) {
             : `Confirmare intervenție: ${details?.location || "Locație nedefinită"}`,
           text: isPostponed
             ? `Stimate ${client.contactPerson || client.name}, vă informăm că lucrarea a fost amânată.${details?.postponeReason ? ` Motiv: ${details.postponeReason}.` : ''}`
-            : `Stimate ${client.contactPerson || client.name}, vă confirmăm programarea unei intervenții.`,
+            : `Stimate ${client.contactPerson || client.name}, vă confirmăm programarea unei intervenții.${revisionClientNotice?.text ? `\n\n${revisionClientNotice.text}` : ""}`,
           html: htmlContent,
           attachments: [
             {

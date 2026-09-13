@@ -36,6 +36,7 @@
     "test:e2e:real:lucrari": "playwright test -c playwright.real.config.ts e2e/real/stage6-lucrari.spec.ts",
     "test:e2e:real:revision-contract-equipment": "playwright test -c playwright.real.config.ts e2e/real/revision-contract-equipment-readonly.spec.ts",
     "test:revision-equipment-selection": "tsx --test firebase-functions/src/revision-equipment-selection.test.ts",
+    "test:work-order-revision-notice": "tsx --test lib/email/work-order-revision-notice.test.ts",
     "test:offer-dates": "npx tsx --test lib/utils/time-format.ro-date.test.ts",
     "test:offer-pdf-input": "npx tsx --test lib/work-documents/offer-pdf-input.test.ts",
     "test:offer-optionals": "npx tsx --test lib/crm/offer-products.test.ts lib/crm/offer-totals.test.ts lib/crm/offer-optionals.pipeline.test.ts lib/offer/offer-pdf-items.test.ts lib/utils/offer-pdf.optionals.smoke.test.ts lib/utils/offer-pdf.test.ts",

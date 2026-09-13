@@ -12,6 +12,7 @@ test("exclude toate semnalele de facturare rezolvată", () => {
   assert.equal(isUninvoicedWork({ ...base, numarFactura: "F-10" }), false)
   assert.equal(isUninvoicedWork({ ...base, facturaDocument: { url: "https://example.test/f.pdf" } }), false)
   assert.equal(isUninvoicedWork({ ...base, motivNefacturare: "Garanție" }), false)
+  assert.equal(isUninvoicedWork({ ...base, motivNefacturare: "Revizie cuprinsă în abonament" }), false)
   assert.equal(isUninvoicedWork({ ...base, statusFacturare: "Facturat" }), false)
   assert.equal(isUninvoicedWork({ ...base, statusFacturare: "Nu se facturează" }), false)
 })

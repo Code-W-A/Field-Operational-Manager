@@ -6,11 +6,16 @@ import { join } from "node:path"
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), "utf8")
 
-test("Nu se facturează: Contract abonament remains selectable and is saved as reason", () => {
+test("Nu se facturează: motivele de abonament rămân selectabile și sunt salvate", () => {
   const dialog = read("components/no-invoice-reason-dialog.tsx")
   const upload = read("components/document-upload.tsx")
 
   assert.match(dialog, /value:\s*"contract-abonament",\s*label:\s*"Contract abonament"/)
+  assert.match(dialog, /value:\s*"revizie-abonament",\s*label:\s*"Revizie cuprinsă în abonament"/)
+  assert.match(
+    dialog,
+    /label:\s*"Contract abonament"[\s\S]*label:\s*"Revizie cuprinsă în abonament"/,
+  )
   assert.doesNotMatch(upload, /Motivul „Contract abonament” este permis doar/)
   assert.doesNotMatch(
     upload,
