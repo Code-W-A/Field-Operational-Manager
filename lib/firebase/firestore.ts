@@ -3,6 +3,7 @@ import {
   collection,
   getDocs,
   getDoc,
+  getDocFromServer,
   doc,
   updateDoc,
   addDoc,
@@ -693,9 +694,9 @@ export const getClienti = async () => {
 }
 
 // Get a client by ID
-export const getClientById = async (id: string) => {
+export const getClientById = async (id: string, options?: { serverOnly?: boolean }) => {
   const clientDoc = doc(db, "clienti", id)
-  const clientSnapshot = await getDoc(clientDoc)
+  const clientSnapshot = await (options?.serverOnly ? getDocFromServer(clientDoc) : getDoc(clientDoc))
   if (clientSnapshot.exists()) {
     return {
       id: clientSnapshot.id,
@@ -1146,9 +1147,9 @@ export const getLucrari = async () => {
 }
 
 // Get a work order by ID
-export const getLucrareById = async (id: string) => {
+export const getLucrareById = async (id: string, options?: { serverOnly?: boolean }) => {
   const lucrareDoc = doc(db, "lucrari", id)
-  const lucrareSnapshot = await getDoc(lucrareDoc)
+  const lucrareSnapshot = await (options?.serverOnly ? getDocFromServer(lucrareDoc) : getDoc(lucrareDoc))
   if (lucrareSnapshot.exists()) {
     return {
       id: lucrareSnapshot.id,

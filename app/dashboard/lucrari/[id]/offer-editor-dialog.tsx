@@ -14,7 +14,6 @@ import { useTargetList, useTargetValue } from "@/hooks/use-settings"
 import {
   blobToBase64,
   buildPricingConditions,
-  normalizeEmail,
   resolveLocationForWork,
   resolveRecipientEmailForLocation,
   triggerBlobDownload,
@@ -24,6 +23,7 @@ import {
   offerPdfAttachmentFileName,
   offerPdfPreviewFileName,
 } from "@/lib/work-documents/offer-pdf-input"
+import { loadWorkDocumentRecipient } from "@/lib/work-documents/recipient"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 
 interface OfferEditorDialogProps {
@@ -31,12 +31,11 @@ interface OfferEditorDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialProducts?: ProductItem[]
-  // Optional preset recipient/location from parent page to avoid async mismatch
-  presetRecipientEmail?: string
+  // Optional location label from the parent page
   presetLocationLabel?: string
 }
 
-export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [], presetRecipientEmail, presetLocationLabel }: OfferEditorDialogProps) {
+export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [], presetLocationLabel }: OfferEditorDialogProps) {
   const { userData } = useAuth()
   const [products, setProducts] = useState<ProductItem[]>(initialProducts)
   const [saving, setSaving] = useState(false)
@@ -101,7 +100,8 @@ useEffect(() => {
 
   useEffect(() => {
     const load = async () => {
-      const current = await getLucrareById(lucrareId)
+      setClientData(null)
+      const current = await getLucrareById(lucrareId, { serverOnly: true })
       const loadedVersions = ((current as any)?.offerVersions || []) as any
       setVersions(loadedVersions)
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
@@ -130,12 +130,14 @@ useEffect(() => {
         // Backward-compatible: unele lucrări au doar clientInfo.id, altele au clientId.
         const cid = (current as any)?.clientId || (current as any)?.clientInfo?.id
         if (cid) {
-          const c = await getClientById(String(cid))
+          const c = await getClientById(String(cid), { serverOnly: true })
           setClientData(c)
         } else {
           setClientData(null)
         }
-      } catch {}
+      } catch {
+        setClientData(null)
+      }
       {
         setVatPercent(await getDefaultOfferVatPercent())
         const rawAdj = (current as any)?.offerAdjustmentPercent
@@ -158,7 +160,10 @@ useEffect(() => {
       // Permit "Trimite ofertă" doar dacă există o versiune salvată și nu suntem în editare de versiune nouă
       setCanSendOffer(Array.isArray(loadedVersions) && loadedVersions.length > 0 && !editingNewVersion)
     }
-    if (open) void load()
+    if (open) void load().catch(() => {
+      setClientData(null)
+      toast({ title: "Eroare încărcare", description: "Nu s-au putut încărca datele actuale ale tichetului.", variant: "destructive" })
+    })
   }, [open, lucrareId, editingNewVersion])
 
   // no manual recipient selection; display-only suggestion handled via suggestedRecipient
@@ -166,11 +171,11 @@ useEffect(() => {
   // read-only suggested recipient
   const suggestedRecipient = useMemo(() => {
     try {
-      return resolveRecipientEmailForLocation(clientData, currentWork, presetRecipientEmail)
+      return resolveRecipientEmailForLocation(clientData, currentWork)
     } catch {
       return null
     }
-  }, [presetRecipientEmail, clientData, currentWork])
+  }, [clientData, currentWork])
 
   const total = useMemo(() => products.reduce((s, p) => s + (p.total || 0), 0), [products])
   // Discount as percentage applied to subtotal (acts like a discount)
@@ -356,6 +361,10 @@ useEffect(() => {
         vat: Number(vatPercent) || 0,
         savedAt: String(lastVersion?.savedAt || new Date().toISOString()),
       }
+      const { freshWork, freshClient, recipient } = await loadWorkDocumentRecipient(lucrareId)
+      setCurrentWork(freshWork)
+      setClientData(freshClient)
+
       const tokenResp = await fetch('/api/offer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -363,36 +372,12 @@ useEffect(() => {
       })
       if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
       const { acceptUrl, rejectUrl } = await tokenResp.json()
-  
-      // ia date proaspete
-      const freshWork = await getLucrareById(lucrareId)
-      let freshClient: any = clientData
-      try {
-        const cid = (freshWork as any)?.clientId || (freshWork as any)?.clientInfo?.id
-        if (cid) freshClient = await getClientById(String(cid))
-      } catch {}
-      dbg("handleSendOffer context", {
-        lucrareId,
-        presetRecipientEmail,
-        suggestedRecipient,
-        hasFreshClient: Boolean(freshClient),
-        hasFreshWork: Boolean(freshWork),
-        freshWork_locatie: (freshWork as any)?.locatie,
-        freshWork_contact: (freshWork as any)?.persoanaContact,
-      })
-
-      const candidate = resolveRecipientEmailForLocation(freshClient, freshWork, presetRecipientEmail)
-      const recipient = normalizeEmail(candidate)
-      dbg("recipient resolution", { candidateRaw: candidate, recipientNormalized: recipient })
-      if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
-        throw new Error('Nu există un email valid disponibil pentru această tichet.')
-      }
 
       setLastEmailDebug({
         at: new Date().toISOString(),
         status: "sending",
         suggestedRecipientAtUi: suggestedRecipient || null,
-        candidateRaw: candidate ?? null,
+        candidateRaw: recipient,
         recipient,
       })
 
@@ -582,14 +567,13 @@ useEffect(() => {
     } catch (e) {
       console.warn('Trimitere ofertă eșuată', e)
       const msg = e instanceof Error ? e.message : 'Nu s-a putut trimite emailul.'
-      const destInfo = presetRecipientEmail || suggestedRecipient ? ` | către: ${presetRecipientEmail || suggestedRecipient}` : ''
-      toast({ title: 'Eroare trimitere', description: `${msg}${destInfo}`, variant: 'destructive' })
+      toast({ title: 'Eroare trimitere', description: msg, variant: 'destructive' })
       // log non‑blocking eroare trimitere
       void addUserLogEntry({
         utilizator: userData?.displayName || userData?.email || "Utilizator",
         utilizatorId: userData?.uid || "system",
         actiune: "Trimitere ofertă eșuată",
-        detalii: `Tichet: ${String(currentWork?.numarRaport || lucrareId)}; Motiv: ${msg}${destInfo}`,
+        detalii: `Tichet: ${String(currentWork?.numarRaport || lucrareId)}; Motiv: ${msg}`,
         tip: "Eroare",
         categorie: "Email",
       })

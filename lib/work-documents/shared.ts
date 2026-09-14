@@ -55,20 +55,9 @@ export function resolveLocationForWork(client: any, work: any) {
   return location || null
 }
 
-export function resolveRecipientEmailForLocation(client: any, work: any, presetRecipientEmail?: string | null): string | null {
-  if (isValidEmail(presetRecipientEmail)) return normalizeEmail(presetRecipientEmail)
-
-  const workLevelCandidates = [
-    work?.clientInfo?.locationEmail,
-    work?.clientInfo?.email,
-    work?.clientInfo?.contactEmail,
-    work?.email,
-    work?.persoanaContactEmail,
-  ]
-
-  for (const candidate of workLevelCandidates) {
-    if (isValidEmail(candidate)) return normalizeEmail(candidate)
-  }
+// Document recipients always come from the current client record, never ticket snapshots.
+export function resolveRecipientEmailForLocation(client: any, work: any): string | null {
+  if (!client || !work) return null
 
   const location = resolveLocationForWork(client, work)
   const targetContactName = work?.persoanaContact

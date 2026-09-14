@@ -11,11 +11,11 @@ import { toast } from "@/hooks/use-toast"
 import { useTargetValue } from "@/hooks/use-settings"
 import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 import { buildAutoDevizProducts } from "@/lib/deviz/auto-deviz"
+import { loadWorkDocumentRecipient } from "@/lib/work-documents/recipient"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 import {
   blobToBase64,
   formatPreparedDate,
-  normalizeEmail,
   resolveRecipientEmailForLocation,
 } from "@/lib/work-documents/shared"
 
@@ -24,7 +24,6 @@ interface DevizEditorDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialProducts?: ProductItem[]
-  presetRecipientEmail?: string
   presetLocationLabel?: string
 }
 
@@ -47,7 +46,6 @@ export function DevizEditorDialog({
   open,
   onOpenChange,
   initialProducts = [],
-  presetRecipientEmail,
   presetLocationLabel,
 }: DevizEditorDialogProps) {
   const { userData } = useAuth()
@@ -83,7 +81,8 @@ export function DevizEditorDialog({
     if (!open) return
 
     const load = async () => {
-      const current = await getLucrareById(lucrareId)
+      setClientData(null)
+      const current = await getLucrareById(lucrareId, { serverOnly: true })
       const savedDevizProducts = Array.isArray((current as any)?.devizProducts) ? (current as any).devizProducts : []
       const hasSavedDevizProducts = savedDevizProducts.length > 0
       const autoDeviz = buildAutoDevizProducts({
@@ -117,7 +116,7 @@ export function DevizEditorDialog({
       try {
         const clientId = (current as any)?.clientId || (current as any)?.clientInfo?.id
         if (clientId) {
-          setClientData(await getClientById(String(clientId)))
+          setClientData(await getClientById(String(clientId), { serverOnly: true }))
         } else {
           setClientData(null)
         }
@@ -126,7 +125,10 @@ export function DevizEditorDialog({
       }
     }
 
-    void load()
+    void load().catch(() => {
+      setClientData(null)
+      toast({ title: "Eroare încărcare", description: "Nu s-au putut încărca datele actuale ale tichetului.", variant: "destructive" })
+    })
   }, [
     open,
     lucrareId,
@@ -143,11 +145,11 @@ export function DevizEditorDialog({
 
   const suggestedRecipient = useMemo(() => {
     try {
-      return resolveRecipientEmailForLocation(clientData, currentWork, presetRecipientEmail)
+      return resolveRecipientEmailForLocation(clientData, currentWork)
     } catch {
       return null
     }
-  }, [clientData, currentWork, presetRecipientEmail])
+  }, [clientData, currentWork])
 
   const resetDialog = () => {
     setViewIndex(null)
@@ -217,17 +219,9 @@ export function DevizEditorDialog({
         throw new Error("Salvați întâi o versiune de deviz.")
       }
 
-      const freshWork = await getLucrareById(lucrareId)
-      let freshClient: any = clientData
-      try {
-        const clientId = (freshWork as any)?.clientId || (freshWork as any)?.clientInfo?.id
-        if (clientId) freshClient = await getClientById(String(clientId))
-      } catch {}
-
-      const recipient = normalizeEmail(resolveRecipientEmailForLocation(freshClient, freshWork, presetRecipientEmail))
-      if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
-        throw new Error("Nu există un email valid disponibil pentru această tichet.")
-      }
+      const { freshWork, freshClient, recipient } = await loadWorkDocumentRecipient(lucrareId)
+      setCurrentWork(freshWork)
+      setClientData(freshClient)
 
       const preparedAt = formatPreparedDate(new Date())
       const blob = await generateDevizPdf({
