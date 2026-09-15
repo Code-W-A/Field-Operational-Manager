@@ -20,8 +20,10 @@ import {
 } from "@/lib/work-documents/shared"
 import {
   buildOfferPdfInput,
+  buildOfferVersionPdfInput,
   offerPdfAttachmentFileName,
   offerPdfPreviewFileName,
+  offerPdfVersionFileName,
 } from "@/lib/work-documents/offer-pdf-input"
 import { loadWorkDocumentRecipient } from "@/lib/work-documents/recipient"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
@@ -35,11 +37,21 @@ interface OfferEditorDialogProps {
   presetLocationLabel?: string
 }
 
+type OfferVersion = {
+  savedAt: string
+  savedBy?: string
+  total: number
+  products: ProductItem[]
+  vatPercent?: number
+  adjustmentPercent?: number
+  conditions?: string[]
+}
+
 export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [], presetLocationLabel }: OfferEditorDialogProps) {
   const { userData } = useAuth()
   const [products, setProducts] = useState<ProductItem[]>(initialProducts)
   const [saving, setSaving] = useState(false)
-  const [versions, setVersions] = useState<Array<{ savedAt: string; savedBy?: string; total: number; products: ProductItem[] }>>([])
+  const [versions, setVersions] = useState<OfferVersion[]>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
   const [vatPercent, setVatPercent] = useState<number>(DEFAULT_OFFER_VAT_PERCENT)
   const [adjustmentPercent, setAdjustmentPercent] = useState<number>(0)
@@ -51,6 +63,7 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const [initialVersionsCount, setInitialVersionsCount] = useState(0)
   const [canSendOffer, setCanSendOffer] = useState(false)
   const [previewingPdf, setPreviewingPdf] = useState(false)
+  const [downloadingVersionIndex, setDownloadingVersionIndex] = useState<number | null>(null)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
   const [acceptedSavedAt, setAcceptedSavedAt] = useState<string | null>(null)
@@ -227,28 +240,32 @@ useEffect(() => {
       // determinăm baseline: ultima versiune sau baseline-ul din deschidere
       const last = versions && versions.length ? versions[versions.length - 1] : undefined
       const baseline = last?.products?.length ? last.products : baselineProducts
-      const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== total
+      const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
+      const versionTotal = total * (1 - adjToSave / 100)
+      const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== versionTotal
       if (!changed) {
         // Nu activăm trimiterea fără o salvare explicită a modificărilor
         setCanSendOffer((versions?.length || 0) > 0 && !editingNewVersion)
         return
       }
-      const version = {
+      // Keep the commercial settings with each new version so its PDF remains reproducible.
+      const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
+      const version: OfferVersion = {
         savedAt: new Date().toISOString(),
         savedBy: userData?.displayName || userData?.email || "Unknown",
-        total: discountedTotal,
+        total: versionTotal,
         products,
+        vatPercent: Number(vatPercent) || 0,
+        adjustmentPercent: adjToSave,
+        conditions: conditiiOferta,
       }
       const current = await getLucrareById(lucrareId)
       const existing = (current as any)?.offerVersions || []
       const newVersions = [...existing, version]
-      // Build dynamic conditions (without warranty)
-      const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
-      const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       await updateLucrare(lucrareId, {
         products,
         // Save discounted total as the effective offer total
-        offerTotal: discountedTotal,
+        offerTotal: versionTotal,
         offerVAT: Number(vatPercent) || 0,
         offerAdjustmentPercent: adjToSave,
         offerVersions: newVersions as any,
@@ -265,7 +282,7 @@ useEffect(() => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          snapshot: { savedAt: version.savedAt, savedBy: version.savedBy, total: version.total, products: version.products },
+          snapshot: version,
           savedAt: version.savedAt,
           savedBy: version.savedBy,
           total: version.total,
@@ -344,6 +361,47 @@ useEffect(() => {
       toast({ title: "Eroare previzualizare", description: msg, variant: "destructive" })
     } finally {
       setPreviewingPdf(false)
+    }
+  }
+
+  const handleDownloadOfferVersion = async (index: number) => {
+    const version = versions[index]
+    if (!version?.products?.length) {
+      toast({
+        title: "Descărcare indisponibilă",
+        description: "Versiunea selectată nu conține produse.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setDownloadingVersionIndex(index)
+      const freshWork = await getLucrareById(lucrareId)
+      if (!freshWork) throw new Error("Nu s-au putut încărca datele lucrării.")
+
+      const { generateOfferPdf } = await import("@/lib/utils/offer-pdf")
+      const versionNumber = index + 1
+      const input = buildOfferVersionPdfInput({
+        lucrareId,
+        work: freshWork,
+        fallbackWork: currentWork,
+        version,
+        versionNumber,
+        fallbackVatPercent: vatPercent,
+      })
+      const blob = await generateOfferPdf(input)
+      triggerBlobDownload(blob, offerPdfVersionFileName(freshWork, lucrareId, versionNumber))
+      toast({
+        title: "Ofertă descărcată",
+        description: `Versiunea ${versionNumber} a fost descărcată în format PDF.`,
+      })
+    } catch (error) {
+      console.warn("Descărcare versiune ofertă eșuată", error)
+      const message = error instanceof Error ? error.message : "Nu s-a putut genera PDF-ul versiunii."
+      toast({ title: "Eroare descărcare", description: message, variant: "destructive" })
+    } finally {
+      setDownloadingVersionIndex(null)
     }
   }
 
@@ -853,9 +911,18 @@ useEffect(() => {
                       )}
                       <div className="text-xs text-muted-foreground truncate">{v.savedBy || "-"} • Total: {v.total?.toFixed?.(2) ?? v.total} lei</div>
                     </div>
-                    <div className="flex-shrink-0 flex gap-2">
+                    <div className="flex-shrink-0 flex flex-wrap justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => setViewIndex(i)}>Vizualizează</Button>
-                    <Button size="sm" onClick={() => handleRestore(i)} disabled={saving}>Restaurează</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleDownloadOfferVersion(i)}
+                      disabled={saving || previewingPdf || downloadingVersionIndex !== null}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {downloadingVersionIndex === i ? "Se descarcă..." : "Descarcă"}
+                    </Button>
+                    <Button size="sm" onClick={() => handleRestore(i)} disabled={saving || downloadingVersionIndex !== null}>Restaurează</Button>
                     </div>
                   </div>
                   {viewIndex === i && (

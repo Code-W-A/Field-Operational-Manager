@@ -22,7 +22,15 @@ const mocks = {
   '@/hooks/use-toast': `export const toast = (value) => { window.fixture.toasts.push(value); };`,
   '@/hooks/use-settings': `const items = []; export const useTargetList = () => ({ items }); export const useTargetValue = () => ({ value: 1 });`,
   '@/lib/settings/offer-vat': `export const DEFAULT_OFFER_VAT_PERCENT = 21; export const getDefaultOfferVatPercent = async () => 21;`,
-  '@/lib/utils/offer-pdf': `export const generateOfferPdf = async () => new Blob(['pdf']); export const generateDevizPdf = generateOfferPdf;`,
+  '@/lib/utils/offer-pdf': `
+    export const generateOfferPdf = async (input) => {
+      window.fixture.generatedInputs.push(structuredClone(input));
+      if (window.fixture.pdfFailure) throw new Error('generator failed');
+      if (window.fixture.pdfDelay) await new Promise(resolve => setTimeout(resolve, window.fixture.pdfDelay));
+      return new Blob(['pdf'], { type: 'application/pdf' });
+    };
+    export const generateDevizPdf = generateOfferPdf;
+  `,
   '@/components/product-table-form': `export const ProductTableForm = () => null;`,
 }
 const result = await build({
@@ -31,8 +39,9 @@ const result = await build({
     import { createRoot } from 'react-dom/client';
     import { OfferEditorDialog } from './app/dashboard/lucrari/[id]/offer-editor-dialog';
     import { DevizEditorDialog } from './app/dashboard/lucrari/[id]/deviz-editor-dialog';
-    const products = [{ id: 'p', name: 'Service', quantity: 1, price: 100, total: 100, um: 'buc' }];
-    const version = { savedAt: '2026-09-10T10:00:00Z', products, total: 100 };
+    const products = [{ id: 'p', name: 'Current service', quantity: 1, price: 150, total: 150, um: 'buc' }];
+    const versionProducts = [{ id: 'old', name: 'Historical service', quantity: 1, price: 100, total: 100, um: 'buc' }];
+    const version = { savedAt: '2026-09-10T10:00:00Z', products: versionProducts, total: 90 };
     const legacy = { locationEmail: 'support@marf.ro', email: 'support@marf.ro', contactEmail: 'support@marf.ro' };
     window.fixture = {
       work: { id: 'ticket', numarRaport: '001', clientId: 'client', locationId: 'location', client: 'MARF',
@@ -40,7 +49,7 @@ const result = await build({
         clientInfo: legacy, locatie: 'Avangarde', preluatDispecer: true, products, devizProducts: products,
         offerVersions: [version], devizVersions: [version] },
       client: { locatii: [{ id: 'location', nume: 'Avangarde', persoaneContact: [{ nume: 'Marf Admin', email: 'suport@marf.ro' }] }] },
-      reads: [], writes: [], toasts: []
+      reads: [], writes: [], toasts: [], generatedInputs: [], pdfDelay: 0, pdfFailure: false
     };
     const Component = new URLSearchParams(location.search).get('kind') === 'deviz' ? DevizEditorDialog : OfferEditorDialog;
     createRoot(document.getElementById('root')).render(<Component lucrareId="ticket" open={true} onOpenChange={() => {}} initialProducts={products} />);
@@ -109,6 +118,41 @@ if (process.argv.includes('--serve')) {
         await page.close()
       }
     }
+
+    const downloadPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    const apiRequests = []
+    await downloadPage.route('**/api/**', async route => {
+      apiRequests.push(new URL(route.request().url()).pathname)
+      await route.fulfill({ json: { success: true } })
+    })
+    await downloadPage.goto(`${url}/?kind=offer`)
+    await downloadPage.evaluate(() => { window.fixture.pdfDelay = 150 })
+    const versionDownload = downloadPage.waitForEvent('download')
+    await downloadPage.getByRole('button', { name: 'Descarcă', exact: true }).click()
+    await downloadPage.getByRole('button', { name: 'Se descarcă...', exact: true }).waitFor()
+    const download = await versionDownload
+    assert.equal(download.suggestedFilename(), 'oferta_001_versiunea_1.pdf')
+    await downloadPage.waitForFunction(() => window.fixture.toasts.some(t => t.title === 'Ofertă descărcată'))
+    const downloadState = await downloadPage.evaluate(() => window.fixture)
+    assert.equal(downloadState.generatedInputs.at(-1).products[0].name, 'Historical service')
+    assert.equal(downloadState.generatedInputs.at(-1).adjustmentPercent, 10)
+    assert.equal(downloadState.generatedInputs.at(-1).offerNumber, 1)
+    assert.equal(downloadState.writes.length, 0)
+    assert.deepEqual(apiRequests, [])
+    console.log('PASS offer history: selected legacy version downloads without writes or API requests')
+    count++
+    await downloadPage.close()
+
+    const errorPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await errorPage.goto(`${url}/?kind=offer`)
+    await errorPage.evaluate(() => { window.fixture.pdfFailure = true })
+    await errorPage.getByRole('button', { name: 'Descarcă', exact: true }).click()
+    await errorPage.waitForFunction(() => window.fixture.toasts.some(t => t.title === 'Eroare descărcare'))
+    assert.equal((await errorPage.evaluate(() => window.fixture.writes.length)), 0)
+    console.log('PASS offer history: PDF generation failure shows an error without writes')
+    count++
+    await errorPage.close()
+
     console.log(`${count} browser scenarios passed; all outgoing API requests intercepted.`)
   } finally {
     await browser.close()

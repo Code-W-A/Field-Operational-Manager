@@ -3,8 +3,11 @@ import assert from "node:assert/strict"
 
 import {
   buildOfferPdfInput,
+  buildOfferVersionPdfInput,
+  inferOfferVersionAdjustmentPercent,
   offerPdfAttachmentFileName,
   offerPdfPreviewFileName,
+  offerPdfVersionFileName,
 } from "@/lib/work-documents/offer-pdf-input"
 
 const sampleWork = {
@@ -95,4 +98,52 @@ test("offer PDF file names", () => {
   assert.equal(offerPdfAttachmentFileName(work, "id1"), "oferta_001542.pdf")
   assert.equal(offerPdfPreviewFileName(work, "id1"), "oferta_001542_previzualizare.pdf")
   assert.equal(offerPdfAttachmentFileName({}, "fallback-id"), "oferta_fallback-id.pdf")
+  assert.equal(offerPdfVersionFileName(work, "id1", 2), "oferta_001542_versiunea_2.pdf")
+})
+
+test("buildOfferVersionPdfInput preserves a new version snapshot", () => {
+  const input = buildOfferVersionPdfInput({
+    lucrareId: "abc123",
+    work: sampleWork,
+    versionNumber: 2,
+    fallbackVatPercent: 21,
+    version: {
+      savedAt: "2026-07-18T07:01:41.000Z",
+      savedBy: "Alin Ionescu",
+      total: 285,
+      products: [{ name: "Motor", quantity: 2, price: 150, total: 300 }],
+      vatPercent: 19,
+      adjustmentPercent: 5,
+      conditions: ["Plata: 30 zile"],
+    },
+  })
+
+  assert.equal(input.offerNumber, 2)
+  assert.equal(input.products[0].name, "Motor")
+  assert.equal(input.offerVAT, 19)
+  assert.equal(input.adjustmentPercent, 5)
+  assert.deepEqual(input.conditions, ["Plata: 30 zile"])
+  assert.equal(input.preparedBy, "Alin Ionescu")
+  assert.equal(input.preparedAt, "18.07.2026")
+})
+
+test("legacy offer version infers discount and uses current ticket metadata", () => {
+  const legacyVersion = {
+    savedAt: "2026-07-20T07:31:20.000Z",
+    total: 270,
+    products: [{ name: "Motor vechi", quantity: 2, price: 150, total: 300 }],
+  }
+  assert.equal(inferOfferVersionAdjustmentPercent(legacyVersion), 10)
+
+  const input = buildOfferVersionPdfInput({
+    lucrareId: "abc123",
+    work: { ...sampleWork, offerVAT: 20, conditiiOferta: ["Livrare: 5 zile"] },
+    version: legacyVersion,
+    versionNumber: 1,
+    fallbackVatPercent: 21,
+  })
+  assert.equal(input.products[0].name, "Motor vechi")
+  assert.equal(input.offerVAT, 20)
+  assert.equal(input.adjustmentPercent, 10)
+  assert.deepEqual(input.conditions, ["Livrare: 5 zile"])
 })

@@ -102,6 +102,9 @@ export interface Lucrare {
     savedBy?: string
     total: number
     products: ProductItem[]
+    vatPercent?: number
+    adjustmentPercent?: number
+    conditions?: string[]
   }>
   // Răspuns ofertă (accept / reject) – backward compatible
   offerResponse?: {
