@@ -1886,6 +1886,14 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     )
   }
 
+  // Rapoartele mai vechi pot avea aceste texte doar în snapshot-ul înghețat.
+  const visibleConstatareLaLocatie = String(
+    lucrare.constatareLaLocatie || (lucrare as any)?.raportSnapshot?.constatareLaLocatie || "",
+  ).trim()
+  const visibleDescriereInterventie = String(
+    lucrare.descriereInterventie || (lucrare as any)?.raportSnapshot?.descriereInterventie || "",
+  ).trim()
+
   const hasPostponeContext = Boolean(lucrare?.motivAmanare || lucrare?.dataAmanare || lucrare?.amanataDe)
   const isCompletedWithReport = isFinalizatByReport && lucrare.raportGenerat === true
   const isCanceled = isLucrareAnulata(lucrare)
@@ -3522,18 +3530,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   )}
 
                   {/* Constatare la locație */}
-                  {lucrare.constatareLaLocatie && (
+                  {visibleConstatareLaLocatie && (
                     <div>
                       <p className="text-base font-semibold mb-2">Constatare la locație:</p>
-                      <p className="text-base text-gray-600">{lucrare.constatareLaLocatie}</p>
+                      <p className="text-base text-gray-600 whitespace-pre-line">{visibleConstatareLaLocatie}</p>
                     </div>
                   )}
 
                   {/* Descriere intervenție */}
-                  {lucrare.descriereInterventie && (
+                  {visibleDescriereInterventie && (
                     <div>
                       <p className="text-base font-semibold mb-2">Descriere intervenție:</p>
-                      <p className="text-base text-gray-600">{lucrare.descriereInterventie}</p>
+                      <p className="text-base text-gray-600 whitespace-pre-line">{visibleDescriereInterventie}</p>
                     </div>
                   )}
 

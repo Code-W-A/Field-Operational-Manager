@@ -337,6 +337,14 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
     )
   }
 
+  // Păstrează vizibile textele din rapoartele vechi care există doar în snapshot.
+  const visibleDescriereInterventie = String(
+    lucrare.descriereInterventie || (lucrare as any)?.raportSnapshot?.descriereInterventie || "",
+  ).trim()
+  const visibleConstatareLaLocatie = String(
+    lucrare.constatareLaLocatie || (lucrare as any)?.raportSnapshot?.constatareLaLocatie || "",
+  ).trim()
+
   return (
     <TooltipProvider>
       <DashboardShell>
@@ -898,20 +906,20 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 </div>
               )}
 
-              {lucrare.descriereInterventie && (
+              {visibleDescriereInterventie && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Descriere Intervenție</label>
                   <p className="text-sm mt-1 whitespace-pre-line border rounded p-3 bg-blue-50">
-                    {lucrare.descriereInterventie}
+                    {visibleDescriereInterventie}
                   </p>
                 </div>
               )}
 
-              {lucrare.constatareLaLocatie && (
+              {visibleConstatareLaLocatie && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Constatare la Locație</label>
                   <p className="text-sm mt-1 whitespace-pre-line border rounded p-3 bg-green-50">
-                    {lucrare.constatareLaLocatie}
+                    {visibleConstatareLaLocatie}
                   </p>
                 </div>
               )}
