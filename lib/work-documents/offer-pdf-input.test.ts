@@ -8,6 +8,7 @@ import {
   offerPdfAttachmentFileName,
   offerPdfPreviewFileName,
   offerPdfVersionFileName,
+  resolveOfferPreparedBy,
 } from "@/lib/work-documents/offer-pdf-input"
 
 const sampleWork = {
@@ -50,7 +51,7 @@ test("buildOfferPdfInput maps products and offer number", () => {
   assert.deepEqual(input.conditions, sampleWork.conditiiOferta)
 })
 
-test("buildOfferPdfInput prefers preluatDe for preparedBy", () => {
+test("buildOfferPdfInput prefers the current offer author over the dispatcher", () => {
   const input = buildOfferPdfInput({
     lucrareId: "x",
     work: sampleWork,
@@ -61,23 +62,32 @@ test("buildOfferPdfInput prefers preluatDe for preparedBy", () => {
     preparedByFallback: "User Curent",
     preparedAtDate: new Date(2026, 2, 3),
   })
-  assert.equal(input.preparedBy, "Dispecer Ana")
+  assert.equal(input.preparedBy, "User Curent")
 })
 
-test("buildOfferPdfInput uses fallback preluatDe and preparedAt DD.MM", () => {
+test("buildOfferPdfInput prefers saved offer author and keeps dispatcher as legacy fallback", () => {
   const input = buildOfferPdfInput({
     lucrareId: "x",
-    work: {},
+    work: { offerPreparedBy: "Autor Ofertă" },
     fallbackWork: { preluatDe: "Fallback Dispecer", numarRaport: "99" },
     products: [],
     vatPercent: 21,
     adjustmentPercent: 0,
-    preparedByFallback: "Tehnician",
     preparedAtDate: new Date(2026, 2, 3),
   })
-  assert.equal(input.preparedBy, "Fallback Dispecer")
+  assert.equal(input.preparedBy, "Autor Ofertă")
   assert.equal(input.preparedAt, "03.03.2026")
   assert.equal(input.numarRaport, "99")
+
+  assert.equal(resolveOfferPreparedBy({ work: {}, fallbackWork: { preluatDe: "Fallback Dispecer" } }), "Fallback Dispecer")
+})
+
+test("resolveOfferPreparedBy applies the complete author priority", () => {
+  const work = { offerPreparedBy: "Autor Salvat", preluatDe: "Dispecer" }
+  assert.equal(resolveOfferPreparedBy({ work, preparedByFallback: "Utilizator Curent", preparedByOverride: "Autor Versiune" }), "Autor Versiune")
+  assert.equal(resolveOfferPreparedBy({ work, preparedByFallback: "Utilizator Curent" }), "Utilizator Curent")
+  assert.equal(resolveOfferPreparedBy({ work }), "Autor Salvat")
+  assert.equal(resolveOfferPreparedBy({ work: { preluatDe: "Dispecer" } }), "Dispecer")
 })
 
 test("buildOfferPdfInput maps beneficiar from clientInfo", () => {

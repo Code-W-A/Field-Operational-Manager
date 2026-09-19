@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { freshReinterventionContact, resolveTicketLocation, ticketContactOptions } from "@/firebase-functions/src/client-ticket-sync"
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -92,6 +93,10 @@ interface Lucrare {
   // Backward-compatible IDs (new): help resolve live client/location data even if names change
   clientId?: string
   locationId?: string
+  contactId?: string
+  contactSync?: { clientId: string; values: Record<string, string>; conflicts: string[] }
+  contactSelectionRequired?: boolean
+  contactSelectionMessage?: string
   // Cached recipient email used for offer/report sending (optional)
   persoanaContactEmail?: string
   statusLucrare: string
@@ -170,6 +175,11 @@ interface LucrareFormProps {
     // Backward-compatible IDs (new): persisted on work docs to allow live lookup
     clientId?: string
     locationId?: string
+    contactId?: string
+    contactSync?: { clientId: string; values: Record<string, string>; conflicts: string[] }
+    contactSelectionRequired?: boolean
+    contactSelectionMessage?: string
+    clientInfo?: Record<string, any>
     persoanaContactEmail?: string
   }
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
@@ -216,6 +226,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     },
     ref,
   ) => {
+    const associationLocked = isReintervention && !formData.contactSelectionRequired
     const { userData } = useAuth()
     const userRole = userData?.role
     const isAdminOrDispatcher = userRole === "admin" || userRole === "dispecer"
@@ -242,18 +253,6 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showCloseAlert, setShowCloseAlert] = useState(false)
     const equipmentSelectRef = useRef<any>(null)
-
-    const normalizeEmail = (raw?: any) => {
-      let s = String(raw ?? "")
-      try {
-        s = s.normalize("NFKC")
-      } catch {}
-      s = s.replace(/\u00A0/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
-      const m = s.match(/<\s*([^>]+)\s*>/)
-      if (m?.[1]) s = m[1].trim()
-      if (/[;,]/.test(s)) s = s.split(/[;,]/)[0].trim()
-      return s
-    }
 
     // Dinamic: tipuri de lucrare din setări (works.create.workTypes)
     const { items: dynamicWorkTypes } = useTargetList("works.create.workTypes")
@@ -795,9 +794,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Modificăm funcția handleClientChange pentru a reseta echipamentul când se schimbă clientul
     const handleClientChange = async (value: string) => {
-      if (isReintervention) return // înghețat la reintervenție
+      if (associationLocked) return // Asocierea validă a reintervenției este păstrată
       // Găsim clientul selectat
-      const client = clienti.find((c) => c.nume === value)
+      const client = clienti.find((c) => c.id === value)
 
       if (!client) {
         console.error("Clientul selectat nu a fost găsit în lista de clienți")
@@ -810,7 +809,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       // Actualizăm formData cu noul client
-      handleSelectChange("client", value)
+      handleSelectChange("client", client.nume)
 
       // Resetăm câmpurile dependente doar dacă clientul s-a schimbă
       if (selectedClient?.id !== client.id) {
@@ -830,6 +829,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           handleCustomChange("equipmentIds", [])
           handleCustomChange("locationId", "")
           handleCustomChange("persoanaContactEmail", "")
+          handleCustomChange("contactId", "")
         }
 
         // Resetăm echipamentele disponibile
@@ -855,13 +855,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Modificăm funcția handleLocationChange pentru a încărca echipamentele disponibile pentru locația selectată
     const handleLocationChange = (value: string) => {
-      if (isReintervention) return // înghețat la reintervenție
+      if (associationLocked) return // Asocierea validă a reintervenției este păstrată
       if (!selectedClient) {
         console.error("Nu există un client selectat")
         return
       }
 
-      const selectedLocation = selectedClient.locatii?.find((loc) => loc.nume === value)
+      let selectedLocation: Locatie | undefined
+      try { selectedLocation = resolveTicketLocation(selectedClient, { ...formData, locatie: value }) as Locatie } catch { /* explicit selection required */ }
 
       // Actualizăm datele formularului
       handleSelectChange("locatie", value)
@@ -876,6 +877,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           handleCustomChange("echipamentCod", "")
           handleCustomChange("equipmentIds", [])
           handleCustomChange("persoanaContactEmail", "")
+          handleCustomChange("contactId", "")
         }
         
         // Resetăm și lista de lucrări existente
@@ -1096,7 +1098,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Adăugăm funcție pentru selectarea echipamentului
     // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
     const handleEquipmentSelect = async (equipmentId: string, equipment: Echipament) => {
-      if (isReintervention) return // înghețat la reintervenție
+      if (associationLocked) return // Asocierea validă a reintervenției este păstrată
       console.log("Echipament selectat în LucrareForm:", equipment)
 
       // Actualizăm toate câmpurile relevante (ordine: ID -> cod -> nume)
@@ -1141,9 +1143,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     useEffect(() => {
       if (formData && formData.client && clienti && clienti.length > 0) {
         const wantedClientId = String((formData as any)?.clientId || "").trim()
-        const client =
-          (wantedClientId ? clienti.find((c: any) => String(c?.id || "").trim() === wantedClientId) : undefined) ||
-          clienti.find((c) => c.nume === formData.client)
+        const byName = clienti.filter(c => c.nume === formData.client)
+        const client = wantedClientId ? clienti.find(c => c.id === wantedClientId) : byName.length === 1 ? byName[0] : undefined
         if (client) {
           setSelectedClient(client)
 
@@ -1164,13 +1165,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setLocatii([defaultLocatie])
           }
 
-          // Nu resetăm locația selectată dacă avem deja o locație selectată
-          if (!selectedLocatie) {
-            setSelectedLocatie(null)
-            setPersoaneContact([])
-            setShowContactAccordion(false)
-            setAvailableEquipments([])
-            setEquipmentsLoaded(false)
+          let linkedLocation: Locatie | null = null
+          try { linkedLocation = resolveTicketLocation(client, formData) as Locatie } catch { /* selection required */ }
+          if (selectedLocatie !== linkedLocation) {
+            setSelectedLocatie(linkedLocation)
+            setPersoaneContact(linkedLocation?.persoaneContact || [])
+            setShowContactAccordion(Boolean(linkedLocation))
+            setAvailableEquipments(linkedLocation?.echipamente || [])
+            setEquipmentsLoaded(Boolean(linkedLocation))
           }
 
           // Backfill la editare/reintervenție: dacă avem doar locationId, completăm numele locației în formular.
@@ -1209,13 +1211,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         })
 
         // Găsim locația selectată în client
-        const selectedLocName = formData.locatie || (initialData as any)?.locatie
-        const selectedLocationId = String((formData as any)?.locationId || (initialData as any)?.locationId || "").trim()
-        const locatie =
-          selectedClient.locatii?.find((loc: any) => loc.nume === selectedLocName) ||
-          (selectedLocationId
-            ? selectedClient.locatii?.find((loc: any) => String((loc as any)?.id || "").trim() === selectedLocationId)
-            : undefined)
+        let locatie: Locatie | undefined
+        try { locatie = resolveTicketLocation(selectedClient, formData) as Locatie } catch { /* explicit selection required */ }
 
         if (locatie) {
           console.log("Locație găsită în client:", locatie)
@@ -1366,9 +1363,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }, [isEdit, triedSelectEquipment, equipmentsLoaded])
 
     // Adăugăm funcție pentru gestionarea selecției locației
-    const handleLocatieSelect = (locatieNume: string) => {
-      console.log("Locație selectată:", locatieNume)
-      const locatie = locatii.find((loc) => loc.nume === locatieNume)
+    const handleLocatieSelect = (locationId: string) => {
+      const matches = locatii.filter(loc => String(loc.id || loc.nume) === locationId)
+      const locatie = matches.length === 1 ? matches[0] : undefined
       if (locatie) {
         console.log("Locație găsită:", locatie)
         setSelectedLocatie(locatie)
@@ -1383,20 +1380,12 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             handleCustomChange("persoaneContact", locatie.persoaneContact)
           }
 
-          // If there's at least one contact, set the first one as the primary contact
-          // for backward compatibility
-          if (locatie.persoaneContact.length > 0) {
-            const primaryContact = locatie.persoaneContact[0]
-            handleSelectChange("persoanaContact", primaryContact.nume || "")
-            handleSelectChange("telefon", primaryContact.telefon || "")
-          if (handleCustomChange) {
-            const email = normalizeEmail((primaryContact as any)?.email)
-            handleCustomChange(
-              "persoanaContactEmail",
-              email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
-            )
-          }
-          }
+          // The operator selects the primary contact explicitly, including duplicate names.
+          handleSelectChange("persoanaContact", "")
+          handleSelectChange("telefon", "")
+          handleCustomChange?.("persoanaContactEmail", "")
+          handleCustomChange?.("contactId", "")
+
         } else {
           console.log("Nu există persoane de contact pentru această locație")
           setPersoaneContact([])
@@ -1411,6 +1400,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           handleSelectChange("telefon", "")
           if (handleCustomChange) {
             handleCustomChange("persoanaContactEmail", "")
+            handleCustomChange("contactId", "")
           }
         }
 
@@ -1439,7 +1429,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         setShowContactAccordion(true)
 
         // Actualizăm câmpul locație în formData
-        handleSelectChange("locatie", locatieNume)
+        handleSelectChange("locatie", locatie.nume)
 
         // Propagăm ID-ul stabil al locației + resetăm selecții dependente (backward compatible)
         if (handleCustomChange) {
@@ -1450,26 +1440,24 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }
     }
 
-    // Dacă se schimbă persoana de contact selectată, păstrăm și email-ul (când există) în lucrare.
-    useEffect(() => {
-      if (!handleCustomChange) return
-      const name = String(formData.persoanaContact || "").trim()
-      const currentEmail = String((formData as any)?.persoanaContactEmail || "")
-      if (!name) {
-        if (currentEmail !== "") {
-          handleCustomChange("persoanaContactEmail", "")
+    const handleContactSelect = (contactId: string) => {
+      if (!selectedClient || !handleCustomChange) return
+      try {
+        const selected = freshReinterventionContact(selectedClient, { ...formData, contactId })
+        if (isEdit) {
+          // Selecting a primary contact does not discard unrelated ticket overrides or custom contacts.
+          const fields = ["persoanaContact", "telefon", "persoanaContactEmail"]
+          for (const field of [...fields, "contactId"]) handleCustomChange(field, selected[field])
+          handleCustomChange("contactSync", { ...selected.contactSync,
+            values: { ...formData.contactSync?.values, ...Object.fromEntries(fields.map(field => [field, selected[field]])) },
+            conflicts: (formData.contactSync?.conflicts || []).filter(field => !fields.includes(field)) })
+        } else {
+          for (const [field, value] of Object.entries(selected)) handleCustomChange(field, value)
         }
-        return
+      } catch (error) {
+        toast({ title: "Selectarea contactului", description: error instanceof Error ? error.message : "Contact indisponibil", variant: "destructive" })
       }
-      const contacts: any[] = ((formData as any)?.persoaneContact || persoaneContact || []) as any[]
-      const found = contacts.find((c: any) => String(c?.nume || "").trim() === name)
-      const email = normalizeEmail(found?.email)
-      const nextEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ""
-      if (nextEmail !== currentEmail) {
-        handleCustomChange("persoanaContactEmail", nextEmail)
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData.persoanaContact, (formData as any)?.persoaneContact, persoaneContact, handleCustomChange])
+    }
 
     // Adăugăm o funcție pentru a forța încărcarea echipamentelor pentru o locație
     // Adăugați această funcție după handleLocatieSelect (în jurul liniei 350):
@@ -1480,7 +1468,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     const forceLoadEquipments = useCallback((locatieNume: string) => {
         if (!selectedClient) return
 
-        const locatie = selectedClient.locatii?.find((loc) => loc.nume === locatieNume)
+        let locatie: Locatie | undefined
+        try { locatie = resolveTicketLocation(selectedClient, { ...formData, locatie: locatieNume }) as Locatie } catch { /* no first-location fallback */ }
         if (locatie) {
           console.log("Forțăm încărcarea echipamentelor pentru locația:", locatieNume)
 
@@ -1614,7 +1603,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       // Găsim indexul locației în lista de locații a clientului
-      const locationIndex = selectedClient.locatii?.findIndex(loc => loc.nume === selectedLocatie.nume) ?? -1
+      let locationIndex = -1
+      try {
+        const location = resolveTicketLocation(selectedClient, { ...formData, locationId: selectedLocatie.id, locatie: selectedLocatie.nume })
+        locationIndex = selectedClient.locatii?.indexOf(location as Locatie) ?? -1
+      } catch { /* ambiguous or deleted location */ }
       if (locationIndex === -1) {
         toast({
           title: "Eroare", 
@@ -1661,7 +1654,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               setLocatii([...updatedClient.locatii].sort((a: any, b: any) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
               
                              // Găsim locația actualizată
-               const updatedLocation = updatedClient.locatii.find((loc: Locatie) => loc.nume === selectedLocatie?.nume)
+               let updatedLocation: Locatie | undefined
+               try { updatedLocation = resolveTicketLocation(updatedClient, formData) as Locatie } catch { /* association no longer valid */ }
               if (updatedLocation) {
                 setSelectedLocatie(updatedLocation)
                 setAvailableEquipments([...(updatedLocation.echipamente || [])].sort((a: any, b: any) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
@@ -1918,31 +1912,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         // Derivăm ID-uri stabile (când sunt disponibile) pentru client/locație și emailul persoanei de contact.
         // IMPORTANT: sunt opționale și nu rup compatibilitatea pentru lucrările vechi.
         const derivedClientId = selectedClient?.id ? String(selectedClient.id) : undefined
-        const derivedLocationId = (() => {
-          try {
-            const bySelected = (selectedLocatie as any)?.id
-            if (bySelected) return String(bySelected)
-            const byName = (selectedClient as any)?.locatii?.find?.((l: any) => l?.nume === formData.locatie)?.id
-            return byName ? String(byName) : undefined
-          } catch {
-            return undefined
-          }
-        })()
-        const normalizeEmail = (raw?: any) => {
-          let s = String(raw ?? "")
-          try { s = s.normalize("NFKC") } catch {}
-          s = s.replace(/\u00A0/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
-          const m = s.match(/<\s*([^>]+)\s*>/)
-          if (m?.[1]) s = m[1].trim()
-          if (/[;,]/.test(s)) s = s.split(/[;,]/)[0].trim()
-          return s
-        }
-        const derivedContactEmail = (() => {
-          const contacts: any[] = (formData.persoaneContact || persoaneContact || []) as any[]
-          const found = contacts.find((c: any) => String(c?.nume || "").trim() === String(formData.persoanaContact || "").trim())
-          const email = normalizeEmail(found?.email)
-          return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined
-        })()
+        const derivedLocationId = formData.locationId || selectedLocatie?.id
 
         const updatedData: Partial<Lucrare> = {
           dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
@@ -1958,7 +1928,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           // New optional stable fields
           ...(derivedClientId ? { clientId: derivedClientId } : {}),
           ...(derivedLocationId ? { locationId: derivedLocationId } : {}),
-          ...(derivedContactEmail ? { persoanaContactEmail: derivedContactEmail } : {}),
+          ...(formData.contactId ? { contactId: formData.contactId } : {}),
+          ...(formData.contactSync ? { contactSync: formData.contactSync } : {}),
+          ...(formData.persoanaContactEmail !== undefined ? { persoanaContactEmail: formData.persoanaContactEmail } : {}),
           statusLucrare: formData.statusLucrare,
           statusFacturare: formData.statusFacturare,
           contract: formData.contract,
@@ -2047,7 +2019,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       if (selectedClient && formData.locatie && isEdit) {
         console.log("Forțăm încărcarea persoanelor de contact pentru locația:", formData.locatie)
 
-        const locatie = selectedClient.locatii?.find((loc) => loc.nume === formData.locatie)
+        let locatie: Locatie | undefined
+        try { locatie = resolveTicketLocation(selectedClient, formData) as Locatie } catch { /* no guessed location */ }
 
         if (locatie) {
           console.log("Locație găsită pentru încărcarea persoanelor de contact:", locatie)
@@ -2061,12 +2034,6 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               handleCustomChange("persoaneContact", locatie.persoaneContact)
             }
 
-            // Dacă nu avem persoanaContact și telefon setate, le setăm cu prima persoană de contact
-            if ((!formData.persoanaContact || !formData.telefon) && locatie.persoaneContact.length > 0) {
-              const primaryContact = locatie.persoaneContact[0]
-              handleSelectChange("persoanaContact", primaryContact.nume || "")
-              handleSelectChange("telefon", primaryContact.telefon || "")
-            }
           } else if (formData.persoanaContact && formData.telefon) {
             // Dacă nu avem persoane de contact în locație, dar avem persoanaContact și telefon în formData,
             // creăm o persoană de contact implicită
@@ -2145,7 +2112,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         console.log("LucrareForm - Forțăm încărcarea și selecția echipamentului la editare")
 
         // Găsim locația selectată
-        const locatie = selectedClient.locatii?.find((loc) => loc.nume === formData.locatie)
+        let locatie: Locatie | undefined
+        try { locatie = resolveTicketLocation(selectedClient, formData) as Locatie } catch { /* no guessed location */ }
 
         if (locatie && locatie.echipamente && locatie.echipamente.length > 0) {
           console.log("LucrareForm - Locație găsită cu echipamente:", locatie.echipamente.length)
@@ -2308,14 +2276,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             </label>
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Popover open={isClientDropdownOpen && !isReintervention} onOpenChange={setIsClientDropdownOpen}>
+                <Popover open={isClientDropdownOpen && !associationLocked} onOpenChange={setIsClientDropdownOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={isClientDropdownOpen}
-                      className={`w-full justify-between ${hasError("client") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      disabled={isReintervention}
+                      className={`w-full justify-between ${hasError("client") ? errorStyle : ""} ${associationLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      disabled={associationLocked}
                       onKeyDown={(e) => {
                         // Deschidem și inițializăm navigarea cu tastatura
                         if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isClientDropdownOpen) {
@@ -2356,7 +2324,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                             const idx = clientActiveIndex >= 0 ? clientActiveIndex : (filteredClients.length > 0 ? 0 : -1)
                             if (idx >= 0) {
                               const client = filteredClients[idx]
-                              handleClientChange(client.nume)
+                              handleClientChange(client.id!)
                               setIsClientDropdownOpen(false)
                               setClientSearchTerm("")
                               setClientActiveIndex(-1)
@@ -2388,7 +2356,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                                 formData.client === client.nume ? "bg-blue-50 text-blue-600" : (clientActiveIndex === index ? "bg-gray-100" : "hover:bg-gray-100")
                               }`}
                               onClick={() => {
-                                handleClientChange(client.nume)
+                                handleClientChange(client.id!)
                                 setIsClientDropdownOpen(false)
                                 setClientSearchTerm("")
                               }}
@@ -2412,7 +2380,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     </div>
                   </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)} disabled={isReintervention}>
+                <Button variant="outline" size="icon" onClick={() => setIsAddClientDialogOpen(true)} disabled={associationLocked}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -2432,13 +2400,13 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 Locație *
               </label>
               <div className="flex gap-2">
-                <Select value={formData.locatie} onValueChange={handleLocatieSelect} disabled={isReintervention}>
-                  <SelectTrigger id="locatie" className={`${hasError("locatie") ? errorStyle : ""} ${isReintervention ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                <Select value={formData.locationId || selectedLocatie?.id || formData.locatie} onValueChange={handleLocatieSelect} disabled={associationLocked}>
+                  <SelectTrigger id="locatie" className={`${hasError("locatie") ? errorStyle : ""} ${associationLocked ? 'opacity-60 cursor-not-allowed' : ''}`}>
                     <SelectValue placeholder="Selectați locația" />
                   </SelectTrigger>
                   <SelectContent>
                     {locatii.map((loc, index) => (
-                      <SelectItem key={index} value={loc.nume}>
+                      <SelectItem key={loc.id || index} value={loc.id || loc.nume}>
                         {loc.nume}
                       </SelectItem>
                     ))}
@@ -2450,7 +2418,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                     variant="outline"
                     size="icon"
                     onClick={handleAddLocationToClient}
-                    disabled={isReintervention}
+                    disabled={associationLocked}
                     title="Adaugă locație nouă la client"
                     className="shrink-0"
                   >
@@ -2476,7 +2444,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 equipments={availableEquipments}
                 value={formData.echipamentId || ""}
                 onSelect={handleEquipmentSelect}
-                disabled={!formData.locatie || isReintervention}
+                disabled={!formData.locatie || associationLocked}
                 placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
                 emptyMessage={
                   formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
@@ -2625,6 +2593,22 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           )}
 
           {/* Setări dinamice (legate la dialogul Lucrare Nouă) */}
+          <div className="space-y-2">
+            {formData.contactSelectionRequired && <p role="alert" className="text-sm text-amber-700">{formData.contactSelectionMessage} Selectați locația și contactul înainte de salvare.</p>}
+            <label htmlFor="ticket-contact" className="text-sm font-medium">Contact pentru tichet</label>
+            <Select value={formData.contactId || ""} onValueChange={handleContactSelect}>
+              <SelectTrigger id="ticket-contact"><SelectValue placeholder="Selectați contactul" /></SelectTrigger>
+              <SelectContent>
+                {ticketContactOptions(selectedClient || {}, selectedLocatie || {}).filter(contact => contact.id).map(contact => (
+                  <SelectItem key={contact.id} value={contact.id!}>{contact.nume} — {contact.telefon} — {contact.email}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Modificările de mai jos se aplică numai acestui tichet.</p>
+            <Input aria-label="Nume contact tichet" value={formData.persoanaContact} onChange={event => handleSelectChange("persoanaContact", event.target.value)} />
+            <Input aria-label="Telefon contact tichet" value={formData.telefon} onChange={event => handleSelectChange("telefon", event.target.value)} />
+            <Input aria-label="Email contact tichet" value={formData.persoanaContactEmail || ""} onChange={event => handleCustomChange?.("persoanaContactEmail", event.target.value)} />
+          </div>
           <div className="space-y-2">
             <DynamicDialogFields
               targetId="dialogs.work.new"

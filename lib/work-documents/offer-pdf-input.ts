@@ -18,6 +18,26 @@ export type OfferVersionPdfSnapshot = {
   conditions?: string[]
 }
 
+export function resolveOfferPreparedBy(params: {
+  work?: any
+  fallbackWork?: any
+  preparedByFallback?: string
+  preparedByOverride?: string
+}): string {
+  const work = params.work || {}
+  const fallback = params.fallbackWork || {}
+
+  return String(
+    params.preparedByOverride ||
+      params.preparedByFallback ||
+      work?.offerPreparedBy ||
+      fallback?.offerPreparedBy ||
+      work?.preluatDe ||
+      fallback?.preluatDe ||
+      "",
+  )
+}
+
 export function buildOfferPdfInput(params: {
   lucrareId: string
   work: any
@@ -59,9 +79,12 @@ export function buildOfferPdfInput(params: {
         : undefined,
     equipmentName: String(work?.echipament || ""),
     locationName: String(work?.locatie || ""),
-    preparedBy: String(
-      params.preparedByOverride || work?.preluatDe || fallback?.preluatDe || params.preparedByFallback || "",
-    ),
+    preparedBy: resolveOfferPreparedBy({
+      work,
+      fallbackWork: fallback,
+      preparedByFallback: params.preparedByFallback,
+      preparedByOverride: params.preparedByOverride,
+    }),
     preparedAt: formatPreparedDate(params.preparedAtDate ?? new Date()),
     beneficiar: {
       name: String(work?.client || work?.clientInfo?.nume || ""),

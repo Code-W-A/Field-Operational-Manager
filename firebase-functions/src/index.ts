@@ -12,6 +12,7 @@ import {
 import { mayUseExternalSmtp } from "./mail-transport-policy"
 import { selectRevisionEquipmentIdsForLocation } from "./revision-equipment-selection"
 export { auditNestedDocumentWritten, auditTopLevelDocumentWritten } from "./audit-log"
+export { onClientContactDetailsChanged, processClientContactSyncPage } from "./client-ticket-sync-worker"
 
 // Initialize the default Firebase app for Admin SDK
 initializeApp()

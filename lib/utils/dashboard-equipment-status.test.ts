@@ -224,7 +224,7 @@ test("newer Non-functional ticket after archived Functional re-shows equipment",
   assert.deepEqual(winnerSummary(winners), [{ id: "w-new-bad", status: "Nefuncțional" }])
 })
 
-test("archived Nefuncțional as latest winner is shown", () => {
+test("archived Nefuncțional as latest winner is hidden", () => {
   const winners = selectLatestEquipmentStatusWinners(
     [
       work({
@@ -242,7 +242,29 @@ test("archived Nefuncțional as latest winner is shown", () => {
     baseCfg,
   )
 
-  assert.deepEqual(winnerSummary(winners), [{ id: "w-archived-bad", status: "Nefuncțional" }])
+  assert.deepEqual(winners, [])
+})
+
+test("archived winner hides equipment without falling back to older open ticket", () => {
+  const winners = selectLatestEquipmentStatusWinners(
+    [
+      work({
+        id: "w-old-open-bad",
+        statusLucrare: "Atribuită",
+        statusEchipament: "Nefuncțional",
+        createdAt: "2026-05-01T08:00:00.000Z",
+      }),
+      work({
+        id: "w-new-archived-partial",
+        statusLucrare: "Arhivată",
+        statusEchipament: "Parțial funcțional",
+        createdAt: "2026-05-10T08:00:00.000Z",
+      }),
+    ],
+    baseCfg,
+  )
+
+  assert.deepEqual(winners, [])
 })
 
 test("integration: active + archived merge (dashboard hook pattern)", () => {
@@ -268,7 +290,7 @@ test("integration: active + archived merge (dashboard hook pattern)", () => {
   assert.deepEqual(winners, [])
 })
 
-test("integration: only archived tickets still resolve equipment status", () => {
+test("integration: only archived tickets leave equipment status empty", () => {
   const lucrariForEquipmentStatus = [
     work({
       id: "w-archived-bad",
@@ -279,7 +301,7 @@ test("integration: only archived tickets still resolve equipment status", () => 
   ]
 
   const winners = selectLatestEquipmentStatusWinners(lucrariForEquipmentStatus, baseCfg)
-  assert.deepEqual(winnerSummary(winners), [{ id: "w-archived-bad", status: "Parțial funcțional" }])
+  assert.deepEqual(winners, [])
 })
 
 // --- Deduplicare multi-echipament ---

@@ -42,6 +42,8 @@ export interface Lucrare {
   // Backward-compatible IDs (optional): help resolve live client/location data even if names change
   clientId?: string
   locationId?: string
+  contactId?: string
+  contactSync?: { clientId: string; locationId?: string; contactId?: string; values: Record<string, string>; conflicts: string[] }
   locationName?: string
   persoanaContactEmail?: string
   telefon: string
@@ -1164,6 +1166,13 @@ export const getLucrareById = async (id: string, options?: { serverOnly?: boolea
 
 // Add a new work order
 export const addLucrare = async (lucrare: Lucrare) => {
+  if (lucrare.tipLucrare === "Re-Intervenție") {
+    // Read from the server at the last creation boundary, for every entry point.
+    const { refreshReinterventionContact } = await import("@/lib/work-documents/live-ticket-contact")
+    lucrare = { ...lucrare, ...await refreshReinterventionContact(lucrare) }
+    delete (lucrare as any).contactSelectionRequired
+    delete (lucrare as any).contactSelectionMessage
+  }
   const equipmentValidation = validateWorkEquipmentForCreation({
     tipLucrare: lucrare?.tipLucrare,
     echipamentId: (lucrare as any)?.echipamentId,
@@ -1190,7 +1199,7 @@ export const addLucrare = async (lucrare: Lucrare) => {
     if (!lucrare.clientId && ci?.id) lucrare.clientId = String(ci.id)
     if (!lucrare.locationId && (ci?.locationId || ci?.locatieId)) lucrare.locationId = String(ci.locationId || ci.locatieId)
     if (!lucrare.locationName && ci?.locationName) lucrare.locationName = String(ci.locationName)
-    if (!lucrare.persoanaContactEmail && (ci?.locationEmail || ci?.contactEmail || ci?.email)) {
+    if (lucrare.persoanaContactEmail === undefined && (ci?.locationEmail || ci?.contactEmail || ci?.email)) {
       lucrare.persoanaContactEmail = String(ci.locationEmail || ci.contactEmail || ci.email)
     }
   } catch {

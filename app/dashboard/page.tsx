@@ -361,7 +361,7 @@ export default function Dashboard() {
       subtitle={it.equipmentLabel}
       emitent={bubbleEmitent(it)}
       colorClass={color}
-      href={`/dashboard/lucrari/${it.id}`}
+      href={`/dashboard/lucrari/${it.id}?from=dashboard`}
       className="mb-2"
     />
   )
@@ -373,7 +373,7 @@ export default function Dashboard() {
       subtitle={it.equipmentLabel}
       emitent={bubbleEmitent(it)}
       colorClass={color}
-      href={it.lucrareId ? `/dashboard/lucrari/${it.lucrareId}` : undefined}
+      href={it.lucrareId ? `/dashboard/lucrari/${it.lucrareId}?from=dashboard` : undefined}
       onClick={() => {
         if (it.lucrareId) return
         toast({
@@ -393,7 +393,7 @@ export default function Dashboard() {
       emitent={bubbleEmitent(it)}
       equipmentList={it.equipmentList}
       colorClass={color}
-      href={`/dashboard/lucrari/${it.id}`}
+      href={`/dashboard/lucrari/${it.id}?from=dashboard`}
       className="mb-2"
     />
   )
@@ -417,7 +417,7 @@ export default function Dashboard() {
       equipmentList={it.equipmentList}
       status={it.statusLucrare}
       colorClass={getTechnicianWorkColor(it.statusLucrare)}
-      href={`/dashboard/lucrari/${it.id}`}
+      href={`/dashboard/lucrari/${it.id}?from=dashboard`}
       className="mb-2"
     />
   )
@@ -432,7 +432,7 @@ export default function Dashboard() {
         subtitle={it.equipmentLabel}
         emitent={bubbleEmitent(it)}
         colorClass={color}
-        href={`/dashboard/lucrari/${it.id}`}
+        href={`/dashboard/lucrari/${it.id}?from=dashboard`}
         className="mb-2"
       />
     )
@@ -455,7 +455,7 @@ export default function Dashboard() {
         subtitle={it.equipmentLabel}
         emitent={bubbleEmitent(it)}
         colorClass={color}
-        href={`/dashboard/lucrari/${it.id}`}
+        href={`/dashboard/lucrari/${it.id}?from=dashboard`}
         className="mb-2"
       />
     )

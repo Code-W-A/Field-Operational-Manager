@@ -41,12 +41,13 @@ const result = await build({
     import { DevizEditorDialog } from './app/dashboard/lucrari/[id]/deviz-editor-dialog';
     const products = [{ id: 'p', name: 'Current service', quantity: 1, price: 150, total: 150, um: 'buc' }];
     const versionProducts = [{ id: 'old', name: 'Historical service', quantity: 1, price: 100, total: 100, um: 'buc' }];
-    const version = { savedAt: '2026-09-10T10:00:00Z', products: versionProducts, total: 90 };
+    const version = { savedAt: '2026-09-10T10:00:00Z', savedBy: 'Alin Ionescu', products: versionProducts, total: 90 };
     const legacy = { locationEmail: 'support@marf.ro', email: 'support@marf.ro', contactEmail: 'support@marf.ro' };
     window.fixture = {
       work: { id: 'ticket', numarRaport: '001', clientId: 'client', locationId: 'location', client: 'MARF',
         persoanaContact: 'Marf Admin', persoanaContactEmail: 'support@marf.ro', email: 'support@marf.ro',
-        clientInfo: legacy, locatie: 'Avangarde', preluatDispecer: true, products, devizProducts: products,
+        clientInfo: legacy, locatie: 'Avangarde', preluatDispecer: true, preluatDe: 'Liliana Ionescu',
+        offerPreparedBy: 'Autor ofertă anterior', products, devizProducts: products,
         offerVersions: [version], devizVersions: [version] },
       client: { locatii: [{ id: 'location', nume: 'Avangarde', persoaneContact: [{ nume: 'Marf Admin', email: 'suport@marf.ro' }] }] },
       reads: [], writes: [], toasts: [], generatedInputs: [], pdfDelay: 0, pdfFailure: false
@@ -111,6 +112,7 @@ if (process.argv.includes('--serve')) {
           const email = requests.find(r => r.url === '/api/users/invite')
           assert.deepEqual(email?.body.to, [scenario === 'changed' ? 'actualizat@marf.ro' : 'suport@marf.ro'])
           assert.equal(email.body.type, kind === 'offer' ? 'OFFER' : 'DEVIZ')
+          if (kind === 'offer') assert.equal(state.generatedInputs.at(-1).preparedBy, 'Test')
           assert.ok(state.toasts.some(t => t.title === (kind === 'offer' ? 'Ofertă trimisă' : 'Deviz trimis')))
         }
         console.log(`PASS ${kind}: ${scenario}`)
@@ -137,6 +139,7 @@ if (process.argv.includes('--serve')) {
     assert.equal(downloadState.generatedInputs.at(-1).products[0].name, 'Historical service')
     assert.equal(downloadState.generatedInputs.at(-1).adjustmentPercent, 10)
     assert.equal(downloadState.generatedInputs.at(-1).offerNumber, 1)
+    assert.equal(downloadState.generatedInputs.at(-1).preparedBy, 'Alin Ionescu')
     assert.equal(downloadState.writes.length, 0)
     assert.deepEqual(apiRequests, [])
     console.log('PASS offer history: selected legacy version downloads without writes or API requests')

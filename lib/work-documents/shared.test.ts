@@ -49,5 +49,14 @@ test("missing current records never fall back to ticket emails", () => {
 })
 
 test("current address is normalized before sending", () => {
-  assert.equal(resolve({ email: " Marf Admin <suport@marf.ro> " }, work), "suport@marf.ro")
+  assert.equal(resolve({ email: " Marf Admin <suport@marf.ro> " }, { ...work, locationId: undefined }), "suport@marf.ro")
+})
+
+test("contact ID distinguishes identical names and deleted IDs cannot choose another recipient", () => {
+  const contacts = [{ id: "a", nume: "Admin", email: "first@example.ro" }, { id: "b", nume: "Admin", email: "second@example.ro" }]
+  const client = { locatii: [{ ...location, persoaneContact: contacts }] }
+  assert.equal(resolve(client, { ...work, persoanaContact: "Admin", contactId: "b" }), "second@example.ro")
+  assert.equal(resolve(client, { ...work, persoanaContact: "Admin" }), null)
+  assert.equal(resolve(client, { ...work, contactId: "deleted" }), null)
+  assert.equal(resolve(client, { ...work, locationId: "deleted" }), null)
 })

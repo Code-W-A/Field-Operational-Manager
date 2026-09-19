@@ -1,4 +1,6 @@
 "use client"
+import { resolveTicketLocation, resolveTicketContact, ticketClientIdentityDisplay } from "@/firebase-functions/src/client-ticket-sync"
+import { TicketContactDetails } from "@/components/ticket-contact-details"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -88,7 +90,7 @@ import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
-import { collection, query, where, getDocs, limit, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, getDocs, limit, serverTimestamp, doc, onSnapshot } from "firebase/firestore"
 import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
 import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
@@ -123,6 +125,12 @@ type OfferHistoryDialogVersion = {
 }
 
 type EditFormData = {
+  clientId?: string
+  locationId?: string
+  contactId?: string
+  persoanaContactEmail?: string
+  clientInfo?: Record<string, any>
+  contactSync?: Lucrare["contactSync"]
   tipLucrare: string
   tehnicieni: string[]
   client: string
@@ -297,8 +305,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const isAdmin = role === "admin"
   const debugRevizie = searchParams.get("debugRevizie") === "1"
-  const fromArhivate = searchParams.get('from') === 'arhivate'
-  const fromIstoricEchipament = searchParams.get("from") === "istoric-echipament"
+  const fromSource = searchParams.get("from")
+  const fromArhivate = fromSource === "arhivate"
+  const fromIstoricEchipament = fromSource === "istoric-echipament"
+  const afterArchiveHref =
+    fromSource === "dashboard"
+      ? "/dashboard"
+      : fromSource === "arhivate"
+        ? "/dashboard/arhivate"
+        : "/dashboard/lucrari"
 
   /** Păstrează accesul tehnicianului din fluxul „Istoric echipament” la tichete înrudite (ex. lucrarea inițială). */
   const relatedTicketUrl = useCallback(
@@ -328,7 +343,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [isCancelling, setIsCancelling] = useState(false)
 
   const [equipmentVerified, setEquipmentVerified] = useState(false)
-  const [locationAddress, setLocationAddress] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isOfferEditorOpen, setIsOfferEditorOpen] = useState(false)
   const [isDevizEditorOpen, setIsDevizEditorOpen] = useState(false)
@@ -336,6 +350,25 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+  const clientIdentity = ticketClientIdentityDisplay(lucrare || {}, clientData)
+  const [contactSyncIssues, setContactSyncIssues] = useState<string[]>([])
+  useEffect(() => {
+    let signature = ""
+    const stopTicket = onSnapshot(doc(db, "lucrari", paramsId), snapshot => {
+      if (!snapshot.exists()) return
+      const data = snapshot.data()
+      const fields = ["client", "locatie", "locationName", "clientId", "locationId", "contactId", "persoanaContact", "telefon", "persoanaContactEmail", "clientInfo", "persoaneContact", "contactSync"]
+      const contactData = Object.fromEntries(fields.filter(key => data[key] !== undefined).map(key => [key, data[key]]))
+      const next = JSON.stringify(contactData)
+      if (next === signature) return
+      signature = next
+      setLucrare(previous => previous ? { ...previous, ...contactData } : previous)
+    }, () => setContactSyncIssues(["Actualizările contactului nu au putut fi citite. Reîncărcați pagina."]))
+    const stopIssues = onSnapshot(doc(db, "clientContactSyncIssues", paramsId), snapshot => {
+      setContactSyncIssues(snapshot.data()?.conflicts || [])
+    }, () => setContactSyncIssues(["Starea sincronizării nu a putut fi citită."]))
+    return () => { stopTicket(); stopIssues() }
+  }, [paramsId])
   // Resolved from live client data (preferred); snapshot fields are fallback only
   const [resolvedLocation, setResolvedLocation] = useState<any>(null)
   const [resolvedContact, setResolvedContact] = useState<any>(null)
@@ -850,23 +883,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               } catch {
                 resolvedClient = null
               }
-              // Dacă ID-ul există dar clientul nu mai poate fi încărcat (șters / inconsistent),
-              // încercăm fallback-ul safe după nume.
-              if (!resolvedClient) {
-                const clientiRef = collection(db, "clienti")
-                const q = query(clientiRef, where("nume", "==", String(data.client)), limit(2))
-                const snap = await getDocs(q)
-                debugClient("client_fallback_query_after_bad_id", { size: snap.size, clientName: String(data.client) })
-                if (snap.size === 1) {
-                  const d0 = snap.docs[0]
-                  resolvedClient = { id: d0.id, ...(d0.data() as any) }
-                  resolvedFromId = d0.id
-                  resolution = "byNameUnique"
-                  // Persistăm clientId pe lucrare (silent)
-                  await updateLucrare(paramsId, { clientId: d0.id } as any, undefined, undefined, true)
-                  setLucrare((prev: any) => (prev ? { ...prev, clientId: d0.id } : prev))
-                }
-              }
             } else {
               // Backfill safe: client.nume e unic → query exact
               const clientiRef = collection(db, "clienti")
@@ -878,20 +894,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 resolvedClient = { id: d0.id, ...(d0.data() as any) }
                 resolvedFromId = d0.id
                 resolution = "byNameUnique"
-                // Persistăm clientId pe lucrare (silent)
-                await updateLucrare(paramsId, { clientId: d0.id } as any, undefined, undefined, true)
-                // Actualizăm și starea locală ca să evităm re-rulări inutile
-                setLucrare((prev: any) => (prev ? { ...prev, clientId: d0.id } : prev))
+
           }
         }
-
-            // Dacă avem doar clientInfo.id (legacy) și nu există clientId pe lucrare, îl persistăm (silent).
-            if (!workAny.clientId && workAny.clientInfo?.id) {
-              try {
-                await updateLucrare(paramsId, { clientId: String(workAny.clientInfo.id) } as any, undefined, undefined, true)
-                setLucrare((prev: any) => (prev ? { ...prev, clientId: String(workAny.clientInfo.id) } : prev))
-              } catch {}
-            }
 
             if (resolvedClient) {
               setClientData(resolvedClient)
@@ -907,30 +912,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
               // Resolve locație (preferă locationId, altfel fallback pe nume/adresă)
               const workLocationId = workAny.locationId || workAny.clientInfo?.locationId || workAny.clientInfo?.locatieId
-              const locatii = Array.isArray(resolvedClient?.locatii) ? resolvedClient.locatii : []
-              let matchedLoc: any =
-                workLocationId ? locatii.find((l: any) => String(l?.id || "") === String(workLocationId)) : null
-              if (!matchedLoc && data.locatie) {
-                matchedLoc = locatii.find((l: any) => l?.nume === data.locatie) || null
-              }
-              if (!matchedLoc && workAny?.clientInfo?.locationAddress) {
-                matchedLoc = locatii.find((l: any) => l?.adresa === workAny.clientInfo.locationAddress) || null
-              }
-
-              if (matchedLoc?.adresa) setLocationAddress(String(matchedLoc.adresa))
-              setResolvedLocation(matchedLoc || null)
-
-              // Persoană de contact + echipament: derivăm din locația live (fallback la snapshot)
-              try {
-                const contacts: any[] = Array.isArray(matchedLoc?.persoaneContact) ? matchedLoc.persoaneContact : []
-                const targetName = String((data as any)?.persoanaContact || "").trim()
-                const foundContact = targetName
-                  ? contacts.find((c: any) => String(c?.nume || "").trim() === targetName) || null
-                  : null
-                setResolvedContact(foundContact || null)
-              } catch {
-                setResolvedContact(null)
-              }
+              let matchedLoc: any = null
+              try { matchedLoc = resolveTicketLocation(resolvedClient, data) } catch { /* no ambiguous fallbacks */ }
+              setResolvedLocation(matchedLoc)
+              try { setResolvedContact(resolveTicketContact(resolvedClient, data).contact) } catch { setResolvedContact(null) }
               try {
                 const eqs: any[] = Array.isArray(matchedLoc?.echipamente) ? matchedLoc.echipamente : []
                 const targetEid = String((data as any).echipamentId || "")
@@ -959,13 +944,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       : "none",
               })
 
-              // Backfill locationId dacă putem (silent)
-              if (matchedLoc?.id && !workAny.locationId) {
-                await updateLucrare(paramsId, { locationId: String(matchedLoc.id) } as any, undefined, undefined, true)
-                setLucrare((prev: any) => (prev ? { ...prev, locationId: String(matchedLoc.id) } : prev))
-                debugClient("location_backfilled", { locationId: String(matchedLoc.id) })
-              }
-                  
               // Calculăm informațiile de garanție folosind clientul live (fără full scan)
               if (data.tipLucrare === "Intervenție în garanție" && data.locatie && (data.echipament || data.echipamentCod || (data as any).echipamentId)) {
                 try {
@@ -1194,6 +1172,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     setEditDataEmiterii(toDateSafe(lucrare.dataEmiterii) || new Date())
     setEditDataInterventie(toDateSafe(lucrare.dataInterventie) || undefined)
     setEditFormData({
+      clientId: lucrare.clientId || (lucrare as any).clientInfo?.id || "",
+      locationId: lucrare.locationId || (lucrare as any).clientInfo?.locationId || "",
+      contactId: lucrare.contactId || "",
+      persoanaContactEmail: lucrare.persoanaContactEmail || "",
+      ...((lucrare as any).clientInfo ? { clientInfo: (lucrare as any).clientInfo } : {}),
+      ...(lucrare.contactSync ? { contactSync: lucrare.contactSync } : {}),
       tipLucrare: lucrare.tipLucrare || "",
       tehnicieni: Array.isArray(lucrare.tehnicieni) ? [...lucrare.tehnicieni] : [],
       client: lucrare.client || "",
@@ -2239,8 +2223,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {/* Buton pentru arhivare - vizibil întotdeauna pentru admin/dispecer, disabled când nu sunt îndeplinite condițiile */}
-          {isAdminOrDispatcher && (() => {
+          {/* Pentru lucrările deja arhivate rămâne vizibil doar butonul de dezarhivare. */}
+          {isAdminOrDispatcher && lucrare.statusLucrare !== WORK_STATUS.ARCHIVED && (() => {
             const lucrareForArchiveValidation: any = {
               ...(lucrare as any),
               // ajută regulile să recunoască reintervențiile fără a depinde exclusiv de flag-uri
@@ -2311,7 +2295,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                           try {
                             await updateLucrare(paramsId, { statusLucrare: WORK_STATUS.ARCHIVED })
                             toast({ title: "Succes", description: "Lucrarea a fost arhivată cu succes." })
-                            router.push("/dashboard/lucrari")
+                            router.push(afterArchiveHref)
                           } catch (error) {
                             console.error("Eroare la arhivare:", error)
                             toast({ title: "Eroare", description: "Nu s-a putut arhiva lucrarea.", variant: "destructive" })
@@ -3317,81 +3301,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
                 {/* Rând cu: Locație | Persoană contact (locație) | Echipament */}
+                {contactSyncIssues.length > 0 && <p role="alert" className="text-sm text-amber-700 mt-3">Date de contact păstrate pentru verificare: {contactSyncIssues.join("; ")}</p>}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                  {/* Locație */}
-                  <div>
-                    <p className="text-base font-semibold mb-2">Locație:</p>
-                    <p className="text-base mb-1">{resolvedLocation?.nume || lucrare.locatie}</p>
-                    {(() => {
-                      const addr = String(resolvedLocation?.adresa || locationAddress || (lucrare as any)?.clientInfo?.locationAddress || "").trim()
-                      if (!addr) return null
-                      return (
-                      <div className="mt-2">
-                        <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
-                          <MapPin className="h-4 w-4" />
-                          {addr}
-                        </p>
-                        <div className="flex gap-2">
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            Google Maps
-                          </a>
-                          <a
-                            href={`https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            Waze
-                          </a>
-                        </div>
-                      </div>
-                      )
-                    })()}
-                  </div>
-
-                  {/* Persoană contact */}
-                  <div>
-                    <p className="text-base font-semibold mb-2">Persoană contact (locație):</p>
-                    <p className="text-sm mb-2">{resolvedContact?.nume || lucrare.persoanaContact}</p>
-                    {(() => {
-                      const email = String(resolvedContact?.email || (lucrare as any)?.persoanaContactEmail || "").trim()
-                      if (!email) return null
-                      return (
-                          <div className="text-sm mb-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                            <span className="break-all">{email}</span>
-                              <a
-                              href={`mailto:${email}`}
-                                className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-                              aria-label={`Scrie email către ${email}`}
-                              title={`Scrie email către ${email}`}
-                              >
-                                <Mail className="h-3 w-3" />
-                              </a>
-                            </div>
-                          </div>
-                      )
-                    })()}
-                    <div className="text-sm flex items-center gap-2">
-                      <span>{resolvedContact?.telefon || lucrare.telefon}</span>
-                      <a
-                        href={`tel:${formatPhoneForCall(resolvedContact?.telefon || lucrare.telefon)}`}
-                        className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
-                        aria-label={`Apelează ${resolvedContact?.nume || lucrare.persoanaContact}`}
-                        title={`Apelează ${resolvedContact?.nume || lucrare.persoanaContact}`}
-                      >
-                        <Phone className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
-
+                  <TicketContactDetails work={lucrare} client={clientData} />
                   {/* Echipament */}
                   <div>
                     <p className="text-base font-semibold mb-2">Echipament:</p>
@@ -3777,7 +3689,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   <div>
                     <CardTitle>Informații client</CardTitle>
                     <CardDescription className="text-base font-semibold text-gray-600">
-                      {clientData?.nume || clientData?.name || lucrare.client}
+                      {clientIdentity.name}
                     </CardDescription>
                   </div>
                   {(lucrare as any)?.clientId || clientData?.id ? (
@@ -3797,13 +3709,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Telefon Principal:</div>
                         <div className="text-gray-900 whitespace-normal break-words flex items-center gap-2">
-                          {clientData.telefon || "N/A"}
-                          {clientData.telefon && (
+                          {clientIdentity.phone || "N/A"}
+                          {clientIdentity.phone && (
                             <a
-                              href={`tel:${formatPhoneForCall(clientData.telefon)}`}
+                              href={`tel:${formatPhoneForCall(clientIdentity.phone)}`}
                               className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                              aria-label={`Apelează ${clientData.telefon}`}
-                              title={`Apelează ${clientData.telefon}`}
+                              aria-label={`Apelează ${clientIdentity.phone}`}
+                              title={`Apelează ${clientIdentity.phone}`}
                             >
                               <Phone className="h-3 w-3" />
                             </a>
@@ -3813,13 +3725,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       <div className="flex flex-col min-w-0">
                         <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
                         <div className="text-gray-900 whitespace-normal break-words flex flex-col gap-1">
-                          <span className="break-words" title={clientData.email || "N/A"}>{clientData.email || "N/A"}</span>
-                          {clientData.email && (
+                          <span className="break-words" title={clientIdentity.email || "N/A"}>{clientIdentity.email || "N/A"}</span>
+                          {clientIdentity.email && (
                             <a
-                              href={`mailto:${clientData.email}`}
+                              href={`mailto:${clientIdentity.email}`}
                               className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-                              aria-label={`Scrie email către ${clientData.email}`}
-                              title={`Scrie email către ${clientData.email}`}
+                              aria-label={`Scrie email către ${clientIdentity.email}`}
+                              title={`Scrie email către ${clientIdentity.email}`}
                             >
                               <Mail className="h-3 w-3" />
                             </a>

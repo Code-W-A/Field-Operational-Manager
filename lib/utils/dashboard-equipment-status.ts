@@ -1,4 +1,4 @@
-import { EQUIPMENT_STATUS } from "@/lib/utils/constants"
+import { EQUIPMENT_STATUS, WORK_STATUS } from "@/lib/utils/constants"
 
 export type EquipmentStatusSettings = {
   equipmentStatusEnabled: boolean
@@ -56,8 +56,8 @@ function isNewerEquipmentStatusTicket(
 
 /**
  * Ultimul tichet emis (createdAt) per echipament determină starea afișată.
- * Dispare din dashboard când câștigătorul are statusEchipament = Funcțional.
- * Include tichete active și arhivate — updatedAt nu influențează câștigătorul.
+ * Dispare când câștigătorul e Funcțional sau Arhivată (fără fallback pe un tichet mai vechi).
+ * Arhivatele rămân în competiție ca să nu reapară un tichet nearhivat mai vechi. updatedAt nu contează.
  */
 export function selectLatestEquipmentStatusWinners(
   lucrariForEquipmentStatus: any[],
@@ -87,6 +87,7 @@ export function selectLatestEquipmentStatusWinners(
 
   return Object.values(latestStatusByEquipment)
     .filter((winner) => {
+      if (eqInsensitive(winner.work?.statusLucrare, WORK_STATUS.ARCHIVED)) return false
       const isNonFunctional = eqInsensitive(winner.status, EQUIPMENT_STATUS.NON_FUNCTIONAL)
       const isPartial = eqInsensitive(winner.status, EQUIPMENT_STATUS.PARTIALLY_FUNCTIONAL)
       return (

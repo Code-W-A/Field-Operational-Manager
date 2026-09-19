@@ -12,6 +12,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
 import { uploadFile } from "@/lib/firebase/storage"
+import { resolveOfferPreparedBy } from "@/lib/work-documents/offer-pdf-input"
 
 export default function OfferActionPage() {
   const { id } = useParams<{ id: string }>()
@@ -161,6 +162,7 @@ export default function OfferActionPage() {
       conditions: Array.isArray(work?.conditiiOferta) ? work.conditiiOferta : undefined,
       equipmentName: String(work?.echipament || ""),
       locationName: String(work?.locatie || ""),
+      preparedBy: resolveOfferPreparedBy({ work }),
       beneficiar: {
         name: String(work?.client || work?.clientInfo?.nume || ""),
         cui: String(work?.clientInfo?.cui || ""),
@@ -538,13 +540,7 @@ export default function OfferActionPage() {
                 conditions: Array.isArray((fresh as any)?.conditiiOferta) ? (fresh as any).conditiiOferta : undefined,
                 equipmentName: String((fresh as any)?.echipament || ""),
                 locationName: String((fresh as any)?.locatie || ""),
-                preparedBy: String(
-                  (fresh as any)?.preluatDe ||
-                    (fresh as any)?.offerPreparedBy ||
-                    (fresh as any)?.updatedByName ||
-                    (fresh as any)?.createdByName ||
-                    "",
-                ),
+                preparedBy: resolveOfferPreparedBy({ work: fresh }),
                 preparedAt:
                   (fresh as any)?.offerPreparedAt
                     ? (() => {

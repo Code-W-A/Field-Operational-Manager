@@ -33,6 +33,7 @@ const PREDEFINED_REASONS = [
   { value: "garantie", label: "Garantie" },
   { value: "discount-100", label: "Discount 100%" },
   { value: "reinterventie-nrg", label: "Reintervenție pe cheltuiala NRG" },
+  { value: "facturare-urmatoarea-interventie", label: "Se facturează la următoarea intervenție" },
   { value: "altul", label: "Altul (specificați)" },
 ]
 

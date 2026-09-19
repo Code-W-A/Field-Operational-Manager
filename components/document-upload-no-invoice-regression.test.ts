@@ -14,6 +14,10 @@ test("Nu se facturează: motivele de abonament rămân selectabile și sunt salv
   assert.match(dialog, /value:\s*"revizie-abonament",\s*label:\s*"Revizie cuprinsă în abonament"/)
   assert.match(
     dialog,
+    /value:\s*"facturare-urmatoarea-interventie",\s*label:\s*"Se facturează la următoarea intervenție"/,
+  )
+  assert.match(
+    dialog,
     /label:\s*"Contract abonament"[\s\S]*label:\s*"Revizie cuprinsă în abonament"/,
   )
   assert.doesNotMatch(upload, /Motivul „Contract abonament” este permis doar/)

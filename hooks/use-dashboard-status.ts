@@ -12,6 +12,7 @@ import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-setting
 import { isUninvoicedWork } from "@/lib/reports/uninvoiced"
 import { toDateSafe } from "@/lib/utils/time-format"
 import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
+import { buildAutomaticRevisionIndex, findScheduledAutomaticRevision, isListedDashboardWork } from "@/lib/utils/dashboard-revisions"
 
 export interface DashboardBubbleItem {
   id: string
@@ -79,21 +80,6 @@ function getTodayAt(hour: number, minute = 0): Date {
 /** Firestore Timestamp, ISO sau DD.MM.YYYY — folosește toDateSafe (evită MM.DD la new Date("04.06.2026")). */
 function toDate(input: any | undefined): Date | null {
   return toDateSafe(input)
-}
-
-function dateKeyFromAny(input: any | undefined): string | null {
-  if (!input) return null
-  if (typeof input === "string") {
-    // ISO-ish date (YYYY-MM-DD...)
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(input)
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`
-  }
-  const d = toDate(input)
-  if (!d || Number.isNaN(d.getTime())) return null
-  const yyyy = String(d.getFullYear())
-  const mm = String(d.getMonth() + 1).padStart(2, "0")
-  const dd = String(d.getDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
 }
 
 function eqInsensitive(a?: string, ...candidates: string[]): boolean {
@@ -232,7 +218,8 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     limit(500),
   ])
 
-  // Archived works — used only for Stare echipament (latest ticket by createdAt may be archived)
+  // Archived works — used only for Stare echipament so an archived latest ticket
+  // hides the equipment instead of falling back to an older open ticket.
   const { data: lucrariArhivate, loading: loadingLucrariArhivate } = useFirebaseCollection<Lucrare>("lucrari", [
     where("statusLucrare", "==", WORK_STATUS.ARCHIVED),
     limit(500),
@@ -305,31 +292,8 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     // IMPORTANT: Nu afișăm intrările care nu au încă tichet generat (fără lucrareId),
     // ca să evităm confuzia / navigarea la contract în loc de tichet.
     if (cfg.programatorReviziiEnabled && Array.isArray(contracts) && contracts.length > 0) {
-      // Dacă tichetele de revizie există deja, vrem să navigăm către tichet (nu către contract).
-      // Mapăm după contract + data intervenției (zi) și reținem dacă e deja atribuit.
-      const revizieWorkByContractAndDate: Record<string, { lucrareId: string; hasTechnicians: boolean; emitentLabel?: string }> = {}
-      if (Array.isArray(activeLucrari) && activeLucrari.length > 0) {
-        for (const l of activeLucrari) {
-          const lucrareId = String((l as any)?.id || "")
-          const contractId = String((l as any)?.contract || "")
-          const tip = String((l as any)?.tipLucrare || "").toLowerCase()
-          if (!lucrareId || !contractId) continue
-          if (!tip.includes("reviz")) continue
-          const dk = dateKeyFromAny((l as any)?.dataInterventie)
-          if (!dk) continue
-          const technicians = Array.isArray((l as any)?.tehnicieni) ? (l as any).tehnicieni : []
-          const hasTechnicians = technicians.length > 0
-          const key = `${contractId}|${dk}`
-          // păstrăm prima lucrare găsită pentru cheie
-          if (!revizieWorkByContractAndDate[key]) {
-            revizieWorkByContractAndDate[key] = {
-              lucrareId,
-              hasTechnicians,
-              emitentLabel: getTicketEmitent(l),
-            }
-          }
-        }
-      }
+      // Numai reviziile automate; locația este verificată la asocierea fiecărui preview.
+      const revisionIndex = buildAutomaticRevisionIndex(activeLucrari || [])
 
       const windowEnd = addDays(startOfToday, 10)
       const maxTotal = 120
@@ -360,17 +324,19 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           const schedLabel = scheduledOk ? formatDateRO(scheduledOk) : "-"
           const contractLabel = contractNumber ? contractNumber : contractName ? contractName : contractId
           const subtitle = `Gen: ${genLabel} • Rev: ${schedLabel} (${contractLabel})`
-          const id = `${contractId}:${String(generateIso || scheduledIso || "")}:${locationName}`
+          const id = `${contractId}:${String(generateIso || scheduledIso || "")}:${String((raw as any)?.locationId || locationName)}`
 
-          const scheduledKey = dateKeyFromAny(scheduledIso)
-          const meta = scheduledKey ? revizieWorkByContractAndDate[`${contractId}|${scheduledKey}`] : undefined
-          const lucrareId = meta?.lucrareId
+          const work = findScheduledAutomaticRevision(revisionIndex, {
+            contractId,
+            scheduledIso,
+            locationId: (raw as any)?.locationId,
+            locationName: (raw as any)?.locationName || (raw as any)?.location,
+          })
+          const lucrareId = work?.id
 
-          // Cerință: afișăm DOAR tichetele deja generate; cele ne-generate (fără lucrareId) NU apar.
-          if (!lucrareId) continue
-
-          // Cerință: rămân aici până sunt atribuite unui tehnician.
-          if (meta?.hasTechnicians) continue
+          // Doar tichete generate, neatribuite. Reviziile manuale rămân în Listate.
+          if (!work || !lucrareId) continue
+          if (Array.isArray(work.tehnicieni) && work.tehnicieni.length > 0) continue
 
           // Menținem limitarea de volum: nu listăm la nesfârșit – doar până la 10 zile în viitor.
           if (generateAt > windowEnd) continue
@@ -383,7 +349,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
               locatie: locationName,
               equipmentLabel: subtitle,
               sortDate: generateAt,
-              emitentLabel: meta?.emitentLabel,
+              emitentLabel: getTicketEmitent(work),
             })
           )
           added += 1
@@ -393,8 +359,8 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       res.programatorRevizii = sortByDate(res.programatorRevizii)
     }
 
-    // Stare echipament: ultimul tichet emis (createdAt) per echipament; dispare când câștigătorul e Funcțional.
-    // Include tichete active + arhivate; updatedAt nu contează.
+    // Stare echipament: ultimul tichet (createdAt) per echipament.
+    // Dispare când câștigătorul e Funcțional sau Arhivată (fără fallback). updatedAt nu contează.
     if (cfg.equipmentStatusEnabled) {
       const winners = selectLatestEquipmentStatusWinners(lucrariForEquipmentStatus, cfg)
       res.equipmentStatus = winners.map((winner) =>
@@ -465,8 +431,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
       // Listate (fără tehnician) - sortate după data solicitării execuției (dataInterventie)
       if (cfg.listateEnabled) {
-        const noTechOk = cfg.listateRequireNoTechnicians ? technicians.length === 0 : true
-        if (noTechOk && !eqInsensitive(status, WORK_STATUS.ARCHIVED)) {
+        if (isListedDashboardWork(l, cfg.listateRequireNoTechnicians)) {
         res.listate.push(buildBubble(l, undefined, toDate(l.dataInterventie) || undefined))
         }
       }

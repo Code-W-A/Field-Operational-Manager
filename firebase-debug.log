@@ -1,0 +1,54 @@
+[debug] [2026-09-18T15:38:05.505Z] ----------------------------------------------------------------------
+[debug] [2026-09-18T15:38:05.506Z] Command:       /opt/homebrew/Cellar/node/25.6.1/bin/node /opt/homebrew/bin/firebase projects:list
+[debug] [2026-09-18T15:38:05.506Z] CLI Version:   14.11.0
+[debug] [2026-09-18T15:38:05.506Z] Platform:      darwin
+[debug] [2026-09-18T15:38:05.506Z] Node Version:  v25.6.1
+[debug] [2026-09-18T15:38:05.506Z] Time:          Fri Sep 18 2026 18:38:05 GMT+0300 (Eastern European Summer Time)
+[debug] [2026-09-18T15:38:05.506Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-18T15:38:05.507Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-09-18T15:38:05.606Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-09-18T15:38:05.606Z] > authorizing via signed-in user (nrgsistemedeacces@gmail.com)
+[debug] [2026-09-18T15:38:05.608Z] Checked if tokens are valid: false, expires at: 1789572937332
+[debug] [2026-09-18T15:38:05.608Z] Checked if tokens are valid: false, expires at: 1789572937332
+[debug] [2026-09-18T15:38:05.608Z] > refreshing access token with scopes: []
+[debug] [2026-09-18T15:38:05.608Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-09-18T15:38:05.609Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-09-18T15:38:05.611Z] *** [apiv2] error from fetch(https://firebase-public.firebaseio.com/cli.json, {"headers":{},"method":"GET"}): FetchError: request to https://firebase-public.firebaseio.com/cli.json failed, reason: getaddrinfo ENOTFOUND firebase-public.firebaseio.com
+[warn] ⚠  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
+[debug] [2026-09-18T15:38:05.611Z] Failed to fetch MOTD FirebaseError: Failed to make request to https://firebase-public.firebaseio.com/cli.json
+[debug] [2026-09-18T15:38:05.612Z] *** [apiv2] error from fetch(https://www.googleapis.com/oauth2/v3/token, {"headers":{},"method":"POST","body":{"_overheadLength":545,"_valueLength":211,"_valuesToMeasure":[],"writable":false,"readable":true,"dataSize":0,"maxDataSize":2097152,"pauseStreams":true,"_released":true,"_streams":[],"_currentStream":null,"_insideLoop":false,"_pendingNext":false,"_boundary":"--------------------------c3499ab924d648e93e446f0a","_events":{},"_eventsCount":1}}): FetchError: request to https://www.googleapis.com/oauth2/v3/token failed, reason: getaddrinfo ENOTFOUND www.googleapis.com
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-09-18T15:38:05.612Z] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-09-18T15:38:05.615Z] FirebaseError: Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+    at invalidCredentialError (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/auth.js:167:12)
+    at refreshTokens (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/auth.js:556:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async getAccessToken (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/apiv2.js:42:18)
+    at async Client.addAuthHeader (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/apiv2.js:169:21)
+    at async Client.request (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/apiv2.js:120:34)
+    at async getProjectPage (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/management/projects.js:267:17)
+    at async getFirebaseProjectPage (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/management/projects.js:284:23)
+    at async listFirebaseProjects (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/management/projects.js:315:29)
+    at async Command.actionFn (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/commands/projects-list.js:51:20)
+[error] 
+[error] Error: Failed to list Firebase projects. See firebase-debug.log for more info.
+[debug] [2026-09-18T15:38:05.878Z] Error: EPERM: operation not permitted, open '/Users/code-with-a/.config/configstore/firebase-tools.json.595166309'
+    at Object.openSync (node:fs:555:18)
+    at writeFile.writeFileSync [as sync] (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/node_modules/write-file-atomic/index.js:205:13)
+    at set all (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/node_modules/configstore/index.js:61:20)
+    at Configstore.delete (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/node_modules/configstore/index.js:101:12)
+    at process.<anonymous> (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/bin/cli.js:65:45)
+    at process.emit (node:events:520:22)
+    at process.exit (node:internal/process/per_thread:236:15)
+    at Timeout._onTimeout (/opt/homebrew/Cellar/firebase-cli/14.11.0/libexec/lib/node_modules/firebase-tools/lib/errorOut.js:20:17)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[error] 
+[error] Error: An unexpected error has occurred.

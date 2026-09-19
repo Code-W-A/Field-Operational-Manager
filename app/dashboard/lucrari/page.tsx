@@ -1,4 +1,6 @@
 "use client"
+import { prepareReinterventionContact } from "@/lib/work-documents/live-ticket-contact"
+import { ContactAssociationError } from "@/firebase-functions/src/client-ticket-sync"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -145,7 +147,7 @@ export default function Lucrari() {
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)
   const [activeTab, setActiveTab] = useState("tabel")
   const [selectedLucrare, setSelectedLucrare] = useState(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<React.ComponentProps<typeof LucrareForm>["formData"] & { originalWorkOrderInfo?: string; reinterventieMotiv?: any; echipamentModel?: string }>({
     tipLucrare: "",
     tehnicieni: [],
     client: "",
@@ -156,6 +158,7 @@ export default function Lucrari() {
     // Backward-compatible IDs (new): persisted for live client/location lookups
     clientId: "",
     locationId: "",
+    contactId: "",
     persoanaContactEmail: "",
     statusLucrare: "Listată",
     statusFacturare: "Nefacturat",
@@ -1384,6 +1387,7 @@ export default function Lucrari() {
       telefon: "",
       clientId: "",
       locationId: "",
+      contactId: "",
       persoanaContactEmail: "",
       statusLucrare: "Programată",
       statusFacturare: "Nefacturat",
@@ -1657,12 +1661,13 @@ export default function Lucrari() {
       }
 
       // Adăugăm lucrarea în Firestore cu nrLucrare
-      const lucrareId = await addLucrare({
+      const createdWork = await addLucrare({
         ...newLucrare,
         nrLucrare: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
+      const lucrareId = createdWork.id
 
       // Dacă este re-intervenție, marcăm lucrarea originală ca având reintervenție lansată,
       // ca regulile de arhivare să poată valida fără query-uri suplimentare.
@@ -1697,7 +1702,7 @@ export default function Lucrari() {
           (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
 
         // Obținem lucrarea completă cu ID pentru a o trimite la notificări
-        const lucrareCompleta = { id: lucrareId, ...newLucrare }
+        const lucrareCompleta = createdWork
 
         // #region agent log
         if (shouldLocalDebug) {
@@ -1836,6 +1841,7 @@ export default function Lucrari() {
       })
     } catch (err) {
       console.error("Eroare la adăugarea tichetului:", err)
+      if (err instanceof ContactAssociationError) setFormData(previous => ({ ...previous, contactSelectionRequired: true, contactSelectionMessage: err.message }))
       const errorMessage =
         err instanceof Error && err.message
           ? err.message
@@ -1872,6 +1878,9 @@ export default function Lucrari() {
       telefon: lucrare.telefon,
       clientId: String((lucrare as any).clientId || ""),
       locationId: String((lucrare as any).locationId || ""),
+      contactId: String((lucrare as any).contactId || ""),
+      ...((lucrare as any).contactSync ? { contactSync: (lucrare as any).contactSync } : {}),
+      ...((lucrare as any).clientInfo ? { clientInfo: (lucrare as any).clientInfo } : {}),
       persoanaContactEmail: String((lucrare as any).persoanaContactEmail || ""),
       statusLucrare: lucrare.statusLucrare,
       statusFacturare: lucrare.statusFacturare,
@@ -2161,6 +2170,7 @@ export default function Lucrari() {
   // Funcție pentru reatribuirea unei lucrări (pentru dispecer)
   const handleReassign = useCallback(async (originalLucrare: any) => {
     try {
+      const currentContact = await prepareReinterventionContact(originalLucrare)
       // Creăm un mesaj informativ cu detaliile lucrării originale
       const originalInfo = `${originalLucrare.client} - ${originalLucrare.locatie} (${originalLucrare.dataInterventie})`
       
@@ -2196,6 +2206,7 @@ export default function Lucrari() {
         originalWorkOrderInfo: originalInfo,
         // Copiază motivele reintervenției dacă există
         reinterventieMotiv: originalLucrare.reinterventieMotiv || null,
+        ...currentContact,
       }
 
       // Setăm datele în formularul de adăugare
@@ -2213,7 +2224,7 @@ export default function Lucrari() {
       console.error("Eroare la precompletarea formularului de reatribuire:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la precompletarea formularului de reatribuire.",
+        description: error instanceof Error ? error.message : "Datele clientului nu au putut fi citite.",
         variant: "destructive",
       })
     }

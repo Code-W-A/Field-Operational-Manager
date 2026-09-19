@@ -1,6 +1,7 @@
 "use client"
 
 import { toDateSafe } from "@/lib/utils/time-format"
+import { resolveLocationWithinClient, ticketContactOptions } from "@/firebase-functions/src/client-ticket-sync"
 
 export function normalizeEmail(raw?: any): string {
   let value = String(raw ?? "")
@@ -21,38 +22,8 @@ export function isValidEmail(value?: any): boolean {
   return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function normalizeCompareValue(value?: string): string {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim()
-}
-
-function matchesLoose(a?: string, b?: string): boolean {
-  const left = normalizeCompareValue(a)
-  const right = normalizeCompareValue(b)
-  if (!left || !right) return false
-  return left === right || left.includes(right) || right.includes(left)
-}
-
 export function resolveLocationForWork(client: any, work: any) {
-  const locations = Array.isArray(client?.locatii) ? client.locatii : []
-  const targetId = work?.clientInfo?.locationId || work?.clientInfo?.locatieId || work?.locationId
-  const targetName = work?.locatie || work?.clientInfo?.locationName
-  const targetAddress = work?.clientInfo?.locationAddress
-
-  let location = targetId
-    ? locations.find((entry: any) => String(entry?.id || "") === String(targetId))
-    : undefined
-
-  if (!location) {
-    location = locations.find(
-      (entry: any) => matchesLoose(entry?.nume, targetName) || matchesLoose(entry?.adresa, targetAddress),
-    )
-  }
-
-  return location || null
+  try { return resolveLocationWithinClient(client, work) } catch { return null }
 }
 
 // Document recipients always come from the current client record, never ticket snapshots.
@@ -61,10 +32,14 @@ export function resolveRecipientEmailForLocation(client: any, work: any): string
 
   const location = resolveLocationForWork(client, work)
   const targetContactName = work?.persoanaContact
+  if (!location && (work.locationId || work.clientInfo?.locationId || work.clientInfo?.locatieId)) return null
 
   if (location) {
     const contacts: any[] = Array.isArray(location?.persoaneContact) ? location.persoaneContact : []
-    const exact = contacts.find((contact: any) => matchesLoose(contact?.nume, targetContactName))
+    const candidates = work.contactId ? ticketContactOptions(client, location).filter(contact => contact.id === work.contactId)
+      : contacts.filter(contact => String(contact.nume || "").trim() === String(targetContactName || "").trim())
+    if (candidates.length > 1 || (work.contactId && candidates.length !== 1)) return null
+    const exact = candidates[0]
     if (isValidEmail(exact?.email)) return normalizeEmail(exact?.email)
 
     const anyContact = contacts.find((contact: any) => isValidEmail(contact?.email))

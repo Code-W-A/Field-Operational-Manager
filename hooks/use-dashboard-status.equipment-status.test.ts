@@ -67,3 +67,31 @@ test("regression: archived Functional counts when merged like useDashboardStatus
   const winners = selectLatestEquipmentStatusWinners([...activeLucrari, ...lucrariArhivate], baseCfg)
   assert.deepEqual(winners, [])
 })
+
+test("regression: archived latest ticket does not fall back to older open Nefuncțional", () => {
+  const activeLucrari = [
+    {
+      id: "w-old-open-bad",
+      clientId: "c1",
+      locationId: "l1",
+      echipamentId: "e1",
+      statusLucrare: "Atribuită",
+      statusEchipament: "Nefuncțional",
+      createdAt: "2026-05-01T08:00:00.000Z",
+    },
+  ]
+  const lucrariArhivate = [
+    {
+      id: "w-new-archived-partial",
+      clientId: "c1",
+      locationId: "l1",
+      echipamentId: "e1",
+      statusLucrare: "Arhivată",
+      statusEchipament: "Parțial funcțional",
+      createdAt: "2026-05-10T08:00:00.000Z",
+    },
+  ]
+
+  const winners = selectLatestEquipmentStatusWinners([...activeLucrari, ...lucrariArhivate], baseCfg)
+  assert.deepEqual(winners, [])
+})
