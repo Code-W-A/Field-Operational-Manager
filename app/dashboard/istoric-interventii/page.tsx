@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { where } from "firebase/firestore"
+import { collection, limit, onSnapshot, query, where } from "firebase/firestore"
+import { db } from "@/lib/firebase/config"
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -178,6 +179,18 @@ export default function IstoricInterventiiPage() {
 
   const urlClientId = (searchParams.get("clientId") || "").trim()
   const urlClientName = (searchParams.get("clientName") || "").trim()
+  const legacyScopeKey = JSON.stringify([urlClientId, urlClientName])
+  const [verifiedLegacyScope, setVerifiedLegacyScope] = useState("")
+  useEffect(() => {
+    if (!urlClientId || !urlClientName) return
+    let active = true
+    const stop = onSnapshot(query(collection(db, "clienti"), where("nume", "==", urlClientName), limit(2)),
+      { includeMetadataChanges: true }, matches => {
+        if (active) setVerifiedLegacyScope(!matches.metadata.fromCache && matches.size === 1 && matches.docs[0].id === urlClientId ? legacyScopeKey : "")
+      }, () => { if (active) setVerifiedLegacyScope("") })
+    return () => { active = false; stop() }
+  }, [urlClientId, urlClientName, legacyScopeKey])
+
 
   useEffect(() => {
     const saved = loadSettings()
@@ -197,7 +210,7 @@ export default function IstoricInterventiiPage() {
 
     const nextFilters: FilterOption[] = []
     // UI-ul filtrează după nume client; păstrăm selecția vizibilă în UI.
-    if (urlClientName) nextFilters.push({ id: "client", value: [urlClientName] } as any)
+    if (urlClientName && !urlClientId) nextFilters.push({ id: "client", value: [urlClientName] } as any)
 
     setActiveFilters(nextFilters)
     // Persistăm imediat ca să nu revină filtrele vechi (suprascriere).
@@ -358,14 +371,14 @@ export default function IstoricInterventiiPage() {
       // Preferăm clientId; fallback pe nume pentru lucrări legacy fără clientId.
       if (id) {
         if (rowClientId) return rowClientId === id
-        if (name) return rowClientName === name
+        if (name) return verifiedLegacyScope === legacyScopeKey && String(r.client || "").trim() === urlClientName
         return false
       }
 
       if (name) return rowClientName === name
       return true
     })
-  }, [accessFilteredRows, urlClientId, urlClientName])
+  }, [accessFilteredRows, urlClientId, urlClientName, verifiedLegacyScope, legacyScopeKey])
 
   const filterOptions = useMemo<FilterOption[]>(() => {
     const uniq = (xs: string[]) =>

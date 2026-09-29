@@ -1,3 +1,4 @@
+import { withDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 import { logOfferEvent } from "@/lib/offer/offer-events.server"
@@ -57,7 +58,8 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const data: any = workSnap.data() || {}
+    const storedData = workSnap.data() || {}
+    const data: any = withDocumentClientSnapshot(storedData, storedData.offerActionSnapshot?.clientSnapshot)
     if (!data.offerActionToken || data.offerActionToken !== providedToken) {
       await logOfferPortalEvent({
         lucrareId: workId,

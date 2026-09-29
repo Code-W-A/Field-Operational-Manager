@@ -1,3 +1,4 @@
+import { withDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { jsPDF } from "jspdf"
 import { collection, doc, getDoc, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -519,7 +520,8 @@ export async function generateRevisionOperationsPDF(lucrareId: string): Promise<
 
   // Load lucrare (for client/location context if needed later)
   const workSnap = await getDoc(docRef("lucrari", lucrareId))
-  const work = workSnap.exists() ? (workSnap.data() as any) : null
+  const storedWork = workSnap.exists() ? (workSnap.data() as any) : null
+  const work = storedWork ? withDocumentClientSnapshot(storedWork, storedWork.raportSnapshot?.clientSnapshot) : null
   const liveClientData = await loadLiveClientData(work)
 
   // Load revisions
@@ -675,7 +677,8 @@ export async function generateRevisionEquipmentPDF(
   try { js.setFont("NotoSans", "normal") } catch {}
   const layout = getChecklistLayout()
   const workSnap = await getDoc(docRef("lucrari", lucrareId))
-  const work = workSnap.exists() ? (workSnap.data() as any) : null
+  const storedWork = workSnap.exists() ? (workSnap.data() as any) : null
+  const work = storedWork ? withDocumentClientSnapshot(storedWork, storedWork.raportSnapshot?.clientSnapshot) : null
   const liveClientData = await loadLiveClientData(work)
 
   // Load single revision

@@ -1,5 +1,6 @@
 "use client"
 
+import { arrayUnion } from "firebase/firestore"
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,8 @@ import {
   offerPdfVersionFileName,
 } from "@/lib/work-documents/offer-pdf-input"
 import { loadWorkDocumentRecipient } from "@/lib/work-documents/recipient"
+import { loadDocumentClientSnapshot } from "@/lib/work-documents/load-document-client"
+import type { DocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 
 interface OfferEditorDialogProps {
@@ -38,6 +41,7 @@ interface OfferEditorDialogProps {
 }
 
 type OfferVersion = {
+  clientSnapshot?: DocumentClientSnapshot
   savedAt: string
   savedBy?: string
   total: number
@@ -243,14 +247,18 @@ useEffect(() => {
       const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       const versionTotal = total * (1 - adjToSave / 100)
       const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== versionTotal
-      if (!changed) {
+      if (!changed && !editingNewVersion) {
         // Nu activăm trimiterea fără o salvare explicită a modificărilor
         setCanSendOffer((versions?.length || 0) > 0 && !editingNewVersion)
         return
       }
       // Keep the commercial settings with each new version so its PDF remains reproducible.
       const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
+      const current = await getLucrareById(lucrareId, { serverOnly: true })
+      if (!current) throw new Error("Tichetul nu mai este disponibil.")
+      const clientSnapshot = await loadDocumentClientSnapshot(current)
       const version: OfferVersion = {
+        clientSnapshot,
         savedAt: new Date().toISOString(),
         savedBy: userData?.displayName || userData?.email || "Unknown",
         total: versionTotal,
@@ -259,7 +267,6 @@ useEffect(() => {
         adjustmentPercent: adjToSave,
         conditions: conditiiOferta,
       }
-      const current = await getLucrareById(lucrareId)
       const existing = (current as any)?.offerVersions || []
       const newVersions = [...existing, version]
       await updateLucrare(lucrareId, {
@@ -268,7 +275,7 @@ useEffect(() => {
         offerTotal: versionTotal,
         offerVAT: Number(vatPercent) || 0,
         offerAdjustmentPercent: adjToSave,
-        offerVersions: newVersions as any,
+        offerVersions: arrayUnion(version) as any,
         conditiiOferta: conditiiOferta as any,
       } as any)
       setVersions(newVersions)
@@ -288,6 +295,8 @@ useEffect(() => {
           total: version.total,
         }),
       }).catch(() => {})
+    } catch (error) {
+      toast({ title: "Eroare salvare ofertă", description: error instanceof Error ? error.message : "Nu s-a putut salva oferta.", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -333,13 +342,16 @@ useEffect(() => {
 
     try {
       setPreviewingPdf(true)
-      const freshWork = await getLucrareById(lucrareId)
+      const freshWork = await getLucrareById(lucrareId, { serverOnly: true })
       if (!freshWork) throw new Error("Nu s-au putut încărca datele lucrării.")
 
+      const savedVersion = !editingNewVersion ? versions[versions.length - 1] : undefined
+      const clientSnapshot = savedVersion ? savedVersion.clientSnapshot : await loadDocumentClientSnapshot(freshWork)
       const { generateOfferPdf } = await import("@/lib/utils/offer-pdf")
       const input = buildOfferPdfInput({
         lucrareId,
         work: freshWork,
+        clientSnapshot,
         fallbackWork: currentWork,
         products,
         vatPercent,
@@ -413,13 +425,15 @@ useEffect(() => {
       const lastVersion = versions && versions.length ? versions[versions.length - 1] : undefined
       const computedSubtotal = (products || []).reduce((s: number, p: any) => s + (Number(p.total) || (Number(p.quantity)||0)*(Number(p.price)||0)), 0)
       const computedTotal = computedSubtotal * (1 - (Number(adjustmentPercent)||0)/100)
+      const { freshWork, freshClient, recipient } = await loadWorkDocumentRecipient(lucrareId)
+      const clientSnapshot = lastVersion?.clientSnapshot
       const currentSnapshot = {
+        ...(clientSnapshot ? { clientSnapshot } : {}),
         products: (lastVersion?.products && Array.isArray(lastVersion.products)) ? lastVersion.products : products,
         total: typeof lastVersion?.total === 'number' ? lastVersion.total : computedTotal,
         vat: Number(vatPercent) || 0,
         savedAt: String(lastVersion?.savedAt || new Date().toISOString()),
       }
-      const { freshWork, freshClient, recipient } = await loadWorkDocumentRecipient(lucrareId)
       setCurrentWork(freshWork)
       setClientData(freshClient)
 
@@ -555,6 +569,7 @@ useEffect(() => {
           const input = buildOfferPdfInput({
             lucrareId,
             work: freshWork,
+            clientSnapshot,
             fallbackWork: currentWork,
             products: currentProducts,
             vatPercent,

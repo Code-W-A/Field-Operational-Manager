@@ -1,5 +1,26 @@
 # Sincronizarea datelor clientului
 
+## Afișarea actuală în detaliile tichetului (Next.js)
+
+Pagina de detalii folosește un resolver separat, `resolveTicketLiveDisplay`, și o singură abonare `useTicketClient` la clientul asociat. Componentele de afișare primesc același rezultat. Abonarea se închide la schimbarea tichetului/asocierii, sesiunii sau la demontare; rezultatele vechi sunt ignorate. Nu sunt necesare funcții noi, indexuri, migrare sau scrieri la afișare.
+
+Datele existente se înlocuiesc **doar pentru afișare** dacă lipsesc sau coincid cu proveniența `contactSync.values` pentru aceeași asociere. Valorile manuale, golurile fără proveniență și diferențele istorice neclasificabile se păstrează și se semnalează. Firma, locația și contactul se rezolvă separat. ID-urile invalide nu sunt înlocuite prin potrivire după nume. Tichetele arhivate/anulate folosesc exclusiv valorile salvate. Pentru o asociere fără ID, este acceptată numai potrivirea exactă, unică, confirmată de server.
+
+În caz de client șters, lipsă acces sau lipsă conexiune, pagina afișează copia tichetului și un mesaj discret. Prima citire a clientului rămâne separată pentru consumatorii existenți de documente/echipamente: actualizările de afișare nu înlocuiesc obiectul tichetului, intrările PDF/email sau formularul nesalvat. Listele, workerul și celelalte ecrane păstrează comportamentul anterior în această etapă. Operațiunile preexistente ale paginii (de exemplu marcarea notificării ca citită) nu sunt parte din noul mecanism de afișare.
+
+Formularul deschis din detalii activează `preserveContactDraft`: actualizările fișei clientului nu suprascriu automat lista de contacte din editarea nesalvată. Selectarea explicită a locației/contactului rămâne disponibilă. „Preia datele actuale ale contactului” confirmă folosirea datelor actuale pentru contactul selectat, inclusiv când ID-ul acestuia nu s-a schimbat; modificarea intră în baza de date numai la salvarea formularului. Celelalte utilizări ale formularului nu activează această opțiune.
+
+Verificări izolate:
+
+```sh
+npm run test:ticket-live-display
+npm run test:ticket-live-display:browser
+```
+
+Testul browser pornește numai Firestore, pe portul `8281`, în proiectul `demo-fom-ticket-display`, cu reguli temporare care nu permit scrieri din browser. Folosește hook-ul, componentele și formularul reale; autentificarea/navigarea și componentele auxiliare sunt simulate. Verifică actualizarea afișării, prezentarea pentru roluri, excepțiile, confirmarea explicită, formularul nesalvat, asocierile legacy, erorile, dezabonarea și faptul că valorile/`updateTime` ale tichetelor nu se schimbă. Nu reprezintă o verificare integrală a paginii autentificate sau a producției. Revertul acestor modificări de afișare nu necesită restaurarea datelor.
+
+## Sincronizarea copiilor salvate (comportament existent)
+
 La editarea unui document `clienti`, `onClientContactDetailsChanged` creează un job. `processClientContactSyncPage` parcurge tichetele în pagini de 100, prin `clientId`, `clientInfo.id`, apoi numele vechi exact. Numele de client trebuie să fie unic pentru tichetele fără ID. Locația și contactul se identifică prin ID sau printr-o potrivire exactă, unică, cu datele sursă anterioare.
 
 Sunt eligibile inclusiv tichetele `Finalizat`. Sunt excluse cele arhivate sau anulate, inclusiv marcajele `archivedAt`, `archived`, `anulat`, `anulatAt`. Rapoartele, PDF-urile, produsele și versiunile ofertelor nu sunt în lista câmpurilor modificabile.
@@ -59,3 +80,15 @@ Primul test verifică triggerul real, 102 tichete/paginarea, duplicatele, ordine
 ## Publicare separată
 
 Sunt necesare aplicația Next.js și ambele funcții noi: `onClientContactDetailsChanged`, `processClientContactSyncPage`, în `europe-west1`. Publicarea nu repară automat diferențele istorice deja existente; raportul și aplicarea selectivă sunt pași separați. Nu este necesară migrarea obligatorie a documentelor existente.
+
+
+## Extindere Next.js: fișa clientului, lista și documentele noi
+
+- Numărătoarea și fișa clientului folosesc `clientId`, apoi `clientInfo.id`. Potrivirea după nume se aplică numai fără ID și pentru nume exact unic. Un client redenumit își păstrează tichetele legate prin ID; copiile legacy fără ID și cu numele anterior nu sunt ghicite.
+- Fișa ascultă interogări restrânse după cele două ID-uri și, dacă este verificat unic, după numele legacy. Rezultatele sunt deduplicate; ambiguitatea apărută ulterior elimină imediat potrivirea legacy. Istoricul deschis din fișă nu mai aplică suplimentar numele vechi peste filtrul de ID. Regulile de acces existente rămân neschimbate.
+- Lista activă folosește același resolver conservator ca pagina tichetului. `useWorkClients` citește numai clienții necesari tichetelor încărcate, în grupuri de maximum 30 de ID-uri/nume distincte; numărul rândurilor cu același client nu multiplică abonările. Arhivele/anulările păstrează copiile istorice. Căutarea, filtrele și coloanele folosesc proiecția, iar editarea/salvarea folosesc obiectele brute.
+- O versiune nouă de ofertă/deviz și prima generare de raport citesc clientul de pe server și salvează un `clientSnapshot` v1 separat. Identitatea firmei (denumire, CUI, ONRC, adresă) vine din fișa actuală; contactul/locația respectă excepțiile și golurile manuale. O asociere nesigură sau eroare de citire blochează explicit salvarea/generarea nouă cu mesaj, înainte de scriere. Documentele existente nu primesc completări retroactive.
+- Snapshotul se fixează la salvarea versiunii, respectiv prima generare a raportului. Redescărcarea, atașamentul acelei versiuni și oferta certificată/publică folosesc aceeași identitate. Pentru date noi se creează o versiune nouă, inclusiv când produsele nu se schimbă. Destinatarul emailului continuă să fie verificat separat din datele actuale.
+- `devizClientSnapshot` urmărește devizul curent/restaurat; `raportSnapshot.clientSnapshot` păstrează identitatea raportului și a fișelor de revizie regenerate. Versiunile fără acest câmp păstrează comportamentul anterior. Adăugarea versiunilor folosește `arrayUnion`, ca o salvare concurentă să nu șteargă versiunile altui operator.
+
+Verificări: `npm run test:client-consistency`, `npm run test:client-contact-sync`, `npm run test:ticket-live-display`, `npm run test:offer-pdf-input`, `npm run test:ticket-live-display:browser`, `node scripts/test-work-document-recipient.mjs`, build Next.js. Browserul izolat verifică și formularele reale ofertă/deviz, fără emailuri ori servicii de producție; acesta nu certifică autentificarea/permisiunile din producție. Nu există migrare, modificare de reguli Firestore, oprire a workerului sau deploy în această etapă. Revenirea codului ignoră câmpurile noi, fără restaurarea bazei de date.

@@ -55,6 +55,7 @@ import { calculateWarranty, getWarrantyDisplayInfo } from "@/lib/utils/warranty-
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Skeleton } from "@/components/ui/skeleton"
+import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
 import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 
 interface ArchivedWorkDetailPageProps {
@@ -285,6 +286,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
           reg: String((lucrare as any)?.clientInfo?.rc || (client as any)?.regCom || ""),
           address: String((lucrare as any)?.clientInfo?.adresa || client?.adresa || ""),
         },
+        ...documentClientPdfFields((lucrare as any)?.devizClientSnapshot),
       } as any)
 
       const blobUrl = URL.createObjectURL(blob)

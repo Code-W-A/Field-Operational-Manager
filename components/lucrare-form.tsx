@@ -193,6 +193,8 @@ interface LucrareFormProps {
   initialData?: Lucrare | null
   onActiveWorkChange?: (count: number, equipmentName?: string, activeWorks?: ActiveWorkSummary[]) => void
   currentWorkOrderId?: string
+  /** Keep the open ticket draft independent of live client updates. Explicit selections still apply. */
+  preserveContactDraft?: boolean
 }
 
 // Define a ref type for the form
@@ -223,9 +225,11 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       initialData,
       onActiveWorkChange,
       currentWorkOrderId,
+      preserveContactDraft = false,
     },
     ref,
   ) => {
+    const protectContactDraft = isEdit && preserveContactDraft
     const associationLocked = isReintervention && !formData.contactSelectionRequired
     const { userData } = useAuth()
     const userRole = userData?.role
@@ -1226,7 +1230,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setPersoaneContact([...(locatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
             // Actualizăm persoanele de contact în formData dacă nu există deja
-            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+            if (!protectContactDraft && handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
               handleCustomChange("persoaneContact", locatie.persoaneContact)
             }
           }
@@ -1338,6 +1342,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       formData.echipament,
       handleCustomChange,
       triedFindByName,
+      protectContactDraft,
     ])
 
     // IMPORTANT (safety): nu mai mapăm automat echipamentul după nume -> ID.
@@ -1959,15 +1964,15 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           console.log("Persoane de contact (effect):", selectedLocatie.persoaneContact)
           setPersoaneContact([...(selectedLocatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
-          // Automatically associate all contacts with the work entry
-          if (handleCustomChange) {
+          // Client refreshes must not replace the open edit draft's saved contact list.
+          if (!protectContactDraft && handleCustomChange) {
             handleCustomChange("persoaneContact", selectedLocatie.persoaneContact)
           }
         }
         // Activăm afișarea acordeonului și nu-l dezactivăm niciodată după ce a fost activat
         setShowContactAccordion(true)
       }
-    }, [selectedLocatie, handleCustomChange])
+    }, [selectedLocatie, handleCustomChange, protectContactDraft])
 
     // Modificăm efectul pentru a încărca persoanele de contact când se încarcă datele inițiale
     // Înlocuim efectul existent de la linia ~700 cu această versiune îmbunătățită:
@@ -1996,7 +2001,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setPersoaneContact([defaultContact])
 
             // Actualizăm și formData dacă este necesar
-            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+            if (!protectContactDraft && handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
               handleCustomChange("persoaneContact", [defaultContact])
             }
 
@@ -2009,7 +2014,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           setShowContactAccordion(true)
         }
       }
-    }, [initialData, handleCustomChange, formData.persoaneContact, isEdit])
+    }, [initialData, handleCustomChange, formData.persoaneContact, isEdit, protectContactDraft])
 
     // Adăugăm un nou efect pentru a forța încărcarea persoanelor de contact când se încarcă locația
     // Adăugați acest efect după efectul de mai sus:
@@ -2030,7 +2035,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setPersoaneContact([...(locatie.persoaneContact || [])].sort((a, b) => (a.nume || "").localeCompare(b.nume || "", "ro", { sensitivity: "base" })))
 
             // Actualizăm și formData dacă este necesar
-            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+            if (!protectContactDraft && handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
               handleCustomChange("persoaneContact", locatie.persoaneContact)
             }
 
@@ -2047,7 +2052,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             setPersoaneContact([defaultContact])
 
             // Actualizăm și formData dacă este necesar
-            if (handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
+            if (!protectContactDraft && handleCustomChange && (!formData.persoaneContact || formData.persoaneContact.length === 0)) {
               handleCustomChange("persoaneContact", [defaultContact])
             }
           }
@@ -2064,6 +2069,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       formData.telefon,
       handleCustomChange,
       handleSelectChange,
+      protectContactDraft,
     ])
 
     // Adăugăm un efect pentru a afișa erori de încărcare a clienților
@@ -2604,6 +2610,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 ))}
               </SelectContent>
             </Select>
+            {protectContactDraft && <Button type="button" variant="outline" size="sm" disabled={!formData.contactId} onClick={() => handleContactSelect(formData.contactId!)}>
+              Preia datele actuale ale contactului
+            </Button>}
             <p className="text-xs text-muted-foreground">Modificările de mai jos se aplică numai acestui tichet.</p>
             <Input aria-label="Nume contact tichet" value={formData.persoanaContact} onChange={event => handleSelectChange("persoanaContact", event.target.value)} />
             <Input aria-label="Telefon contact tichet" value={formData.telefon} onChange={event => handleSelectChange("telefon", event.target.value)} />

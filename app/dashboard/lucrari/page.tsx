@@ -21,6 +21,8 @@ import { format, parse, isAfter, isBefore, addMonths, addDays } from "date-fns"
 import { ro } from "date-fns/locale"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Mail, Check, Info, RefreshCw } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { createTicketListDisplays, ticketListDisplay } from "@/lib/work-documents/ticket-list-display"
+import { useWorkClients } from "@/hooks/use-work-clients"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getNextReportNumber, type Lucrare } from "@/lib/firebase/firestore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -471,6 +473,11 @@ export default function Lucrari() {
     return lucrari.filter((lucrare) => !isLucrareAnulata(lucrare))
   }, [lucrari, userData?.role, userData?.displayName])
 
+  // Group reads by distinct linked clients; raw works remain the save/edit inputs.
+  const { clients: listClients, unavailable: listClientsUnavailable } = useWorkClients(filteredLucrari)
+  const listDisplays = useMemo(() => createTicketListDisplays(filteredLucrari, listClients), [filteredLucrari, listClients])
+  const getListDisplay = useCallback((work: any) => listDisplays.get(String(work.id)) || ticketListDisplay(work), [listDisplays])
+
   const getRevisionEquipmentIds = useCallback((work: any): string[] => {
     if (!work || String(work?.tipLucrare || "").toLowerCase() !== "revizie") return []
 
@@ -622,13 +629,13 @@ export default function Lucrari() {
     )
 
     // Extragem toți clienții unici
-    const clienti = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.client))).map((client) => ({
+    const clienti = Array.from(new Set(filteredLucrari.map((lucrare) => getListDisplay(lucrare).client))).map((client) => ({
       value: client,
       label: client,
     }))
 
     // Extragem toate echipamentele unice
-    const echipamente = Array.from(new Set(filteredLucrari.map((lucrare) => lucrare.locatie)))
+    const echipamente = Array.from(new Set(filteredLucrari.map((lucrare) => getListDisplay(lucrare).locatie)))
       .filter(Boolean)
       .map((echipament) => ({
         value: echipament,
@@ -765,7 +772,7 @@ export default function Lucrari() {
         value: [],
       },
     ]
-  }, [filteredLucrari, tehnicieni])
+  }, [filteredLucrari, tehnicieni, getListDisplay])
 
   // Adaugă această funcție după declararea constantei filterOptions
   const hasEquipmentStatusFilter = useMemo(() => {
@@ -839,9 +846,12 @@ export default function Lucrari() {
               // Verificăm dacă există o intersecție între tehnicienii selectați și cei ai lucrării
               return filter.value.some((tehnician) => item.tehnicieni.includes(tehnician))
 
+            case "client":
+              return filter.value.includes(getListDisplay(item).client)
+
             case "locatie":
               // Filtrare după echipament
-              return filter.value.includes(item.locatie)
+              return filter.value.includes(getListDisplay(item).locatie)
 
             case "statusEchipament":
               // Filtrare după statusul echipamentului
@@ -904,7 +914,7 @@ export default function Lucrari() {
         })
       })
     },
-    [activeFilters],
+    [activeFilters, getListDisplay],
   )
 
   // Aplicăm filtrarea manuală pe baza textului de căutare și a filtrelor active
@@ -916,7 +926,7 @@ export default function Lucrari() {
     }
 
     if (!searchText.trim() && !activeFilters.length) {
-      setFilteredData(filteredLucrari)
+      setFilteredData([...filteredLucrari]) // Refresh TanStack cached accessor values after a client update.
       return
     }
 
@@ -935,6 +945,7 @@ export default function Lucrari() {
         if (matchesWorkNumberLoose(item, searchText)) return true
         // Special case: allow searching invoices by partial file name / invoice number.
         if (matchesInvoiceLoose(item, searchText)) return true
+        if (Object.values(getListDisplay(item)).some(value => value.toLowerCase().includes(lowercasedFilter))) return true
         return Object.keys(item).some((key) => {
           const value = item[key]
           if (value === null || value === undefined) return false
@@ -951,7 +962,7 @@ export default function Lucrari() {
     }
 
     setFilteredData(filtered)
-  }, [searchText, filteredLucrari, activeFilters]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite
+  }, [searchText, filteredLucrari, activeFilters, getListDisplay]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite
 
   // Forțăm refiltrarea când datele se încarcă și avem un searchText salvat
   useEffect(() => {
@@ -972,6 +983,7 @@ export default function Lucrari() {
             if (matchesWorkNumberLoose(item, searchText)) return true
             // Special case: allow searching invoices by partial file name / invoice number.
             if (matchesInvoiceLoose(item, searchText)) return true
+            if (Object.values(getListDisplay(item)).some(value => value.toLowerCase().includes(lowercasedFilter))) return true
             return Object.keys(item).some((key) => {
               const value = item[key]
               if (value === null || value === undefined) return false
@@ -990,7 +1002,7 @@ export default function Lucrari() {
 
       return () => clearTimeout(timeoutId)
     }
-  }, [loading, filteredLucrari, searchText, activeFilters]) // Trigger când loading se termină
+  }, [loading, filteredLucrari, searchText, activeFilters, getListDisplay]) // Trigger când loading se termină
 
   // Detectăm dacă suntem pe un dispozitiv mobil
   const isMobile = useMediaQuery("(max-width: 768px)")
@@ -1235,16 +1247,6 @@ export default function Lucrari() {
       }
     }
   }, [tableInstance, userData?.role])
-
-  // Inițializăm datele filtrate și aplicăm filtrele active
-  useEffect(() => {
-    if (activeFilters.length > 0) {
-      const filtered = applyFilters(filteredLucrari)
-      setFilteredData(filtered)
-    } else {
-    setFilteredData(filteredLucrari)
-    }
-  }, [filteredLucrari, activeFilters]) // Eliminat applyFilters din dependencies pentru a evita re-render-uri infinite
 
   // Populate column options when table is available
   useEffect(() => {
@@ -2569,12 +2571,14 @@ export default function Lucrari() {
     },
     {
       accessorKey: "client",
+      accessorFn: (work: any) => getListDisplay(work).client,
       header: "Client",
       enableHiding: true,
       enableFiltering: true,
     },
     {
       accessorKey: "locatie",
+      accessorFn: (work: any) => getListDisplay(work).locatie,
       header: "Locație / Echipament",
       enableHiding: true,
       enableFiltering: true,
@@ -2583,7 +2587,7 @@ export default function Lucrari() {
         const isRevision = String(work?.tipLucrare || "").toLowerCase() === "revizie"
         return (
           <div>
-            <div className="font-medium">{work?.locatie || "-"}</div>
+            <div className="font-medium">{getListDisplay(work).locatie || "-"}</div>
             {isRevision ? (
               <div className="mt-1">
                 <div className="text-sm text-gray-600">
@@ -3020,6 +3024,7 @@ export default function Lucrari() {
   return (
     <TooltipProvider>
       <DashboardShell>
+        {listClientsUnavailable && <p role="status" className="text-xs text-muted-foreground">Datele actuale ale unor clienți nu sunt disponibile. Sunt afișate datele păstrate în tichete.</p>}
       {/* Personal attendance card - appears BEFORE header */}
       {canUsePersonalAttendance && userData?.uid && userData?.displayName && (
         <div className="mb-4">
@@ -3496,7 +3501,7 @@ export default function Lucrari() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-lg font-bold text-gray-900 line-clamp-2">
-                            {lucrare.client || "-"}
+                            {getListDisplay(lucrare).client || "-"}
                           </div>
                           {!isTechnician && (
                             <div className="text-xs text-muted-foreground mt-0.5">
@@ -3554,7 +3559,7 @@ export default function Lucrari() {
                       <div className="space-y-3 text-sm">
                         <div>
                           <div className="text-gray-500 text-xs mb-1">Locație</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{getListDisplay(lucrare).locatie || "-"}</div>
                         </div>
                         <div>
                           <div className="text-gray-500 text-xs mb-1">{isRevisionWork ? "Echipamente" : "Echipament"}</div>
@@ -3591,7 +3596,7 @@ export default function Lucrari() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-lg font-bold text-gray-900 line-clamp-2">
-                            {lucrare.client || "-"}
+                            {getListDisplay(lucrare).client || "-"}
                           </div>
                           {!isTechnician && (
                             <div className="text-xs text-muted-foreground mt-0.5">
@@ -3643,7 +3648,7 @@ export default function Lucrari() {
                       <div className="space-y-3 text-sm">
                         <div>
                           <div className="text-gray-500 text-xs mb-1">Locație</div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{lucrare.locatie || "-"}</div>
+                          <div className="font-medium text-gray-900 line-clamp-1">{getListDisplay(lucrare).locatie || "-"}</div>
                         </div>
                         <div>
                           <div className="text-gray-500 text-xs mb-1">{isRevisionWork ? "Echipamente" : "Echipament"}</div>

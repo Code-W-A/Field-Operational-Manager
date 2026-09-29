@@ -3,8 +3,12 @@ import { Mail, MapPin, Phone } from "lucide-react"
 import { ticketContactDisplay, type SyncRecord } from "@/firebase-functions/src/client-ticket-sync"
 const formatPhoneForCall = (phone: string) => phone.replace(/\D/g, "")
 
-export function TicketContactDetails({ work, client }: { work: SyncRecord; client?: SyncRecord | null }) {
-  const contact = ticketContactDisplay(work, client)
+export function TicketContactDetails({ work, client, display }: {
+  work: SyncRecord
+  client?: SyncRecord | null
+  display?: ReturnType<typeof ticketContactDisplay>
+}) {
+  const contact = display ?? ticketContactDisplay(work, client)
   return <>
                   {/* Locație */}
                   <div>

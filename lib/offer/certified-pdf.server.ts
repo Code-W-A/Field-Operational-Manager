@@ -1,3 +1,4 @@
+import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
 import { getStorage } from "firebase-admin/storage"
 import { adminApp } from "@/lib/firebase/admin"
 import { formatOfferResponseProofText, generateOfferPdf, type OfferPdfInput, type OfferResponseProof } from "@/lib/utils/offer-pdf"
@@ -120,6 +121,7 @@ export async function generateCertifiedLucrariOfferPdf(params: {
       reg: String(work.clientInfo?.rc || ""),
       address: String(work.clientInfo?.adresa || ""),
     },
+    ...documentClientPdfFields(snapshot?.clientSnapshot),
     responseProof: {
       action: params.action,
       actedAt: toIso(actedAt),

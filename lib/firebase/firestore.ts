@@ -1,3 +1,4 @@
+import type { DocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import type { Timestamp, DocumentData } from "firebase/firestore"
 import {
   collection,
@@ -100,6 +101,7 @@ export interface Lucrare {
   offerPreparedBy?: string
   offerPreparedAt?: any
   offerVersions?: Array<{
+    clientSnapshot?: DocumentClientSnapshot
     savedAt: any
     savedBy?: string
     total: number
@@ -143,7 +145,9 @@ export interface Lucrare {
   devizSendCount?: number
   devizPreparedBy?: string
   devizPreparedAt?: any
+  devizClientSnapshot?: DocumentClientSnapshot | null
   devizVersions?: Array<{
+    clientSnapshot?: DocumentClientSnapshot
     savedAt: any
     savedBy?: string
     total: number
@@ -169,6 +173,7 @@ export interface Lucrare {
   // CÂMPURI NOI PENTRU BLOCAREA DATELOR RAPORT - BACKWARD COMPATIBLE
   // Snapshot-ul datelor la prima generare a raportului
   raportSnapshot?: {
+    clientSnapshot?: DocumentClientSnapshot
     timpPlecare: string
     dataPlecare: string
     oraPlecare: string

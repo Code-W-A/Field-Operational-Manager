@@ -16,9 +16,9 @@ import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator"
 import { getClientById, deleteClient, type Client, type Echipament } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
+import { useClientWorks } from "@/hooks/use-client-works"
 import type { Lucrare } from "@/lib/firebase/firestore"
-import { orderBy } from "firebase/firestore"
+
 import { ClientContractsManager } from "@/components/client-contracts-manager"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
@@ -28,8 +28,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { ClientForm } from "@/components/client-form"
 import { EquipmentMigrateWizardDialog } from "@/components/equipment/equipment-migrate-wizard-dialog"
 
-// Importăm hook-ul useClientLucrari pentru a putea actualiza datele
-import { useClientLucrari } from "@/hooks/use-client-lucrari"
+
 
 // Funcție utilitar pentru a extrage CUI-ul indiferent de cum este salvat
 const extractCUI = (client: any) => {
@@ -156,18 +155,22 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   } | null>(null)
   const [equipmentFilters, setEquipmentFilters] = useState<Record<string, EquipmentFilterState>>({})
 
-  // Obținem lucrările pentru acest client
-  const { data: toateLucrarile } = useFirebaseCollection<Lucrare>("lucrari", [orderBy("dataEmiterii", "desc")])
-  const [lucrariClient, setLucrariClient] = useState<Lucrare[]>([])
-
-  // Adăugăm hook-ul în componenta ClientPage
-  const { refreshData } = useClientLucrari()
+  const { works: clientWorks, error: clientWorksError } = useClientWorks(client?.id === id ? client : null)
+  const lucrariClient = React.useMemo(() => [...clientWorks].sort((a: any, b: any) => {
+    const ta = toDateSafe(a?.dataInterventie ?? a?.timpSosire ?? a?.dataEmiterii)?.getTime() ?? Number.NEGATIVE_INFINITY
+    const tb = toDateSafe(b?.dataInterventie ?? b?.timpSosire ?? b?.dataEmiterii)?.getTime() ?? Number.NEGATIVE_INFINITY
+    return tb - ta
+  }), [clientWorks])
 
   useEffect(() => {
+    let active = true
+    setClient(null)
+    setError(null)
     const fetchClient = async () => {
       try {
         setLoading(true)
         const data = await getClientById(id)
+        if (!active) return
         if (data) {
           console.log("DEBUG - Client data from database:", data)
           console.log("DEBUG - client.cui:", data.cui)
@@ -178,31 +181,15 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
         }
       } catch (err) {
         console.error("Eroare la încărcarea clientului:", err)
-        setError("A apărut o eroare la încărcarea clientului")
+        if (active) setError("A apărut o eroare la încărcarea clientului")
       } finally {
-        setLoading(false)
+        if (active) setLoading(false)
       }
     }
 
     fetchClient()
+    return () => { active = false }
   }, [id])
-
-  // Filtrăm lucrările pentru acest client
-  useEffect(() => {
-    if (client && toateLucrarile.length > 0) {
-      const lucrari = toateLucrarile
-        .filter((lucrare) => lucrare.client === client.nume)
-        .sort((a: any, b: any) => {
-          // Sortăm după data intervenției (desc). Fallback: timpSosire / dataEmiterii.
-          const da = toDateSafe(a?.dataInterventie ?? a?.timpSosire ?? a?.dataEmiterii)
-          const db = toDateSafe(b?.dataInterventie ?? b?.timpSosire ?? b?.dataEmiterii)
-          const ta = da ? da.getTime() : Number.NEGATIVE_INFINITY
-          const tb = db ? db.getTime() : Number.NEGATIVE_INFINITY
-          return tb - ta
-        })
-      setLucrariClient(lucrari)
-    }
-  }, [client, toateLucrarile])
 
   // Modificăm funcția handleEdit pentru a reîmprospăta datele
   const handleEdit = () => {
@@ -233,7 +220,6 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
     if (window.confirm("Sunteți sigur că doriți să ștergeți acest client?")) {
       try {
         await deleteClient(id)
-        refreshData() // Adăugăm apelul către refreshData
         router.push("/dashboard/clienti")
       } catch (err) {
         console.error("Eroare la ștergerea clientului:", err)
@@ -412,6 +398,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                   <CardTitle className="text-sm">Ultimele tichete</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3">
+                  {clientWorksError && <p role="status" className="text-sm text-amber-700">Unele tichete nu au putut fi încărcate. Reîncărcați pagina.</p>}
                   {lucrariClient.length > 0 ? (
                     <div className="space-y-2">
                       {lucrariClient.slice(0, 3).map((lucrare) => (

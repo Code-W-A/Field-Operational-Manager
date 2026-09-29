@@ -1,5 +1,8 @@
 "use client"
+import { loadDocumentClientSnapshot } from "@/lib/work-documents/load-document-client"
+import { withDocumentClientSnapshot, type DocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 
+import { arrayUnion } from "firebase/firestore"
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -28,6 +31,7 @@ interface DevizEditorDialogProps {
 }
 
 type DevizVersion = {
+  clientSnapshot?: DocumentClientSnapshot
   savedAt: string
   savedBy?: string
   total: number
@@ -160,13 +164,16 @@ export function DevizEditorDialog({
   const handleSave = async () => {
     try {
       setSaving(true)
+      const current = await getLucrareById(lucrareId, { serverOnly: true })
+      if (!current) throw new Error("Tichetul nu mai este disponibil.")
+      const clientSnapshot = await loadDocumentClientSnapshot(current)
       const version: DevizVersion = {
+        clientSnapshot,
         savedAt: new Date().toISOString(),
         savedBy: userData?.displayName || userData?.email || "Unknown",
         total: discountedTotal,
         products,
       }
-      const current = await getLucrareById(lucrareId)
       const existingVersions = Array.isArray((current as any)?.devizVersions) ? (current as any).devizVersions : []
       const updatedVersions = [...existingVersions, version]
       const normalizedAdjustment = parseFloat(String(adjustmentInput).replace(",", "."))
@@ -176,7 +183,8 @@ export function DevizEditorDialog({
         devizTotal: discountedTotal,
         devizVAT: Number(vatPercent) || 0,
         devizAdjustmentPercent: Number.isNaN(normalizedAdjustment) ? 0 : normalizedAdjustment,
-        devizVersions: updatedVersions as any,
+        devizVersions: arrayUnion(version) as any,
+        devizClientSnapshot: clientSnapshot,
         devizConditions: [] as any,
       } as any)
 
@@ -185,7 +193,7 @@ export function DevizEditorDialog({
       toast({ title: "Deviz salvat", description: "Versiunea curentă a fost salvată." })
     } catch (error) {
       console.error("Eroare la salvarea devizului:", error)
-      toast({ title: "Eroare", description: "Nu s-a putut salva devizul.", variant: "destructive" })
+      toast({ title: "Eroare", description: error instanceof Error ? error.message : "Nu s-a putut salva devizul.", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -197,6 +205,7 @@ export function DevizEditorDialog({
       const version = versions[index]
       if (!version) return
       await updateLucrare(lucrareId, {
+        devizClientSnapshot: version.clientSnapshot || null,
         devizProducts: version.products,
         devizTotal: version.total,
       } as any)
@@ -223,13 +232,15 @@ export function DevizEditorDialog({
       setCurrentWork(freshWork)
       setClientData(freshClient)
 
+      const clientSnapshot = latestVersion.clientSnapshot || null
+      const documentWork = withDocumentClientSnapshot(freshWork, clientSnapshot)
       const preparedAt = formatPreparedDate(new Date())
       const blob = await generateDevizPdf({
         id: String(lucrareId),
-        numarRaport: String((freshWork as any)?.numarRaport || ""),
-        offerNumber: Number((freshWork as any)?.devizSendCount || 0) + 1,
-        client: freshWork?.client || "",
-        attentionTo: freshWork?.persoanaContact || "",
+        numarRaport: String((documentWork as any)?.numarRaport || ""),
+        offerNumber: Number((documentWork as any)?.devizSendCount || 0) + 1,
+        client: documentWork?.client || "",
+        attentionTo: documentWork?.persoanaContact || "",
         fromCompany: "NRG Access Systems SRL",
         products: latestVersion.products.map((product: any) => ({
           name: product?.name || "",
@@ -238,15 +249,15 @@ export function DevizEditorDialog({
         })),
         offerVAT: Number(vatPercent) || 0,
         adjustmentPercent: Number(adjustmentPercent) || 0,
-        equipmentName: String((freshWork as any)?.echipament || ""),
-        locationName: String((freshWork as any)?.locatie || ""),
-        preparedBy: String((freshWork as any)?.preluatDe || userData?.displayName || userData?.email || ""),
+        equipmentName: String((documentWork as any)?.echipament || ""),
+        locationName: String((documentWork as any)?.locatie || ""),
+        preparedBy: String((documentWork as any)?.preluatDe || userData?.displayName || userData?.email || ""),
         preparedAt,
         beneficiar: {
-          name: String((freshWork as any)?.client || (freshWork as any)?.clientInfo?.nume || ""),
-          cui: String((freshWork as any)?.clientInfo?.cui || ""),
-          reg: String((freshWork as any)?.clientInfo?.rc || ""),
-          address: String((freshWork as any)?.clientInfo?.adresa || ""),
+          name: String((documentWork as any)?.client || (documentWork as any)?.clientInfo?.nume || ""),
+          cui: String((documentWork as any)?.clientInfo?.cui || ""),
+          reg: String((documentWork as any)?.clientInfo?.rc || ""),
+          address: String((documentWork as any)?.clientInfo?.adresa || ""),
         },
       } as any)
 
@@ -259,7 +270,7 @@ export function DevizEditorDialog({
           <h2 style="margin:0 0 12px;color:#0f56b3">Deviz lucrarea ${freshWork?.numarRaport || freshWork?.id || lucrareId}</h2>
           <p style="margin:8px 0 12px;color:#0b1220">Atașat găsiți devizul aferent lucrării, cu pozițiile introduse manual.</p>
           <p style="margin:8px 0;color:#0b1220"><strong>Total fără TVA:</strong> ${latestVersion.total.toFixed(2)} lei</p>
-          <p style="margin:8px 0;color:#64748b">Locație: ${presetLocationLabel || freshWork?.locatie || freshWork?.clientInfo?.locationName || "-"}</p>
+          <p style="margin:8px 0;color:#64748b">Locație: ${documentWork.locatie || "-"}</p>
           <div style="margin-top:14px;font-size:11px;color:#6b7280">Acesta este un mesaj automat emis de FOM by NRG.</div>
         </div>
       `
@@ -294,6 +305,7 @@ export function DevizEditorDialog({
       setLastEmailDebug({ status: "success", recipient, api: mailJson })
 
       await updateLucrare(lucrareId, {
+        devizClientSnapshot: clientSnapshot,
         devizProducts: latestVersion.products,
         devizTotal: latestVersion.total,
         devizVAT: Number(vatPercent) || 0,

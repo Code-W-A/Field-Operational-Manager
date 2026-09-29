@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { getClienti, getLucrari } from "@/lib/firebase/firestore"
+import { getClienti, getLucrari, type Client, type Lucrare } from "@/lib/firebase/firestore"
+import { withClientWorkCounts } from "@/lib/client-work-links"
 import { useMockData } from "@/contexts/MockDataContext"
 
 export function useClientLucrari() {
-  const [clienti, setClienti] = useState([])
-  const [lucrari, setLucrari] = useState([])
+  const [clienti, setClienti] = useState<(Client & { numarLucrari: number })[]>([])
+  const [lucrari, setLucrari] = useState<Lucrare[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<unknown>(null)
   const { isPreview, clienti: mockClienti, lucrari: mockLucrari } = useMockData()
 
   // Adăugăm o funcție de reîmprospătare a datelor
@@ -18,23 +19,16 @@ export function useClientLucrari() {
 
       if (isPreview) {
         // Calculate work counts for mock data
-        const clientsWithWorkCount = mockClienti.map((client) => {
-          const workCount = mockLucrari.filter((lucrare) => lucrare.client === client.nume).length
-          return { ...client, numarLucrari: workCount }
-        })
+        const clientsWithWorkCount = withClientWorkCounts(mockClienti as unknown as Client[], mockLucrari)
 
         setClienti(clientsWithWorkCount)
-        setLucrari(mockLucrari)
+        setLucrari(mockLucrari as unknown as Lucrare[])
       } else {
         // Get real data from Firestore
-        const clientiData = await getClienti()
-        const lucrariData = await getLucrari()
+        const [clientiData, lucrariData] = await Promise.all([getClienti(), getLucrari()])
 
         // Calculate the number of works for each client
-        const clientsWithWorkCount = clientiData.map((client) => {
-          const workCount = lucrariData.filter((lucrare) => lucrare.client === client.nume).length
-          return { ...client, numarLucrari: workCount }
-        })
+        const clientsWithWorkCount = withClientWorkCounts(clientiData, lucrariData)
 
         setClienti(clientsWithWorkCount)
         setLucrari(lucrariData)
@@ -56,28 +50,21 @@ export function useClientLucrari() {
       try {
         if (isPreview) {
           // For mock data, calculate the number of works for each client
-          const clientsWithWorkCount = mockClienti.map((client) => {
-            const workCount = mockLucrari.filter((lucrare) => lucrare.client === client.nume).length
-            return { ...client, numarLucrari: workCount }
-          })
+          const clientsWithWorkCount = withClientWorkCounts(mockClienti as unknown as Client[], mockLucrari)
 
           if (isMounted) {
             setClienti(clientsWithWorkCount)
-            setLucrari(mockLucrari)
+            setLucrari(mockLucrari as unknown as Lucrare[])
             setLoading(false)
           }
           return
         }
 
         // Get real data from Firestore
-        const clientiData = await getClienti()
-        const lucrariData = await getLucrari()
+        const [clientiData, lucrariData] = await Promise.all([getClienti(), getLucrari()])
 
         // Calculate the number of works for each client
-        const clientsWithWorkCount = clientiData.map((client) => {
-          const workCount = lucrariData.filter((lucrare) => lucrare.client === client.nume).length
-          return { ...client, numarLucrari: workCount }
-        })
+        const clientsWithWorkCount = withClientWorkCounts(clientiData, lucrariData)
 
         if (isMounted) {
           setClienti(clientsWithWorkCount)

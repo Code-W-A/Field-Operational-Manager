@@ -1,5 +1,6 @@
 import type { OfferPdfInput } from "@/lib/utils/offer-pdf"
 import { formatPreparedDate } from "@/lib/work-documents/shared"
+import { withDocumentClientSnapshot, type DocumentClientSnapshot } from "./document-client-snapshot"
 
 export type OfferPdfProductRow = {
   name?: string
@@ -9,6 +10,7 @@ export type OfferPdfProductRow = {
 }
 
 export type OfferVersionPdfSnapshot = {
+  clientSnapshot?: DocumentClientSnapshot
   savedAt?: unknown
   savedBy?: string
   total?: number
@@ -39,6 +41,7 @@ export function resolveOfferPreparedBy(params: {
 }
 
 export function buildOfferPdfInput(params: {
+  clientSnapshot?: DocumentClientSnapshot
   lucrareId: string
   work: any
   fallbackWork?: any
@@ -52,7 +55,7 @@ export function buildOfferPdfInput(params: {
   /** Pentru teste sau versiuni istorice; implicit `new Date()` ca la trimitere. */
   preparedAtDate?: unknown
 }): OfferPdfInput {
-  const work = params.work || {}
+  const work = withDocumentClientSnapshot(params.work || {}, params.clientSnapshot)
   const fallback = params.fallbackWork || {}
 
   return {
@@ -127,6 +130,7 @@ export function buildOfferVersionPdfInput(params: {
       : params.fallbackVatPercent
 
   return buildOfferPdfInput({
+    clientSnapshot: version.clientSnapshot,
     lucrareId: params.lucrareId,
     work: params.work,
     fallbackWork: params.fallbackWork,

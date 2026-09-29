@@ -1,5 +1,7 @@
 "use client"
 
+import { loadDocumentClientSnapshot } from "@/lib/work-documents/load-document-client"
+import { withDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { useState, forwardRef, useEffect } from "react"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
@@ -216,6 +218,11 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
                      "REGENERARE - VA FOLOSI DATELE ÎNGHEȚATE"
       })
       
+      // Resolve before any numbering or write. Issued reports only use their saved snapshot.
+      const documentClientSnapshot = isFirstGeneration
+        ? await loadDocumentClientSnapshot(lucrare)
+        : (lucrare.raportSnapshot as any)?.clientSnapshot
+
       // Gestionăm numărul de raport: preferăm nrLucrare dacă există; altfel numarRaport; altfel generăm
       let numarRaport = lucrare.nrLucrare || lucrare.numarRaport // Folosim numărul existent (nrLucrare sau numarRaport)
       console.log("🔢 ÎNCEPUT gestionare numarRaport - valoarea inițială:", numarRaport || "LIPSEȘTE")
@@ -292,6 +299,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
         // Creează snapshot-ul cu datele înghețate
         const raportSnapshot = {
+          clientSnapshot: documentClientSnapshot,
           timpPlecare,
           dataPlecare,
           oraPlecare,
@@ -413,6 +421,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         tech: lucrareForPDF.semnaturaTehnician ? "Present" : "Missing",
         client: lucrareForPDF.semnaturaBeneficiar ? "Present" : "Missing",
       })
+
+      lucrareForPDF = withDocumentClientSnapshot(lucrareForPDF, documentClientSnapshot)
 
       const doc = new jsPDF({ unit: "mm", format: "a4" })
       const PW = doc.internal.pageSize.getWidth()
@@ -1194,7 +1204,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       return blob
     } catch (e) {
       console.error("Error generating PDF:", e)
-      toast({ title: "Eroare", description: "Generare eșuată.", variant: "destructive" })
+      toast({ title: "Eroare", description: e instanceof Error ? e.message : "Generare eșuată.", variant: "destructive" })
       setHasGenerated(false) // Reset flag on error
     } finally {
       setIsGen(false)

@@ -7,6 +7,7 @@ import path from 'node:path'
 
 const root = process.cwd()
 const mocks = {
+  "@/lib/firebase/config": `export const db = null;`,
   '@/lib/firebase/firestore': `
     const read = async (kind, id, options) => {
       window.fixture.reads.push({ kind, id, options });
@@ -42,14 +43,14 @@ const result = await build({
     const products = [{ id: 'p', name: 'Current service', quantity: 1, price: 150, total: 150, um: 'buc' }];
     const versionProducts = [{ id: 'old', name: 'Historical service', quantity: 1, price: 100, total: 100, um: 'buc' }];
     const version = { savedAt: '2026-09-10T10:00:00Z', savedBy: 'Alin Ionescu', products: versionProducts, total: 90 };
-    const legacy = { locationEmail: 'support@marf.ro', email: 'support@marf.ro', contactEmail: 'support@marf.ro' };
+    const legacy = { cui: 'RO-HISTORIC', locationEmail: 'support@marf.ro', email: 'support@marf.ro', contactEmail: 'support@marf.ro' };
     window.fixture = {
       work: { id: 'ticket', numarRaport: '001', clientId: 'client', locationId: 'location', client: 'MARF',
         persoanaContact: 'Marf Admin', persoanaContactEmail: 'support@marf.ro', email: 'support@marf.ro',
         clientInfo: legacy, locatie: 'Avangarde', preluatDispecer: true, preluatDe: 'Liliana Ionescu',
         offerPreparedBy: 'Autor ofertă anterior', products, devizProducts: products,
         offerVersions: [version], devizVersions: [version] },
-      client: { locatii: [{ id: 'location', nume: 'Avangarde', persoaneContact: [{ nume: 'Marf Admin', email: 'suport@marf.ro' }] }] },
+      client: { id: 'client', nume: 'MARF ACTUAL', cui: 'RO-CURRENT', locatii: [{ id: 'location', nume: 'Avangarde', persoaneContact: [{ nume: 'Marf Admin', email: 'suport@marf.ro' }] }] },
       reads: [], writes: [], toasts: [], generatedInputs: [], pdfDelay: 0, pdfFailure: false
     };
     const Component = new URLSearchParams(location.search).get('kind') === 'deviz' ? DevizEditorDialog : OfferEditorDialog;
@@ -112,6 +113,7 @@ if (process.argv.includes('--serve')) {
           const email = requests.find(r => r.url === '/api/users/invite')
           assert.deepEqual(email?.body.to, [scenario === 'changed' ? 'actualizat@marf.ro' : 'suport@marf.ro'])
           assert.equal(email.body.type, kind === 'offer' ? 'OFFER' : 'DEVIZ')
+          assert.equal(state.generatedInputs.at(-1).beneficiar.cui, 'RO-HISTORIC', 'Resending a legacy version must not replace its identity with live data')
           if (kind === 'offer') assert.equal(state.generatedInputs.at(-1).preparedBy, 'Test')
           assert.ok(state.toasts.some(t => t.title === (kind === 'offer' ? 'Ofertă trimisă' : 'Deviz trimis')))
         }

@@ -1,6 +1,10 @@
 "use client"
-import { resolveTicketLocation, resolveTicketContact, ticketClientIdentityDisplay } from "@/firebase-functions/src/client-ticket-sync"
+import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
+import { resolveTicketLocation, resolveTicketContact } from "@/firebase-functions/src/client-ticket-sync"
+import { TicketClientInformation, TicketClientReadStatus } from "@/components/ticket-client-information"
 import { TicketContactDetails } from "@/components/ticket-contact-details"
+import { useTicketClient } from "@/hooks/use-ticket-client"
+import { resolveTicketLiveDisplay } from "@/lib/work-documents/ticket-live-display"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -49,7 +53,7 @@ import {
   FileCheck2,
 } from "lucide-react"
 import { format } from "date-fns"
-import { getLucrareById, deleteLucrare, updateLucrare, getClientById, addLucrare } from "@/lib/firebase/firestore"
+import { getLucrareById, deleteLucrare, updateLucrare, addLucrare } from "@/lib/firebase/firestore"
 import { subscribeDocumentatiiFiles, type DocumentatiiFile } from "@/lib/firebase/documentatii"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
 import { isLucrareAnulata } from "@/lib/utils/work-canceled"
@@ -90,7 +94,7 @@ import { PostponeWorkDialog } from "@/components/postpone-work-dialog"
 import { ModificationBanner } from "@/components/modification-banner"
 import { useModificationDetails } from "@/hooks/use-modification-details"
 import { db } from "@/lib/firebase/config"
-import { collection, query, where, getDocs, limit, serverTimestamp, doc, onSnapshot } from "firebase/firestore"
+import { collection, query, where, getDocs, serverTimestamp, doc, onSnapshot } from "firebase/firestore"
 import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
 import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
@@ -349,25 +353,38 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [offerHistoryDialogVersion, setOfferHistoryDialogVersion] = useState<OfferHistoryDialogVersion | null>(null)
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
-  const [clientData, setClientData] = useState<any>(null)
-  const clientIdentity = ticketClientIdentityDisplay(lucrare || {}, clientData)
+  const displayWork = lucrare?.id === paramsId ? lucrare : null
+  const ticketClient = useTicketClient(displayWork, userData?.uid || "")
+  // Existing document/equipment consumers retain the first client read for this ticket.
+  const clientData = ticketClient.initialClient
+  const clientDisplay = useMemo(
+    () => resolveTicketLiveDisplay(displayWork || {}, ticketClient.client),
+    [displayWork, ticketClient.client],
+  )
+  const clientIdentity = clientDisplay.identity
   const [contactSyncIssues, setContactSyncIssues] = useState<string[]>([])
   useEffect(() => {
     let signature = ""
+    let active = true
+    setContactSyncIssues([])
     const stopTicket = onSnapshot(doc(db, "lucrari", paramsId), snapshot => {
-      if (!snapshot.exists()) return
+      if (!active || !snapshot.exists()) return
       const data = snapshot.data()
-      const fields = ["client", "locatie", "locationName", "clientId", "locationId", "contactId", "persoanaContact", "telefon", "persoanaContactEmail", "clientInfo", "persoaneContact", "contactSync"]
+      const fields = ["client", "locatie", "locationName", "clientId", "locationId", "contactId", "persoanaContact", "telefon", "persoanaContactEmail", "clientInfo", "persoaneContact", "contactSync", "statusLucrare", "archivedAt", "archived", "anulat", "anulatAt"]
       const contactData = Object.fromEntries(fields.filter(key => data[key] !== undefined).map(key => [key, data[key]]))
       const next = JSON.stringify(contactData)
       if (next === signature) return
       signature = next
-      setLucrare(previous => previous ? { ...previous, ...contactData } : previous)
-    }, () => setContactSyncIssues(["Actualizările contactului nu au putut fi citite. Reîncărcați pagina."]))
+      setLucrare(previous => {
+        if (!previous || previous.id !== paramsId) return previous
+        const remaining = Object.fromEntries(Object.entries(previous).filter(([key]) => !fields.includes(key)))
+        return { ...remaining, ...contactData } as Lucrare
+      })
+    }, () => { if (active) setContactSyncIssues(["Actualizările contactului nu au putut fi citite. Reîncărcați pagina."]) })
     const stopIssues = onSnapshot(doc(db, "clientContactSyncIssues", paramsId), snapshot => {
-      setContactSyncIssues(snapshot.data()?.conflicts || [])
-    }, () => setContactSyncIssues(["Starea sincronizării nu a putut fi citită."]))
-    return () => { stopTicket(); stopIssues() }
+      if (active) setContactSyncIssues(snapshot.data()?.conflicts || [])
+    }, () => { if (active) setContactSyncIssues(["Starea sincronizării nu a putut fi citită."]) })
+    return () => { active = false; stopTicket(); stopIssues() }
   }, [paramsId])
   // Resolved from live client data (preferred); snapshot fields are fallback only
   const [resolvedLocation, setResolvedLocation] = useState<any>(null)
@@ -645,6 +662,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           reg: String((lucrare as any)?.clientInfo?.rc || clientData?.regCom || ""),
           address: String((lucrare as any)?.clientInfo?.adresa || clientData?.adresa || ""),
         },
+        ...documentClientPdfFields((lucrare as any)?.devizClientSnapshot),
       } as any)
 
       const blobUrl = URL.createObjectURL(blob)
@@ -808,12 +826,44 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return undefined
   }
 
+  // Preserve the existing equipment/document resolution against the initial client read.
+  // Live presentation never replaces lucrare, edit form state, or document inputs.
+  useEffect(() => {
+    setResolvedLocation(null)
+    setResolvedContact(null)
+    setResolvedEquipment(null)
+    setEquipmentData(null)
+    setWarrantyInfo(null)
+    if (!clientData || !displayWork) return
+    let location: any = null
+    try { location = resolveTicketLocation(clientData, displayWork) } catch { /* keep saved data */ }
+    setResolvedLocation(location)
+    try { setResolvedContact(resolveTicketContact(clientData, displayWork).contact) } catch { /* keep saved data */ }
+    const equipment = Array.isArray(location?.echipamente) ? location.echipamente : []
+    const id = "echipamentId" in displayWork ? String(displayWork.echipamentId || "") : ""
+    const code = String(displayWork.echipamentCod || "")
+    const name = String(displayWork.echipament || "")
+    const found = equipment.find((item: any) => id && String(item.id || "") === id)
+      || equipment.find((item: any) => code && String(item.cod || "") === code)
+      || equipment.find((item: any) => name && String(item.nume || "") === name)
+    setResolvedEquipment(found || null)
+    if (found && displayWork.tipLucrare === "Intervenție în garanție") {
+      setEquipmentData(found)
+      setWarrantyInfo(getWarrantyDisplayInfo(found))
+    }
+    // Intentionally frozen until the ticket/client association changes, as before live display.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientData, paramsId])
+
   // Încărcăm datele lucrării și adresa locației
   useEffect(() => {
+    let active = true
+    setLoading(true)
     const fetchLucrareAndLocationAddress = async () => {
       try {
         // Obținem datele lucrării
         const data = await getLucrareById(paramsId)
+        if (!active) return
         setLucrare(data)
 
         if (!debugLoggedOnceRef.did) {
@@ -865,122 +915,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         if (data?.equipmentVerified) {
           setEquipmentVerified(true)
         }
-
-        // Încarcă datele clientului dinamic (preferă clientId; fallback safe pe nume unic) și completează backfill.
-        if (data?.client) {
-          try {
-            const workAny: any = data as any
-            let resolvedClient: any = null
-            let resolution: "byId" | "byNameUnique" | "none" = "none"
-            let resolvedFromId: string | null = null
-
-            const existingClientId = workAny.clientId || workAny.clientInfo?.id
-            if (existingClientId) {
-              try {
-                resolvedClient = await getClientById(String(existingClientId))
-                resolvedFromId = String(existingClientId)
-                resolution = "byId"
-              } catch {
-                resolvedClient = null
-              }
-            } else {
-              // Backfill safe: client.nume e unic → query exact
-              const clientiRef = collection(db, "clienti")
-              const q = query(clientiRef, where("nume", "==", String(data.client)), limit(2))
-              const snap = await getDocs(q)
-              debugClient("client_fallback_query_no_id", { size: snap.size, clientName: String(data.client) })
-              if (snap.size === 1) {
-                const d0 = snap.docs[0]
-                resolvedClient = { id: d0.id, ...(d0.data() as any) }
-                resolvedFromId = d0.id
-                resolution = "byNameUnique"
-
-          }
-        }
-
-            if (resolvedClient) {
-              setClientData(resolvedClient)
-              debugClient("client_resolved", {
-                resolution,
-                resolvedClientId: resolvedClient?.id || resolvedFromId || null,
-                workClientId: workAny?.clientId || null,
-                workClientInfoId: workAny?.clientInfo?.id || null,
-                clientName: data?.client,
-                hasLocatii: Array.isArray(resolvedClient?.locatii),
-                locatiiCount: Array.isArray(resolvedClient?.locatii) ? resolvedClient.locatii.length : 0,
-              })
-
-              // Resolve locație (preferă locationId, altfel fallback pe nume/adresă)
-              const workLocationId = workAny.locationId || workAny.clientInfo?.locationId || workAny.clientInfo?.locatieId
-              let matchedLoc: any = null
-              try { matchedLoc = resolveTicketLocation(resolvedClient, data) } catch { /* no ambiguous fallbacks */ }
-              setResolvedLocation(matchedLoc)
-              try { setResolvedContact(resolveTicketContact(resolvedClient, data).contact) } catch { setResolvedContact(null) }
-              try {
-                const eqs: any[] = Array.isArray(matchedLoc?.echipamente) ? matchedLoc.echipamente : []
-                const targetEid = String((data as any).echipamentId || "")
-                const targetCod = String((data as any).echipamentCod || "")
-                const targetName = String((data as any).echipament || "")
-                const foundEq =
-                  eqs.find((e: any) => (targetEid && String(e?.id || "") === targetEid)) ||
-                  eqs.find((e: any) => (targetCod && String(e?.cod || "") === targetCod)) ||
-                  eqs.find((e: any) => (targetName && String(e?.nume || "") === targetName)) ||
-                  null
-                setResolvedEquipment(foundEq || null)
-              } catch {
-                setResolvedEquipment(null)
-              }
-              debugClient("location_resolved", {
-                workLocationId: workLocationId ? String(workLocationId) : null,
-                matchedLocationId: matchedLoc?.id ? String(matchedLoc.id) : null,
-                matchedLocationName: matchedLoc?.nume || null,
-                matchedLocationAddress: matchedLoc?.adresa || null,
-                via: workLocationId
-                  ? "id"
-                  : data?.locatie
-                    ? "name"
-                    : workAny?.clientInfo?.locationAddress
-                      ? "address"
-                      : "none",
-              })
-
-              // Calculăm informațiile de garanție folosind clientul live (fără full scan)
-              if (data.tipLucrare === "Intervenție în garanție" && data.locatie && (data.echipament || data.echipamentCod || (data as any).echipamentId)) {
-                try {
-                  const eqs = Array.isArray(matchedLoc?.echipamente) ? matchedLoc.echipamente : []
-                  const targetEid = String((data as any).echipamentId || "")
-                  const targetCod = String((data as any).echipamentCod || "")
-                  const targetName = String((data as any).echipament || "")
-                  const eq = eqs.find((e: any) =>
-                    (targetEid && String(e?.id || "") === targetEid) ||
-                    (targetCod && String(e?.cod || "") === targetCod) ||
-                    (targetName && String(e?.nume || "") === targetName)
-                  )
-                  if (eq) {
-                    setEquipmentData(eq)
-                    setWarrantyInfo(getWarrantyDisplayInfo(eq))
-                  }
-                } catch {}
-              }
-            } else {
-              // fallback UI pe snapshot (nu blocăm pagina)
-              setClientData(null)
-              setResolvedLocation(null)
-              setResolvedContact(null)
-              setResolvedEquipment(null)
-              debugClient("client_not_resolved", {
-                reason: existingClientId ? "id_invalid_and_name_not_unique_or_missing" : "no_id_and_name_not_unique_or_missing",
-                workClientId: workAny?.clientId || null,
-                workClientInfoId: workAny?.clientInfo?.id || null,
-                clientName: data?.client,
-              })
-            }
-          } catch (error) {
-            console.error("Eroare la încărcarea datelor clientului dinamic:", error)
-            debugClient("client_load_error", String((error as any)?.message || error))
-          }
-        }
       } catch (error) {
+        if (!active) return
         console.error("Eroare la încărcarea tichetului:", error)
         toast({
           title: "Eroare",
@@ -988,11 +924,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           variant: "destructive",
         })
       } finally {
-        setLoading(false)
+        if (active) setLoading(false)
       }
     }
 
     fetchLucrareAndLocationAddress()
+    return () => { active = false }
   }, [paramsId])
 
   // Verificăm dacă tehnicianul are acces la această lucrare
@@ -3301,9 +3238,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
                 {/* Rând cu: Locație | Persoană contact (locație) | Echipament */}
+                <TicketClientReadStatus unavailable={ticketClient.unavailable} issues={clientDisplay.issues} />
                 {contactSyncIssues.length > 0 && <p role="alert" className="text-sm text-amber-700 mt-3">Date de contact păstrate pentru verificare: {contactSyncIssues.join("; ")}</p>}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                  <TicketContactDetails work={lucrare} client={clientData} />
+                  <TicketContactDetails work={lucrare} display={clientDisplay.contact} />
                   {/* Echipament */}
                   <div>
                     <p className="text-base font-semibold mb-2">Echipament:</p>
@@ -3703,58 +3641,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </CardHeader>
               <CardContent>
              
-                <div className="text-sm grid grid-cols-1 sm:grid-cols-4 gap-x-6 gap-y-2 w-full items-start">
-                  {clientData && (
-                    <>
-                      <div className="flex flex-col min-w-0">
-                        <div className="text-xs font-medium text-muted-foreground">Telefon Principal:</div>
-                        <div className="text-gray-900 whitespace-normal break-words flex items-center gap-2">
-                          {clientIdentity.phone || "N/A"}
-                          {clientIdentity.phone && (
-                            <a
-                              href={`tel:${formatPhoneForCall(clientIdentity.phone)}`}
-                              className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                              aria-label={`Apelează ${clientIdentity.phone}`}
-                              title={`Apelează ${clientIdentity.phone}`}
-                            >
-                              <Phone className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <div className="text-xs font-medium text-muted-foreground">Email (client):</div>
-                        <div className="text-gray-900 whitespace-normal break-words flex flex-col gap-1">
-                          <span className="break-words" title={clientIdentity.email || "N/A"}>{clientIdentity.email || "N/A"}</span>
-                          {clientIdentity.email && (
-                            <a
-                              href={`mailto:${clientIdentity.email}`}
-                              className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-600 text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-                              aria-label={`Scrie email către ${clientIdentity.email}`}
-                              title={`Scrie email către ${clientIdentity.email}`}
-                            >
-                              <Mail className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <div className="text-xs font-medium text-muted-foreground">Reprezentant Firmă:</div>
-                        <div className="text-gray-900 whitespace-normal break-words">{clientData.reprezentantFirma || "N/A"}{clientData.functieReprezentant ? `, ${clientData.functieReprezentant}` : ""}</div>
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <div className="text-xs font-medium text-muted-foreground">CUI/CIF:</div>
-                        <div className="text-gray-900 whitespace-normal break-words">{(clientData as any)?.cif || "N/A"}</div>
-                      </div>
-                  {isAdminOrDispatcher && (
-                    <div className="flex flex-col min-w-0">
-                      <div className="text-xs font-medium text-muted-foreground">Nr. ordine ONRC:</div>
-                      <div className="text-gray-900 whitespace-normal break-words">{(clientData as any)?.regCom || "N/A"}</div>
-                    </div>
-                  )}
-                    </>
-                  )}
-                </div>
+                <TicketClientInformation identity={clientIdentity} showRegistration={isAdminOrDispatcher} />
                 <Separator className="my-4" />
   {/* Rezumat statusuri – lucrare, preluare, ofertare, facturare (etichetă deasupra valorii) */}
   {role !== "tehnician" && (
@@ -4896,6 +4783,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </DialogHeader>
           <LucrareForm
             isEdit={true}
+            preserveContactDraft
             dataEmiterii={editDataEmiterii}
             setDataEmiterii={setEditDataEmiterii}
             dataInterventie={editDataInterventie}
