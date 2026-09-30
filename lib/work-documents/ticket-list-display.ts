@@ -12,3 +12,16 @@ export function createTicketListDisplays(works: SyncRecord[], clients: SyncRecor
   const index = createClientIndex(clients)
   return new Map(works.map(work => [String(work.id), ticketListDisplay(work, index.resolve(work))]))
 }
+
+const copiedClientFields = new Set(["client", "locatie", "locationName", "locationAddress", "persoanaContact", "telefon",
+  "persoanaContactEmail", "email", "clientInfo", "persoaneContact", "contactSync"])
+
+export function matchesTicketSearchText(work: SyncRecord, display: ReturnType<typeof ticketListDisplay>, term: string) {
+  const lower = term.toLocaleLowerCase("ro")
+  if (Object.values(display).some(value => value.toLocaleLowerCase("ro").includes(lower))) return true
+  return Object.entries(work).some(([key, value]) => {
+    if (copiedClientFields.has(key) || value == null || typeof value === "object" && !Array.isArray(value)) return false
+    if (Array.isArray(value)) return value.some(item => typeof item !== "object" && String(item).toLocaleLowerCase("ro").includes(lower))
+    return String(value).toLocaleLowerCase("ro").includes(lower)
+  })
+}

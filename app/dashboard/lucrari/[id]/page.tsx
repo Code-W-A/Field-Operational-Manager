@@ -2772,8 +2772,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                   <div className="flex items-center">
                                     <EquipmentQRCode
                                       equipment={eq}
-                                      clientName={lucrare.client}
-                                      locationName={lucrare.locatie}
+                                      clientName={clientDisplay.identity.name}
+                                      locationName={clientDisplay.contact.location}
                                       clientId={String((lucrare as any)?.clientId || "").trim() || undefined}
                                       locationId={String((lucrare as any)?.locationId || "").trim() || undefined}
                                       useSimpleFormat={true}
@@ -4399,7 +4399,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     open={isOfferEditorOpen}
                     onOpenChange={setIsOfferEditorOpen}
                     initialProducts={(lucrare as any).products || []}
-                    presetLocationLabel={`${lucrare.locatie || (lucrare as any)?.clientInfo?.locationName || ''}${(lucrare as any)?.clientInfo?.locationAddress ? ` — ${(lucrare as any).clientInfo.locationAddress}` : ''}`}
+                    presetLocationLabel={[clientDisplay.contact.location, clientDisplay.contact.address].filter(Boolean).join(" — ")}
                   />
                 )}
 
@@ -4414,7 +4414,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       }
                     }}
                     initialProducts={Array.isArray((lucrare as any).devizProducts) ? (lucrare as any).devizProducts : []}
-                    presetLocationLabel={`${lucrare.locatie || (lucrare as any)?.clientInfo?.locationName || ''}${(lucrare as any)?.clientInfo?.locationAddress ? ` — ${(lucrare as any).clientInfo.locationAddress}` : ''}`}
+                    presetLocationLabel={[clientDisplay.contact.location, clientDisplay.contact.address].filter(Boolean).join(" — ")}
                   />
                 )}
 

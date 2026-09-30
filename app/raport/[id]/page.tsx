@@ -285,16 +285,16 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             setProducts([])
           }
 
-          // If the work has an email address, load it
-          if (processedData.emailDestinatar) {
-            // Dacă emailul din BD este un string, îl convertim la array
-            const emailsFromDB = typeof processedData.emailDestinatar === 'string' 
-              ? [processedData.emailDestinatar] 
-              : Array.isArray(processedData.emailDestinatar) 
-                ? processedData.emailDestinatar 
+          // emailDestinatar was the report form's manually entered extras in older tickets.
+          const savedExtras = Array.isArray(processedData.reportManualRecipients)
+            ? processedData.reportManualRecipients
+            : Array.isArray(processedData.emailDestinatar)
+              ? processedData.emailDestinatar
+              : typeof processedData.emailDestinatar === "string" && processedData.emailDestinatar
+                ? [processedData.emailDestinatar]
                 : []
-            setManualEmails(emailsFromDB)
-          }
+          setManualEmails(savedExtras)
+          setUseManualRecipients(savedExtras.length > 0)
           
           // Initialize signer names with default values, cu fallback la snapshot
           // Pentru tehnician, folosim numele din snapshot, apoi cel salvat, apoi utilizatorul autentificat
@@ -511,279 +511,53 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     }
   }, [])
 
-  // Function to send email
-  const sendEmail = useCallback(
-    async (pdfBlob: Blob) => {
-      try {
-        if (!updatedLucrare) {
-          throw new Error("Datele tichetului nu sunt disponibile")
+  // Client recipients are resolved again on the server at the moment of sending.
+  const sendEmail = useCallback(async (pdfBlob: Blob) => {
+    if (isEmailSending) return false
+    if (!updatedLucrare) {
+      toast({ title: "Eroare", description: "Datele tichetului nu sunt disponibile", variant: "destructive" })
+      return false
+    }
+    setIsEmailSending(true)
+    try {
+      const workId = String(updatedLucrare.id || paramsId)
+      const workNumRaw = String(updatedLucrare.nrLucrare || updatedLucrare.numarRaport || workId)
+      const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+      const formData = new FormData()
+      formData.append("recipientMode", "current-ticket")
+      formData.append("lucrareId", workId)
+      formData.append("manualEmails", JSON.stringify(useManualRecipients ? manualEmails : []))
+      formData.append("pdfFile", new File([pdfBlob], `Raport_Interventie_${workNum}.pdf`, { type: "application/pdf" }))
+      if (String(updatedLucrare.tipLucrare || "").toLowerCase() === "revizie") {
+        try {
+          const opsBlob = await generateRevisionOperationsPDF(workId)
+          formData.append("opsPdfFile", new File([opsBlob], `Fise_Operatiuni_${workNum}.pdf`, { type: "application/pdf" }))
+        } catch (error) {
+          console.warn("Nu s-au putut atașa fișele de operațiuni:", error)
         }
-
-        // Prevent double email sending
-        if (isEmailSending) {
-          console.log("Email sending already in progress, skipping...")
-          return false
-        }
-
-        console.log(`[RAPORT_FLOW ${paramsId}] sendEmail() start`, {
-          lucrareId: updatedLucrare?.id || paramsId,
-          pdfBytes: pdfBlob?.size,
-          useManualRecipients,
-          manualEmailsCount: manualEmails?.length || 0,
-        })
-
-        setIsEmailSending(true)
-
-        // Obținem emailurile de locație (persoaneContact) + fallback la email client – matching robust (ID, nume normalizat, includes)
-        let clientEmail = ""
-        const locationEmails: string[] = []
-        if (updatedLucrare.client && typeof updatedLucrare.client === "string") {
-          try {
-            console.log("Căutăm clientul:", updatedLucrare.client)
-            const clientsRef = collection(db, "clienti")
-            const q = query(clientsRef, where("nume", "==", updatedLucrare.client))
-            const querySnapshot = await getDocs(q)
-
-            if (!querySnapshot.empty) {
-              const clientData: any = querySnapshot.docs[0].data()
-              if (clientData.email) {
-                clientEmail = clientData.email
-                console.log("Am găsit emailul clientului:", clientEmail)
-              }
-
-              // Căutăm emailuri pentru locația selectată folosind potrivire robustă
-              const selectedLocationNameRaw = (updatedLucrare.locatie || updatedLucrare.location || "").toString()
-              const selectedLocationId = (updatedLucrare as any)?.clientInfo?.locationId || (updatedLucrare as any)?.clientInfo?.locatieId
-              const selectedContactNameRaw = (updatedLucrare.persoanaContact || "").toString()
-
-              const norm = (s?: string) =>
-                (s || "")
-                  .toString()
-                  .normalize("NFD")
-                  .replace(/\p{Diacritic}/gu, "")
-                  .trim()
-                  .toLowerCase()
-
-              const locatii = Array.isArray(clientData.locatii) ? clientData.locatii : []
-              const targetName = norm(selectedLocationNameRaw)
-              let matchedLocations: any[] = []
-
-              // 1) Match by ID dacă există
-              if (selectedLocationId) {
-                matchedLocations = locatii.filter((l: any) => String(l?.id || "") === String(selectedLocationId))
-              }
-
-              // 2) Fallback la nume: egalitate sau includes (ambele sensuri) cu normalizare
-              if (matchedLocations.length === 0 && targetName) {
-                matchedLocations = locatii.filter((l: any) => {
-                  const ln = norm(l?.nume || l?.name)
-                  return (ln && ln === targetName) || (ln && targetName && (ln.includes(targetName) || targetName.includes(ln)))
-                })
-              }
-
-              // 3) Dacă tot nu avem match, încercăm adresa (uneori în lucrare se folosește adresa ca locație)
-              if (matchedLocations.length === 0 && targetName) {
-                matchedLocations = locatii.filter((l: any) => {
-                  const la = norm(l?.adresa)
-                  return la && (la === targetName || la.includes(targetName) || targetName.includes(la))
-                })
-              }
-
-              // Preferăm emailul persoanei de contact potrivite (după nume) din locația identificată
-              const selectedContactName = norm(selectedContactNameRaw)
-              if (matchedLocations.length > 0) {
-                const contactsFromSelected = matchedLocations.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
-
-                // 3a) Încercăm să găsim contactul după nume, dacă este specificat în lucrare
-                if (selectedContactName) {
-                  const exact = contactsFromSelected.find((p: any) => norm(p?.nume) === selectedContactName || norm(p?.nume).includes(selectedContactName) || selectedContactName.includes(norm(p?.nume)))
-                  const e = (exact?.email || "").toString().trim()
-                  if (e && /.+@.+\..+/.test(e)) {
-                    locationEmails.push(e)
-                  }
-                }
-
-                // 3b) Adăugăm restul contactelor valide din locație (fără duplicate)
-                for (const p of contactsFromSelected) {
-                  const e = (p?.email || "").toString().trim()
-                  if (e && /.+@.+\..+/.test(e) && !locationEmails.map(x => x.toLowerCase()).includes(e.toLowerCase())) {
-                    locationEmails.push(e)
-                  }
-                }
-              }
-
-              // 4) Ultimul fallback – dacă nu am reușit să identificăm locația, luăm toate persoanele de contact valide ale clientului
-              if (locationEmails.length === 0) {
-                const allContacts = locatii.flatMap((l: any) => Array.isArray(l?.persoaneContact) ? l.persoaneContact : [])
-                for (const p of allContacts) {
-                  const e = (p?.email || "").toString().trim()
-                  if (e && /.+@.+\..+/.test(e)) {
-                    locationEmails.push(e)
-                  }
-                }
-              }
-              console.log("Emailuri locație găsite (robust):", locationEmails)
-            } else {
-              console.log("Clientul nu a fost găsit în Firestore:", updatedLucrare.client)
-            }
-          } catch (firestoreError) {
-            console.error("Eroare la căutarea clientului în Firestore:", firestoreError)
-          }
-        }
-
-        // Construim lista de emailuri pentru trimitere (evităm duplicatele)
-        const emailsToSend: { email: string; label: string }[] = []
-        const sentToEmails: string[] = []
-
-        // Implicit: adăugăm emailuri de locație
-        const pushUnique = (e: string, label: string) => {
-          const email = e.trim().toLowerCase()
-          if (!email) return
-          const exists = emailsToSend.some((x) => x.email.toLowerCase() === email)
-          if (!exists) emailsToSend.push({ email: e.trim(), label })
-        }
-        locationEmails.forEach(e => pushUnique(e, "Email locație"))
-
-        // Fallback: email client
-        if (clientEmail && clientEmail.trim()) {
-          pushUnique(clientEmail, "Email client (din Firestore)")
-        }
-
-        // Dacă este bifat, adăugăm și emailurile manuale
-        if (useManualRecipients) {
-          manualEmails.forEach(email => {
-            if (email && email.trim()) {
-              pushUnique(email, "E-mail manual")
-            }
-          })
-        }
-
-        if (emailsToSend.length === 0) {
-          throw new Error("Nu există adrese de email pentru trimitere (nu s-a găsit niciun email de locație sau client)")
-        }
-
-        console.log("📧 LISTA FINALĂ DE EMAILURI PENTRU TRIMITERE:", emailsToSend)
-        console.log(`📊 Total emailuri de trimis: ${emailsToSend.length}`)
-
-        // Trimitem emailul către fiecare adresă
-        for (const emailInfo of emailsToSend) {
-          console.log(`📮 Încep trimiterea către: ${emailInfo.email} (${emailInfo.label})`)
-          try {
-            // Create FormData for email sending
-            const formData = new FormData()
-            formData.append("to", emailInfo.email)
-            formData.append(
-              "subject",
-              `Raport Interventie - ${updatedLucrare.client || "Client"} - ${String(updatedLucrare.dataInterventie || "Data").split(' ')[0]}`,
-            )
-            formData.append(
-              "message",
-              `Stimata/Stimate ${updatedLucrare.persoanaContact || "Client"},
-
-Va transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${String(updatedLucrare.dataInterventie || "N/A").split(' ')[0]}.
-
-Cu stima,
-FOM by NRG`,
-            )
-            formData.append("senderName", `FOM by NRG - ${updatedLucrare.tehnicieni?.join(", ") || "Tehnician"}`)
-
-            // Add IDs for logging in emailEvents
-            formData.append("lucrareId", updatedLucrare.id || paramsId)
-            if (updatedLucrare.clientInfo?.id) {
-              formData.append("clientId", updatedLucrare.clientInfo.id)
-            }
-
-            // Add PDF as file
-            const workNumRaw = String(updatedLucrare.nrLucrare || updatedLucrare.numarRaport || updatedLucrare.id || paramsId)
-            const workNum = workNumRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-            const pdfFile = new File([pdfBlob], `Raport_Interventie_${workNum}.pdf`, {
-              type: "application/pdf",
-            })
-            formData.append("pdfFile", pdfFile)
-
-            // Add Operations Sheets PDF for Revizie (if applicable)
-            try {
-              if ((updatedLucrare?.tipLucrare || "").toLowerCase() === "revizie") {
-                const opsBlob = await generateRevisionOperationsPDF(updatedLucrare.id || paramsId)
-                const opsFile = new File([opsBlob], `Fise_Operatiuni_${workNum}.pdf`, {
-                  type: "application/pdf",
-                })
-                formData.append("opsPdfFile", opsFile)
-              }
-            } catch (e) {
-              console.warn("Nu s-a putut genera fișele de operațiuni pentru atașare email:", e)
-            }
-
-            // Add company logo
-            formData.append("companyLogo", "/logo-placeholder.png")
-
-            // Send request to API
-            console.log(`[RAPORT_FLOW ${paramsId}] POST /api/send-email -> start`, {
-              to: emailInfo.email,
-              label: emailInfo.label,
-              lucrareId: updatedLucrare.id || paramsId,
-            })
-            const controller = new AbortController()
-            const timeoutMs = 45_000
-            const timer = setTimeout(() => controller.abort(), timeoutMs)
-            const response = await fetch("/api/send-email", {
-              method: "POST",
-              body: formData,
-              signal: controller.signal,
-            }).finally(() => clearTimeout(timer))
-            console.log(`[RAPORT_FLOW ${paramsId}] POST /api/send-email -> response`, {
-              ok: response.ok,
-              status: response.status,
-              to: emailInfo.email,
-            })
-
-            if (!response.ok) {
-              const data = await response.json()
-              throw new Error(data.error || "A aparut o eroare la trimiterea emailului")
-            }
-
-            sentToEmails.push(emailInfo.label + ": " + emailInfo.email)
-            console.log(`✅ EMAIL TRIMIS CU SUCCES către ${emailInfo.email} (${emailInfo.label})`)
-          } catch (emailError: any) {
-            console.error(`❌ EROARE LA TRIMITEREA EMAILULUI către ${emailInfo.email}:`, emailError)
-            console.error(`📝 Detalii eroare:`, emailError.message || emailError)
-            // Nu aruncăm eroarea aici, continuăm cu următorul email
-          }
-        }
-
-        console.log(`📊 REZULTAT FINAL TRIMITERE EMAILURI:`)
-        console.log(`✅ Trimise cu succes: ${sentToEmails.length}`)
-        console.log(`📧 Emailuri trimise: ${sentToEmails.join(", ")}`)
-
-        setIsEmailSending(false)
-
-        // Afișăm un toast cu rezultatele trimiterii
-        if (sentToEmails.length > 0) {
-          toast({
-            title: "Email-uri trimise cu succes",
-            description: `Raportul a fost trimis către:\n${sentToEmails.join('\n')}`,
-            variant: "default",
-            className: "whitespace-pre-line",
-          })
-          return true
-        } else {
-          throw new Error("Nu s-a putut trimite emailul către nicio adresă")
-        }
-
-      } catch (error) {
-        console.error("Eroare la trimiterea emailului:", error)
-        console.error(`[RAPORT_FLOW ${paramsId}] sendEmail() failed`, error)
-        toast({
-          title: "Eroare",
-          description: error instanceof Error ? error.message : "A aparut o eroare la trimiterea emailului",
-          variant: "destructive",
-        })
-        setIsEmailSending(false)
-        return false
       }
-    },
-    [manualEmails, updatedLucrare, paramsId, isEmailSending, useManualRecipients],
-  )
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 45_000)
+      const response = await fetch("/api/send-email", { method: "POST", body: formData, signal: controller.signal })
+        .finally(() => clearTimeout(timer))
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const partial = Array.isArray(result.sent) && result.sent.length
+          ? ` Trimis către: ${result.sent.join(", ")}. Eșuat către: ${(result.failed || []).join(", ")}.`
+          : ""
+        throw new Error(`${result.error || "Nu s-a putut trimite raportul"}${partial}`)
+      }
+      const recipients = Array.isArray(result.recipients) ? result.recipients.join(", ") : "destinatarii actuali"
+      toast({ title: "Raport trimis", description: `Către: ${recipients}` })
+      return true
+    } catch (error) {
+      console.error(`[RAPORT_FLOW ${paramsId}] sendEmail() failed`, error)
+      toast({ title: "Eroare", description: error instanceof Error ? error.message : "Nu s-a putut trimite raportul", variant: "destructive" })
+      return false
+    } finally {
+      setIsEmailSending(false)
+    }
+  }, [manualEmails, updatedLucrare, paramsId, isEmailSending, useManualRecipients])
 
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
@@ -857,7 +631,8 @@ FOM by NRG`,
         products,
         cauzaPrincipalaDefectId,
         cauzaPrincipalaDefect: failureCauseLabel,
-        emailDestinatar: manualEmails,
+        emailDestinatar: useManualRecipients ? manualEmails : [],
+        reportManualRecipients: useManualRecipients ? manualEmails : [],
         ...(typeof clientRating === 'number' ? { clientRating: Math.max(1, Math.min(5, clientRating)) } : {}),
         ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
         // NU setăm raportGenerat sau statusul aici - vor fi setate de ReportGenerator

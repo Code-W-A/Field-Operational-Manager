@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
+import { loadTicketClient } from "@/lib/work-documents/load-ticket-client"
+import { resolveTicketContact, resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync"
 
 export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: string, locationEmail?: string }) {
   const [items, setItems] = useState<any[]>([])
@@ -24,30 +26,15 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
             const workRef = doc(db, "lucrari", lucrareId)
             const workSnap = await getDoc(workRef)
             const work = workSnap.exists() ? (workSnap.data() as any) : null
-            const clientId = work?.clientId || work?.clientInfo?.id
-            if (clientId) {
-              const clientRef = doc(db, "clienti", String(clientId))
-              const clientSnap = await getDoc(clientRef)
-              const client = clientSnap.exists() ? (clientSnap.data() as any) : null
+            if (work) {
+              const client = await loadTicketClient(work)
               const isValid = (e?: string) => !!e && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(String(e || ''))
-              const norm = (s?: string) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim()
-              const matches = (a?: string, b?: string) => {
-                const na = norm(a); const nb = norm(b)
-                if (!na || !nb) return false
-                return na === nb || na.includes(nb) || nb.includes(na)
-              }
-              const locatii: any[] = Array.isArray(client?.locatii) ? client.locatii : []
-              const targetId = work?.locationId || work?.clientInfo?.locationId || work?.clientInfo?.locatieId
-              const targetName = work?.locatie || work?.clientInfo?.locationName
-              const targetAddr = work?.clientInfo?.locationAddress
-              const targetContactName = work?.persoanaContact
-              let loc = targetId ? locatii.find((l: any) => String(l?.id || '') === String(targetId)) : undefined
-              if (!loc) {
-                loc = locatii.find((l: any) => matches(l?.nume, targetName) || matches(l?.adresa, targetAddr))
-              }
+              let loc: any = null
+              try { if (client) loc = resolveTicketLocation(client, work) } catch { /* no guessed location */ }
               if (loc) {
                 const persoane: any[] = Array.isArray(loc?.persoaneContact) ? loc.persoaneContact : []
-                const exact = persoane.find((c: any) => matches(c?.nume, targetContactName))
+                let exact: any = null
+                try { if (client) exact = resolveTicketContact(client, work).contact } catch { /* no guessed contact */ }
                 if (isValid(exact?.email)) setDerivedLocationEmail(String(exact.email))
                 else if (isValid(loc?.email)) setDerivedLocationEmail(String(loc.email))
                 else {
@@ -93,5 +80,4 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
     </div>
   )
 }
-
 

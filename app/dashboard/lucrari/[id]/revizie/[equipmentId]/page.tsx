@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { getLucrareById, getClientById, getClienti } from "@/lib/firebase/firestore"
+import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync"
 
 export default function RevisionEquipmentPage() {
   const params = useParams<{ id: string; equipmentId: string }>()
@@ -63,19 +64,14 @@ export default function RevisionEquipmentPage() {
               client = null
             }
           }
-          if (!client) {
-          const clients = await getClienti()
-            client = clients.find((c: any) => c.nume === work.client) || null
+          if (!cid && work.client) {
+            const clients = await getClienti()
+            const matches = clients.filter((c: any) => c.nume === work.client)
+            client = matches.length === 1 ? matches[0] : null
           }
 
-          const workLocationId = (work as any)?.locationId || (work as any)?.clientInfo?.locationId || (work as any)?.clientInfo?.locatieId
-          const locations = Array.isArray(client?.locatii) ? client.locatii : []
-          const location =
-            (workLocationId
-              ? locations.find((l: any) => String(l?.id || "") === String(workLocationId))
-              : null) ||
-            locations.find((l: any) => l.nume === work.locatie) ||
-            null
+          let location: any = null
+          try { if (client) location = resolveTicketLocation(client, work) } catch { /* association needs explicit repair */ }
           const eqById = location?.echipamente?.find(
             (e: any) => String(e.id) === String(equipmentId)
           )
@@ -231,4 +227,3 @@ export default function RevisionEquipmentPage() {
     </DashboardShell>
   )
 }
-

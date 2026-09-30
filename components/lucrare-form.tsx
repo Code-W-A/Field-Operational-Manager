@@ -2613,6 +2613,19 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             {protectContactDraft && <Button type="button" variant="outline" size="sm" disabled={!formData.contactId} onClick={() => handleContactSelect(formData.contactId!)}>
               Preia datele actuale ale contactului
             </Button>}
+            {protectContactDraft && <Button type="button" variant="outline" size="sm" disabled={!selectedClient || !selectedLocatie || !formData.contactId} onClick={() => {
+              if (!selectedClient || !handleCustomChange) return
+              try {
+                const current = freshReinterventionContact(selectedClient, formData)
+                for (const field of ["client", "locatie", "persoanaContact", "telefon", "persoanaContactEmail", "persoaneContact", "clientId", "locationId", "contactId", "clientInfo", "contactSync"] as const) {
+                  handleCustomChange(field, current[field])
+                }
+              } catch (error) {
+                setError(error instanceof Error ? error.message : "Selectați contactul actual înainte de preluare.")
+              }
+            }}>
+              Înlocuiește excepțiile cu datele actuale ale clientului
+            </Button>}
             <p className="text-xs text-muted-foreground">Modificările de mai jos se aplică numai acestui tichet.</p>
             <Input aria-label="Nume contact tichet" value={formData.persoanaContact} onChange={event => handleSelectChange("persoanaContact", event.target.value)} />
             <Input aria-label="Telefon contact tichet" value={formData.telefon} onChange={event => handleSelectChange("telefon", event.target.value)} />

@@ -13,6 +13,8 @@ import { serverTimestamp } from "firebase/firestore"
 import type { Lucrare } from "@/lib/firebase/firestore"
 import { Mail, AlertCircle } from "lucide-react"
 import { toDateSafe } from "@/lib/utils/time-format"
+import { loadTicketClient } from "@/lib/work-documents/load-ticket-client"
+import { ticketEditDraft } from "@/lib/work-documents/ticket-edit-draft"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -91,8 +93,16 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
     persoaneContact: [] as PersoanaContact[],
     echipamentId: "",
     echipamentCod: "",
+    clientId: "",
+    locationId: "",
+    contactId: "",
+    contactSync: undefined as any,
+    clientInfo: undefined as any,
+    persoanaContactEmail: "",
   })
   const [initialData, setInitialData] = useState<any>(null)
+  const [editInitialData, setEditInitialData] = useState<any>(null)
+  const [clientIssues, setClientIssues] = useState<string[]>([])
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -110,6 +120,12 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         if (lucrare) {
           console.log("Tichet încărcată pentru editare:", lucrare)
           setInitialData(lucrare)
+          let client = null
+          try { client = await loadTicketClient(lucrare) } catch (error) { console.error("Fișa clientului nu a putut fi încărcată:", error) }
+          const draft = ticketEditDraft(lucrare, client)
+          const hydrated = { ...lucrare, ...draft.fields }
+          setEditInitialData(hydrated)
+          setClientIssues(client ? draft.issues : ["Fișa clientului nu poate fi identificată sigur. Verificați asocierea înainte de salvare."])
 
           // Set dates (robust parsing for Timestamp | ISO | date-only | dd.MM.yyyy)
           const today = new Date()
@@ -122,12 +138,12 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
             tipLucrare: lucrare.tipLucrare || "",
             tehnicieni: lucrare.tehnicieni || [],
             equipmentIds: (lucrare as any).equipmentIds || [],
-            client: lucrare.client || "",
-            locatie: lucrare.locatie || "",
+            client: draft.fields.client || "",
+            locatie: draft.fields.locatie || "",
             echipament: lucrare.echipament || "",
             descriere: lucrare.descriere || "",
-            persoanaContact: lucrare.persoanaContact || "",
-            telefon: lucrare.telefon || "",
+            persoanaContact: draft.fields.persoanaContact || "",
+            telefon: draft.fields.telefon || "",
             statusLucrare: lucrare.statusLucrare || "În așteptare",
             statusFacturare: lucrare.statusFacturare || "Nefacturat",
             contract: lucrare.contract || "",
@@ -135,8 +151,14 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
             contractType: lucrare.contractType || "",
             defectReclamat: lucrare.defectReclamat || "",
             persoaneContact: lucrare.persoaneContact || [],
-            echipamentId: lucrare.echipamentId || "",
+            echipamentId: (lucrare as any).echipamentId || "",
             echipamentCod: lucrare.echipamentCod || "",
+            clientId: lucrare.clientId || lucrare.clientInfo?.id || "",
+            locationId: lucrare.locationId || lucrare.clientInfo?.locationId || "",
+            contactId: lucrare.contactId || "",
+            contactSync: lucrare.contactSync,
+            clientInfo: lucrare.clientInfo,
+            persoanaContactEmail: draft.fields.persoanaContactEmail || "",
           })
 
           // Adăugăm un log pentru debugging
@@ -297,7 +319,7 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         (
           data.dataInterventie !== initialData.dataInterventie ||
           JSON.stringify(data.tehnicieni) !== JSON.stringify(initialData.tehnicieni) ||
-          data.locatie !== initialData.locatie ||
+          data.locatie !== editInitialData?.locatie ||
           statusLucrare !== initialData.statusLucrare
         )
       ) {
@@ -423,6 +445,7 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
           <CardDescription>Actualizați detaliile lucrării</CardDescription>
         </CardHeader>
         <CardContent>
+          {clientIssues.length > 0 && <div role="alert" className="mb-4 rounded border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">{clientIssues.join(" ")}</div>}
           <LucrareForm
             ref={formRef}
             isEdit
@@ -437,7 +460,8 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
             handleCustomChange={handleCustomChange}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
-            initialData={initialData}
+            initialData={editInitialData}
+            preserveContactDraft
             fieldErrors={fieldErrors}
           />
         </CardContent>

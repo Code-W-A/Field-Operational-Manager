@@ -6,6 +6,8 @@ import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
+import { loadCurrentTicketRecipients } from "@/lib/work-documents/current-ticket-recipients.server"
+import { sendReportSeparately } from "@/lib/work-documents/send-report-separately"
 
 export async function POST(request: NextRequest) {
   let emailEventId: string | null = null
@@ -20,10 +22,31 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
 
-    const to = formData.get("to") as string
-    const subject = formData.get("subject") as string
-    const message = formData.get("message") as string
+    let to = String(formData.get("to") || "")
+    let subject = String(formData.get("subject") || "")
+    let message = String(formData.get("message") || "")
     const pdfFile = formData.get("pdfFile") as File
+    const currentTicketMode = formData.get("recipientMode") === "current-ticket"
+    if (currentTicketMode) {
+      const lucrareId = String(formData.get("lucrareId") || "").trim()
+      if (!lucrareId) return NextResponse.json({ error: "ID-ul tichetului este obligatoriu" }, { status: 400 })
+      let current: Awaited<ReturnType<typeof loadCurrentTicketRecipients>>
+      try {
+        current = await loadCurrentTicketRecipients(lucrareId, "report")
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Destinatarii actuali nu sunt disponibili" }, { status: 422 })
+      }
+      let manual: unknown
+      try { manual = JSON.parse(String(formData.get("manualEmails") || "[]")) } catch {
+        return NextResponse.json({ error: "Lista adreselor suplimentare este invalidă" }, { status: 400 })
+      }
+      if (!Array.isArray(manual) || manual.length > 20 || manual.some(value => typeof value !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()))) {
+        return NextResponse.json({ error: "Lista adreselor suplimentare este invalidă" }, { status: 400 })
+      }
+      to = Array.from(new Set([...current.emails, ...manual.map(value => String(value).trim().toLowerCase())])).join(", ")
+      subject = `Raport Interventie - ${current.clientName || "Client"} - ${String(current.work.dataInterventie || "Data").split(" ")[0]}`
+      message = `Stimata/Stimate ${current.contactName || "Client"},\n\nVa transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${String(current.work.dataInterventie || "N/A").split(" ")[0]}.\n\nCu stima,\nFOM by NRG`
+    }
     errorTo = to || "unknown"
     errorSubject = subject || "unknown"
     errorLucrareId = (formData.get("lucrareId") as string) || null
@@ -178,15 +201,28 @@ export async function POST(request: NextRequest) {
     if (resolved.imapExplicit !== undefined) {
       sendParams.imapExplicit = resolved.imapExplicit
     }
-    const info = await sendMailWithSentCopy(sendParams)
+    // Reports were historically sent one message per recipient. Keep that privacy
+    // property while deriving the list exclusively from the current client record.
+    const recipients = String(to).split(/[;,]+/).map(value => value.trim()).filter(Boolean)
+    let sent: string[] = []
+    let failed: string[] = []
+    let info: Awaited<ReturnType<typeof sendMailWithSentCopy>> | undefined
+    if (currentTicketMode) {
+      const delivery = await sendReportSeparately(recipients, recipient =>
+        sendMailWithSentCopy({ ...sendParams, mailOptions: { ...mailOptions, to: recipient } }))
+      sent = delivery.sent; failed = delivery.failed; info = delivery.lastResult
+    } else {
+      info = await sendMailWithSentCopy(sendParams)
+      sent.push(...recipients)
+    }
 
     // Actualizăm evenimentul la SENT
     try {
       if (emailEventId) {
         await updateEmailEventServer(emailEventId, {
-          status: "sent",
-          messageId: info.messageId,
-          meta: { smtpTransportSource: resolved.source },
+          status: failed.length ? "failed" : "sent",
+          messageId: info?.messageId,
+          meta: { smtpTransportSource: resolved.source, sent, failed },
         })
       }
       const lucrareId = (formData.get("lucrareId") as string) || undefined
@@ -195,12 +231,9 @@ export async function POST(request: NextRequest) {
           {
           lastReportEmail: {
             sentAt: new Date().toISOString(),
-              to: String(to || "")
-                .split(/[;,]+/)
-                .map((s) => s.trim())
-                .filter(Boolean),
-            status: "sent",
-            messageId: info.messageId,
+              to: recipients,
+            status: failed.length ? "failed" : "sent",
+            messageId: info?.messageId,
           },
           },
           { merge: true },
@@ -211,9 +244,10 @@ export async function POST(request: NextRequest) {
     }
 
     // TODO: Add logging when admin permissions are properly configured
-    console.log(`Email sent successfully to: ${to}`)
+    console.log(`Email sent successfully to: ${sent.join(", ")}`)
 
-    return NextResponse.json({ success: true })
+    if (failed.length) return NextResponse.json({ success: false, error: "Raportul nu a ajuns la toți destinatarii.", sent, failed }, { status: 502 })
+    return NextResponse.json({ success: true, recipients: sent })
   } catch (error: unknown) {
     if (error instanceof RequireRoleError) {
       return NextResponse.json({ error: error.message }, { status: error.status })

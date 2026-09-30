@@ -21,7 +21,9 @@ import { format, parse, isAfter, isBefore, addMonths, addDays } from "date-fns"
 import { ro } from "date-fns/locale"
 import { FileText, Eye, Pencil, Trash2, Loader2, AlertCircle, Mail, Check, Info, RefreshCw } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { createTicketListDisplays, ticketListDisplay } from "@/lib/work-documents/ticket-list-display"
+import { createTicketListDisplays, matchesTicketSearchText, ticketListDisplay } from "@/lib/work-documents/ticket-list-display"
+import { createClientIndex } from "@/lib/client-work-links"
+import { ticketEditDraft } from "@/lib/work-documents/ticket-edit-draft"
 import { useWorkClients } from "@/hooks/use-work-clients"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
 import { addLucrare, deleteLucrare, updateLucrare, getLucrareById, getNextReportNumber, type Lucrare } from "@/lib/firebase/firestore"
@@ -149,6 +151,8 @@ export default function Lucrari() {
   const [dataInterventie, setDataInterventie] = useState<Date | undefined>(undefined)
   const [activeTab, setActiveTab] = useState("tabel")
   const [selectedLucrare, setSelectedLucrare] = useState(null)
+  const [editInitialData, setEditInitialData] = useState<any>(null)
+  const [editClientIssues, setEditClientIssues] = useState<string[]>([])
   const [formData, setFormData] = useState<React.ComponentProps<typeof LucrareForm>["formData"] & { originalWorkOrderInfo?: string; reinterventieMotiv?: any; echipamentModel?: string }>({
     tipLucrare: "",
     tehnicieni: [],
@@ -945,19 +949,7 @@ export default function Lucrari() {
         if (matchesWorkNumberLoose(item, searchText)) return true
         // Special case: allow searching invoices by partial file name / invoice number.
         if (matchesInvoiceLoose(item, searchText)) return true
-        if (Object.values(getListDisplay(item)).some(value => value.toLowerCase().includes(lowercasedFilter))) return true
-        return Object.keys(item).some((key) => {
-          const value = item[key]
-          if (value === null || value === undefined) return false
-
-          // Gestionăm array-uri (cum ar fi tehnicieni)
-          if (Array.isArray(value)) {
-            return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
-          }
-
-          // Convertim la string pentru căutare
-          return String(value).toLowerCase().includes(lowercasedFilter)
-        })
+        return matchesTicketSearchText(item, getListDisplay(item), lowercasedFilter)
       })
     }
 
@@ -983,17 +975,7 @@ export default function Lucrari() {
             if (matchesWorkNumberLoose(item, searchText)) return true
             // Special case: allow searching invoices by partial file name / invoice number.
             if (matchesInvoiceLoose(item, searchText)) return true
-            if (Object.values(getListDisplay(item)).some(value => value.toLowerCase().includes(lowercasedFilter))) return true
-            return Object.keys(item).some((key) => {
-              const value = item[key]
-              if (value === null || value === undefined) return false
-
-              if (Array.isArray(value)) {
-                return value.some((v) => String(v).toLowerCase().includes(lowercasedFilter))
-              }
-
-              return String(value).toLowerCase().includes(lowercasedFilter)
-            })
+            return matchesTicketSearchText(item, getListDisplay(item), lowercasedFilter)
           })
         }
 
@@ -1862,6 +1844,10 @@ export default function Lucrari() {
 
   const handleEdit = (lucrare) => {
     setSelectedLucrare(lucrare)
+    const currentClient = createClientIndex(listClients).resolve(lucrare)
+    const editProjection = ticketEditDraft(lucrare, currentClient)
+    setEditInitialData({ ...lucrare, ...editProjection.fields })
+    setEditClientIssues(currentClient ? editProjection.issues : ["Fișa actuală a clientului nu este disponibilă; verificați datele înainte de salvare."])
 
     // Convertim datele cu parsare robustă (ISO, Timestamp, dd.MM, etc.)
     const parsedEmitere = toDateSafe(lucrare.dataEmiterii)
@@ -1873,17 +1859,17 @@ export default function Lucrari() {
     setFormData({
       tipLucrare: lucrare.tipLucrare,
       tehnicieni: [...lucrare.tehnicieni],
-      client: lucrare.client,
-      locatie: lucrare.locatie,
+      client: editProjection.fields.client,
+      locatie: editProjection.fields.locatie,
       descriere: lucrare.descriere,
-      persoanaContact: lucrare.persoanaContact,
-      telefon: lucrare.telefon,
-      clientId: String((lucrare as any).clientId || ""),
-      locationId: String((lucrare as any).locationId || ""),
+      persoanaContact: editProjection.fields.persoanaContact,
+      telefon: editProjection.fields.telefon,
+      clientId: String((lucrare as any).clientId || (lucrare as any).clientInfo?.id || ""),
+      locationId: String((lucrare as any).locationId || (lucrare as any).clientInfo?.locationId || ""),
       contactId: String((lucrare as any).contactId || ""),
       ...((lucrare as any).contactSync ? { contactSync: (lucrare as any).contactSync } : {}),
       ...((lucrare as any).clientInfo ? { clientInfo: (lucrare as any).clientInfo } : {}),
-      persoanaContactEmail: String((lucrare as any).persoanaContactEmail || ""),
+      persoanaContactEmail: editProjection.fields.persoanaContactEmail,
       statusLucrare: lucrare.statusLucrare,
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
@@ -3110,6 +3096,7 @@ export default function Lucrari() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+            {editClientIssues.length > 0 && <Alert><AlertDescription>{editClientIssues.join(" ")} Valorile diferite introduse doar pe tichet au fost păstrate.</AlertDescription></Alert>}
             <LucrareForm
               ref={editFormRef}
               isEdit={true}
@@ -3124,7 +3111,8 @@ export default function Lucrari() {
               fieldErrors={fieldErrors}
               onCancel={() => handleCloseEditDialog()}
               handleCustomChange={handleCustomChange}
-              initialData={selectedLucrare}
+              initialData={editInitialData}
+              preserveContactDraft={true}
             />
             <DialogFooter className="flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={handleCloseEditDialog}>

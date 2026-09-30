@@ -26,6 +26,8 @@ import {
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatUiDate, formatTime } from "@/lib/utils/time-format"
+import { createClientIndex } from "@/lib/client-work-links"
+import { isContactSyncEligible, resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync"
 
 type Props = {
   workId: string
@@ -57,6 +59,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   const [expectedLocation, setExpectedLocation] = useState<string | undefined>(undefined)
   const [verified, setVerified] = useState(false)
   const [loadingGate, setLoadingGate] = useState(true)
+  const [associationValid, setAssociationValid] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [initialValues, setInitialValues] = useState<Record<string, ItemState | undefined>>({})
   const [initialObs, setInitialObs] = useState<Record<string, string>>({})
@@ -157,13 +160,20 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         setLoadingGate(true)
         const work = await getLucrareById(workId)
         if (work) {
-          setExpectedClient(work.client)
-          setExpectedLocation(work.locatie)
+          const historical = !isContactSyncEligible(work)
+          setExpectedClient(historical ? work.client : undefined)
+          setExpectedLocation(historical ? work.locatie : undefined)
+          setAssociationValid(historical)
           setEquipmentTimes((work as any)?.revisionEquipmentTimes || {})
           try {
             const clients = await getClienti()
-            const client = clients.find((c: any) => c.nume === work.client)
-            const loc = client?.locatii?.find((l: any) => l.nume === work.locatie)
+            const client = createClientIndex(clients).resolve(work)
+            const loc = client ? resolveTicketLocation(client, work) : null
+            if (client && loc) {
+              setExpectedClient(String(client.nume || ""))
+              setExpectedLocation(String(loc.nume || ""))
+              setAssociationValid(true)
+            }
             const eq =
               loc?.echipamente?.find((e: any) => String(e.id) === String(equipmentId)) ||
               loc?.echipamente?.find((e: any) => String(e.cod) === String(equipmentId))
@@ -582,7 +592,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                     </div>
                   </div>
 
-                  <QRCodeScanner
+                  {!associationValid ? <p role="alert" className="text-sm text-amber-800">Clientul sau locația nu poate fi identificată sigur. Corectați asocierea din tichet înainte de scanare.</p> : <QRCodeScanner
                     expectedEquipmentCode={expectedCode}
                     expectedLocationName={expectedLocation}
                     expectedClientName={expectedClient}
@@ -637,7 +647,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                         }
                       }
                     }}
-                  />
+                  />}
                 </>
               )}
             </div>

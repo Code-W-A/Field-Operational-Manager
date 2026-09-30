@@ -9,6 +9,7 @@ import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 import { getRevisionClientNotice } from "@/lib/email/work-order-revision-notice"
+import { loadCurrentTicketRecipients } from "@/lib/work-documents/current-ticket-recipients.server"
 
 // Add this function at the top of the file
 async function validateEmails(data: any) {
@@ -149,6 +150,22 @@ export async function POST(request: NextRequest) {
       console.log(`[WORK-ORDER-API] [${requestId}] EROARE: Lipsește workOrderId`)
       logWarning("Missing required field: workOrderId", { data }, { category: "api", context: logContext })
       return NextResponse.json({ error: "ID-ul tichetului este obligatoriu" }, { status: 400 })
+    }
+
+    // The browser payload is only a notification request, never authority for a client address.
+    // Keep technician delivery independent if the client association cannot be resolved.
+    try {
+      const current = await loadCurrentTicketRecipients(
+        extractWorkOrderId(data.workOrderId),
+        data.details?.eventType === "postponed" ? "postponed" : "work-order",
+      )
+      data.client = { ...(data.client || {}), name: current.clientName, contactPerson: current.contactName, email: "" }
+      data.clientEmails = current.emails
+      data.details = { ...(data.details || {}), location: current.locationName }
+    } catch (error) {
+      console.warn("[WORK-ORDER-API] Client notification skipped:", error)
+      data.client = { ...(data.client || {}), email: "" }
+      data.clientEmails = []
     }
 
     // Extract data
