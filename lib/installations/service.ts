@@ -304,7 +304,7 @@ export function installationService(db: Firestore) {
       return sheet
     }
     const sheets = snapshots.slice(0, 25).map(sanitize).filter(Boolean)
-    return { work: { id: workId, client: work.client, locatie: work.locatie, nrLucrare: work.nrLucrare, statusLucrare: work.statusLucrare, installation: work.installation, equipmentIds: work.equipmentIds }, canStart: actor.role === "tehnician" && assigned(work, user!), sheets, nextCursor: snapshots.length > 25 ? snapshots[24].id : null, completion: completion.exists ? completion.data() : null }
+    return { work: { id: workId, client: work.client, locatie: work.locatie, nrLucrare: work.nrLucrare, statusLucrare: work.statusLucrare, installation: work.installation, equipmentIds: work.equipmentIds, tehnicieni: work.tehnicieni || [], dataEmiterii: work.dataEmiterii || "", dataInterventie: work.dataInterventie || "" }, canStart: actor.role === "tehnician" && assigned(work, user!), sheets, nextCursor: snapshots.length > 25 ? snapshots[24].id : null, completion: completion.exists ? completion.data() : null }
   }
 
   /** Upload is server-only. A file uploaded before a concurrent close is never added to the signed snapshot. */

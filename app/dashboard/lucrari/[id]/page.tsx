@@ -2004,14 +2004,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   if (isInstallationV1(lucrare)) return (
     <DashboardShell>
-      <DashboardHeader heading={`Instalare ${lucrare.nrLucrare || ""}`} text={`${lucrare.client} · ${lucrare.locatie}`}>
-        <Button asChild variant="outline"><Link href="/dashboard/lucrari">Înapoi la tichete</Link></Button>
-        {["admin", "dispecer"].includes(role || "") && !lucrare.installation?.closedReason && (
-          <Button asChild variant="outline"><Link href={`/dashboard/lucrari/${paramsId}/edit`}>Editează tichetul / echipamentele</Link></Button>
-        )}
-      </DashboardHeader>
-      <p className="text-sm">Tehnicieni atribuiți: {lucrare.tehnicieni.join(", ") || "Neatribuit"}</p>
-      <InstallationWorkspace workId={paramsId} compact />
+      <InstallationWorkspace key={paramsId} workId={paramsId} compact />
     </DashboardShell>
   )
 

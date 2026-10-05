@@ -314,3 +314,26 @@ npm run build
 ```
 
 Rămâne verificarea scanării cu camera pe un dispozitiv fizic. Codul și regulile sunt doar locale: nu s-au publicat și nu s-au migrat tichete existente. Expo, alocarea automată a secundarilor și cronometrarea rămân pentru livrările următoare.
+
+## 15. Reorganizarea UI 1A — 5 octombrie 2026
+
+- Interfața folosește cadrul existent de dashboard, header unic, sumarul progresului și contextul cu tehnicienii atribuiți și datele tichetului.
+- Taburi `Echipamente`, `Fișe zilnice`, `Documente`; parametrul `tab` păstrează selecția. Parametrii existenți `equipmentId`, `sheetId` și `complete=1` sunt păstrați; procesul-verbal activează documentele.
+- Echipamentele au model, cod, progres, pornire prin QR, reluarea fișei și consultarea istoricului. Scannerul are propriul panou pentru echipamentul selectat.
+- Istoricul folosește tabel pe desktop și carduri pe telefon, cu paginare și fără un total dedus din fișele încărcate. Filtrul unui echipament operează pe paginile încărcate și permite încărcarea paginilor anterioare.
+- Fișa zilnică are secțiuni distincte pentru lucrări, rezultat/blocaj, fotografii, nota internă și semnături. Acțiunile de salvare și închidere sunt separate, cu bară de acțiuni accesibilă pe telefon, stare de salvare și confirmarea părăsirii prin link atunci când există modificări nesalvate; refresh-ul folosește avertizarea browserului.
+- Fișele semnate și fișele altui principal sunt numai pentru consultare. Nota internă este prezentată numai când API-ul o permite. Semnăturile documentului semnat sunt afișate în pagina fișei.
+- Documentele grupează procesul-verbal, condițiile pentru emitere și legăturile dintre tichetele lucrării. Replanificarea cere confirmarea într-un dialog al aplicației.
+- Răspunsul API de citire primește doar `tehnicieni`, `dataEmiterii`, `dataInterventie`; modelul TypeScript al răspunsului este explicit. Operațiile, autorizarea și regulile de lucru nu sunt extinse.
+- Componentele sunt separate în orchestratorul `installation-workspace` și modulele `installation/overview`, `installation/forms`, `installation/shared`.
+
+Integrarea este locală. Cronometrarea, alocarea secundarilor, Expo și publicarea rămân în afara acestei reorganizări.
+
+Verificarea locală a reorganizării:
+
+- **14/14 teste de integrare trecute**, fără schimbarea operațiilor existente.
+- **Browser desktop (1440 px) și telefon (390 px): trecut**. QR cu cameră virtuală și respingerea codului greșit; ciornă, fotografii, semnături și PDF-uri; tab păstrat la refresh; 28 de fișe încărcate în două pagini; prezentare mobilă fără depășirea lățimii; avertizare pentru modificări nesalvate; consultare pentru alt tehnician fără nota internă; consultare pentru admin și acțiune de continuare pentru dispecer; confirmare/anulare replanificare, continuare fără echipamente finalizate și istoric gol; pagina raportului cu un singur cadru dashboard; încărcare, eroare API și reîncercare. Fără erori JavaScript în parcursul urmărit.
+- **Build local trecut**. Configurația existentă omite TypeScript/lint în build. Verificarea separată TypeScript raportează 217 erori în proiect, fără erori în componentele instalării, tipul răspunsului, serviciul instalării sau scriptul de browser modificat.
+- Capturi locale: `/private/tmp/fom-installation-overview-desktop.png`, `/private/tmp/fom-installation-overview-mobile.png`, `/private/tmp/fom-installation-sheet-mobile.png`, `/private/tmp/fom-installation-documents-desktop.png`.
+
+Camera virtuală verifică integrarea scannerului cu fluxul aplicației; verificarea pe un telefon cu cameră fizică rămâne necesară. Nu s-a făcut publicare sau modificare de date live.

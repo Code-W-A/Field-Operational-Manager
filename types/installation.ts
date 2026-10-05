@@ -56,3 +56,22 @@ export type InstallationMeta = {
   completionDocumentId?: string
 }
 export const isInstallationV1 = (work: any): boolean => work?.tipLucrare === "Instalare" && work?.installation?.schemaVersion === 1
+
+export type InstallationListResponse = {
+  work: {
+    id: string;
+    client: string;
+    locatie: string;
+    nrLucrare?: string;
+    statusLucrare: string;
+    tehnicieni: string[];
+    dataEmiterii?: string;
+    dataInterventie?: string;
+    installation: InstallationMeta;
+    equipmentIds: string[];
+  };
+  canStart: boolean;
+  sheets: InstallationSheet[];
+  nextCursor: string | null;
+  completion: { id: string; documentSnapshot: InstallationDocument } | null;
+};
