@@ -19,6 +19,8 @@ import { drawFooter as drawCommonFooter } from "@/lib/pdf/common"
 interface ReportGeneratorProps {
   lucrare: Lucrare & { products?: Product[] }
   onGenerate?: (pdf: Blob) => void
+  readOnly?: boolean
+  onError?: (error: Error) => void
 }
 
 // păstrăm diacriticele; convertim s/t cu sedilă la virgulă jos și forțăm NFC
@@ -119,7 +121,7 @@ const STROKE = 0.3 // line width (pt)
 const LIGHT_GRAY = 240 // fill shade (lighter)
 const DARK_GRAY = 210 // darker fill for headers
 
-export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate }, ref) => {
+export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate, readOnly = false, onError }, ref) => {
   const [isGen, setIsGen] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
@@ -182,6 +184,10 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
 
   const generatePDF = useStableCallback(async () => {
     if (!lucrare) return
+    if (readOnly && !lucrare.raportGenerat) {
+      onError?.(new Error("Raportul nu este încă generat."))
+      return
+    }
     
     // Prevent double generation
     if (hasGenerated) {
@@ -231,7 +237,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         // Pentru rapoartele vechi finalizate, NU generăm niciun număr
         numarRaport = undefined // Forțăm să fie undefined pentru a nu afișa în PDF
         console.log("🏛️ Raport vechi finalizat - NU se afișează număr de raport")
-      } else if ((isFirstGeneration || !numarRaport) && !numarRaport) {
+      } else if (!readOnly && (isFirstGeneration || !numarRaport) && !numarRaport) {
         // Generăm număr la prima generare SAU când lipsește (pentru a corecta lucrări vechi fără număr)
         console.log("🔢 CONDIȚII ÎNDEPLINITE pentru generarea numărului:")
         console.log("   - isFirstGeneration:", isFirstGeneration, "sau lipsește numărul existent")
@@ -374,10 +380,15 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
             numeTehnician: lucrare.raportSnapshot.numeTehnician,
             numeBeneficiar: lucrare.raportSnapshot.numeBeneficiar,
             // Include imaginile adăugate de tehnician (nu sunt în snapshotul vechi)
-            imaginiDefecte: (lucrare as any).imaginiDefecte || (lucrare.raportSnapshot as any)?.imaginiDefecte || [],
+            imaginiDefecte: readOnly
+              ? ((lucrare.raportSnapshot as any)?.imaginiDefecte ?? (lucrare as any).imaginiDefecte ?? [])
+              : ((lucrare as any).imaginiDefecte || (lucrare.raportSnapshot as any)?.imaginiDefecte || []),
             // Păstrăm numărul raportului din obiectul principal (nu se stochează în snapshot)
             numarRaport: lucrare.numarRaport
           }
+        } else if (readOnly) {
+          // Resending legacy reports keeps their stored dates and signatures, even without a snapshot.
+          lucrareForPDF = { ...lucrare }
         } else {
           // FALLBACK pentru rapoarte vechi - funcționează ca înainte
           console.log("⚠️ FALLBACK - Snapshot lipsește, generez date noi")
@@ -423,6 +434,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       })
 
       lucrareForPDF = withDocumentClientSnapshot(lucrareForPDF, documentClientSnapshot)
+      if (readOnly) lucrareForPDF = { ...lucrareForPDF, numarRaport: lucrare.nrLucrare || lucrare.numarRaport || (lucrare.raportSnapshot as any)?.numarRaport || "" }
 
       const doc = new jsPDF({ unit: "mm", format: "a4" })
       const PW = doc.internal.pageSize.getWidth()
@@ -467,7 +479,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       doc.setFontSize(13)
         .setFont("NotoSans", "bold")
         .setTextColor(255, 255, 255)
-        .text("Raport de interventie nr. #" + reportNumber, M + 4, currentY + (titleBarHeight / 2) + 1)
+        .text(readOnly && !rawReportNum ? "Raport de interventie" : "Raport de interventie nr. #" + reportNumber, M + 4, currentY + (titleBarHeight / 2) + 1)
       
       // LOGO în dreapta sus (mai mare, proporții corecte ca la ofertă)
       if (logoLoaded && logoDataUrl) {
@@ -1089,7 +1101,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
       console.log("📄 PDF generat cu succes, acum salvez starea în Firestore")
       
       // Mark document as generated and record departure time
-      if (lucrare.id) {
+      if (lucrare.id && !readOnly) {
         console.log("🔐 SALVARE ÎN FIRESTORE pentru lucrarea:", lucrare.id)
         try {
           // Folosim updateDoc din firebase/firestore
@@ -1205,6 +1217,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     } catch (e) {
       console.error("Error generating PDF:", e)
       toast({ title: "Eroare", description: e instanceof Error ? e.message : "Generare eșuată.", variant: "destructive" })
+      onError?.(e instanceof Error ? e : new Error("Generare PDF eșuată."))
       setHasGenerated(false) // Reset flag on error
     } finally {
       setIsGen(false)

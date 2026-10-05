@@ -302,6 +302,10 @@ export interface Lucrare {
   clientReview?: string
   // Email statuses (denormalized quick view)
   lastReportEmail?: {
+    actorUid?: string
+    action?: "report-resend"
+    sent?: string[]
+    failed?: string[]
     sentAt?: any
     to?: string[]
     status?: "queued" | "sent" | "failed" | "bounced" | "delivered"

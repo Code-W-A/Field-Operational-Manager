@@ -38,6 +38,8 @@
     "test:revision-equipment-selection": "tsx --test firebase-functions/src/revision-equipment-selection.test.ts",
     "test:installation": "tsx --test lib/installations/service.test.ts",
     "test:installation:browser": "tsx scripts/test-installation-browser.ts",
+    "test:report-resend": "tsx --test lib/work-documents/report-resend.test.ts lib/work-documents/current-ticket-recipients.test.ts",
+    "test:report-resend:browser": "tsx scripts/test-report-resend-browser.ts",
     "test:client-consistency": "tsx --test lib/work-documents/client-consistency.test.ts",
     "test:ticket-live-display": "tsx --test lib/work-documents/ticket-live-display.test.ts",
     "test:ticket-live-display:browser": "node scripts/test-ticket-live-display-browser.mjs",

@@ -2,6 +2,7 @@ import { withSentryConfig } from "@sentry/nextjs"
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(process.env.NODE_ENV === "development" && process.env.FOM_TEST_DIST_DIR ? { distDir: process.env.FOM_TEST_DIST_DIR } : {}),
   eslint: {
     ignoreDuringBuilds: true,
   },

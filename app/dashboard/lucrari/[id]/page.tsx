@@ -68,6 +68,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
 import { ReportGenerator } from "@/components/report-generator"
+import { ReportResendDialog } from "@/components/report-resend-dialog"
 import { ImageDefectViewer } from "@/components/image-defect-viewer"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Lucrare } from "@/lib/firebase/firestore"
@@ -2103,6 +2104,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <FileText className="mr-2 h-4 w-4" /> Descarcă raport
             </Button>
           )}
+
+          {lucrare.raportGenerat && isAdminOrDispatcher && <ReportResendDialog work={lucrare} onSent={() => refreshLucrare({ preserveActiveTab: true })} />}
 
           {/* Doar tehnicienii pot genera raportul, și doar dacă nu este deja generat */}
           {!lucrare.raportGenerat && role === "tehnician" && (

@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import path from "path"
-import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
+import { requireRole, requireVerifiedRole, RequireRoleError } from "@/lib/auth/require-role"
 import { adminDb } from "@/lib/firebase/admin"
 import { emailDiagnosticsToMeta, extractEmailSendDiagnostics } from "@/lib/email/email-error-diagnostics.server"
 import { logEmailEventServer, updateEmailEventServer } from "@/lib/email/email-events.server"
 import { resolveMailTransport } from "@/lib/email/resolve-mail-transport.server"
 import { sendMailWithSentCopy } from "@/lib/email/send-with-sent-copy.server"
 import { loadCurrentTicketRecipients } from "@/lib/work-documents/current-ticket-recipients.server"
+import { validateResendEmails } from "@/lib/work-documents/report-resend"
+import { loadResendReport } from "@/lib/work-documents/report-resend.server"
 import { sendReportSeparately } from "@/lib/work-documents/send-report-separately"
 
 export async function POST(request: NextRequest) {
@@ -14,19 +16,46 @@ export async function POST(request: NextRequest) {
   let errorTo = "unknown"
   let errorSubject = "unknown"
   let errorLucrareId: string | null = null
+  let actorUid: string | null = null
+  let resendMode = false
   try {
-    const session = await requireRole(["admin", "dispecer", "tehnician"], request)
+    const formData = await request.formData()
+    resendMode = formData.get("recipientMode") === "report-resend"
+    const session = resendMode
+      ? await requireVerifiedRole(["admin", "dispecer"], request)
+      : await requireRole(["admin", "dispecer", "tehnician"], request)
+    actorUid = session.uid
     if (!session.uid) {
       return NextResponse.json({ error: "Autentificare obligatorie (sesiune sau Bearer token)." }, { status: 401 })
     }
-
-    const formData = await request.formData()
 
     let to = String(formData.get("to") || "")
     let subject = String(formData.get("subject") || "")
     let message = String(formData.get("message") || "")
     const pdfFile = formData.get("pdfFile") as File
     const currentTicketMode = formData.get("recipientMode") === "current-ticket"
+    if (resendMode) {
+      const workId = String(formData.get("lucrareId") || "").trim()
+      let work: Record<string, any>
+      let recipients: string[]
+      try {
+        work = await loadResendReport(workId)
+        recipients = validateResendEmails(JSON.parse(String(formData.get("recipients") || "[]")))
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Cerere de retrimitere invalidă." }, { status: 400 })
+      }
+      const files = [pdfFile, ...((String(work.tipLucrare || "").toLowerCase() === "revizie" || formData.has("opsPdfFile")) ? [formData.get("opsPdfFile")] : [])]
+      for (const file of files) {
+        if (!(file instanceof File) || file.type !== "application/pdf" || !file.size || file.size > 10 * 1024 * 1024
+          || Buffer.from(await file.slice(0, 5).arrayBuffer()).toString("ascii") !== "%PDF-") {
+          return NextResponse.json({ error: "Raportul și fișele obligatorii trebuie să fie PDF-uri valide, de maximum 10 MB fiecare." }, { status: 400 })
+        }
+      }
+      // The operator's confirmed list is authoritative: do not append live or historical addresses.
+      to = recipients.join(", ")
+      subject = `Raport Interventie - ${work.raportSnapshot?.clientSnapshot?.client || work.client || "Client"} - ${String(work.nrLucrare || work.numarRaport || workId)}`
+      message = "Vă retransmitem atașat raportul de intervenție.\n\nCu stimă,\nFOM by NRG"
+    }
     if (currentTicketMode) {
       const lucrareId = String(formData.get("lucrareId") || "").trim()
       if (!lucrareId) return NextResponse.json({ error: "ID-ul tichetului este obligatoriu" }, { status: 400 })
@@ -169,6 +198,7 @@ export async function POST(request: NextRequest) {
           pdfName: (pdfFile as any)?.name || undefined,
           smtpTransportSource: resolved.source,
           actorUid: session.uid,
+          action: resendMode ? "report-resend" : "report-send",
         },
       })
     } catch (error) {
@@ -207,7 +237,7 @@ export async function POST(request: NextRequest) {
     let sent: string[] = []
     let failed: string[] = []
     let info: Awaited<ReturnType<typeof sendMailWithSentCopy>> | undefined
-    if (currentTicketMode) {
+    if (currentTicketMode || resendMode) {
       const delivery = await sendReportSeparately(recipients, recipient =>
         sendMailWithSentCopy({ ...sendParams, mailOptions: { ...mailOptions, to: recipient } }))
       sent = delivery.sent; failed = delivery.failed; info = delivery.lastResult
@@ -222,22 +252,20 @@ export async function POST(request: NextRequest) {
         await updateEmailEventServer(emailEventId, {
           status: failed.length ? "failed" : "sent",
           messageId: info?.messageId,
-          meta: { smtpTransportSource: resolved.source, sent, failed },
+          meta: { smtpTransportSource: resolved.source, sent, failed, actorUid: session.uid, action: resendMode ? "report-resend" : "report-send" },
         })
       }
       const lucrareId = (formData.get("lucrareId") as string) || undefined
       if (lucrareId) {
-        await adminDb.collection("lucrari").doc(String(lucrareId)).set(
-          {
-          lastReportEmail: {
-            sentAt: new Date().toISOString(),
-              to: recipients,
-            status: failed.length ? "failed" : "sent",
-            messageId: info?.messageId,
-          },
-          },
-          { merge: true },
-        )
+        const lastReportEmail = {
+          sentAt: new Date().toISOString(), to: recipients,
+          status: failed.length ? "failed" : "sent",
+          ...(info?.messageId ? { messageId: info.messageId } : {}),
+          ...(resendMode ? { actorUid: session.uid, action: "report-resend", sent, failed } : {}),
+        }
+        const ref = adminDb.collection("lucrari").doc(String(lucrareId))
+        if (resendMode) await ref.update({ lastReportEmail })
+        else await ref.set({ lastReportEmail }, { merge: true })
       }
     } catch (error) {
       console.error("Eroare la logging eveniment email sent:", error)
@@ -247,7 +275,7 @@ export async function POST(request: NextRequest) {
     console.log(`Email sent successfully to: ${sent.join(", ")}`)
 
     if (failed.length) return NextResponse.json({ success: false, error: "Raportul nu a ajuns la toți destinatarii.", sent, failed }, { status: 502 })
-    return NextResponse.json({ success: true, recipients: sent })
+    return NextResponse.json({ success: true, recipients: sent, sent, failed })
   } catch (error: unknown) {
     if (error instanceof RequireRoleError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
@@ -260,6 +288,7 @@ export async function POST(request: NextRequest) {
         await adminDb.collection("lucrari").doc(String(errorLucrareId)).set(
           {
             lastReportEmail: {
+              ...(resendMode ? { actorUid, action: "report-resend" } : {}),
               sentAt: new Date().toISOString(),
               to: String(errorTo || "")
                 .split(/[;,]+/)
