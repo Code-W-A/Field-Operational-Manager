@@ -2105,8 +2105,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             </Button>
           )}
 
-          {lucrare.raportGenerat && isAdminOrDispatcher && <ReportResendDialog work={lucrare} onSent={() => refreshLucrare({ preserveActiveTab: true })} />}
-
           {/* Doar tehnicienii pot genera raportul, și doar dacă nu este deja generat */}
           {!lucrare.raportGenerat && role === "tehnician" && (
             <Button 
