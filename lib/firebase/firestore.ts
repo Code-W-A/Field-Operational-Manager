@@ -322,6 +322,7 @@ export interface Lucrare {
   // Revizie (multi-echipament)
   equipmentIds?: string[]           // Lista echipamentelor pentru lucrarea de tip Revizie
   revision?: WorkRevisionMeta       // Metadate revizie (versiune checklist, progres)
+  installation?: import("@/types/installation").InstallationMeta
 }
 
 // Email events tracking
@@ -1171,6 +1172,10 @@ export const getLucrareById = async (id: string, options?: { serverOnly?: boolea
 
 // Add a new work order
 export const addLucrare = async (lucrare: Lucrare) => {
+  if (lucrare.tipLucrare === "Instalare") {
+    const { createInstallationTicket } = await import("@/lib/installations/create-client")
+    return await createInstallationTicket(lucrare)
+  }
   if (lucrare.tipLucrare === "Re-Intervenție") {
     // Read from the server at the last creation boundary, for every entry point.
     const { refreshReinterventionContact } = await import("@/lib/work-documents/live-ticket-contact")
@@ -1264,6 +1269,16 @@ export const updateLucrare = async (
     }
   } catch (error) {
     console.warn("Nu s-au putut obține datele vechi (log dif optional):", error)
+  }
+  if ((oldLucrareData as any)?.installation?.schemaVersion === 1) {
+    const { installationRequest, installationApi } = await import("@/lib/installations/client")
+    // Incidental notification/read tracking remains compatible with existing clients.
+    if (silent && Object.keys(lucrare).every(key => ["notificationRead", "notificationReadBy"].includes(key))) {
+      await updateDoc(lucrareDoc, lucrare as any)
+      return
+    }
+    await installationRequest(installationApi(id), { action: "edit", work: lucrare })
+    return
   }
   
   // Pentru actualizări silentioase (ex: marcare ca citită), nu actualizăm updatedAt și nu resetăm notificările

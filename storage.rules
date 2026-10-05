@@ -2,8 +2,9 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if true;
+    // Installation photos are uploaded/read through authenticated server endpoints.
+    match /{directory}/{allPaths=**} {
+      allow read, write: if directory != 'installations';
     }
   }
 }

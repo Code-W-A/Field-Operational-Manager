@@ -1,4 +1,6 @@
 "use client"
+import { isInstallationV1 } from "@/types/installation"
+import { InstallationWorkspace } from "@/components/installation-workspace"
 import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
 import { resolveTicketLocation, resolveTicketContact } from "@/firebase-functions/src/client-ticket-sync"
 import { TicketClientInformation, TicketClientReadStatus } from "@/components/ticket-client-information"
@@ -1058,7 +1060,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         dataInterventie: format(editDataInterventie as Date, "dd.MM.yyyy HH:mm"),
       }
 
-      if (updatedPayload.tipLucrare === "Revizie") {
+      if (updatedPayload.tipLucrare === "Revizie" || (updatedPayload.tipLucrare === "Instalare" && updatedPayload.equipmentIds?.length)) {
         delete updatedPayload.echipament
         delete updatedPayload.echipamentId
         delete updatedPayload.echipamentCod
@@ -1998,6 +2000,19 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const conflictBadgeClass = onlyCurrentTicketConflict
     ? "border-blue-300 bg-blue-100 text-blue-800"
     : "border-amber-300 bg-amber-100 text-amber-900"
+
+  if (isInstallationV1(lucrare)) return (
+    <DashboardShell>
+      <DashboardHeader heading={`Instalare ${lucrare.nrLucrare || ""}`} text={`${lucrare.client} · ${lucrare.locatie}`}>
+        <Button asChild variant="outline"><Link href="/dashboard/lucrari">Înapoi la tichete</Link></Button>
+        {["admin", "dispecer"].includes(role || "") && !lucrare.installation?.closedReason && (
+          <Button asChild variant="outline"><Link href={`/dashboard/lucrari/${paramsId}/edit`}>Editează tichetul / echipamentele</Link></Button>
+        )}
+      </DashboardHeader>
+      <p className="text-sm">Tehnicieni atribuiți: {lucrare.tehnicieni.join(", ") || "Neatribuit"}</p>
+      <InstallationWorkspace workId={paramsId} compact />
+    </DashboardShell>
+  )
 
   return (
     <TooltipProvider>

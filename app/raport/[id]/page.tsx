@@ -1,4 +1,6 @@
 "use client"
+import { isInstallationV1 } from "@/types/installation"
+import { InstallationWorkspace } from "@/components/installation-workspace"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
@@ -1188,6 +1190,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     
     return missing
   }
+
+  if (!loading && isInstallationV1(tichet)) return <InstallationWorkspace workId={paramsId} />
 
   // Show loading state
   if (loading) {

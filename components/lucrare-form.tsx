@@ -1,4 +1,5 @@
 "use client"
+import { isInstallationV1 } from "@/types/installation"
 
 import type React from "react"
 import { freshReinterventionContact, resolveTicketLocation, ticketContactOptions } from "@/firebase-functions/src/client-ticket-sync"
@@ -230,7 +231,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     ref,
   ) => {
     const protectContactDraft = isEdit && preserveContactDraft
-    const associationLocked = isReintervention && !formData.contactSelectionRequired
+    const isMultiEquipment = formData.tipLucrare === "Revizie" || (formData.tipLucrare === "Instalare" && (!isEdit || isInstallationV1(initialData)))
+    const installationLockedIds: string[] = isInstallationV1(initialData) ? [...((initialData as any).installation.startedEquipmentIds || []), ...((initialData as any).installation.inheritedStartedEquipmentIds || [])] : []
+    const installationStarted = installationLockedIds.length > 0
+    const associationLocked = (isReintervention && !formData.contactSelectionRequired) || installationStarted
     const { userData } = useAuth()
     const userRole = userData?.role
     const isAdminOrDispatcher = userRole === "admin" || userRole === "dispecer"
@@ -387,8 +391,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       [isEdit, initialRevizieKeys, availableEquipments],
     )
     const isRecentRevisionBlocked = useCallback(
-      (id: string) => Boolean(recentRevisionHits[id]) && !isExistingEditedRevisionEquipment(id),
-      [recentRevisionHits, isExistingEditedRevisionEquipment],
+      (id: string) => formData.tipLucrare === "Revizie" && Boolean(recentRevisionHits[id]) && !isExistingEditedRevisionEquipment(id),
+      [recentRevisionHits, isExistingEditedRevisionEquipment, formData.tipLucrare],
     )
     const toggleEquipmentId = (id: string) => {
       if (!handleCustomChange) return
@@ -401,6 +405,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         })
         return
       }
+      if (isInstallationV1(initialData) && installationLockedIds.includes(id) && selectedRevizieIds.includes(id)) return
       const exists = selectedRevizieIds.includes(id)
       const next = exists ? selectedRevizieIds.filter((x) => x !== id) : [...selectedRevizieIds, id]
       handleCustomChange("equipmentIds", next)
@@ -415,7 +420,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         .map((e) => e.id!)
         .filter((id) => Boolean(id) && !isRecentRevisionBlocked(id))
       const isAll = allIds.every((id) => selectedRevizieIds.includes(id))
-      handleCustomChange("equipmentIds", isAll ? [] : allIds)
+      const retained = installationLockedIds
+      handleCustomChange("equipmentIds", isAll ? retained : Array.from(new Set([...allIds, ...retained])))
     }
 
     const revisionEquipmentRefs = useMemo(
@@ -495,7 +501,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Dacă tipul este Revizie, golim câmpurile de echipament single-select ca să nu conteze
     useEffect(() => {
-      if (formData.tipLucrare === "Revizie") {
+      if (isMultiEquipment) {
         if (formData.echipament || formData.echipamentId || formData.echipamentCod) {
           handleSelectChange("echipament", "")
           if (handleCustomChange) {
@@ -1017,7 +1023,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }
 
     const checkRecentCompletedInterventions = async (equipment: Echipament) => {
-      if (isEdit || formData.tipLucrare === "Revizie") {
+      if (isEdit || isMultiEquipment) {
         setRecentInterventionSourceWorks([])
         setRecentInterventionSuggestions([])
         return [] as RecentInterventionSuggestion[]
@@ -1061,7 +1067,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     }
 
     useEffect(() => {
-      if (isEdit || formData.tipLucrare === "Revizie") {
+      if (isEdit || isMultiEquipment) {
         if (recentInterventionSuggestions.length > 0) {
           setRecentInterventionSuggestions([])
         }
@@ -1369,6 +1375,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm funcție pentru gestionarea selecției locației
     const handleLocatieSelect = (locationId: string) => {
+      if (associationLocked) return
       const matches = locatii.filter(loc => String(loc.id || loc.nume) === locationId)
       const locatie = matches.length === 1 ? matches[0] : undefined
       if (locatie) {
@@ -1772,7 +1779,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           setFieldErrors(next)
         }
         toast({
-          title: equipmentValidation.field === "equipmentIds" ? "Revizie incompletă" : "Echipament obligatoriu",
+          title: equipmentValidation.field === "equipmentIds" ? "Selectați echipamentele" : "Echipament obligatoriu",
           description: equipmentValidation.message,
           variant: "destructive",
         })
@@ -1802,7 +1809,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       // Guard (safety): dacă avem ID de echipament, acesta trebuie să fie valid în locația curentă.
-      if (formData.tipLucrare !== "Revizie" && formData.echipamentId) {
+      if (!isMultiEquipment && formData.echipamentId) {
         const match = availableEquipments.find((e) => e.id === formData.echipamentId)
         if (!match) {
           setError("Echipamentul selectat nu mai este valid pentru locația curentă. Re-selectați echipamentul.")
@@ -1825,7 +1832,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       // Verificăm dacă există lucrări active pe echipamentul selectat
-      if (!isEdit && formData.tipLucrare !== "Revizie") {
+      if (!isEdit && !isMultiEquipment) {
         const equipmentId = String(formData.echipamentId || "")
         const equipmentCod = String(formData.echipamentCod || "")
         const equipmentName = String(formData.echipament || "")
@@ -2440,7 +2447,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           )}
 
           {/* 5. Echipamentul – ascundem complet pentru Revizie */}
-          {formData.tipLucrare !== "Revizie" && (
+          {!isMultiEquipment && (
             <div className="space-y-2">
               <label htmlFor="echipament" className="text-sm font-medium">
                 Echipament
@@ -2647,9 +2654,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
        
           
           {/* Revizie: listă echipamente multi-select pentru locația aleasă */}
-          {formData.tipLucrare === "Revizie" && (
+          {isMultiEquipment && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Echipamente pentru revizie</label>
+              <label className="text-sm font-medium">Echipamente pentru {formData.tipLucrare === "Instalare" ? "instalare" : "revizie"}</label>
               {!formData.locatie ? (
                 <p className="text-xs text-muted-foreground">
                   Selectați mai întâi o locație pentru a afișa echipamentele disponibile.
@@ -2693,8 +2700,8 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                       })
                       .map((e) => {
                         const checked = (formData.equipmentIds || []).includes(e.id || "")
-                        const recentHit = e.id ? recentRevisionHits[e.id] : undefined
-                        const locked = Boolean(e.id && isRecentRevisionBlocked(e.id))
+                        const recentHit = formData.tipLucrare === "Revizie" && e.id ? recentRevisionHits[e.id] : undefined
+                        const locked = Boolean(e.id && (isRecentRevisionBlocked(e.id) || (isInstallationV1(initialData) && installationLockedIds.includes(e.id))))
                         return (
                           <label
                             key={e.id}
@@ -2953,7 +2960,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           </div>
 
           {/* 8. Defect reclamat (nu este necesar la Revizie) */}
-          {formData.tipLucrare !== "Revizie" && (
+          {!isMultiEquipment && (
           <div className="space-y-2">
             {/* Istoric defecte reclamat (read-only) */}
             {Array.isArray(formData.defectReclamatHistory) && formData.defectReclamatHistory.length > 0 && (

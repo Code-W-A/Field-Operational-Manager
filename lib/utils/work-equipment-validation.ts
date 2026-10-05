@@ -3,6 +3,7 @@ export type WorkEquipmentValidationField = "echipament" | "equipmentIds"
 export type WorkEquipmentValidationCode =
   | "WORK_EQUIPMENT_REQUIRED"
   | "WORK_REVISION_EQUIPMENT_REQUIRED"
+  | "WORK_INSTALLATION_EQUIPMENT_REQUIRED"
 
 export type WorkCreationEquipmentPayload = {
   tipLucrare?: unknown
@@ -24,6 +25,7 @@ export type WorkEquipmentValidationResult =
 const WORK_EQUIPMENT_MESSAGES: Record<WorkEquipmentValidationCode, string> = {
   WORK_EQUIPMENT_REQUIRED: "Nu puteți lansa un tichet fără echipament. Selectați un echipament.",
   WORK_REVISION_EQUIPMENT_REQUIRED: "Pentru o revizie trebuie selectat cel puțin un echipament.",
+  WORK_INSTALLATION_EQUIPMENT_REQUIRED: "Pentru o instalare trebuie selectat cel puțin un echipament.",
 }
 
 const toTrimmed = (value: unknown) => String(value ?? "").trim()
@@ -38,6 +40,15 @@ export const getNormalizedEquipmentIds = (equipmentIds: unknown): string[] => {
 export const validateWorkEquipmentForCreation = (
   payload: WorkCreationEquipmentPayload,
 ): WorkEquipmentValidationResult => {
+  // Legacy installations still use a single equipment reference when edited.
+  if (toTrimmed(payload.tipLucrare).toLowerCase() === "instalare" &&
+      !toTrimmed(payload.echipamentId) && !toTrimmed(payload.echipamentCod) && !toTrimmed(payload.echipament)) {
+    if (!getNormalizedEquipmentIds(payload.equipmentIds).length) return {
+      valid: false, code: "WORK_INSTALLATION_EQUIPMENT_REQUIRED", field: "equipmentIds",
+      message: WORK_EQUIPMENT_MESSAGES.WORK_INSTALLATION_EQUIPMENT_REQUIRED,
+    }
+    return { valid: true }
+  }
   if (isRevisionWorkType(payload.tipLucrare)) {
     const ids = getNormalizedEquipmentIds(payload.equipmentIds)
     if (ids.length === 0) {

@@ -284,7 +284,7 @@ export default function EditLucrarePage({ params }: { params: Promise<{ id: stri
         updatedAt: serverTimestamp(),
       }
       // Pentru Revizie, eliminăm câmpurile single‑select de echipament
-      if (rawPayload.tipLucrare === "Revizie") {
+      if (rawPayload.tipLucrare === "Revizie" || (rawPayload.tipLucrare === "Instalare" && rawPayload.equipmentIds?.length)) {
         delete rawPayload.echipament
         delete rawPayload.echipamentId
         delete rawPayload.echipamentCod

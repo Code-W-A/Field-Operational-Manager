@@ -10,9 +10,10 @@ interface SignaturePadProps {
   onSave: (signatureData: string) => void
   existingSignature?: string
   title?: string
+  onClear?: () => void
 }
 
-export function SignaturePad({ onSave, existingSignature, title = "Semnătură" }: SignaturePadProps) {
+export function SignaturePad({ onSave, existingSignature, title = "Semnătură", onClear }: SignaturePadProps) {
   const signatureRef = useRef<SignatureCanvas | null>(null)
   const [isSigned, setIsSigned] = useState(false)
   const [showExisting, setShowExisting] = useState(!!existingSignature)
@@ -29,8 +30,9 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură" 
       signatureRef.current.clear()
       setIsSigned(false)
       setSignatureData(null)
+      onClear?.()
     }
-  }, [])
+  }, [onClear])
 
   // Use useStableCallback to ensure we have access to the latest state and refs
   const handleSave = useStableCallback(() => {

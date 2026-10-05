@@ -1931,7 +1931,7 @@ export default function Lucrari() {
 
       // Curățăm câmpurile nerelevante/undefinite pentru Revizie și în general
       const cleaned: any = { ...updatedLucrare }
-      if (cleaned.tipLucrare === "Revizie") {
+      if (cleaned.tipLucrare === "Revizie" || (cleaned.tipLucrare === "Instalare" && cleaned.equipmentIds?.length)) {
         delete cleaned.echipament
         delete cleaned.echipamentId
         delete cleaned.echipamentCod

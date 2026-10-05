@@ -156,7 +156,7 @@ export default function NewLucrarePage() {
     const results: any[] = []
 
     // Revizie: verificăm pentru fiecare equipmentId
-    if (payload.tipLucrare === "Revizie" && Array.isArray(payload.equipmentIds)) {
+    if (["Revizie", "Instalare"].includes(payload.tipLucrare) && Array.isArray(payload.equipmentIds)) {
       const ids = payload.equipmentIds.map((id: any) => String(id)).filter(Boolean)
       const snapshots = await Promise.all(
         ids.map((eid) =>
