@@ -44,6 +44,8 @@ import type {
   InstallationListResponse,
   InstallationSheet,
 } from "@/types/installation";
+import { pendingSignatureMessage } from "@/lib/installations/team";
+import { sheetStateLabel } from "./team";
 import { pageUrl, pdf, StatusBadge, dateLabel } from "./shared";
 type Run = (action: () => Promise<void>) => Promise<void>;
 export function InstallationSummary({
@@ -80,6 +82,13 @@ export function InstallationSummary({
                 <p className="mt-2 text-3xl font-semibold tracking-tight">
                   {value}
                 </p>
+                {title === "Fișe active" &&
+                  !!Object.keys(meta.awaitingSheetByEquipment || {}).length && (
+                    <p className="mt-1 text-xs text-amber-800">
+                      {Object.keys(meta.awaitingSheetByEquipment || {}).length}{" "}
+                      în așteptarea semnăturilor
+                    </p>
+                  )}
               </div>
               <Icon className="h-5 w-5 text-muted-foreground" />
             </CardContent>
@@ -193,10 +202,25 @@ export function InstallationEquipmentList({
                     status={meta.equipmentStatus[e.id] || "pending"}
                   />
                 </div>
+                {meta.awaitingSheetByEquipment?.[e.id] && (
+                  <p className="mt-2 max-w-lg text-sm text-muted-foreground">
+                    {pendingSignatureMessage}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
-              {!meta.closedReason &&
+              {meta.awaitingSheetByEquipment?.[e.id] && (
+                <Button asChild variant="outline">
+                  <Link
+                    href={`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(meta.awaitingSheetByEquipment[e.id])}`}
+                  >
+                    Vezi fișa în așteptare
+                  </Link>
+                </Button>
+              )}
+              {!meta.awaitingSheetByEquipment?.[e.id] &&
+                !meta.closedReason &&
                 meta.equipmentStatus[e.id] !== "done" &&
                 (meta.activeSheetByEquipment[e.id] || data.canStart) && (
                   <Button
@@ -257,7 +281,11 @@ export function InstallationHistory({
         <Link
           href={`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(s.id)}`}
         >
-          {s.state === "closed" ? "Consultă fișa" : "Deschide"}
+          {s.canSign
+            ? "Semnează fișa"
+            : s.state === "closed"
+              ? "Consultă fișa"
+              : "Deschide"}
         </Link>
       </Button>
       {s.documentSnapshot && (
@@ -330,9 +358,7 @@ export function InstallationHistory({
                       </TableCell>
                       <TableCell>{s.principalName}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">
-                          {s.state === "closed" ? "Semnată" : "Ciornă"}
-                        </Badge>
+                        <Badge variant="secondary">{sheetStateLabel(s)}</Badge>
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={s.installationStatus} />
@@ -348,9 +374,7 @@ export function InstallationHistory({
                 <div key={s.id} className="space-y-3 rounded-lg border p-4">
                   <div className="flex justify-between gap-2">
                     <p className="font-medium">{equipmentName(s)}</p>
-                    <Badge variant="secondary">
-                      {s.state === "closed" ? "Semnată" : "Ciornă"}
-                    </Badge>
+                    <Badge variant="secondary">{sheetStateLabel(s)}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {dateLabel(s.workDate)} · {s.principalName}
@@ -396,6 +420,7 @@ export function InstallationDocuments({
 }) {
   const meta = data.work.installation;
   const active = Object.keys(meta.activeSheetByEquipment).length;
+  const awaiting = Object.keys(meta.awaitingSheetByEquipment || {}).length;
   const allDone =
     data.work.equipmentIds.length > 0 &&
     data.work.equipmentIds.every((id) => meta.equipmentStatus[id] === "done");
@@ -403,6 +428,7 @@ export function InstallationDocuments({
     data.canStart &&
     allDone &&
     !active &&
+    !awaiting &&
     !meta.closedReason &&
     !data.completion;
   return (
@@ -453,14 +479,19 @@ export function InstallationDocuments({
                   finalizate
                 </li>
                 <li>
-                  {!active ? "✓" : "○"} Toate fișele active sunt închise și
-                  semnate
+                  {!active && !awaiting ? "✓" : "○"} Toate fișele active sunt
+                  închise și semnate
                 </li>
                 <li>
                   {data.canStart ? "✓" : "○"} Semnează un tehnician atribuit
                   tichetului terminal
                 </li>
               </ul>
+              {!!awaiting && (
+                <p className="text-sm text-amber-800">
+                  Semnează fișele în așteptare înainte de procesul-verbal final.
+                </p>
+              )}
               {meta.continuationWorkId && (
                 <p className="text-sm text-muted-foreground">
                   Procesul-verbal se întocmește pe tichetul terminal al
@@ -509,6 +540,11 @@ export function InstallationDocuments({
               atribuiți.
             </p>
           )}
+          {!!awaiting && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {pendingSignatureMessage}
+            </p>
+          )}
           {manager &&
             !meta.closedReason &&
             !active &&
@@ -516,7 +552,7 @@ export function InstallationDocuments({
             meta.startedEquipmentIds.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button disabled={busy} variant="outline">
+                  <Button disabled={busy || !!awaiting} variant="outline">
                     Trimite restul spre replanificare
                   </Button>
                 </AlertDialogTrigger>

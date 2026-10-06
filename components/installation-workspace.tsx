@@ -36,6 +36,8 @@ import {
   InstallationSheetForm,
   InstallationCompletionForm,
 } from "./installation/forms";
+import { InstallationTeam } from "./installation/team";
+import { sheetParticipants } from "@/lib/installations/team";
 import { pageUrl, StatusBadge, dateLabel } from "./installation/shared";
 
 export function InstallationWorkspace({
@@ -79,17 +81,27 @@ export function InstallationWorkspace({
     const activeId =
       sheetId ||
       (equipmentId
-        ? result.work.installation.activeSheetByEquipment[equipmentId]
+        ? result.work.installation.activeSheetByEquipment[equipmentId] ||
+          result.work.installation.awaitingSheetByEquipment?.[equipmentId]
         : undefined);
     if (activeId) {
       const selection: InstallationListResponse = await installationRequest(
         `${installationApi(workId)}?sheetId=${encodeURIComponent(activeId)}`,
       );
-      setSelected(selection.sheets[0] || null);
+      const found = selection.sheets[0];
+      const needsQr =
+        !sheetId &&
+        equipmentId &&
+        result.canStart &&
+        found?.state === "draft" &&
+        !sheetParticipants(found).some(
+          (p) => p.uid === userData?.uid && p.active,
+        );
+      setSelected(needsQr ? null : found || null);
       if (!selection.sheets.length)
         throw new Error("Fișa solicitată nu este disponibilă.");
     } else setSelected(null);
-  }, [workId, sheetId, equipmentId]);
+  }, [workId, sheetId, equipmentId, userData?.uid]);
   useEffect(() => {
     setData(null);
     setSelected(null);
@@ -149,6 +161,7 @@ export function InstallationWorkspace({
     data?.canStart &&
     allDone &&
     !Object.keys(meta?.activeSheetByEquipment || {}).length &&
+    !Object.keys(meta?.awaitingSheetByEquipment || {}).length &&
     !meta?.closedReason &&
     !data?.completion;
   const content = (
@@ -241,6 +254,20 @@ export function InstallationWorkspace({
                   </CardDescription>
                 </CardHeader>
               </Card>
+              <InstallationTeam sheet={selected} />
+              {data.canStart &&
+                selected.state === "draft" &&
+                !sheetParticipants(selected).some(
+                  (p) => p.uid === userData?.uid && p.active,
+                ) && (
+                  <Button asChild variant="outline">
+                    <Link
+                      href={`${pageUrl(workId)}?equipmentId=${encodeURIComponent(selected.equipmentId)}`}
+                    >
+                      Alătură-te prin QR
+                    </Link>
+                  </Button>
+                )}
               <InstallationSheetForm
                 key={selected.id}
                 workId={workId}
@@ -285,7 +312,8 @@ export function InstallationWorkspace({
                     !selected &&
                     data.canStart &&
                     !meta?.closedReason &&
-                    meta?.equipmentStatus[equipmentId] !== "done" && (
+                    meta?.equipmentStatus[equipmentId] !== "done" &&
+                    !meta?.awaitingSheetByEquipment?.[equipmentId] && (
                       <Card className="border-primary/30">
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2 text-lg">
@@ -299,8 +327,16 @@ export function InstallationWorkspace({
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                          {data.currentSession?.role === "principal" && (
+                            <p className="text-sm text-muted-foreground">
+                              Ai o fișă în lucru ca principal. Oprește lucrul pe
+                              aceasta înainte de a începe alta.
+                            </p>
+                          )}
                           <Button
-                            disabled={busy}
+                            disabled={
+                              busy || data.currentSession?.role === "principal"
+                            }
                             onClick={() => setScanning((v) => !v)}
                           >
                             {scanning ? "Oprește camera" : "Scanează QR"}

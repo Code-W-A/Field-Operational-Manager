@@ -1,6 +1,6 @@
 # Plan: tichete de instalare și fișe zilnice de montaj
 
-Data: 03.10.2026. Status: livrarea 1A implementată local; verificările și limitele sunt consemnate la final.
+Data: 03.10.2026. Status: livrările 1A și 1B implementate local; verificările și limitele sunt consemnate la final.
 
 ## 1. Obiectiv și împărțirea lucrării
 
@@ -102,7 +102,7 @@ Finalizarea parțială existentă la revizie folosește operații succesive și 
 
 **Distincție esențială:** o fișă zilnică poate fi închisă și semnată cu instalarea `În lucru` sau `Blocat`. În acest caz echipamentul rămâne neterminat și poate primi alte fișe. Numai închiderea semnată cu `Finalizat` marchează echipamentul terminat.
 
-În 1A semnăturile se colectează la închiderea zilei. Semnarea ulterioară din cererea inițială este păstrată pentru 1B; nu marcăm automat drept semnată o fișă incompletă. Dacă o fișă rămâne deschisă peste noapte, se redeschide aceeași fișă și trebuie închisă explicit înaintea unei porniri noi. Tratamentul datei și al semnării întârziate rămâne de confirmat.
+În 1A semnăturile se colectează la închiderea zilei. Semnarea ulterioară din cererea inițială este păstrată pentru 1B; nu marcăm automat drept semnată o fișă incompletă. Dacă o fișă rămâne deschisă peste noapte, se redeschide aceeași fișă și trebuie închisă explicit înaintea unei porniri noi. În 1B semnarea întârziată folosește data inițială a fișei și conținutul înghețat la oprire.
 
 ### 4.4 Fișe repetitive și PDF
 
@@ -111,7 +111,7 @@ Finalizarea parțială existentă la revizie folosește operații succesive și 
 - Fiecare fișă are un ID propriu, data lucrării și un PDF separat, descărcabil repetat de dispecer.
 - PDF-ul include clientul, locația, echipamentul, principalul, data, conținutul, statusul, pozele și semnăturile.
 - Nota internă și cauza defectului nu se trimit în datele PDF destinate clientului.
-- În 1A PDF-ul este descărcabil pentru trimitere manuală clientului. Trimiterea directă prin email din aplicație poate fi adăugată în 1B.
+- În 1A PDF-ul este descărcabil pentru trimitere manuală clientului. Trimiterea directă prin email din aplicație rămâne pentru o livrare separată.
 - Ciorna se salvează în aplicație; documentul oficial descărcabil este fișa închisă și semnată.
 - Istoricul se încarcă ordonat și paginat, fără un plafon de business al numărului de fișe.
 
@@ -202,18 +202,22 @@ Nu salvăm toate fișele într-un array al tichetului și nu folosim `equipmentI
 
 Fișiere noi orientative: `types/installation.ts`, serviciu server dedicat instalărilor, `components/installation-sheet.tsx`, rută de fișă sub `app/dashboard/lucrari/[id]/instalare/`, generatoare PDF dedicate în `lib/pdf/` și rute API sub `app/api/lucrari/[id]/installation/`.
 
-## 8. Livrarea 1B: alocarea echipei și excepții
+## 8. Livrarea 1B: echipa și semnarea ulterioară
 
-1. Extindem sesiunea de tehnician cu rolul `principal` / `secondary` și fișa curentă; disponibilitatea rezultă din absența unei sesiuni active.
-2. Prima scanare alocă principalul și tehnicienii eligibili nealocați ai tichetului. Propunerea de eligibilitate se confirmă cu beneficiarul.
-3. Scanarea unui secundar mută doar acel tehnician, într-o tranzacție, și îl face principal pe noua fișă.
-4. Nu se mută implicit niciun tehnician deja activ pe altă fișă; regulile pentru preluarea nealocaților la pornirile ulterioare se confirmă.
-5. Închiderea eliberează numai participanții care încă aparțin fișei respective.
-6. Adăugăm semnarea ulterioară, cu stare separată `awaiting_signature`, conținut înghețat și reguli explicite despre eliberarea echipei înainte de semnare.
-7. Definim preluarea principalului absent și eventualele corecții administrative, cu istoric, fără modificarea tacită a documentelor emise.
-8. Opțional: trimiterea fiecărei fișe prin email, cu destinatari verificați și status de expediere separat de închiderea fișei.
+1. Participanții sunt identificați prin UID, cu nume și rol păstrate pe fișă. Sesiunea globală indică fișa și rolul curent.
+2. Sunt eligibili numai tehnicienii atribuiți tichetului, cu nume asociat unui singur utilizator tehnician și fără sesiune activă. Asocierile lipsă, ambigue și colegii ocupați sunt excluși; motivele apar în interfață.
+3. Scanarea unui tehnician liber pornește o fișă ca principal sau îl alătură ca secundar unei fișe existente, împreună cu ceilalți colegi liberi eligibili. Principalul existent rămâne același.
+4. Un secundar se mută numai pe el, inclusiv între tichete dacă este atribuit destinației. Devine principal pe o fișă nouă sau secundar pe una existentă. Principalul trebuie să oprească lucrul înainte de a schimba fișa.
+5. Numai principalul editează ciorna, fotografiile și nota internă. Participanții mutați rămân în istoric; oprirea eliberează numai sesiunile care încă aparțin fișei.
+6. `stop` validează conținutul obligatoriu, îngheață datele documentului și fotografiile, eliberează echipa fără semnături și trece fișa în `awaiting_signature`.
+7. `sign` este disponibil oricărui participant istoric cu rol actual de tehnician, chiar dacă nu mai este atribuit tichetului. Colectează ambele semnături, în nume propriu, fără modificarea conținutului. Administratorul/dispecerul consultă, fără a semna în locul tehnicianului.
+8. Închiderea imediată cu ambele semnături rămâne disponibilă. Numai fișa semnată cu rezultat `completed` termină echipamentul.
+9. Fișa în așteptare blochează altă fișă pe același echipament, continuarea și procesul-verbal; celelalte echipamente pot fi lucrate. Blocarea echipamentului este separată de ocuparea echipei.
+10. Alocările, mutările, oprirea și semnarea sunt tranzacționale. Cererile repetate nu dublează fișele sau participanții. Fișele 1A fără participanți sunt interpretate cu un singur principal, fără modificarea documentelor deja emise.
 
-Livrarea 1B păstrează modelul de document și istoricul din 1A. Regulile privind participanții se adaugă fără a inventa retroactiv tehnicieni secundari pentru fișele deja emise.
+Textul blocărilor: „Echipa este liberă. Pentru o fișă nouă pe acest echipament sau replanificare, semnează mai întâi fișa în așteptare.”
+
+Preluarea principalului absent, cronometrarea, emailul automat, Expo și publicarea nu sunt incluse în 1B.
 
 ## 9. Etapa 2: timpul fiecărui tehnician
 
@@ -240,17 +244,18 @@ Livrarea 1B păstrează modelul de document și istoricul din 1A. Regulile privi
 8. Procesul-verbal conține identitatea lucrării, echipamentele, referințele fișelor și observații opționale; semnează un tehnician atribuit tichetului terminal și beneficiarul.
 9. Data fișei este data scanării în `Europe/Bucharest`; fișa rămasă deschisă peste noapte păstrează data inițială.
 
-### Pentru 1B și etapa 2
+### Decizii închise pentru 1B
 
-1. Secundarii sunt exclusiv tehnicienii atribuiți tichetului? Cine este considerat eligibil/nealocat?
-2. La scanarea unui secundar intră numai el, conform notițelor; la scanarea unui tehnician nealocat se preiau toți ceilalți nealocați, conform cererii inițiale?
-3. Când se eliberează echipa dacă semnătura beneficiarului vine ulterior: la oprirea lucrului sau la semnare?
-4. Cine poate prelua principalul absent și cine poate colecta semnăturile ulterior?
-5. Cele 1,5 ore se adaugă o dată per zi, per fișă sau per tehnician? Cum evităm dublarea dacă există mai multe fișe în aceeași zi?
-6. Cronometrul se oprește la terminarea lucrului sau la semnare? Cum tratăm `Blocat`, pauzele și intervalele pe mai multe zile?
-7. Este necesară trimiterea directă prin email sau descărcarea și trimiterea manuală sunt suficiente?
+Eligibilitatea, mutarea individuală, eliberarea la oprire, semnarea de către participanți istorici și blocarea echipamentului până la semnare sunt confirmate prin planul de implementare 1B. Detaliile sunt în secțiunea 8.
 
-Aceste puncte sunt diferențe de comportament încă neconfirmate, nu condiții prezentate drept cerințe deja aprobate.
+### Pentru etapa 2 și livrările ulterioare
+
+1. Cele 1,5 ore se adaugă o dată per zi, per fișă sau per tehnician? Cum evităm dublarea dacă există mai multe fișe în aceeași zi?
+2. Cum tratăm `Blocat`, pauzele, lipsa conexiunii și intervalele peste miezul nopții?
+3. Cine poate prelua principalul absent și ce corecții administrative sunt permise?
+4. Este necesară trimiterea directă prin email sau rămâne descărcarea și trimiterea manuală?
+
+Aceste puncte rămân în afara livrării 1B aprobate.
 
 ## 11. Verificarea livrării 1A
 
@@ -337,3 +342,19 @@ Verificarea locală a reorganizării:
 - Capturi locale: `/private/tmp/fom-installation-overview-desktop.png`, `/private/tmp/fom-installation-overview-mobile.png`, `/private/tmp/fom-installation-sheet-mobile.png`, `/private/tmp/fom-installation-documents-desktop.png`.
 
 Camera virtuală verifică integrarea scannerului cu fluxul aplicației; verificarea pe un telefon cu cameră fizică rămâne necesară. Nu s-a făcut publicare sau modificare de date live.
+
+
+## 16. Implementarea locală 1B — 06.10.2026
+
+- API-ul existent gestionează `start` (pornire/alăturare/mutare), `stop` (oprire fără semnături) și `sign` (semnare ulterioară). Echipa, sesiunea curentă, avertizările de alocare, conținutul înghețat și indexul fișelor în așteptare sunt persistate separat de progresul echipamentului.
+- Dashboardul afișează participanții și colegii mutați, fișele în așteptare, explicațiile blocărilor și formularul exclusiv de semnături. Principalul păstrează exclusivitatea editării și accesul la nota internă; managerii o pot consulta.
+- PDF-ul diferențiază principalul, participanții și semnatarul efectiv. Fișele 1A fără participanți sunt interpretate cu un singur principal; documentele deja emise nu sunt rescrise.
+
+### Verificări efectuate
+
+- **24/24 teste de integrare trecute** în Auth/Firestore/Storage Emulator, proiect `demo-fom-installation`: tehnicieni liberi/ocupați, asocieri lipsă/ambigue, scanări repetate/concurente, alăturare, mutări individuale și între tichete, eliberare după mutări, oprire validată fără semnături, imutabilitate, blocările echipamentului/continuării/procesului-verbal, semnare de către participant istoric și concurentă, respingerea altor roluri/neparticipanți, compatibilitate 1A și revizii.
+- **Browser desktop 1440 px și telefon 390 px: trecut**, cu autentificare în emulator și cameră QR virtuală. Alocare automată, mutarea secundarului prin QR, oprirea fără semnături, fotografii înghețate, blocările administratorului, eliminarea participantului de pe tichet, accesul istoric fără nota internă, semnarea în nume propriu pe telefon, PDF și continuare. Parcursul 1A/UI anterior rămâne verificat, fără erori JavaScript în scenariile urmărite.
+- **PDF randat și verificat vizual:** principalul și participantul mutat sunt identificați; semnătura este atribuită tehnicianului care a colectat-o efectiv; două semnături, diacritice și fotografie, fără nota internă.
+- **Build Next.js trecut.** Configurația existentă omite TypeScript/lint la build. Verificarea TypeScript separată nu raportează erori în modulul instalării sau în testele sale; proiectul păstrează cele **217 erori existente** în alte module.
+
+Verificarea camerei QR fizice rămâne de făcut pe dispozitiv real. Cronometrarea, preluarea principalului absent, emailul automat, Expo și publicarea sunt în afara acestei implementări. Nu s-au publicat reguli/cod și nu s-au modificat date de producție.

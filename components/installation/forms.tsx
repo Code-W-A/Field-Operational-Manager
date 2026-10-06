@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { sheetStateLabel } from "./team";
 import { pdf, statuses, dateLabel } from "./shared";
 export function InstallationSheetForm({
   workId,
@@ -110,10 +111,10 @@ export function InstallationSheetForm({
       setBusy(false);
     }
   }
-  async function save(close: boolean) {
+  async function save(close: boolean, deferred = false) {
     await run(async () => {
       const result = await installationRequest(installationApi(workId), {
-        action: close ? "close" : "save",
+        action: deferred ? "stop" : close ? "close" : "save",
         sheetId: sheet.id,
         fields: content,
         revision: sheet.revision,
@@ -126,11 +127,13 @@ export function InstallationSheetForm({
       onSheet(result.sheet);
       setDirty(false);
       setNotice(
-        close
-          ? "Fișa zilei a fost închisă și semnată."
-          : "Ciorna a fost salvată.",
+        deferred
+          ? "Lucrul a fost oprit. Echipa este liberă, iar fișa așteaptă semnăturile."
+          : close
+            ? "Fișa zilei a fost închisă și semnată."
+            : "Ciorna a fost salvată.",
       );
-      if (close) await onRefresh();
+      if (close || deferred) await onRefresh();
     });
   }
   const change = (key: keyof InstallationFields, value: string) => {
@@ -148,9 +151,11 @@ export function InstallationSheetForm({
             <p className="mt-1 text-sm text-muted-foreground">
               {sheet.state === "closed"
                 ? "Document semnat, disponibil pentru consultare și descărcare."
-                : editable
-                  ? "Completează fișa și salvează progresul înainte de închiderea zilei."
-                  : "Doar principalul acestei fișe o poate modifica."}
+                : sheet.state === "awaiting_signature"
+                  ? "Conținutul este înghețat. Un tehnician participant poate colecta ambele semnături."
+                  : editable
+                    ? "Completează fișa și salvează progresul înainte de închiderea zilei."
+                    : "Doar principalul acestei fișe o poate modifica."}
             </p>
           </div>
           <Badge variant="secondary">
@@ -160,7 +165,9 @@ export function InstallationSheetForm({
                 ? "Modificări nesalvate"
                 : sheet.state === "closed"
                   ? "Semnată"
-                  : "Ciornă salvată"}
+                  : sheet.state === "awaiting_signature"
+                    ? "În așteptarea semnăturilor"
+                    : "Ciornă salvată"}
           </Badge>
         </CardContent>
       </Card>
@@ -194,8 +201,10 @@ export function InstallationSheetForm({
             </CardHeader>
             <CardContent className="space-y-4">
               <p>
-                {sheet.state === "closed" ? "Fișă semnată" : "Ciornă"} ·{" "}
-                {statuses[sheet.installationStatus]}
+                {sheet.state === "closed"
+                  ? "Fișă semnată"
+                  : sheetStateLabel(sheet)}{" "}
+                · {statuses[sheet.installationStatus]}
               </p>
               {sheet.blockReason && (
                 <ReadField
@@ -459,6 +468,13 @@ export function InstallationSheetForm({
                 Salvează ciorna
               </Button>
               <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void save(false, true)}
+              >
+                Oprește lucrul și semnează ulterior
+              </Button>
+              <Button
                 disabled={
                   busy ||
                   !technicianSignature ||
@@ -472,6 +488,15 @@ export function InstallationSheetForm({
             </div>
           </div>
         </>
+      )}
+      {sheet.state === "awaiting_signature" && sheet.canSign && (
+        <InstallationDeferredSignatures
+          key={sheet.id}
+          workId={workId}
+          sheet={sheet}
+          onSheet={onSheet}
+          onRefresh={onRefresh}
+        />
       )}
       {!editable && (
         <FormSection
@@ -734,5 +759,97 @@ function PhotoGallery({
     <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
       Nicio fotografie atașată.
     </p>
+  );
+}
+
+function InstallationDeferredSignatures({
+  workId,
+  sheet,
+  onSheet,
+  onRefresh,
+}: {
+  workId: string;
+  sheet: InstallationSheet;
+  onSheet: (sheet: InstallationSheet) => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const { userData } = useAuth();
+  const [beneficiaryName, setName] = useState("");
+  const [technicianSignature, setTechnician] = useState("");
+  const [beneficiarySignature, setBeneficiary] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const requestId = useRef<string | null>(null);
+  return (
+    <FormSection
+      title="Semnare ulterioară"
+      description="Lucrările sunt înghețate. Semnezi în nume propriu, împreună cu beneficiarul."
+    >
+      <fieldset disabled={busy} className="space-y-4">
+        <Label htmlFor="deferred-beneficiary">Numele beneficiarului *</Label>
+        <Input
+          id="deferred-beneficiary"
+          maxLength={200}
+          value={beneficiaryName}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div className="grid gap-4 xl:grid-cols-2 [&>div]:min-w-0 [&_[class*=justify-between]]:flex-wrap [&_[class*=justify-between]]:gap-2">
+          <SignaturePad
+            title={`Semnătura tehnicianului — ${userData?.displayName}`}
+            existingSignature={technicianSignature}
+            onSave={setTechnician}
+            onClear={() => setTechnician("")}
+          />
+          <SignaturePad
+            title="Semnătura beneficiarului"
+            existingSignature={beneficiarySignature}
+            onSave={setBeneficiary}
+            onClear={() => setBeneficiary("")}
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-red-700">
+            {error}
+          </p>
+        )}
+        <Button
+          disabled={
+            busy ||
+            !beneficiaryName.trim() ||
+            !technicianSignature ||
+            !beneficiarySignature
+          }
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            requestId.current ||= crypto.randomUUID();
+            try {
+              const result = await installationRequest(
+                installationApi(workId),
+                {
+                  action: "sign",
+                  sheetId: sheet.id,
+                  revision: sheet.revision,
+                  requestId: requestId.current,
+                  signatures: {
+                    beneficiaryName,
+                    technicianSignature,
+                    beneficiarySignature,
+                  },
+                },
+              );
+              onSheet(result.sheet);
+              await onRefresh();
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Semnarea a eșuat.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Semnează fișa zilei
+        </Button>
+      </fieldset>
+    </FormSection>
   );
 }

@@ -4,7 +4,12 @@ import { writeFileSync, createWriteStream } from "node:fs";
 import { initializeApp, deleteApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { chromium, expect, type Page } from "@playwright/test";
+import {
+  chromium,
+  expect,
+  type Page,
+  type BrowserContext,
+} from "@playwright/test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
@@ -171,46 +176,51 @@ async function main() {
     }
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ acceptDownloads: true });
-    await context.addInitScript(
-      ({ initialSvg }) => {
-        // tsx keeps function names using this helper, including serialized nested functions.
-        Object.defineProperty(window, "__name", {
-          value: Function("fn", "return fn"),
-          configurable: true,
-        });
-        const state = window as typeof window & { installationTestQr?: string };
-        state.installationTestQr = initialSvg;
-        // Virtual camera: exercises the scanner with actual QR pixels, without a physical camera.
-        navigator.mediaDevices.getUserMedia = async () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = 720;
-          canvas.height = 720;
-          const ctx = canvas.getContext("2d")!;
-          let lastSvg = "";
-          const image = new Image();
-          const draw = async () => {
-            if (state.installationTestQr !== lastSvg) {
-              lastSvg = state.installationTestQr || "";
-              image.src =
-                "data:image/svg+xml;charset=utf-8," +
-                encodeURIComponent(lastSvg);
-              await image.decode();
-            }
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, 720, 720);
-            ctx.drawImage(image, 40, 40, 640, 640);
+    async function attachCamera(target: BrowserContext) {
+      await target.addInitScript(
+        ({ initialSvg }) => {
+          // tsx keeps function names using this helper, including serialized nested functions.
+          Object.defineProperty(window, "__name", {
+            value: Function("fn", "return fn"),
+            configurable: true,
+          });
+          const state = window as typeof window & {
+            installationTestQr?: string;
           };
-          await draw();
-          const stream = canvas.captureStream(10);
-          const timer = setInterval(() => void draw(), 100);
-          stream
-            .getTracks()[0]
-            .addEventListener("ended", () => clearInterval(timer));
-          return stream;
-        };
-      },
-      { initialSvg: qrSvg("WRONG-QR") },
-    );
+          state.installationTestQr = initialSvg;
+          // Virtual camera: exercises the scanner with actual QR pixels, without a physical camera.
+          navigator.mediaDevices.getUserMedia = async () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 720;
+            canvas.height = 720;
+            const ctx = canvas.getContext("2d")!;
+            let lastSvg = "";
+            const image = new Image();
+            const draw = async () => {
+              if (state.installationTestQr !== lastSvg) {
+                lastSvg = state.installationTestQr || "";
+                image.src =
+                  "data:image/svg+xml;charset=utf-8," +
+                  encodeURIComponent(lastSvg);
+                await image.decode();
+              }
+              ctx.fillStyle = "white";
+              ctx.fillRect(0, 0, 720, 720);
+              ctx.drawImage(image, 40, 40, 640, 640);
+            };
+            await draw();
+            const stream = canvas.captureStream(10);
+            const timer = setInterval(() => void draw(), 100);
+            stream
+              .getTracks()[0]
+              .addEventListener("ended", () => clearInterval(timer));
+            return stream;
+          };
+        },
+        { initialSvg: qrSvg("WRONG-QR") },
+      );
+    }
+    await attachCamera(context);
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -678,6 +688,255 @@ async function main() {
     assert.equal(await adminPage.locator("#echipament").count(), 0);
     console.log(
       "BROWSER PASS: dispatcher creation form exposes installation multiple equipment selector.",
+    );
+    // Full 1B: auto team -> secondary QR transfer -> stop -> former participant signs -> continuation.
+    const teamWork = await service.create(
+      manager,
+      {
+        ...input,
+        equipmentIds: ["browser-equipment", "browser-equipment2"],
+        tehnicieni: [
+          "Tehnician browser",
+          "Alt tehnician browser",
+          "Tehnician fără cont",
+        ],
+      },
+      "browser-installation-team",
+    );
+    const teamFirst = await service.start(tech, teamWork.id, {
+      equipmentId: "browser-equipment",
+      qrRaw: "BROWSER1",
+      requestId: "browser-team-first",
+    });
+    await page.goto(
+      `${origin}/dashboard/lucrari/${teamWork.id}/instalare?sheetId=${teamFirst.sheet.id}`,
+    );
+    await expect(
+      page.getByText("Alt tehnician browser · secundar", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Tehnician fără cont: nu a putut fi alocat automat/),
+    ).toBeVisible();
+    const teamContext = await browser.newContext({ acceptDownloads: true });
+    await attachCamera(teamContext);
+    const teamPage = await teamContext.newPage();
+    teamPage.on("pageerror", (e) => errors.push(e.message));
+    await login(teamPage, "browser-other-tech");
+    await teamPage.goto(
+      `${origin}/dashboard/lucrari/${teamWork.id}/instalare?equipmentId=browser-equipment2`,
+    );
+    await expect(
+      teamPage.getByRole("button", { name: "Scanează QR", exact: true }),
+    ).toBeEnabled();
+    await teamPage.evaluate((svg) => {
+      (
+        window as typeof window & { installationTestQr: string }
+      ).installationTestQr = svg;
+    }, qrSvg("BROWSER2"));
+    await teamPage
+      .getByRole("button", { name: "Scanează QR", exact: true })
+      .click();
+    await expect(
+      teamPage.getByLabel("Constatare la locație *", { exact: true }),
+    ).toBeVisible({ timeout: 30000 });
+    const newTeamSheets = await db
+      .collection("lucrari")
+      .doc(teamWork.id)
+      .collection("installationSheets")
+      .get();
+    const secondTeamSheet = newTeamSheets.docs.find(
+      (d) => d.id !== teamFirst.sheet.id,
+    )!;
+    assert.deepEqual(secondTeamSheet.data().participantUids, [
+      "browser-other-tech",
+    ]);
+    await teamPage
+      .getByLabel("Constatare la locație *", { exact: true })
+      .fill("Cameră pregătită.");
+    await teamPage
+      .getByLabel("Operațiuni executate *", { exact: true })
+      .fill("Montaj parțial cameră.");
+    await teamPage
+      .getByRole("button", {
+        name: "Oprește lucrul și semnează ulterior",
+        exact: true,
+      })
+      .click();
+    await expect(
+      teamPage.getByText("Semnare ulterioară", { exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByText("Alt tehnician browser · secundar · mutat pe altă fișă", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Constatare la locație *", { exact: true })
+      .fill("Constatare înghețată 1B.");
+    await page
+      .getByLabel("Operațiuni executate *", { exact: true })
+      .fill("Montaj server finalizat 1B.");
+    await page
+      .getByLabel("Notă internă — nu apare în PDF")
+      .fill("NOTA PRIVATA 1B");
+    await page
+      .getByLabel("Fotografii (0/4)", { exact: true })
+      .setInputFiles({
+        name: "echipa.png",
+        mimeType: "image/png",
+        buffer: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
+          "base64",
+        ),
+      });
+    await expect(
+      page.getByLabel("Fotografii (1/4)", { exact: true }),
+    ).toBeVisible();
+    await page.getByLabel("Statusul instalării").selectOption("completed");
+    await page
+      .getByRole("button", {
+        name: "Oprește lucrul și semnează ulterior",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByText("Semnare ulterioară", { exact: true }),
+    ).toBeVisible();
+    assert.equal(
+      (await db.collection("installationTechnicianSessions").get()).size,
+      0,
+    );
+    await adminPage.goto(
+      `${origin}/dashboard/lucrari/${teamWork.id}/instalare?tab=documents`,
+    );
+    await expect(
+      adminPage.getByText(
+        "Echipa este liberă. Pentru o fișă nouă pe acest echipament sau replanificare, semnează mai întâi fișa în așteptare.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByRole("button", {
+        name: "Trimite restul spre replanificare",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(
+      adminPage.getByRole("button", {
+        name: "Proces-verbal de terminare",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await adminPage
+      .getByRole("tab", { name: "Echipamente", exact: true })
+      .click();
+    await expect(
+      adminPage.getByRole("link", {
+        name: "Vezi fișa în așteptare",
+        exact: true,
+      }),
+    ).toHaveCount(2);
+    await service.edit(manager, teamWork.id, {
+      tehnicieni: ["Tehnician browser"],
+    });
+    await teamPage.goto(
+      `${origin}/dashboard/lucrari/${teamWork.id}/instalare?sheetId=${teamFirst.sheet.id}`,
+    );
+    await expect(
+      teamPage.getByText("Constatare înghețată 1B.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      teamPage.getByText("NOTA PRIVATA 1B", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      teamPage.getByRole("img", { name: "echipa.jpg" }),
+    ).toBeVisible();
+    assert.equal(await teamPage.locator("textarea").count(), 0);
+    await teamPage.setViewportSize({ width: 390, height: 844 });
+    assert.ok(
+      await teamPage.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+      "1B mobile sign overflow",
+    );
+    await teamPage.screenshot({
+      path: "/private/tmp/fom-installation-1b-pending-mobile.png",
+      fullPage: true,
+    });
+    await teamPage
+      .getByLabel("Numele beneficiarului *", { exact: true })
+      .fill("Beneficiar 1B");
+    await drawSignatures(teamPage);
+    await teamPage
+      .getByRole("button", { name: "Semnează fișa zilei", exact: true })
+      .click();
+    await expect(
+      teamPage.getByText("Fișă semnată · Finalizat", { exact: true }),
+    ).toBeVisible();
+    const teamSigned = (
+      await db
+        .collection("lucrari")
+        .doc(teamWork.id)
+        .collection("installationSheets")
+        .doc(teamFirst.sheet.id)
+        .get()
+    ).data()!;
+    assert.equal(
+      teamSigned.documentSnapshot.technicianName,
+      "Alt tehnician browser",
+    );
+    assert.equal(
+      teamSigned.documentSnapshot.principalName,
+      "Tehnician browser",
+    );
+    const teamDownload = teamPage.waitForEvent("download");
+    await teamPage
+      .getByRole("button", { name: "Descarcă PDF", exact: true })
+      .click();
+    await (
+      await teamDownload
+    ).saveAs("/private/tmp/fom-installation-1b-sheet.pdf");
+    await teamPage.goto(
+      `${origin}/dashboard/lucrari/${teamWork.id}/instalare?sheetId=${secondTeamSheet.id}`,
+    );
+    await teamPage
+      .getByLabel("Numele beneficiarului *", { exact: true })
+      .fill("Beneficiar 1B");
+    await drawSignatures(teamPage);
+    await teamPage
+      .getByRole("button", { name: "Semnează fișa zilei", exact: true })
+      .click();
+    await expect(
+      teamPage.getByText("Fișă semnată · În lucru", { exact: true }),
+    ).toBeVisible();
+    await adminPage.goto(
+      `${origin}/dashboard/lucrari/${teamWork.id}/instalare?tab=documents`,
+    );
+    await expect(
+      adminPage.getByRole("button", {
+        name: "Trimite restul spre replanificare",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await adminPage
+      .getByRole("button", {
+        name: "Trimite restul spre replanificare",
+        exact: true,
+      })
+      .click();
+    await adminPage
+      .getByRole("button", { name: "Confirmă replanificarea", exact: true })
+      .click();
+    await expect(
+      adminPage.getByRole("link", {
+        name: "Deschide tichetul de continuare",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await teamContext.close();
+    console.log(
+      "BROWSER PASS 1B: automatic team, secondary QR transfer, frozen content/photos, pending blockers, former participant signs in own name on mobile, PDF, continuation.",
     );
     // Loading and API failure presentation remain usable, with a retry action.
     await page.route(
