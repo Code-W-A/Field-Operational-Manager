@@ -53,6 +53,7 @@ export function InstallationWorkspace({
   compact = false,
   complete = false,
   ticketDetails,
+  onEdit,
 }: {
   workId: string;
   equipmentId?: string;
@@ -60,6 +61,7 @@ export function InstallationWorkspace({
   compact?: boolean;
   complete?: boolean;
   ticketDetails?: ReactNode;
+  onEdit?: () => void;
 }) {
   const { userData } = useAuth();
   const router = useRouter();
@@ -197,13 +199,20 @@ export function InstallationWorkspace({
             {compact ? "Înapoi la tichete" : "Înapoi la tichet"}
           </Link>
         </Button>
-        {manager && data && !meta?.closedReason && (
-          <Button asChild variant="outline">
-            <Link href={`/dashboard/lucrari/${workId}/edit`}>
+        {manager &&
+          data &&
+          !meta?.closedReason &&
+          (onEdit ? (
+            <Button variant="outline" onClick={onEdit}>
               Editează tichetul / echipamentele
-            </Link>
-          </Button>
-        )}
+            </Button>
+          ) : (
+            <Button asChild variant="outline">
+              <Link href={`/dashboard/lucrari/${workId}?edit=1`}>
+                Editează tichetul / echipamentele
+              </Link>
+            </Button>
+          ))}
         <Button
           variant="outline"
           size="icon"

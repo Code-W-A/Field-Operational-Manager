@@ -70,7 +70,8 @@
     "seed:crm": "node scripts/seed-crm.mjs",
     "seed:hr-reminder-test": "tsx scripts/seed-hr-reminder-test.ts",
     "logs:functions": "firebase functions:log --limit 100",
-    "logs:interne": "firebase functions:log --only onCrmInternalThreadMessageCreatedEmail --limit 50"
+    "logs:interne": "firebase functions:log --only onCrmInternalThreadMessageCreatedEmail --limit 50",
+    "test:mobile": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8189 tsx --test tests/mobile/*.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

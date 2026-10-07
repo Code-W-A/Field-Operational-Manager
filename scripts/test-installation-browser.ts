@@ -244,6 +244,25 @@ async function main() {
         .click();
       await p.waitForURL(/dashboard/, { timeout: 90000 });
     }
+    const adminContext = await browser.newContext();
+    const adminPage = await adminContext.newPage();
+    await adminPage.route("**/api/notifications/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: '{"success":true}',
+      }),
+    );
+    adminPage.on("pageerror", (e) => errors.push(e.message));
+    await login(adminPage, "browser-admin");
+    const signature = {
+      beneficiaryName: "Beneficiar browser",
+      technicianSignature:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
+      beneficiarySignature:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
+    };
+    if (process.env.TICKET_DIALOG_ONLY !== "1") {
     await login(page, "browser-tech");
     await page.goto(
       `${origin}/dashboard/lucrari/${work.id}/instalare?equipmentId=browser-equipment`,
@@ -382,7 +401,9 @@ async function main() {
     ).data()!;
     assert.equal(saved.state, "closed");
     assert.ok(
-      !JSON.stringify(saved.documentSnapshot).includes("NOTA INTERNA BROWSER"),
+      !JSON.stringify(saved.documentSnapshot).includes(
+        "NOTA INTERNA BROWSER",
+      ),
     );
     const downloadEvent = page.waitForEvent("download");
     await page
@@ -392,7 +413,10 @@ async function main() {
     const download = await downloadEvent;
     await download.saveAs("/private/tmp/fom-installation-sheet.pdf");
     await page
-      .getByRole("button", { name: "Proces-verbal de terminare", exact: true })
+      .getByRole("button", {
+        name: "Proces-verbal de terminare",
+        exact: true,
+      })
       .click();
     await page
       .getByLabel("Observații finale", { exact: true })
@@ -515,10 +539,13 @@ async function main() {
       }),
     ).toBeVisible();
     assert.equal(
-      (await db.collection("lucrari").doc(work.id).get()).data()?.statusLucrare,
+      (await db.collection("lucrari").doc(work.id).get()).data()
+        ?.statusLucrare,
       "Finalizat",
     );
-    await page.getByRole("tab", { name: "Fișe zilnice", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "Fișe zilnice", exact: true })
+      .click();
     await expect(page).toHaveURL(/tab=sheets/);
     await page.reload();
     await expect(
@@ -636,16 +663,6 @@ async function main() {
       otherPage.getByText("NOTA PRIVATA PRINCIPAL", { exact: true }),
     ).toHaveCount(0);
     await otherContext.close();
-    const adminContext = await browser.newContext();
-    const adminPage = await adminContext.newPage();
-    await adminPage.route("**/api/notifications/**", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: '{"success":true}',
-      }),
-    );
-    await login(adminPage, "browser-admin");
     await adminPage.goto(
       `${origin}/dashboard/lucrari/${followWork.id}/instalare?sheetId=${draft.sheet.id}`,
     );
@@ -692,15 +709,10 @@ async function main() {
     ).toBeVisible();
     await db.collection("clienti").doc("browser-client").set(clientBefore);
     await expect(
-      adminPage.getByText("firma-actualizata@example.invalid", { exact: true }),
+      adminPage.getByText("firma-actualizata@example.invalid", {
+        exact: true,
+      }),
     ).toBeVisible();
-    const signature = {
-      beneficiaryName: "Beneficiar browser",
-      technicianSignature:
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
-      beneficiarySignature:
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
-    };
     await service.save(
       tech,
       followWork.id,
@@ -735,7 +747,9 @@ async function main() {
     await adminPage.goto(
       `${origin}/dashboard/lucrari/${followWork.id}/instalare`,
     );
-    await expect(adminPage.getByText("Blocat", { exact: true })).toBeVisible();
+    await expect(
+      adminPage.getByText("Blocat", { exact: true }),
+    ).toBeVisible();
     await adminPage.goto(
       `${origin}/dashboard/lucrari/${followWork.id}/instalare?tab=documents`,
     );
@@ -769,7 +783,8 @@ async function main() {
       await db.collection("lucrari").doc(followWork.id).get()
     ).data()!.installation.continuationWorkId;
     assert.deepEqual(
-      (await db.collection("lucrari").doc(continued).get()).data()!.tehnicieni,
+      (await db.collection("lucrari").doc(continued).get()).data()!
+        .tehnicieni,
       [],
     );
     await adminPage
@@ -819,6 +834,275 @@ async function main() {
       "BROWSER PASS: dispatcher creation form exposes installation multiple equipment selector.",
     );
     // Full 1B: auto team -> secondary QR transfer -> stop -> former participant signs -> continuation.
+    }
+    // The same dialog handles create/edit from every entry point, with fictional data only.
+    const dialogWork = await service.create(
+      manager,
+      { ...input, equipmentIds: ["browser-equipment"], nrLucrare: "#DIALOG" },
+      "browser-dialog-installation",
+    );
+    for (const [id, tipLucrare] of [
+      ["browser-dialog-standard", "Intervenție"],
+      ["browser-dialog-revision", "Revizie"],
+    ]) {
+      await db
+        .collection("lucrari")
+        .doc(id)
+        .set({
+          ...input,
+          id,
+          tipLucrare,
+          echipament: "Server browser",
+          echipamentId: "browser-equipment",
+          echipamentCod: "BROWSER1",
+          statusLucrare: "Atribuită",
+          statusFacturare: "Nefacturat",
+          nrLucrare: id,
+          persoanaContactEmail: "exceptie@example.invalid",
+        });
+    }
+    const closeEditor = async () => {
+      await adminPage
+        .getByRole("dialog", { name: "Editează Tichet", exact: true })
+        .getByRole("button", { name: "Anulează", exact: true })
+        .click();
+      if (await adminPage.getByRole("alertdialog").isVisible())
+        await adminPage
+          .getByRole("button", { name: "Părăsiți fără salvare", exact: true })
+          .click();
+      await expect(
+        adminPage.getByRole("dialog", { name: "Editează Tichet", exact: true }),
+      ).toHaveCount(0);
+    };
+    for (const id of [
+      dialogWork.id,
+      "browser-dialog-standard",
+      "browser-dialog-revision",
+    ]) {
+      await adminPage.goto(`${origin}/dashboard/lucrari/${id}/edit`);
+      const editor = adminPage.getByRole("dialog", {
+        name: "Editează Tichet",
+        exact: true,
+      });
+      await expect(editor).toBeVisible({ timeout: 30000 });
+      await expect(adminPage).toHaveURL(
+        new RegExp(`/dashboard/lucrari/${id}\\?edit=1`),
+      );
+      await expect(editor.locator("#descriere")).toHaveValue("Instalare test");
+      await expect(
+        editor.getByRole("button", { name: "Actualizează", exact: true }),
+      ).toHaveCount(1);
+      await expect(
+        editor.getByRole("button", { name: "Salvează", exact: true }),
+      ).toHaveCount(0);
+      await editor.locator("#descriere").fill(`Editare comună ${id}`);
+      await editor
+        .getByRole("button", { name: "Actualizează", exact: true })
+        .click();
+      await expect(editor).toHaveCount(0, { timeout: 30000 });
+      await expect(adminPage).toHaveURL(`${origin}/dashboard/lucrari/${id}`);
+      const saved = (await db.collection("lucrari").doc(id).get()).data()!;
+      assert.equal(saved.descriere, `Editare comună ${id}`);
+      assert.equal(saved.dataEmiterii, input.dataEmiterii);
+      assert.ok(saved.dataInterventie);
+      if (id !== dialogWork.id)
+        assert.equal(saved.persoanaContactEmail, "exceptie@example.invalid");
+    }
+    await adminPage.goto(`${origin}/dashboard/lucrari/${dialogWork.id}`);
+    await adminPage
+      .getByRole("button", {
+        name: "Editează tichetul / echipamentele",
+        exact: true,
+      })
+      .click();
+    let editor = adminPage.getByRole("dialog", {
+      name: "Editează Tichet",
+      exact: true,
+    });
+    await expect(editor).toBeVisible();
+    await editor
+      .locator("label")
+      .filter({ hasText: "Cameră browser" })
+      .getByRole("checkbox")
+      .check();
+    let rejectedSaveRequests = 0;
+    const simulatedSaveFailure = async (route: import("playwright").Route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      rejectedSaveRequests++;
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: '{"error":"Eroare simulată la salvare"}',
+      });
+    };
+    await adminPage.route(
+      `**/api/lucrari/${dialogWork.id}/installation`,
+      simulatedSaveFailure,
+    );
+    await editor
+      .getByRole("button", { name: "Actualizează", exact: true })
+      .evaluate((button) => {
+        (button as HTMLButtonElement).click();
+        (button as HTMLButtonElement).click();
+      });
+    await expect(
+      editor.getByText("Eroare simulată la salvare", { exact: true }),
+    ).toBeVisible();
+    assert.equal(
+      rejectedSaveRequests,
+      1,
+      "Double click must issue a single save",
+    );
+    await expect(
+      editor
+        .locator("label")
+        .filter({ hasText: "Cameră browser" })
+        .getByRole("checkbox"),
+    ).toBeChecked();
+    await adminPage.unroute(
+      `**/api/lucrari/${dialogWork.id}/installation`,
+      simulatedSaveFailure,
+    );
+    await editor
+      .getByRole("button", { name: "Actualizează", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0, { timeout: 30000 });
+    assert.deepEqual(
+      (await db.collection("lucrari").doc(dialogWork.id).get())
+        .data()
+        ?.equipmentIds.sort(),
+      ["browser-equipment", "browser-equipment2"],
+    );
+    await expect(
+      adminPage.getByText("Cameră browser", { exact: true }),
+    ).toBeVisible();
+    await adminPage
+      .getByRole("button", {
+        name: "Editează tichetul / echipamentele",
+        exact: true,
+      })
+      .click();
+    editor = adminPage.getByRole("dialog", {
+      name: "Editează Tichet",
+      exact: true,
+    });
+    await editor.locator("#descriere").fill("Modificare nesalvată dialog");
+    await adminPage.keyboard.press("Escape");
+    await expect(adminPage.getByRole("alertdialog")).toBeVisible();
+    await adminPage
+      .getByRole("button", { name: "Rămâneți pe pagină", exact: true })
+      .click();
+    await expect(editor.locator("#descriere")).toHaveValue(
+      "Modificare nesalvată dialog",
+    );
+    await adminPage.mouse.click(5, 5);
+    await expect(adminPage.getByRole("alertdialog")).toBeVisible();
+    await adminPage
+      .getByRole("button", { name: "Rămâneți pe pagină", exact: true })
+      .click();
+    await expect(adminPage.getByRole("alertdialog")).toHaveCount(0);
+    await adminPage.waitForTimeout(300);
+    await adminPage.screenshot({
+      path: "/private/tmp/fom-ticket-dialog-desktop.png",
+      fullPage: true,
+    });
+    await adminPage.setViewportSize({ width: 390, height: 844 });
+    await expect(editor).toBeVisible();
+    assert.ok(
+      await editor.evaluate((el) => el.scrollWidth <= el.clientWidth),
+      "Dialog content overflows on mobile",
+    );
+    await adminPage.screenshot({
+      path: "/private/tmp/fom-ticket-dialog-mobile.png",
+      fullPage: true,
+    });
+    const bounds = await editor.boundingBox();
+    assert.ok(bounds && bounds.width <= 390 && bounds.height <= 844);
+    await closeEditor();
+    await adminPage.setViewportSize({ width: 1440, height: 1000 });
+    const locked = await service.start(tech, dialogWork.id, {
+      equipmentId: "browser-equipment",
+      qrRaw: "BROWSER1",
+      requestId: "browser-dialog-locked",
+    });
+    await adminPage.reload();
+    await adminPage
+      .getByRole("button", {
+        name: "Editează tichetul / echipamentele",
+        exact: true,
+      })
+      .click();
+    editor = adminPage.getByRole("dialog", {
+      name: "Editează Tichet",
+      exact: true,
+    });
+    await expect(
+      editor.getByRole("combobox").filter({ hasText: "Client browser" }),
+    ).toBeDisabled();
+    await expect(
+      editor
+        .locator("label")
+        .filter({ hasText: "Server browser" })
+        .getByRole("checkbox"),
+    ).toBeDisabled();
+    await closeEditor();
+    await service.save(
+      tech,
+      dialogWork.id,
+      {
+        sheetId: locked.sheet.id,
+        revision: locked.sheet.revision,
+        fields: {
+          finding: "Constatare test",
+          operations: "Montaj test",
+          installationStatus: "in_progress",
+          blockReason: "",
+          internalNote: "",
+        },
+        signatures: signature,
+      },
+      true,
+    );
+    await adminPage.goto(
+      `${origin}/dashboard/lucrari?edit=browser-dialog-standard`,
+    );
+    await expect(
+      adminPage.getByRole("dialog", { name: "Editează Tichet", exact: true }),
+    ).toBeVisible({ timeout: 30000 });
+    await closeEditor();
+    await adminPage.goto(`${origin}/dashboard/lucrari`);
+    await adminPage.getByRole("button", { name: /Adaugă Tichet/ }).click();
+    const createDialog = adminPage.getByRole("dialog", {
+      name: "Adaugă Tichet Nou",
+      exact: true,
+    });
+    await expect(createDialog).toBeVisible();
+    await expect(
+      createDialog.getByRole("button", { name: "Salvează", exact: true }),
+    ).toHaveCount(1);
+    await createDialog.locator("#tipLucrare").click();
+    await adminPage
+      .getByRole("option", { name: "Instalare", exact: true })
+      .click();
+    await expect(
+      createDialog.getByText("Echipamente pentru instalare", { exact: true }),
+    ).toBeVisible();
+    await createDialog
+      .getByRole("button", { name: "Anulează", exact: true })
+      .click();
+    await expect(adminPage.getByRole("alertdialog")).toBeVisible();
+    await adminPage
+      .getByRole("button", { name: "Părăsiți fără salvare", exact: true })
+      .click();
+    console.log(
+      "BROWSER PASS shared ticket dialog: list/create/details/legacy route, all work types, dates, contact exception, one footer, unsaved changes, mobile, installation equipment refresh and locks.",
+    );
+
+    if (process.env.TICKET_DIALOG_ONLY === "1") {
+      assert.deepEqual(errors, []);
+      return;
+    }
+
     const teamWork = await service.create(
       manager,
       {
@@ -1104,7 +1388,7 @@ async function main() {
   } catch (error) {
     const failedPage = browser
       ?.contexts()
-      .flatMap((context) => context.pages())[0];
+      .flatMap((context) => context.pages()).at(-1);
     if (failedPage) {
       console.log(
         "FAILED PAGE",

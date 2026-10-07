@@ -373,3 +373,18 @@ Verificare locală în browser, cu proiectul fictiv `demo-fom-installation`: des
 Buildul Next.js a trecut. Verificarea TypeScript separată păstrează cele 217 erori existente în proiect, fără erori în componentele instalării, scriptul de browser sau codul nou din pagina de detalii. Configurația existentă omite TypeScript/lint la build.
 
 Nu se adaugă ofertare/deviz/facturare funcțională și nu se face publicare.
+
+
+## 18. Dialog comun pentru tichete — 07.10.2026
+
+- `TicketDialog` reutilizează `LucrareForm` pentru creare și editare, cu aceeași dimensiune și prezentare pe desktop/telefon, titlu/buton specifice modului, un singur rând de acțiuni și afișarea erorilor fără pierderea datelor.
+- Adăugarea din listă/dashboard, editarea din listă și detaliile tichetelor standard/revizie/instalare folosesc aceeași prezentare. `AddLucrareDialog` rămâne export de compatibilitate pentru modul de creare.
+- Butonul instalării deschide dialogul pe loc. După salvare se recitesc datele tichetului și se reîncarcă sumarul și echipamentele. Data intervenției este precompletată, iar data emiterii originale este păstrată. Excepțiile contactului și blocările instalării rămân în formularul comun și în API.
+- Ruta veche `/dashboard/lucrari/[id]/edit` conduce la detalii cu dialogul deschis. Parametrii de deschidere sunt eliminați după închidere/salvare; comportamentul de notificare al fostei rute este păstrat pentru acest punct de acces.
+- Închiderea prin Anulează, Escape, X sau overlay este protejată de confirmarea modificărilor nesalvate. Interacțiunea cu selectoare/dialoguri secundare nu închide formularul. Salvarea folosește și blocare sincronă împotriva dublului click. La revenirea din editare, formularul de creare este resetat pentru a nu reutiliza datele tichetului anterior.
+
+Implementare locală, fără publicare sau modificări de date live.
+
+Verificare: testul dedicat dialogului (`TICKET_DIALOG_ONLY=1`, emulatoare Auth/Firestore/Storage, proiect fictiv `demo-fom-installation`) a trecut pe desktop 1440 px și telefon 390 px. Acoperă cele trei tipuri la editare, lista și detaliile, ruta veche, data emiterii și excepția contactului, un singur footer, eroarea serverului cu formular păstrat, dublul click, Escape/exterior/Anulează, selecția multiplă și reîncărcarea sumarului, blocările după prima fișă și lipsa depășirii orizontale a dialogului. Adăugarea este verificată pentru deschidere, selector și anulare. Capturi: `/private/tmp/fom-ticket-dialog-desktop.png`, `/private/tmp/fom-ticket-dialog-mobile.png`.
+
+Build Next.js: reușit. TypeScript separat: 216 erori în proiect, fără erori în componenta nouă, scriptul de test sau liniile modificate; erorile preexistente din paginile mari rămân. Buildul folosește configurația existentă care omite TypeScript și lint. Suita extinsă a instalării nu a fost finalizată în această rulare: s-a oprit la verificarea tabului Documente, înainte de testele dialogului; verificarea dedicată de mai sus este separată.

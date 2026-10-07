@@ -1,5 +1,8 @@
 "use client"
 import { isInstallationV1 } from "@/types/installation"
+import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
+import { TicketDialog } from "@/components/ticket-dialog"
+import { ticketEditDraft } from "@/lib/work-documents/ticket-edit-draft"
 import { InstallationWorkspace } from "@/components/installation-workspace"
 import { InstallationTicketDetails } from "@/components/installation/ticket-details"
 import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
@@ -22,7 +25,6 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { OfferEditorDialog } from "./offer-editor-dialog"
 import { DevizEditorDialog } from "./deviz-editor-dialog"
-import { LucrareForm } from "@/components/lucrare-form"
 import { DownloadHistory } from "@/components/download-history"
 import { OfferEvidencePanel } from "@/components/offer/offer-evidence-panel"
 import { Textarea } from "@/components/ui/textarea"
@@ -403,6 +405,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const debugLoggedOnceRef = useState({ did: false })[0]
   const [isRevizieDebugDialogOpen, setIsRevizieDebugDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [installationRefresh, setInstallationRefresh] = useState(0)
+  const [editClientIssues, setEditClientIssues] = useState<string[]>([])
+  const [editError, setEditError] = useState("")
+  const editQueryHandled = useRef("")
+  const editOriginalLocation = useRef("")
   const [editDataEmiterii, setEditDataEmiterii] = useState<Date | undefined>(new Date())
   const [editDataInterventie, setEditDataInterventie] = useState<Date | undefined>(undefined)
   const [editFormData, setEditFormData] = useState<EditFormData>(EMPTY_EDIT_FORM)
@@ -1020,10 +1027,25 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     setEditFormData((prev) => ({ ...prev, [field]: value }))
   }, [])
 
+  const closeEditDialog = useCallback(() => {
+    setIsEditDialogOpen(false)
+    if (searchParams.get("edit") === "1") {
+      const next = new URLSearchParams(searchParams.toString())
+      next.delete("edit")
+      next.delete("editSource")
+      router.replace(`/dashboard/lucrari/${paramsId}${next.size ? `?${next}` : ""}`, { scroll: false })
+    }
+  }, [searchParams, router, paramsId])
+
   const handleUpdateFromDetail = useCallback(async () => {
-    if (!lucrare?.id) return
+    if (!lucrare?.id || !isAdminOrDispatcher) return
     if (isEditSubmitting) return
 
+    if (editFormData.tipLucrare === "Intervenție în contract" && editFormData.contractType !== "Abonament") {
+      setEditFieldErrors(previous => [...new Set([...previous, "contract"])])
+      setEditError("Intervenția în contract necesită un contract de tip Abonament.")
+      return
+    }
     if (!validateEditForm()) {
       if (!editDataInterventie) {
         toast({
@@ -1043,6 +1065,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
     try {
       setIsEditSubmitting(true)
+      setEditError("")
 
       let statusLucrare = editFormData.statusLucrare
       const hasTechnicians = Array.isArray(editFormData.tehnicieni) && editFormData.tehnicieni.length > 0
@@ -1058,7 +1081,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       const updatedPayload: any = {
         ...editFormData,
         statusLucrare,
-        dataEmiterii: format(editDataEmiterii || new Date(), "dd.MM.yyyy HH:mm"),
+        dataEmiterii: lucrare.dataEmiterii,
         dataInterventie: format(editDataInterventie as Date, "dd.MM.yyyy HH:mm"),
       }
 
@@ -1079,13 +1102,26 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         userData?.displayName || userData?.email || "Utilizator",
       )
 
-      setLucrare((prev) => (prev ? ({ ...prev, ...updatedPayload } as Lucrare) : prev))
-      setIsEditDialogOpen(false)
+      const refreshed = await getLucrareById(lucrare.id)
+      setLucrare(refreshed || ({ ...lucrare, ...updatedPayload } as Lucrare))
+      setInstallationRefresh(value => value + 1)
+      if (searchParams.get("editSource") === "legacy" && (
+        updatedPayload.dataInterventie !== lucrare.dataInterventie ||
+        JSON.stringify(updatedPayload.tehnicieni) !== JSON.stringify(lucrare.tehnicieni) ||
+        updatedPayload.locatie !== editOriginalLocation.current || updatedPayload.statusLucrare !== lucrare.statusLucrare
+      )) {
+        try {
+          const result = await sendWorkOrderNotifications({ ...lucrare, ...updatedPayload, ...refreshed, id: lucrare.id })
+          if (!result.success) toast({ title: "Notificări netrimise", description: "Tichetul a fost salvat, dar notificările nu au putut fi trimise.", variant: "destructive" })
+        } catch { toast({ title: "Notificări netrimise", description: "Tichetul a fost salvat, dar notificările nu au putut fi trimise.", variant: "destructive" }) }
+      }
+      closeEditDialog()
       toast({
         title: "Tichet actualizat",
         description: "Modificările au fost salvate cu succes.",
       })
     } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Actualizarea a eșuat.")
       console.error("Eroare la actualizarea tichetului:", error)
       toast({
         title: "Eroare",
@@ -1096,7 +1132,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       setIsEditSubmitting(false)
     }
   }, [
-    lucrare?.id,
+    lucrare,
+    isAdminOrDispatcher,
+    searchParams,
+    closeEditDialog,
     isEditSubmitting,
     validateEditForm,
     editDataInterventie,
@@ -1109,7 +1148,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   // Funcție pentru a edita lucrarea direct din pagina de detaliu
   const handleEdit = useCallback(() => {
-    if (!lucrare) return
+    if (!lucrare || !isAdminOrDispatcher || lucrare.lockedAfterReintervention || lucrare.statusLucrare === "Finalizat" || (isInstallationV1(lucrare) && lucrare.installation?.closedReason)) return
+    const projection = ticketEditDraft(lucrare, ticketClient.client)
+    editOriginalLocation.current = projection.fields.locatie || lucrare.locatie || ""
+    setEditClientIssues(projection.issues)
+    setEditError("")
     setEditDataEmiterii(toDateSafe(lucrare.dataEmiterii) || new Date())
     setEditDataInterventie(toDateSafe(lucrare.dataInterventie) || undefined)
     setEditFormData({
@@ -1139,9 +1182,20 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       echipamentCod: (lucrare as any).echipamentCod || "",
       equipmentIds: Array.isArray((lucrare as any).equipmentIds) ? (lucrare as any).equipmentIds : [],
     })
+    setEditFormData(prev => ({ ...prev, ...projection.fields }))
     setEditFieldErrors([])
     setIsEditDialogOpen(true)
-  }, [lucrare])
+  }, [lucrare, isAdminOrDispatcher, ticketClient.client])
+
+  useEffect(() => {
+    if (searchParams.get("edit") !== "1") {
+      editQueryHandled.current = ""
+      return
+    }
+    if (loading || !userData || (!ticketClient.client && !ticketClient.unavailable) || lucrare?.id !== paramsId || editQueryHandled.current === paramsId) return
+    editQueryHandled.current = paramsId
+    handleEdit()
+  }, [searchParams, loading, userData, ticketClient.client, ticketClient.unavailable, lucrare?.id, paramsId, handleEdit])
 
   // Navigare unificată către istoricul echipamentului (același mecanism folosit în aplicație)
   const reportGeneratorRef = useRef<HTMLButtonElement>(null)
@@ -2003,9 +2057,21 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     ? "border-blue-300 bg-blue-100 text-blue-800"
     : "border-amber-300 bg-amber-100 text-amber-900"
 
+  const editDialog = <TicketDialog
+    mode="edit" open={isEditDialogOpen} setOpen={setIsEditDialogOpen}
+    onClose={closeEditDialog} onSave={handleUpdateFromDetail} isSubmitting={isEditSubmitting}
+    error={editError} beforeForm={editClientIssues.length > 0 && <p role="status" className="text-sm text-amber-700">{editClientIssues.join(" ")}</p>}
+    initialData={lucrare as any} currentWorkOrderId={lucrare.id}
+    dataEmiterii={editDataEmiterii} setDataEmiterii={setEditDataEmiterii}
+    dataInterventie={editDataInterventie} setDataInterventie={setEditDataInterventie}
+    formData={editFormData as any} handleInputChange={handleEditInputChange} handleSelectChange={handleEditSelectChange}
+    handleTehnicieniChange={handleEditTehnicieniChange} handleCustomChange={handleEditCustomChange}
+    fieldErrors={editFieldErrors} setFieldErrors={setEditFieldErrors}
+  />
+
   if (isInstallationV1(lucrare)) return (
     <DashboardShell>
-      <InstallationWorkspace key={paramsId} workId={paramsId} compact ticketDetails={
+      <InstallationWorkspace key={`${paramsId}-${installationRefresh}`} workId={paramsId} compact onEdit={handleEdit} ticketDetails={
         <InstallationTicketDetails
           work={lucrare}
           display={clientDisplay}
@@ -2015,6 +2081,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           syncIssues={contactSyncIssues}
         />
       } />
+      {editDialog}
     </DashboardShell>
   )
 
@@ -4795,43 +4862,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       {/* Dev-only debug panel: work doc dump + computed flags */}
       <DevDebugPanel lucrare={lucrare} />
 
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editează Tichet</DialogTitle>
-          </DialogHeader>
-          <LucrareForm
-            isEdit={true}
-            preserveContactDraft
-            dataEmiterii={editDataEmiterii}
-            setDataEmiterii={setEditDataEmiterii}
-            dataInterventie={editDataInterventie}
-            setDataInterventie={setEditDataInterventie}
-            formData={editFormData as any}
-            handleInputChange={handleEditInputChange}
-            handleSelectChange={handleEditSelectChange}
-            handleTehnicieniChange={handleEditTehnicieniChange}
-            fieldErrors={editFieldErrors}
-            onCancel={() => setIsEditDialogOpen(false)}
-            handleCustomChange={handleEditCustomChange}
-            initialData={lucrare as any}
-          />
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Anulează
-            </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleUpdateFromDetail} disabled={isEditSubmitting}>
-              {isEditSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                </>
-              ) : (
-                "Actualizează"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editDialog}
 
     </DashboardShell>
 

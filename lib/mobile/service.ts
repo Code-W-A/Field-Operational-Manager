@@ -1,0 +1,290 @@
+import { FieldValue, Timestamp, type Firestore, type Transaction } from "firebase-admin/firestore";
+import { assigned, visibleWork, versionOf, assertCommand, interventionPatch, checklistFromSettings, validateRevision, emptyBundle, revisionEquipmentIds, equipmentFor, failureCauses, type Actor, type Command, type RecordData, type Bundle } from "@/packages/fom-domain";
+import { verifyQr } from "@/lib/installations/validation";
+import { installationService } from "@/lib/installations/service";
+import { resolveDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot";
+import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
+import { resolveTicketLiveDisplay } from "@/lib/work-documents/ticket-live-display";
+import { validateHrRequestCreateInput } from "@/lib/hr/request-validation";
+import { isValidOvertimeDuration } from "@/lib/hr/overtime-duration";
+import { buildAttendanceTimesheetCell } from "@/lib/attendance/sync-timesheet-merge";
+import { buildAttendanceEntriesFromSessions } from "@/lib/attendance/sync-timesheet-entries";
+import { timeOnSameDayMs, clampSessionEndMs } from "@/lib/attendance/auto-pontaj-schedule";
+import { calculateDuration, formatDate, formatTime } from "@/lib/utils/time-format";
+import { failureCauseOptionsFromSettings } from "@/lib/utils/failure-causes";
+
+export class MobileError extends Error { constructor(message: string, public status = 400) { super(message); } }
+function check(condition: unknown, message: string, status = 400): asserts condition { if (!condition) throw new MobileError(message,status); }
+export function serial(value: any): any { if (value?.toDate) return value.toDate().toISOString(); if (value instanceof Date) return value.toISOString(); if (Array.isArray(value)) return value.map(serial); if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).filter(([,v]) => v !== undefined).map(([k,v]) => [k,serial(v)])); return value; }
+const rows = (snap: any): RecordData[] => snap.docs.map((d: any) => ({...d.data(), id:d.id}));
+const millis = (v: any) => v?.toMillis ? v.toMillis() : typeof v === "string" ? Date.parse(v) : Number(v);
+const id = (v: any) => { check(typeof v === "string" && /^[\w-]{1,160}$/.test(v),"Identificator invalid."); return v as string; };
+const localDay = (ms: number) => new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Bucharest",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(ms));
+const localTime = (ms: number) => new Intl.DateTimeFormat("ro-RO",{timeZone:"Europe/Bucharest",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(ms));
+
+export function mobileService(db: Firestore) {
+  const workRef = (workId: string) => db.collection("lucrari").doc(id(workId));
+  async function actor(uid: string): Promise<Actor> {
+    const user = (await db.collection("users").doc(id(uid)).get()).data();
+    check(user && user.role === "tehnician" && user.disabled !== true,"Acces exclusiv pentru tehnicieni.",403);
+    if (user.displayName) {
+      const matches = await db.collection("users").where("displayName","==",user.displayName).get();
+      check(matches.docs.filter(d => d.data().role === "tehnician").length === 1,"Numele tehnicianului este ambiguu.",403);
+    }
+    return {uid,role:user.role,displayName:String(user.displayName || "")};
+  }
+  async function bundle(uid: string): Promise<Bundle> {
+    const a = await actor(uid);
+    const [legacy,byUid,att,requests,employees,procedures,settings,departments] = await Promise.all([
+      a.displayName ? db.collection("lucrari").where("tehnicieni","array-contains",a.displayName).get() : Promise.resolve({docs:[]}),
+      db.collection("lucrari").where("technicianIds","array-contains",uid).get(),
+      db.collection("attendance").where("userId","==",uid).get(),
+      db.collection("hrRequests").where("requesterUid","==",uid).get(),
+      db.collection("hrEmployees").where("userUid","==",uid).get(),
+      db.collection("note-interne").get(), db.collection("settings").get(), db.collection("hrDepartments").get()
+    ]);
+    check(employees.docs.length <= 1,"Contul este asociat mai multor salariați.",409);
+    const works = [...new Map([...rows(legacy),...rows(byUid)].map(w => [w.id,w])).values()].filter(w => visibleWork(w,a));
+    works.forEach(w=>{const snap=[...legacy.docs,...byUid.docs].find(d=>d.id===w.id);w.mobileVersion=versionOf(w) || versionOf({updatedAt:snap?.updateTime});});
+    const clients: RecordData[] = [];
+    for (const w of works) {
+      const clientId = w.clientId || w.clientInfo?.id;
+      let client: RecordData | undefined;
+      if (clientId) { const s = await db.collection("clienti").doc(id(clientId)).get(); if(s.exists) client={...s.data(),id:s.id}; }
+      else if(w.client) { const s=await db.collection("clienti").where("nume","==",w.client).limit(2).get(); if(s.size===1) client=rows(s)[0]; }
+      if(client) {
+        // Export only ticket-related locations/equipment; no customer-wide account metadata.
+        const display=resolveTicketLiveDisplay(w,client);
+        w.mobileContact=serial(display.contact);
+        const location=resolveTicketLocation(client,w);
+        w.mobileEquipment=equipmentFor(w,location);
+        const locations = (client.locatii || []).filter((l: any) => l.id === w.locationId || l.nume === w.locatie);
+        clients.push({id:client.id,nume:client.nume,locatii:locations});
+      }
+    }
+    const b: Bundle = {...emptyBundle(),works:works as any,clients,attendance:rows(att),requests:rows(requests),employee:rows(employees)[0] || null,procedures:rows(procedures),settings:rows(settings),departments:rows(departments),downloadedAt:new Date().toISOString()};
+    for(const w of works) {
+      if(w.tipLucrare === "Revizie") b.revisions[w.id]=rows(await workRef(w.id).collection("revisions").get());
+      if(w.installation?.schemaVersion === 1) b.installations[w.id]=await installationService(db).list(a,w.id);
+    }
+    return serial(b);
+  }
+  async function history(uid: string, code: string) {
+    await actor(uid);
+    check(code.length > 0 && code.length < 200,"Cod invalid.");
+    const snap=await db.collection("lucrari").where("echipamentCod","==",code).get();
+    return serial(rows(snap).filter(w => w.raportGenerat).map(w => ({id:w.id,client:w.client,locatie:w.locatie,dataInterventie:w.dataInterventie,tipLucrare:w.tipLucrare,constatareLaLocatie:w.constatareLaLocatie,descriereInterventie:w.descriereInterventie,numarRaport:w.numarRaport,statusEchipament:w.statusEchipament})));
+  }
+  async function command(uid: string, c: Command) {
+    try { assertCommand(c); } catch(e) { throw new MobileError((e as Error).message); }
+    const a=await actor(uid);
+    const occurred=Date.parse(c.occurredAt);
+    check(occurred <= Date.now()+300000,"Momentul acțiunii este în viitor.");
+    const receipt=db.collection("mobileCommands").doc(`${uid}_${c.mutationId}`);
+    const previous=await receipt.get();
+    if(previous.exists) { check(previous.data()?.fingerprint===JSON.stringify(c),"Identificator reutilizat pentru altă comandă.",409); return previous.data()!.result; }
+    if(c.action === "installation") {
+      const svc=installationService(db), p: RecordData={...c.payload,requestId:c.mutationId};
+      if(p.action !== "sign") await db.runTransaction(tx=>requireAttendance(tx,a,c,occurred));
+      if(c.predecessorId) {const previous=(await db.collection("mobileCommands").doc(`${uid}_${id(c.predecessorId)}`).get()).data();
+        check(previous && previous.fingerprint && JSON.parse(previous.fingerprint).entityId===c.entityId,"Comanda anterioară nu este confirmată.",409);
+        if(previous.result?.sheet?.id===p.sheetId) p.revision=previous.result.sheet.revision;
+      }
+      const actions: Record<string,() => Promise<any>>={start:()=>svc.start(a,c.entityId,p),save:()=>svc.save(a,c.entityId,p),close:()=>svc.save(a,c.entityId,p,true),stop:()=>svc.stop(a,c.entityId,p),sign:()=>svc.sign(a,c.entityId,p),continue:()=>svc.continueWork(a,c.entityId),complete:()=>svc.complete(a,c.entityId,p)};
+      check(actions[p.action],"Acțiune de instalare invalidă.");
+      const result=serial(await actions[p.action]());
+      await receipt.set({uid,fingerprint:JSON.stringify(c),result,createdAt:FieldValue.serverTimestamp()});
+      return result;
+    }
+    return db.runTransaction(async tx => {
+      const receiptSnap=await tx.get(receipt);
+      if(receiptSnap.exists) { check(receiptSnap.data()?.fingerprint===JSON.stringify(c),"Identificator reutilizat.",409); return receiptSnap.data()!.result; }
+      const user=await tx.get(db.collection("users").doc(uid));
+      check(user.data()?.role === "tehnician" && user.data()?.disabled !== true,"Profil invalid.",403);
+      let result: RecordData = {};
+      if(c.action.startsWith("attendance.")) result=await attendance(tx,a,c,occurred);
+      else if(c.action === "request.create") result=await request(tx,a,c);
+      else {
+        const ref=workRef(c.entityId), snap=await tx.get(ref), w=snap.data();
+        check(w,"Tichet inexistent.",404);
+        check(assigned(w,a),"Tichetul nu îți mai este atribuit.",403);
+        if(c.action === "notification.read") { tx.update(ref,{notificationReadBy:FieldValue.arrayUnion(uid)}); result={id:snap.id}; }
+        else {
+          check(!w.installation?.schemaVersion,"Folosește fluxul de instalare.");
+          check(!w.raportDataLocked && !["Anulată","Arhivată","Amânată"].includes(w.statusLucrare),"Tichetul nu mai permite modificări.",409);
+          let expected=c.baseVersion;
+          if(c.predecessorId) {
+            const prior=await tx.get(db.collection("mobileCommands").doc(`${uid}_${id(c.predecessorId)}`));
+            check(prior.exists && prior.data()?.result?.id===c.entityId,"Comanda anterioară nu este confirmată.",409);
+            expected=prior.data()!.result.version;
+          }
+          check((versionOf(w) || versionOf({updatedAt:snap.updateTime}))===expected,"Tichetul a fost modificat. Ciorna este păstrată.",409);
+          if(c.action !== "postpone") await requireAttendance(tx,a,c,occurred);
+          const settings=rows(await tx.get(db.collection("settings")));
+          await validatePhotos(tx,a,c,w);
+          const now=Timestamp.now(), patch: RecordData={};
+          if(c.action === "verify") {
+            const equipment=await resolveEquipmentTx(tx,w,c.payload.equipmentId);
+            check(equipment.code && equipment.code===String(c.payload.code),"Codul QR nu corespunde echipamentului.");
+            verifyQr(c.payload.qrRaw || String(c.payload.code),equipment as any,String(w.client || ""),String(w.locatie || ""));
+            if(w.tipLucrare !== "Revizie") {
+              const other=await tx.get(db.collection("lucrari").where("tehnicieni","array-contains",a.displayName));
+              check(!other.docs.some(d=>d.id!==snap.id && d.data().equipmentVerified && !d.data().timpPlecare && !d.data().raportGenerat && !["Amânată","Anulată"].includes(d.data().statusLucrare)),"Ai deja o intervenție în lucru.",409);
+              Object.assign(patch,{equipmentVerified:true,equipmentVerifiedAt:c.occurredAt,equipmentVerifiedBy:uid,statusLucrare:"În lucru",timpSosire:c.occurredAt,dataSosire:formatDate(new Date(occurred)),oraSosire:formatTime(new Date(occurred))});
+            } else {
+              Object.assign(patch,{[`revisionEquipmentTimes.${equipment.id}`]:{startIso:c.occurredAt,verifiedAt:c.occurredAt,verifiedBy:uid},[`revision.equipmentStatus.${equipment.id}`]:"in_progress",...(!w.timpSosire?{timpSosire:c.occurredAt,dataSosire:formatDate(new Date(occurred)),oraSosire:formatTime(new Date(occurred))}:{})});
+            }
+          } else if(c.action === "postpone") {
+            check(String(c.payload.motivAmanare || "").trim().length>=10,"Motivul trebuie să aibă minimum 10 caractere.");
+            Object.assign(patch,{statusLucrare:"Amânată",motivAmanare:c.payload.motivAmanare.trim(),dataAmanare:new Date(occurred).toLocaleString("ro-RO",{timeZone:"Europe/Bucharest"}),amanataDe:a.displayName,tehnicieni:[],...(w.technicianIds?{technicianIds:[]}:{}),updatedBy:a.displayName});
+          } else if(c.action === "revision.save") {
+            const eq=await resolveEquipmentTx(tx,w,c.payload.equipmentId);
+            const time=w.revisionEquipmentTimes?.[eq.id];
+            check(time?.verifiedAt || time?.startIso,"Verifică QR-ul acestui echipament.");
+            const existing=await tx.get(ref.collection("revisions").doc(eq.id));
+            const expectedSections=existing.data()?.sections || (eq.rootId?checklistFromSettings(settings,eq.rootId):[]);
+            const sections=validateRevision(c.payload.sections,expectedSections);
+            const minutes=Math.max(0,Math.floor((occurred-Date.parse(time.startIso || time.verifiedAt))/60000));
+            const revision={equipmentId:eq.id,equipmentName:eq.name,sections,finalObservations:String(c.payload.finalObservations || ""),overallState:sections.every(s=>s.items.every(i=>i.state==="functional"))?"functional":"nefunctional",qrVerified:true,qrVerifiedAt:time.verifiedAt || time.startIso,qrVerifiedBy:uid,completedAt:c.occurredAt,completedBy:uid,durationMinutes:minutes,durationText:`${Math.floor(minutes/60)}h ${minutes%60}m`,photos:c.payload.photos || [],updatedAt:now,...(!existing.exists?{createdAt:now}:{})};
+            tx.set(ref.collection("revisions").doc(eq.id),revision,{merge:true});
+            Object.assign(patch,{[`revision.equipmentStatus.${eq.id}`]:"done",[`revisionEquipmentTimes.${eq.id}`]:{...time,endIso:c.occurredAt,durationMinutes:minutes,durationText:revision.durationText}});
+          } else {
+            check(w.equipmentVerified || w.tipLucrare === "Revizie","Verifică echipamentul înainte de intervenție.");
+            Object.assign(patch,interventionPatch(c.payload,w));
+            if(c.action === "report.later" || c.action === "report.finalize") {
+              const causes=failureCauses(settings);
+              const cause=causes.find(o=>o.id===(patch.cauzaPrincipalaDefectId || w.cauzaPrincipalaDefectId));
+              check(cause,"Selectează cauza principală a defectului."); patch.cauzaPrincipalaDefect=cause.label;
+              if(w.tipLucrare === "Revizie") {
+                const revisions=await tx.get(ref.collection("revisions"));
+                check(revisionEquipmentIds(w).length && revisionEquipmentIds(w).every(eid=>w.revision?.equipmentStatus?.[eid]==="done" && revisions.docs.some(d=>d.id===eid)),"Completează toate fișele de revizie.");
+                patch.mobileRevisionSnapshot=serial(rows(revisions));
+              }
+              Object.assign(patch,{products:validateProducts(c.payload.products || []),timpPlecare:w.timpPlecare || c.occurredAt,dataPlecare:w.dataPlecare || formatDate(new Date(occurred)),oraPlecare:w.oraPlecare || formatTime(new Date(occurred)),durataInterventie:w.durataInterventie || (w.timpSosire?calculateDuration(w.timpSosire,c.occurredAt):"-"),statusFinalizareInterventie:"NEFINALIZAT",statusLucrare:"Fără semnătură"});
+              if(c.action === "report.finalize") {
+                const client=await resolveClient(tx,w);
+                const frozen=resolveDocumentClientSnapshot(w,client);
+                const counter=db.collection("numarRaport").doc("document-numar-raport");
+                const n=await tx.get(counter);
+                const number=w.nrLucrare || w.numarRaport || `#${String(n.data()?.numarRaport || 1).padStart(6,"0")}`;
+                if(!w.nrLucrare && !w.numarRaport) tx.set(counter,{numarRaport:(n.data()?.numarRaport || 1)+1});
+                for(const k of ["semnaturaTehnician","semnaturaBeneficiar"]) {const value=c.payload[k]; if(value) {check(typeof value==="string" && value.length<=120000 && /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value),"Semnătură invalidă.");check(Buffer.from(value.split(",")[1],"base64").subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])),"Semnătură PNG invalidă.");}}
+                const emails=c.payload.reportManualRecipients || [];
+                check(Array.isArray(emails) && emails.length<=20 && emails.every((v: unknown)=>typeof v==="string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)),"Email invalid.");
+                Object.assign(patch,{semnaturaTehnician:c.payload.semnaturaTehnician || "",semnaturaBeneficiar:c.payload.semnaturaBeneficiar || "",numeTehnician:a.displayName,numeBeneficiar:String(c.payload.numeBeneficiar || w.persoanaContact || ""),reportManualRecipients:emails,emailDestinatar:emails,raportGenerat:true,raportDataLocked:true,statusLucrare:"Finalizat",numarRaport:number,nrLucrare:String(number),preluatDispecer:false});
+                const snapshotKeys=["client","locatie","clientInfo","persoanaContact","telefon","tipLucrare","defectReclamat","echipament","echipamentCod","constatareLaLocatie","descriereInterventie","statusEchipament","cauzaPrincipalaDefectId","cauzaPrincipalaDefect","products","semnaturaTehnician","semnaturaBeneficiar","numeTehnician","numeBeneficiar","imaginiDefecte","timpSosire","timpPlecare","dataSosire","oraSosire","dataPlecare","oraPlecare","durataInterventie","numarRaport","mobileRevisionSnapshot"];
+                const combined={...w,...patch};
+                patch.raportSnapshot=serial({...Object.fromEntries(snapshotKeys.filter(k=>combined[k]!==undefined).map(k=>[k,combined[k]])),clientSnapshot:frozen,dataGenerare:c.occurredAt});
+              }
+            }
+          }
+          // Same incidental effects as updateLucrare; reading notifications is handled separately.
+          Object.assign(patch,{updatedAt:now,notificationRead:false,notificationReadBy:[]});
+          tx.update(ref,patch);
+          result={id:snap.id,version:versionOf({updatedAt:now}),work:serial({...w,...patch,mobileVersion:versionOf({updatedAt:now})})};
+          if(["postpone","report.finalize"].includes(c.action)) tx.set(db.collection("mobileEffects").doc(`${uid}_${c.mutationId}`),{uid,workId:snap.id,action:c.action,status:"pending",createdAt:now});
+        }
+      }
+      tx.set(receipt,{uid,fingerprint:JSON.stringify(c),result:serial(result),createdAt:FieldValue.serverTimestamp()});
+      tx.set(db.collection("logs").doc(`mobile_${uid}_${c.mutationId}`),{timestamp:FieldValue.serverTimestamp(),utilizator:a.displayName,utilizatorId:uid,actiune:c.action,detalii:`Comandă mobilă ${c.mutationId}`,tip:"Informație",categorie:"Tehnician"});
+      return serial(result);
+    });
+  }
+  function resolveEquipment(w: RecordData,equipmentId?: string) {
+    const equipments=w.mobileEquipment || equipmentFor(w);
+    const eq=equipmentId?equipments.find((e: any)=>e.id===equipmentId):equipments[0];
+    check(eq,"Echipament neasociat tichetului.");return eq;
+  }
+  async function resolveEquipmentTx(tx:Transaction,w:RecordData,equipmentId?:string) {
+    const client=await resolveClient(tx,w),location=resolveTicketLocation(client,w);
+    return resolveEquipment({...w,mobileEquipment:equipmentFor(w,location)},equipmentId);
+  }
+  async function resolveClient(tx: Transaction,w: RecordData) {
+    if(w.clientId || w.clientInfo?.id) { const snap=await tx.get(db.collection("clienti").doc(id(w.clientId || w.clientInfo.id))); check(snap.exists,"Client indisponibil.",409); return {...snap.data(),id:snap.id}; }
+    const snap=await tx.get(db.collection("clienti").where("nume","==",w.client).limit(2)); check(snap.size===1,"Clientul nu poate fi identificat sigur.",409); return rows(snap)[0];
+  }
+  async function validatePhotos(tx:Transaction,a:Actor,c:Command,w:RecordData) {
+    const incoming=c.action==="revision.save"?c.payload.photos:c.payload.imaginiDefecte;
+    if(!incoming)return;
+    check(Array.isArray(incoming),"Fotografii invalide.");
+    let old=w.imaginiDefecte || [];
+    if(c.action==="revision.save") old=(await tx.get(workRef(c.entityId).collection("revisions").doc(id(c.payload.equipmentId)))).data()?.photos || [];
+    for(const photo of incoming) {
+      if(old.some((p:any)=>p.path===photo.path && p.url===photo.url))continue;
+      check(photo.id,"Fotografie fără identificator.");
+      const stored=(await tx.get(db.collection("mobileFiles").doc(`${a.uid}_${id(photo.id)}`))).data();
+      check(stored && stored.workId===c.entityId && stored.path===photo.path && stored.url===photo.url && stored.purpose==="photo","Fotografie neautorizată.",403);
+    }
+  }
+  async function requireAttendance(tx: Transaction,a: Actor,c: Command,at: number) {
+    check(c.attendanceId,"Pornește pontajul.");
+    const s=(await tx.get(db.collection("attendance").doc(id(c.attendanceId)))).data();
+    check(s && s.userId===a.uid && millis(s.sessionStart)<=at && (!s.sessionEnd || millis(s.sessionEnd)>=at),"Acțiunea nu se află într-un interval de pontaj valid.",409);
+  }
+  async function attendance(tx: Transaction,a: Actor,c: Command,at: number) {
+    const lockRef=db.collection("attendanceActiveSessions").doc(a.uid), lock=await tx.get(lockRef);
+    const sessionRef=db.collection("attendance").doc(id(c.entityId)), existing=await tx.get(sessionRef);
+    const employees=await tx.get(db.collection("hrEmployees").where("userUid","==",a.uid)); check(employees.size<=1,"Asociere HR ambiguă.",409);
+    const employee=rows(employees)[0];
+    const defaults=(await tx.get(db.collection("hrSettings").doc("defaults"))).data() || {};
+    const schedule={...defaults,...Object.fromEntries(Object.entries(employee || {}).filter(([,value])=>value!==undefined && value!==""))};
+    if(c.action === "attendance.start") {
+      check(!existing.exists,"Sesiune existentă.",409);
+      if(lock.data()?.activeSessionId) { const active=await tx.get(db.collection("attendance").doc(lock.data()!.activeSessionId)); check(active.data()?.status!=="active","Există deja un pontaj activ.",409); }
+      if(employee) {
+        const requests=await tx.get(db.collection("hrRequests").where("employeeId","==",employee.id));
+        const day=localDay(at),timesheet=await tx.get(db.collection("hrTimesheets").doc(`${employee.id}_${day.slice(0,7)}`)),cell=timesheet.data()?.days?.[String(Number(day.slice(8)))];
+        check(!["CO","CFP","CM","IN"].includes(cell?.code),"Ești în concediu sau învoire în această zi.",409);
+        const time=localTime(at);check(!(cell?.entries || []).some((entry:any)=>entry.start<=time && time<entry.end),"Există deja pontaj în condică pentru acest interval.",409);
+        check(!rows(requests).some(r=>r.status==="approved" && (["CO","CFP","CM"].includes(r.kind) && r.payload.startDate<=day && r.payload.endDate>=day || r.kind==="IN" && r.payload.date===day)),"Ești în concediu în această zi.",409);
+      }
+      const startHour=schedule.programLucruStart || "08:00",lateStartMinutes=Math.max(0,Math.floor((at-timeOnSameDayMs(at,startHour,{h:8,m:0}))/60000));
+      const session={userId:a.uid,userName:a.displayName,userRole:a.role,scheduledStart:startHour,...(lateStartMinutes?{lateStartMinutes,lateStartAt:at}:{}),...(employee?{employeeId:employee.id}:{}),sessionStart:Timestamp.fromMillis(at),status:"active",mode:"field",programLucruStart:schedule.programLucruStart || "08:00",programLucruEnd:schedule.programLucruEnd || "16:30",...(schedule.pauzaStart && schedule.pauzaEnd?{pauzaStart:schedule.pauzaStart,pauzaEnd:schedule.pauzaEnd}:{}),deviceInfo:{type:"mobile",userAgent:"FOM Expo"},createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()};
+      tx.set(sessionRef,session); tx.set(lockRef,{userId:a.uid,activeSessionId:c.entityId,sessionStart:session.sessionStart,employeeId:employee?.id || null,updatedAt:FieldValue.serverTimestamp()});
+      return {id:c.entityId,session:serial({...session,createdAt:c.occurredAt,updatedAt:c.occurredAt})};
+    }
+    const s=existing.data(); check(s && s.userId===a.uid && s.status==="active","Sesiunea nu este activă.",409);
+    check(!lock.data()?.activeSessionId || lock.data()?.activeSessionId===c.entityId,"Altă sesiune este activă.",409);
+    const start=millis(s.sessionStart);check(at-start>=60000,`Așteaptă ${Math.ceil((60000-(at-start))/1000)} secunde înainte de oprirea pontajului.`);const end=clampSessionEndMs(start,at,s.programLucruEnd || "16:30"); check(end>=start,"Interval invalid.");
+    let timesheet: any;
+    if(employee) {
+      const day=localDay(start),month=day.slice(0,7),ref=db.collection("hrTimesheets").doc(`${employee.id}_${month}`),snap=await tx.get(ref);
+      const sessions=await tx.get(db.collection("attendance").where("userId","==",a.uid));
+      const same=rows(sessions).filter(r=>r.id!==c.entityId && r.status==="completed" && localDay(millis(r.sessionStart))===day);
+      const completed=[...same,{...s,id:c.entityId,sessionEnd:Timestamp.fromMillis(end),checkOutMode:"field"}].map(r=>({...r,sessionStart:millis(r.sessionStart),sessionEnd:millis(r.sessionEnd)}));
+      const key=String(Number(day.slice(8))), existingDay=snap.data()?.days?.[key];
+      const built=buildAttendanceTimesheetCell({existingDay,computedEntries:buildAttendanceEntriesFromSessions(completed as any),defaultBreak:s.pauzaStart && s.pauzaEnd?{start:s.pauzaStart,end:s.pauzaEnd}:null});
+      check(built.cell,"Ziua de condică este protejată de un eveniment HR.",409);
+      timesheet={ref,data:{employeeId:employee.id,monthKey:month,days:{...(snap.data()?.days || {}),[key]:built.cell},updatedAt:FieldValue.serverTimestamp()}};
+    }
+    tx.update(sessionRef,{status:"completed",sessionEnd:Timestamp.fromMillis(end),checkOutMode:"field",updatedAt:FieldValue.serverTimestamp()});
+    if(lock.exists) tx.delete(lockRef);
+    if(timesheet) tx.set(timesheet.ref,timesheet.data,{merge:true});
+    return {id:c.entityId,session:serial({...s,status:"completed",sessionEnd:new Date(end).toISOString()})};
+  }
+  async function request(tx: Transaction,a: Actor,c: Command) {
+    const emp=await tx.get(db.collection("hrEmployees").where("userUid","==",a.uid)); check(emp.size===1,"Contul trebuie asociat unui salariat HR.",409);
+    const e=rows(emp)[0],sectorId=id(c.payload.sectorId || e.sectorId || e.departmentId || e.sectorIds?.[0]), department=await tx.get(db.collection("hrDepartments").doc(sectorId));
+    check(e.sectorIds?.includes(sectorId),"Departamentul nu este asociat salariatului.",403);
+    const managerUid=e.managerUidBySector?.[sectorId] || department.data()?.managerUid || e.superiorUid;
+    const req={employeeId:e.id,employeeName:`${e.nume || ""} ${e.prenume || ""}`.trim() || a.displayName,requesterUid:a.uid,sectorId,managerUid:managerUid || "",kind:c.payload.kind,payload:c.payload.payload,status:"pending"};
+    check(["CO","CFP","CM","IN","DEL","CORRECT_HOURS","ADD_OVERTIME"].includes(req.kind) && req.payload && typeof req.payload==="object","Tip de cerere invalid.");
+    if(req.kind==="CM") {const files=await tx.get(db.collection("mobileFiles").where("uploadedBy","==",a.uid).where("purpose","==","medical").where("url","==",req.payload.medicalDocumentUrl));check(files.size===1 && files.docs[0].data().status==="ready","Document medical neautorizat.",403);}
+    if(req.kind==="CORRECT_HOURS") {const valid=(v:any)=>/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(v);check(Array.isArray(req.payload.entries) && req.payload.entries.length && req.payload.entries.every((e:any)=>valid(e.start) && valid(e.end) && e.start<e.end),"Intervalele de lucru sunt invalide.");check(Array.isArray(req.payload.breaks) && req.payload.breaks.every((e:any)=>valid(e.start) && valid(e.end) && e.start<e.end),"Pauzele sunt invalide.");}
+    const error=validateHrRequestCreateInput(req as any); check(!error,error || "Cerere invalidă.");
+    if(req.kind==="ADD_OVERTIME") check(isValidOvertimeDuration(req.payload.overtimeHours),"Durata orelor suplimentare este invalidă.");
+    const existing=await tx.get(db.collection("hrRequests").where("employeeId","==",e.id));
+    const first=req.payload.startDate || req.payload.date,last=req.payload.endDate || req.payload.date;
+    if(["CO","CFP","CM","DEL","IN"].includes(req.kind)) check(!rows(existing).some(r=>["pending","approved"].includes(r.status) && ["CO","CFP","CM","DEL","IN"].includes(r.kind) && (r.payload.startDate || r.payload.date)<=last && (r.payload.endDate || r.payload.date)>=first),"Există deja o cerere în acest interval.",409);
+    const counterRef=db.collection("hrCounters").doc("leaveRequestSerial"),counter=await tx.get(counterRef),number=(counter.data()?.last || 0)+1;
+    const requestId=`mobile_${a.uid}_${c.mutationId}`;
+    tx.set(counterRef,{last:number},{merge:true}); tx.set(db.collection("hrRequests").doc(requestId),{...req,documentSerial:number,emailChannel:"nextjs",createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()});
+    tx.set(db.collection("mobileEffects").doc(`${a.uid}_${c.mutationId}`),{uid:a.uid,requestId,action:"request.create",status:"pending",createdAt:FieldValue.serverTimestamp()});
+    return {id:requestId,request:serial({...req,id:requestId,documentSerial:number,createdAt:c.occurredAt,updatedAt:c.occurredAt})};
+  }
+  return {actor,bundle,command,history,resolveEquipment};
+}
+function validateProducts(input: any) {
+  check(Array.isArray(input) && input.length<=100,"Lista produselor este invalidă.");
+  return input.map((p: any)=>{ const quantity=Number(p.quantity),price=Number(p.price); check(Number.isFinite(quantity) && quantity>0 && Number.isFinite(price) && price>=0 && String(p.name || p.description || "").trim(),"Completează produsul, cantitatea și prețul."); return {id:String(p.id || ""),name:String(p.name || p.description),um:String(p.um || "buc"),quantity,price,total:quantity*price}; });
+}

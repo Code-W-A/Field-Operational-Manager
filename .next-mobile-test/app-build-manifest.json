@@ -1,0 +1,19 @@
+{
+  "pages": {
+    "/api/mobile/bootstrap/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/mobile/bootstrap/route.js"
+    ],
+    "/api/mobile/commands/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/mobile/commands/route.js"
+    ],
+    "/api/mobile/files/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/mobile/files/route.js"
+    ]
+  }
+}

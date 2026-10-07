@@ -635,6 +635,12 @@ export function installationService(db: Firestore) {
     const sheetId = identifier(input.sheetId);
     const content = fields(input.fields, mode !== "save");
     return db.runTransaction(async (tx) => {
+      const receipt = input.requestId ? db.collection("installationCommands").doc(`${actor.uid}_${identifier(input.requestId)}`) : null;
+      const previous = receipt ? await tx.get(receipt) : null;
+      if (previous?.exists) {
+        check(previous.data()?.fingerprint === JSON.stringify({workId,input,mode}), "Identificator reutilizat.", 409);
+        return previous.data()!.result;
+      }
       const user = await actorData(tx, actor);
       const ref = workRef(workId);
       const work = (await tx.get(ref)).data();
@@ -742,9 +748,9 @@ export function installationService(db: Firestore) {
         });
       }
       audit(tx, workId, actor, mode, { sheetId, releasedUids: release });
-      return {
-        sheet: visibleSheet({ ...sheet, ...update, id: sheetId }, actor.uid),
-      };
+      const result = {sheet: visibleSheet({ ...sheet, ...update, id: sheetId }, actor.uid)};
+      if (receipt) tx.set(receipt, {fingerprint: JSON.stringify({workId,input,mode}), result, createdAt: FieldValue.serverTimestamp()});
+      return result;
     });
   }
   const save = (
@@ -1148,6 +1154,10 @@ export function installationService(db: Firestore) {
       const ref = sheetsRef(workId).doc(identifier(sheetId));
       const sheet = (await tx.get(ref)).data() as InstallationSheet | undefined;
       assertPrincipal(sheet, actor.uid);
+      if (!remove && sheet.photos.some(p => p.id === photo.id)) {
+        check(sheet.photos.some(p => p.id === photo.id && p.path === photo.path && p.url === photo.url), "Identificator de fotografie reutilizat.", 409);
+        return {sheet};
+      }
       const photos = remove
         ? sheet.photos.filter((p) => p.id !== photo.id)
         : [...sheet.photos, photo];

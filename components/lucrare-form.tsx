@@ -2617,10 +2617,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 ))}
               </SelectContent>
             </Select>
-            {protectContactDraft && <Button type="button" variant="outline" size="sm" disabled={!formData.contactId} onClick={() => handleContactSelect(formData.contactId!)}>
+            {protectContactDraft && <Button type="button" variant="outline" size="sm" className="h-auto max-w-full whitespace-normal py-2 text-left" disabled={!formData.contactId} onClick={() => handleContactSelect(formData.contactId!)}>
               Preia datele actuale ale contactului
             </Button>}
-            {protectContactDraft && <Button type="button" variant="outline" size="sm" disabled={!selectedClient || !selectedLocatie || !formData.contactId} onClick={() => {
+            {protectContactDraft && <Button type="button" variant="outline" size="sm" className="h-auto max-w-full whitespace-normal py-2 text-left" disabled={!selectedClient || !selectedLocatie || !formData.contactId} onClick={() => {
               if (!selectedClient || !handleCustomChange) return
               try {
                 const current = freshReinterventionContact(selectedClient, formData)
@@ -2663,7 +2663,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 </p>
               ) : (
                 <>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Input
                       placeholder="Caută după nume sau cod..."
                       value={equipSearch}

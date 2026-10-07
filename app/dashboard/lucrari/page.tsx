@@ -31,6 +31,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { orderBy, where, collection, getDocs, serverTimestamp, query } from "firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { LucrareForm, type ActiveWorkSummary, type LucrareFormRef } from "@/components/lucrare-form"
+import { TicketDialog } from "@/components/ticket-dialog"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { ArchiveButton } from "@/components/archive-button"
 import { DataTable } from "@/components/data-table/data-table"
@@ -206,7 +207,6 @@ export default function Lucrari() {
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([])
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [columnOptions, setColumnOptions] = useState<any[]>([])
-  const [showCloseAlert, setShowCloseAlert] = useState(false)
   const actionsTouchRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
   const addFormRef = useRef<LucrareFormRef>(null)
   const editFormRef = useRef<LucrareFormRef>(null)
@@ -1387,14 +1387,6 @@ export default function Lucrari() {
     setFieldErrors([])
   }, [])
 
-  const handleCloseAddDialog = useCallback(() => {
-    if (addFormRef.current?.hasUnsavedChanges()) {
-      setShowCloseAlert(true)
-    } else {
-      closeAddDialogAndReset()
-    }
-  }, [closeAddDialogAndReset])
-
   const resetForm = () => {
     setDataEmiterii(new Date())
     setDataInterventie(undefined)
@@ -1843,6 +1835,7 @@ export default function Lucrari() {
   }
 
   const handleEdit = (lucrare) => {
+    if (!isAdmin && !isDispatcher) return
     setSelectedLucrare(lucrare)
     const currentClient = createClientIndex(listClients).resolve(lucrare)
     const editProjection = ticketEditDraft(lucrare, currentClient)
@@ -1852,8 +1845,8 @@ export default function Lucrari() {
     // Convertim datele cu parsare robustă (ISO, Timestamp, dd.MM, etc.)
     const parsedEmitere = toDateSafe(lucrare.dataEmiterii)
     setDataEmiterii(parsedEmitere || new Date())
-    // La editare, resetăm data intervenției pentru selecție manuală
-    setDataInterventie(undefined)
+    // La editare păstrăm data intervenției existente.
+    setDataInterventie(toDateSafe(lucrare.dataInterventie) || undefined)
 
     // Populăm formularul cu datele lucrării
     setFormData({
@@ -1925,7 +1918,7 @@ export default function Lucrari() {
       const updatedLucrare = {
         ...formData,
         statusLucrare: statusLucrare, // Folosim statusul calculat
-        dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
+        dataEmiterii: selectedLucrare.dataEmiterii,
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
       }
 
@@ -2009,6 +2002,7 @@ export default function Lucrari() {
       }
 
       setIsEditDialogOpen(false)
+      closeAddDialogAndReset()
       resetForm()
 
       // Afișăm toast de succes pentru actualizarea lucrării
@@ -2877,27 +2871,6 @@ export default function Lucrari() {
     },
   ]
 
-  // Function to check if we should show the close confirmation dialog
-  const handleCloseEditDialog = () => {
-    if (editFormRef.current?.hasUnsavedChanges()) {
-      setShowCloseAlert(true)
-    } else {
-      setIsEditDialogOpen(false)
-    }
-  }
-
-  // Function to confirm dialog close
-  const confirmCloseDialog = () => {
-    setShowCloseAlert(false)
-
-    // Determine which dialog to close
-    if (isAddDialogOpen) {
-      closeAddDialogAndReset()
-    } else if (isEditDialogOpen) {
-      setIsEditDialogOpen(false)
-    }
-  }
-
   // Modificăm funcția getRowClassName pentru a verifica dacă row și row.original există
   const getRowClassName = (row) => {
     // Verificăm dacă row și row.original există
@@ -3040,7 +3013,7 @@ export default function Lucrari() {
           <AddLucrareDialog
             open={isAddDialogOpen}
             setOpen={setIsAddDialogOpen}
-            onClose={handleCloseAddDialog}
+            onClose={closeAddDialogAndReset}
                 dataEmiterii={dataEmiterii}
                 setDataEmiterii={setDataEmiterii}
                 dataInterventie={dataInterventie}
@@ -3068,71 +3041,20 @@ export default function Lucrari() {
             onSave={handleSubmit}
           />
 
-        {/* Dialog pentru editarea lucrării */}
-        <Dialog
-          open={isEditDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              handleCloseEditDialog()
-            } else {
-              setIsEditDialogOpen(open)
-            }
-          }}
-        >
-          <DialogContent
-            className="w-[calc(100%-2rem)] max-w-[600px] max-h-[90vh] overflow-y-auto"
-            onEscapeKeyDown={(e) => {
-              e.preventDefault()
-              handleCloseEditDialog()
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>Editează Tichet</DialogTitle>
-              <DialogDescription>Modificați detaliile tichetului</DialogDescription>
-            </DialogHeader>
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            {editClientIssues.length > 0 && <Alert><AlertDescription>{editClientIssues.join(" ")} Valorile diferite introduse doar pe tichet au fost păstrate.</AlertDescription></Alert>}
-            <LucrareForm
-              ref={editFormRef}
-              isEdit={true}
-              dataEmiterii={dataEmiterii}
-              setDataEmiterii={setDataEmiterii}
-              dataInterventie={dataInterventie}
-              setDataInterventie={setDataInterventie}
-              formData={formData}
-              handleInputChange={handleInputChange}
-              handleSelectChange={handleSelectChange}
-              handleTehnicieniChange={handleTehnicieniChange}
-              fieldErrors={fieldErrors}
-              onCancel={() => handleCloseEditDialog()}
-              handleCustomChange={handleCustomChange}
-              initialData={editInitialData}
-              preserveContactDraft={true}
-            />
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={handleCloseEditDialog}>
-                Anulează
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleUpdate} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
-                  </>
-                ) : (
-                  "Actualizează"
-                )}
-              </Button>
-            </DialogFooter>
-            {missingFieldsMessage && (
-              <div className="mt-2 text-xs text-destructive">{missingFieldsMessage}</div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <TicketDialog
+          mode="edit" open={isEditDialogOpen} setOpen={setIsEditDialogOpen}
+          onClose={() => { setIsEditDialogOpen(false); closeAddDialogAndReset() }} onSave={handleUpdate}
+          isSubmitting={isSubmitting} error={error || undefined}
+          missingFieldsMessage={missingFieldsMessage}
+          beforeForm={editClientIssues.length > 0 && <Alert><AlertDescription>{editClientIssues.join(" ")} Valorile diferite introduse doar pe tichet au fost păstrate.</AlertDescription></Alert>}
+          formRef={editFormRef} initialData={editInitialData} currentWorkOrderId={selectedLucrare?.id}
+          dataEmiterii={dataEmiterii} setDataEmiterii={setDataEmiterii}
+          dataInterventie={dataInterventie} setDataInterventie={setDataInterventie}
+          formData={formData} handleInputChange={handleInputChange} handleSelectChange={handleSelectChange}
+          handleTehnicieniChange={handleTehnicieniChange} handleCustomChange={handleCustomChange}
+          fieldErrors={fieldErrors} setFieldErrors={setFieldErrors}
+        />
+
       </DashboardHeader>
         )}
 
@@ -3781,22 +3703,6 @@ export default function Lucrari() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <AlertDialog open={showCloseAlert} onOpenChange={setShowCloseAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmați închiderea</AlertDialogTitle>
-            <AlertDialogDescription>
-              Aveți modificări nesalvate. Sunteți sigur că doriți să închideți formularul? Toate modificările vor fi
-              pierdute.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowCloseAlert(false)}>Nu, rămân în formular</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCloseDialog}>Da, închide formularul</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      
       {/* Dialog pentru selectarea motivelor reintervenției */}
       <ReinterventionReasonDialog
         isOpen={isReinterventionReasonDialogOpen}
