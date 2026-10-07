@@ -1,6 +1,7 @@
 "use client"
 import { isInstallationV1 } from "@/types/installation"
 import { InstallationWorkspace } from "@/components/installation-workspace"
+import { InstallationTicketDetails } from "@/components/installation/ticket-details"
 import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
 import { resolveTicketLocation, resolveTicketContact } from "@/firebase-functions/src/client-ticket-sync"
 import { TicketClientInformation, TicketClientReadStatus } from "@/components/ticket-client-information"
@@ -2004,7 +2005,16 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   if (isInstallationV1(lucrare)) return (
     <DashboardShell>
-      <InstallationWorkspace key={paramsId} workId={paramsId} compact />
+      <InstallationWorkspace key={paramsId} workId={paramsId} compact ticketDetails={
+        <InstallationTicketDetails
+          work={lucrare}
+          display={clientDisplay}
+          clientId={lucrare.clientId || clientData?.id}
+          role={role || ""}
+          unavailable={ticketClient.unavailable}
+          syncIssues={contactSyncIssues}
+        />
+      } />
     </DashboardShell>
   )
 

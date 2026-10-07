@@ -358,3 +358,18 @@ Camera virtuală verifică integrarea scannerului cu fluxul aplicației; verific
 - **Build Next.js trecut.** Configurația existentă omite TypeScript/lint la build. Verificarea TypeScript separată nu raportează erori în modulul instalării sau în testele sale; proiectul păstrează cele **217 erori existente** în alte module.
 
 Verificarea camerei QR fizice rămâne de făcut pe dispozitiv real. Cronometrarea, preluarea principalului absent, emailul automat, Expo și publicarea sunt în afara acestei implementări. Nu s-au publicat reguli/cod și nu s-au modificat date de producție.
+
+
+## 17. Date informative în detaliile instalării — 07.10.2026
+
+- Pagina `/dashboard/lucrari/[id]` pentru instalarea nouă afișează cardurile „Detalii instalare” și „Informații client”, alăturate pe desktop și suprapuse pe telefon.
+- Sunt prezentate datele tichetului, tehnicienii, locația/adresa, contactul locației, telefonul/emailul, Google Maps/Waze, identitatea clientului și legătura către fișa clientului. Emitentul și statusurile preluării/ofertării/facturării sunt numai pentru consultare, cu vizibilitatea existentă pe roluri. ONRC este vizibil administratorului/dispecerului.
+- Solicitarea `defectReclamat` este afișată ca „Cerințe de instalare”; `descriere` și `notaInternaTehnician` rămân note ale tichetului, separate și fără editare. Notele private ale fișelor nu sunt adăugate acestui context.
+- Se reutilizează abonamentul și rezolvarea datelor actuale ale clientului/contactului deja existente în pagina de detalii. API-ul, documentele înghețate și regulile 1A/1B nu se modifică. Datele lipsă și problemele citirii/asocierii păstrează explicațiile existente.
+- Sumarul și taburile Echipamente/Fișe zilnice/Documente rămân disponibile; cardul vechi de context este înlocuit aici pentru a evita repetarea datelor și tehnicienilor. Paginile dedicate fișelor și pagina raportului își păstrează prezentarea.
+
+Verificare locală în browser, cu proiectul fictiv `demo-fom-installation`: desktop 1440 px și telefon 390 px, administrator/dispecer/tehnician, informații și legături, statusuri fără controale de editare, actualizarea emailului clientului fără modificarea snapshotului PDF, client indisponibil și mesaje pentru date lipsă. Scenariile existente QR → ciornă → fotografii → semnături → PDF → continuare → proces-verbal și 1B echipă/mutare/oprire/semnare ulterioară au trecut. Capturi: `/private/tmp/fom-installation-details-desktop.png`, `/private/tmp/fom-installation-details-mobile.png`, `/private/tmp/fom-installation-details-admin.png`.
+
+Buildul Next.js a trecut. Verificarea TypeScript separată păstrează cele 217 erori existente în proiect, fără erori în componentele instalării, scriptul de browser sau codul nou din pagina de detalii. Configurația existentă omite TypeScript/lint la build.
+
+Nu se adaugă ofertare/deviz/facturare funcțională și nu se face publicare.

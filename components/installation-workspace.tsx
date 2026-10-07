@@ -1,5 +1,11 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Scanner } from "@yudiel/react-qr-scanner";
@@ -46,12 +52,14 @@ export function InstallationWorkspace({
   sheetId,
   compact = false,
   complete = false,
+  ticketDetails,
 }: {
   workId: string;
   equipmentId?: string;
   sheetId?: string;
   compact?: boolean;
   complete?: boolean;
+  ticketDetails?: ReactNode;
 }) {
   const { userData } = useAuth();
   const router = useRouter();
@@ -292,8 +300,9 @@ export function InstallationWorkspace({
             </>
           ) : (
             <>
+              {ticketDetails}
               <InstallationSummary data={data} />
-              <InstallationContext data={data} />
+              {!ticketDetails && <InstallationContext data={data} />}
               <Tabs value={tab} onValueChange={chooseTab} className="space-y-5">
                 <TabsList className="grid h-auto w-full grid-cols-3 p-1 sm:w-fit">
                   <TabsTrigger value="equipment" className="px-2 py-2 sm:px-6">

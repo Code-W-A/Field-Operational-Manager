@@ -55,6 +55,10 @@ async function main() {
     .set({
       nume: "Client browser",
       cui: "ROTEST",
+      telefon: "0711111111",
+      email: "firma@example.invalid",
+      reprezentantFirma: "Reprezentant browser",
+      regCom: "J23/123/2026",
       adresa: "Adresă test",
       persoaneContact: [],
       locatii: [
@@ -105,6 +109,7 @@ async function main() {
     dataEmiterii: "03.10.2026 10:00",
     dataInterventie: "03.10.2026 10:00",
     descriere: "Instalare test",
+    defectReclamat: "Montaj server și configurare rețea.",
   };
   const work = await service.create(manager, input, "browser-installation");
   let started: Awaited<ReturnType<typeof service.start>>;
@@ -426,6 +431,82 @@ async function main() {
     await expect(
       page.getByRole("tab", { name: "Echipamente", exact: true }),
     ).toBeVisible({ timeout: 30000 });
+    await expect(
+      page.getByRole("heading", { name: "Detalii instalare", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Informații client", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("firma@example.invalid", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("beneficiar@example.invalid", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Montaj server și configurare rețea.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Google Maps", exact: true }),
+    ).toHaveAttribute("href", /query=Adres%C4%83%20loca%C8%9Bie/);
+    await expect(
+      page.getByRole("link", { name: "Waze", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Contextul tichetului", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Statusuri", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Nr. ordine ONRC:", { exact: true }),
+    ).toHaveCount(0);
+    const frozenBefore = JSON.stringify(
+      (
+        await db
+          .collection("lucrari")
+          .doc(work.id)
+          .collection("installationSheets")
+          .doc(started.sheet.id)
+          .get()
+      ).data()?.documentSnapshot,
+    );
+    await db
+      .collection("clienti")
+      .doc("browser-client")
+      .update({ email: "firma-actualizata@example.invalid" });
+    await expect(
+      page.getByText("firma-actualizata@example.invalid", { exact: true }),
+    ).toBeVisible();
+    assert.equal(
+      JSON.stringify(
+        (
+          await db
+            .collection("lucrari")
+            .doc(work.id)
+            .collection("installationSheets")
+            .doc(started.sheet.id)
+            .get()
+        ).data()?.documentSnapshot,
+      ),
+      frozenBefore,
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      "Installation detail mobile overflow",
+    );
+    await page.screenshot({
+      path: "/private/tmp/fom-installation-details-mobile.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({
+      path: "/private/tmp/fom-installation-details-desktop.png",
+      fullPage: true,
+    });
     await page.getByRole("tab", { name: "Documente", exact: true }).click();
     await expect(
       page.getByRole("button", {
@@ -572,6 +653,47 @@ async function main() {
       adminPage.getByText("NOTA PRIVATA PRINCIPAL", { exact: true }),
     ).toBeVisible();
     assert.equal(await adminPage.locator("textarea").count(), 0);
+    await adminPage.goto(`${origin}/dashboard/lucrari/${work.id}`);
+    await expect(
+      adminPage.getByRole("heading", { name: "Statusuri", exact: true }),
+    ).toBeVisible({ timeout: 30000 });
+    await expect(
+      adminPage.getByText("J23/123/2026", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByText("Montaj server și configurare rețea.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    assert.equal(
+      await adminPage.locator("textarea, [role=combobox]").count(),
+      0,
+      "Details remain informational",
+    );
+    assert.equal(await adminPage.locator("main").count(), 1);
+    await adminPage.screenshot({
+      path: "/private/tmp/fom-installation-details-admin.png",
+      fullPage: true,
+    });
+    const clientBefore = (
+      await db.collection("clienti").doc("browser-client").get()
+    ).data()!;
+    await db.collection("clienti").doc("browser-client").delete();
+    await expect(
+      adminPage.getByText(
+        "Datele actuale ale clientului nu sunt disponibile. Sunt afișate datele salvate în tichet.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByText("Adresa locației nu este specificată.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await db.collection("clienti").doc("browser-client").set(clientBefore);
+    await expect(
+      adminPage.getByText("firma-actualizata@example.invalid", { exact: true }),
+    ).toBeVisible();
     const signature = {
       beneficiaryName: "Beneficiar browser",
       technicianSignature:
@@ -593,6 +715,13 @@ async function main() {
     const dispatcherContext = await browser.newContext();
     const dispatcherPage = await dispatcherContext.newPage();
     await login(dispatcherPage, "browser-dispatcher");
+    await dispatcherPage.goto(`${origin}/dashboard/lucrari/${work.id}`);
+    await expect(
+      dispatcherPage.getByRole("heading", { name: "Statusuri", exact: true }),
+    ).toBeVisible({ timeout: 30000 });
+    await expect(
+      dispatcherPage.getByText("J23/123/2026", { exact: true }),
+    ).toBeVisible();
     await dispatcherPage.goto(
       `${origin}/dashboard/lucrari/${followWork.id}/instalare?tab=documents`,
     );
@@ -780,16 +909,14 @@ async function main() {
     await page
       .getByLabel("Notă internă — nu apare în PDF")
       .fill("NOTA PRIVATA 1B");
-    await page
-      .getByLabel("Fotografii (0/4)", { exact: true })
-      .setInputFiles({
-        name: "echipa.png",
-        mimeType: "image/png",
-        buffer: Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
-          "base64",
-        ),
-      });
+    await page.getByLabel("Fotografii (0/4)", { exact: true }).setInputFiles({
+      name: "echipa.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
     await expect(
       page.getByLabel("Fotografii (1/4)", { exact: true }),
     ).toBeVisible();
