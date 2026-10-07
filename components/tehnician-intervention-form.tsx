@@ -1,5 +1,6 @@
 "use client"
 
+import { interventionPatch } from "@/packages/fom-domain";
 import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -279,7 +280,7 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      await updateLucrare(lucrareId, updateData)
+      await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
       setUploadedDefectImages(allImages)
 
       // Log upload imaginilor dacă au fost uplodate
@@ -376,7 +377,7 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      await updateLucrare(lucrareId, updateData)
+      await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
       setUploadedDefectImages(allImages)
 
       // Log upload imaginilor dacă au fost uplodate

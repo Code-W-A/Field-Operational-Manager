@@ -1,3 +1,4 @@
+import { validateRevision } from "@/packages/fom-domain";
 import {
   collection,
   doc,
@@ -75,6 +76,7 @@ export async function upsertRevisionDoc(
   equipmentId: string,
   data: Partial<EquipmentRevisionDoc>
 ) {
+  if(data.sections) data={...data,sections:validateRevision(data.sections as any,data.sections as any) as any};
   const refDoc = doc(db, "lucrari", workId, "revisions", equipmentId)
   
   // Remove undefined values (Firestore doesn't accept them)

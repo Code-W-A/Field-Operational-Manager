@@ -1,21 +1,198 @@
-import {test,before,after} from 'node:test';
-import assert from 'node:assert/strict';
-import {initializeApp,deleteApp} from 'firebase-admin/app';
-import {getFirestore,Timestamp} from 'firebase-admin/firestore';
-import {getAuth} from 'firebase-admin/auth';
-import {writeFile,mkdir} from 'node:fs/promises';
-import {versionOf} from '../../packages/fom-domain';
-const enabled=process.env.FOM_TEST_HTTP==='true';
-let app:any,db:any,token='',uid=`mobile-http-${Date.now()}`,workId=`${uid}-work`,att=`${uid}-attendance`,sequence=0;
-const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=';
-const base='http://127.0.0.1:3000';
-const json=async(path:string,body?:any)=>{const r=await fetch(base+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json()};};
-const cmd=(action:string,payload:any={},version:string|null=null,entityId=workId)=>({mutationId:`${uid}_${++sequence}`,entityId,action,payload,occurredAt:new Date().toISOString(),baseVersion:version,attendanceId:att});
-before(async()=>{if(!enabled)return;assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8189');assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9199');app=initializeApp({projectId:'demo-fom-mobile-auth'},uid);db=getFirestore(app);await getAuth(app).createUser({uid,email:`${uid}@fom.test`,password:'FomTest123!',displayName:uid});await db.doc(`users/${uid}`).set({uid,displayName:uid,role:'tehnician'});await db.doc(`clienti/${uid}`).set({nume:'Client HTTP',locatii:[{id:'loc',nume:'Locație HTTP',adresa:'Adresă test',contactPersoane:[{id:'contact',nume:'Beneficiar',email:'beneficiar@fom.test'}],echipamente:[{id:'eq',cod:'HTTP-QR',denumire:'Unitate HTTP'}]}]});await db.doc(`lucrari/${workId}`).set({client:'Client HTTP',clientId:uid,locationId:'loc',locatie:'Locație HTTP',equipmentId:'eq',echipamentCod:'HTTP-QR',echipament:'Unitate HTTP',tehnicieni:[uid],tipLucrare:'Intervenție',statusLucrare:'Atribuită',updatedAt:Timestamp.now()});const r=await fetch('http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:`${uid}@fom.test`,password:'FomTest123!',returnSecureToken:true})});token=(await r.json() as any).idToken;assert(token);});
-after(async()=>{if(app)await deleteApp(app);});
-test('mobile routes require Firebase bearer and enforce role',{skip:!enabled},async()=>{const r=await fetch(base+'/api/mobile/bootstrap');assert.equal(r.status,401);const b=await json('/api/mobile/bootstrap');assert.equal(b.status,200);assert.equal(b.data.projectId,'demo-fom-mobile-auth');assert(b.data.bundle.works.some((w:any)=>w.id===workId));});
-test('authenticated photos and signed report persist once and PDF excludes private note',{skip:!enabled},async()=>{let r=await json('/api/mobile/commands',cmd('attendance.start',{},null,att));assert.equal(r.status,200,JSON.stringify(r.data));let version=versionOf((await db.doc(`lucrari/${workId}`).get()).data());r=await json('/api/mobile/commands',cmd('verify',{code:'HTTP-QR',equipmentId:'eq'},version));assert.equal(r.status,200,JSON.stringify(r.data));version=r.data.version;
- const fileId=`${uid}-photo`,form=new FormData();form.set('fileId',fileId);form.set('workId',workId);form.set('purpose','photo');form.set('file',new File([Buffer.from(png,'base64')],'test.png',{type:'image/png'}));const upload=async()=>{const response=await fetch(base+'/api/mobile/files',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:form});const data=await response.json();assert.equal(response.status,200,JSON.stringify(data));return data;};const photo=await upload();assert.equal((await upload()).url,photo.url);
- const finalize=cmd('report.finalize',{cauzaPrincipalaDefectId:'uzura',constatareLaLocatie:'Constatare HTTP',descriereInterventie:'Operațiuni HTTP',notaInternaTehnician:'SECRET_HTTP_NOTE',imaginiDefecte:[photo],products:[{id:'item',name:'Service test',um:'buc',quantity:2,price:25}],numeBeneficiar:'Beneficiar HTTP',semnaturaTehnician:`data:image/png;base64,${png}`,semnaturaBeneficiar:`data:image/png;base64,${png}`},version);r=await json('/api/mobile/commands',finalize);assert.equal(r.status,200,JSON.stringify(r.data));assert.equal(r.data.work.raportGenerat,true);assert.equal(r.data.delivery.status,'failed');assert(!JSON.stringify(r.data.work.raportSnapshot).includes('SECRET_HTTP_NOTE'));const replay=await json('/api/mobile/commands',finalize);assert.equal(replay.data.work.numarRaport,r.data.work.numarRaport);
- const pdf=await fetch(base+`/api/mobile/document?workId=${workId}`,{headers:{Authorization:`Bearer ${token}`}});assert.equal(pdf.status,200,await pdf.clone().text());const bytes=Buffer.from(await pdf.arrayBuffer());assert.equal(bytes.subarray(0,5).toString(),'%PDF-');await mkdir('/tmp/fom-mobile-pdfs',{recursive:true});await writeFile('/tmp/fom-mobile-pdfs/report.pdf',bytes);
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { initializeApp, deleteApp } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { writeFile, mkdir } from "node:fs/promises";
+import { versionOf } from "../../packages/fom-domain";
+const enabled = process.env.FOM_TEST_HTTP === "true";
+let app: any,
+  db: any,
+  token = "",
+  uid = `mobile-http-${Date.now()}`,
+  workId = `${uid}-work`,
+  att = `${uid}-attendance`,
+  sequence = 0;
+const png =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=";
+const base = "http://127.0.0.1:3000";
+const json = async (path: string, body?: any) => {
+  const r = await fetch(base + path, {
+    method: body ? "POST" : "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: r.status, data: await r.json() };
+};
+const cmd = (
+  action: string,
+  payload: any = {},
+  version: string | null = null,
+  entityId = workId,
+) => ({
+  mutationId: `${uid}_${++sequence}`,
+  entityId,
+  action,
+  payload,
+  occurredAt: new Date().toISOString(),
+  baseVersion: version,
+  attendanceId: att,
 });
+before(async () => {
+  if (!enabled) return;
+  assert.equal(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8189");
+  assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST, "127.0.0.1:9199");
+  app = initializeApp({ projectId: "demo-fom-mobile-auth" }, uid);
+  db = getFirestore(app);
+  await getAuth(app).createUser({
+    uid,
+    email: `${uid}@fom.test`,
+    password: "FomTest123!",
+    displayName: uid,
+  });
+  await db
+    .doc(`users/${uid}`)
+    .set({ uid, displayName: uid, role: "tehnician" });
+  await db
+    .doc(`clienti/${uid}`)
+    .set({
+      nume: "Client HTTP",
+      locatii: [
+        {
+          id: "loc",
+          nume: "Locație HTTP",
+          adresa: "Adresă test",
+          contactPersoane: [
+            { id: "contact", nume: "Beneficiar", email: "beneficiar@fom.test" },
+          ],
+          echipamente: [{ id: "eq", cod: "HTTP-QR", denumire: "Unitate HTTP" }],
+        },
+      ],
+    });
+  await db
+    .doc(`lucrari/${workId}`)
+    .set({
+      client: "Client HTTP",
+      clientId: uid,
+      locationId: "loc",
+      locatie: "Locație HTTP",
+      equipmentId: "eq",
+      echipamentCod: "HTTP-QR",
+      echipament: "Unitate HTTP",
+      tehnicieni: [uid],
+      tipLucrare: "Intervenție",
+      statusLucrare: "Atribuită",
+      updatedAt: Timestamp.now(),
+    });
+  const r = await fetch(
+    "http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: `${uid}@fom.test`,
+        password: "FomTest123!",
+        returnSecureToken: true,
+      }),
+    },
+  );
+  token = ((await r.json()) as any).idToken;
+  assert(token);
+});
+after(async () => {
+  if (app) await deleteApp(app);
+});
+test(
+  "mobile routes require Firebase bearer and enforce role",
+  { skip: !enabled },
+  async () => {
+    const r = await fetch(base + "/api/mobile/bootstrap");
+    assert.equal(r.status, 401);
+    const b = await json("/api/mobile/bootstrap");
+    assert.equal(b.status, 200);
+    assert.equal(b.data.projectId, "demo-fom-mobile-auth");
+    assert(b.data.bundle.works.some((w: any) => w.id === workId));
+  },
+);
+test(
+  "authenticated photos and signed report persist once and PDF excludes private note",
+  { skip: !enabled },
+  async () => {
+    let r = await json(
+      "/api/mobile/commands",
+      cmd("attendance.start", {}, null, att),
+    );
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    let version = versionOf((await db.doc(`lucrari/${workId}`).get()).data());
+    r = await json(
+      "/api/mobile/commands",
+      cmd("verify", { code: "HTTP-QR", equipmentId: "eq" }, version),
+    );
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    version = r.data.version;
+    const fileId = `${uid}-photo`,
+      form = new FormData();
+    form.set("fileId", fileId);
+    form.set("workId", workId);
+    form.set("purpose", "photo");
+    form.set(
+      "file",
+      new File([Buffer.from(png, "base64")], "test.png", { type: "image/png" }),
+    );
+    const upload = async () => {
+      const response = await fetch(base + "/api/mobile/files", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(data));
+      return data;
+    };
+    const photo = await upload();
+    assert.equal((await upload()).url, photo.url);
+    const finalize = cmd(
+      "report.finalize",
+      {
+        cauzaPrincipalaDefectId: "uzura",
+        constatareLaLocatie: "Constatare HTTP",
+        descriereInterventie: "Operațiuni HTTP",
+        notaInternaTehnician: "SECRET_HTTP_NOTE",
+        imaginiDefecte: [photo],
+        products: [
+          {
+            id: "item",
+            name: "Service test",
+            um: "buc",
+            quantity: 2,
+            price: 25,
+          },
+        ],
+        numeBeneficiar: "Beneficiar HTTP",
+        semnaturaTehnician: `data:image/png;base64,${png}`,
+        semnaturaBeneficiar: `data:image/png;base64,${png}`,
+      },
+      version,
+    );
+    r = await json("/api/mobile/commands", finalize);
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    assert.equal(r.data.work.raportGenerat, true);
+    assert.equal(r.data.delivery.status, "failed");
+    assert(
+      !JSON.stringify(r.data.work.raportSnapshot).includes("SECRET_HTTP_NOTE"),
+    );
+    const replay = await json("/api/mobile/commands", finalize);
+    assert.equal(replay.data.work.numarRaport, r.data.work.numarRaport);
+    const pdf = await fetch(base + `/api/mobile/document?workId=${workId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(pdf.status, 200, await pdf.clone().text());
+    const bytes = Buffer.from(await pdf.arrayBuffer());
+    assert.equal(bytes.subarray(0, 5).toString(), "%PDF-");
+    await mkdir("/tmp/fom-mobile-pdfs", { recursive: true });
+    await writeFile("/tmp/fom-mobile-pdfs/report.pdf", bytes);
+  },
+);

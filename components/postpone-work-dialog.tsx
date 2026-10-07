@@ -54,6 +54,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
         dataAmanare: new Date().toLocaleString('ro-RO'),
         amanataDe: userData?.displayName || "Tehnician necunoscut",
         tehnicieni: [], // Eliminăm tehnicianul din lucrare
+        technicianIds: [],
         updatedAt: serverTimestamp(),
         updatedBy: userData?.displayName || "Tehnician necunoscut"
       }

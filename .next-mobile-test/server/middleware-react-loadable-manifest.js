@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"components/firebase-provider.tsx -> @/lib/firebase/config\":{\"id\":\"components/firebase-provider.tsx -> @/lib/firebase/config\",\"files\":[]}}"

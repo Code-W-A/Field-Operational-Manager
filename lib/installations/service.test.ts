@@ -1,4 +1,4 @@
-import test, { beforeEach, after } from "node:test";
+import test, { beforeEach, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { initializeApp, deleteApp } from "firebase-admin/app";
@@ -76,6 +76,11 @@ async function close(workId: string, sheet: any, status = "in_progress") {
   );
 }
 
+before(async()=>{
+ const {readFile}=await import("node:fs/promises");
+ const rules=await readFile(new URL("../../firestore.rules",import.meta.url),"utf8");
+ const response=await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}:securityRules`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({rules:{files:[{name:"firestore.rules",content:rules}]}})});assert.ok(response.ok,"Installation tests require their canonical emulator rules");
+});
 beforeEach(async () => {
   const response = await fetch(
     `http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}/databases/(default)/documents`,
@@ -935,4 +940,13 @@ test("legacy 1A drafts keep the original principal and can stop/sign without inv
     signatures: signed,
   });
   assert.equal(signedSheet.sheet.state, "closed");
+});
+
+test('save with requestId replays the original result after lost response without another sheet revision',async()=>{
+ const w=await create(),started=await start(w.id),requestId=randomUUID();
+ const input={requestId,sheetId:started.sheet.id,revision:started.sheet.revision,fields:content};
+ const first=await service.save(tech,w.id,input),replay=await service.save(tech,w.id,input);
+ assert.deepEqual(replay,first);
+ const stored=(await db.doc(`lucrari/${w.id}/installationSheets/${started.sheet.id}`).get()).data()!;assert.equal(stored.revision,first.sheet.revision);
+ await assert.rejects(()=>service.save(tech,w.id,{...input,fields:{...content,operations:'Altă comandă'}}),/reutilizat/);
 });

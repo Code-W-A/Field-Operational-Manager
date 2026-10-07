@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { EquipmentQRCode } from "@/components/equipment-qr-code";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
   TableBody,
@@ -168,6 +170,8 @@ export function InstallationEquipmentList({
   onHistory: (id: string) => void;
 }) {
   const meta = data.work.installation;
+  const { userData } = useAuth();
+  const canGenerateQr = Boolean(userData?.role) && userData?.role !== "tehnician";
   return (
     <Card>
       <CardHeader>
@@ -210,6 +214,21 @@ export function InstallationEquipmentList({
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
+              {canGenerateQr && (
+                <EquipmentQRCode
+                  equipment={{
+                    id: e.id,
+                    nume: e.name,
+                    cod: e.code,
+                    model: e.model,
+                  }}
+                  clientName={data.work.client}
+                  locationName={data.work.locatie}
+                  showLabel={false}
+                  useSimpleFormat
+                  className="h-9 w-9 p-0"
+                />
+              )}
               {meta.awaitingSheetByEquipment?.[e.id] && (
                 <Button asChild variant="outline">
                   <Link

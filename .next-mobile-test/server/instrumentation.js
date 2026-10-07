@@ -418,7 +418,7 @@ module.exports = require("worker_threads");
 var __webpack_require__ = require("./webpack-runtime.js");
 __webpack_require__.C(exports);
 var __webpack_exec__ = (moduleId) => (__webpack_require__(__webpack_require__.s = moduleId))
-var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/@opentelemetry","vendor-chunks/@sentry","vendor-chunks/@prisma","vendor-chunks/@fastify","vendor-chunks/minimatch","vendor-chunks/next","vendor-chunks/forwarded-parse","vendor-chunks/@swc","vendor-chunks/brace-expansion","vendor-chunks/balanced-match","vendor-chunks/stacktrace-parser","vendor-chunks/module-details-from-path"], () => (__webpack_exec__("(instrument)/./instrumentation.ts")));
+var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/@opentelemetry","vendor-chunks/@sentry","vendor-chunks/next","vendor-chunks/@fastify","vendor-chunks/@prisma","vendor-chunks/minimatch","vendor-chunks/brace-expansion","vendor-chunks/forwarded-parse","vendor-chunks/stacktrace-parser","vendor-chunks/balanced-match","vendor-chunks/module-details-from-path","vendor-chunks/@swc"], () => (__webpack_exec__("(instrument)/./instrumentation.ts")));
 module.exports = __webpack_exports__;
 
 })();

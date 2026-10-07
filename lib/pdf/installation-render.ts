@@ -7,7 +7,9 @@ export async function renderInstallationPdf(
   snapshot: InstallationDocument,
   workId: string,
   sheetId: string | undefined,
-  photoBytes: (photo: InstallationDocument["photos"][number]) => Promise<Uint8Array>,
+  photoBytes: (
+    photo: InstallationDocument["photos"][number],
+  ) => Promise<Uint8Array>,
 ) {
   const doc = new jsPDF();
   await ensurePdfFont(doc);
@@ -137,4 +139,3 @@ export async function renderInstallationPdf(
   }
   return doc;
 }
-

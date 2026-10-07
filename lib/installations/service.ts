@@ -1154,8 +1154,9 @@ export function installationService(db: Firestore) {
       const ref = sheetsRef(workId).doc(identifier(sheetId));
       const sheet = (await tx.get(ref)).data() as InstallationSheet | undefined;
       assertPrincipal(sheet, actor.uid);
+      if(remove && !sheet.photos.some(p=>p.id===photo.id)) return {sheet};
       if (!remove && sheet.photos.some(p => p.id === photo.id)) {
-        check(sheet.photos.some(p => p.id === photo.id && p.path === photo.path && p.url === photo.url), "Identificator de fotografie reutilizat.", 409);
+        check(sheet.photos.some(p => p.id === photo.id && p.path === photo.path), "Identificator de fotografie reutilizat.", 409);
         return {sheet};
       }
       const photos = remove

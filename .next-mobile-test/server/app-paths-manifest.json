@@ -1,1 +1,6 @@
-{}
+{
+  "/api/mobile/commands/route": "app/api/mobile/commands/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/mobile/bootstrap/route": "app/api/mobile/bootstrap/route.js",
+  "/page": "app/page.js"
+}
