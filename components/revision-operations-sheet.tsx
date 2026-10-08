@@ -1,8 +1,9 @@
 "use client"
 
 import { technicianCommand, technicianFile } from "@/lib/technician/client"
+import { subscribeRevisionChecklistFromRoot } from "@/lib/revisions/checklist"
 import { useStableCallback } from "@/lib/utils/hooks"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -40,7 +41,8 @@ type Props = {
   onSaveDraftRef?: (saveFn: () => Promise<boolean>) => void
 }
 
-type ItemState = "functional" | "nefunctional"
+type ItemState = "functional" | "nefunctional" | "na"
+const checklistIdentity = (sections: RevisionChecklistSection[]) => JSON.stringify(sections.map(s => ({id:s.id,title:s.title,items:s.items.map(i=>({id:i.id,label:i.label}))})))
 
 export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef }: Props) {
   const { userData } = useAuth()
@@ -79,80 +81,58 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   const [dialogItemLabel, setDialogItemLabel] = useState("")
   const [dialogItemObs, setDialogItemObs] = useState("")
 
-  // Load checklist and existing doc with real-time updates
+  const [initialSectionIdentity, setInitialSectionIdentity] = useState("[]")
+  const saveLock = useRef(false)
+  const verificationLock = useRef(false)
+  const verificationConfirmed = useRef(false)
+  const [checklistChanged, setChecklistChanged] = useState(false)
+  const editorDirty = useRef(false)
+  editorDirty.current = checklistIdentity(sections) !== initialSectionIdentity || JSON.stringify(values) !== JSON.stringify(initialValues) || JSON.stringify(obs) !== JSON.stringify(initialObs) || finalObservations !== initialFinalObservations || selectedPhotos.length > 0
+
+  // Join two complete snapshots; never subscribe repeatedly or overwrite an edited form.
   useEffect(() => {
-    let checklistUnsub: (() => void) | null = null
-    let revisionUnsub: (() => void) | null = null
-    
-    // Subscribe to checklist changes (per‑equipment selected root only)
-    const subscribeChecklist = (cb: (c: RevisionChecklist) => void) => {
-      if (!checklistRootId) {
-        cb({
-          version: "missing-root",
-          sections: [],
-          states: ["Functional", "Nefunctional"],
-        })
-        return () => {}
-      }
-      // Per‑equipment selected template
-      const { subscribeRevisionChecklistFromRoot } = require("@/lib/revisions/checklist")
-      return subscribeRevisionChecklistFromRoot(checklistRootId, cb)
-    }
-
-    checklistUnsub = subscribeChecklist((checklist) => {
-      // Subscribe to revision doc changes
-      revisionUnsub = subscribeRevisionDoc(workId, equipmentId, (existing) => {
-        try {
-          const baseSections = (existing?.sections?.length ? existing.sections : checklist.sections) || []
-
-          setSections(baseSections)
-          if (existing?.sections?.length) {
-            // Restore state/obs
-            const v: Record<string, ItemState> = {}
-            const o: Record<string, string> = {}
-            for (const s of existing.sections) {
-              for (const it of s.items) {
-                // @ts-ignore state may be on item as any
-                if ((it as any).state) v[it.id] = (it as any).state
-                // @ts-ignore obs may be on item as any
-                if ((it as any).obs) o[it.id] = (it as any).obs
-              }
-            }
-            setValues(v)
-            setObs(o)
-            setInitialValues(v)
-            setInitialObs(o)
-          } else {
-            setValues({})
-            setObs({})
-            setInitialValues({})
-            setInitialObs({})
-          }
-          
-          // Check if QR was already verified for this equipment (real-time)
-          if (existing?.qrVerified) {
-            setVerified(true)
-          }
-          
-          // Sync existing photos from doc (real-time)
-          setExistingPhotos(Array.isArray(existing?.photos) ? existing.photos : [])
-
-          const fo = existing?.finalObservations != null ? String(existing.finalObservations) : ""
-          setFinalObservations(fo)
-          setInitialFinalObservations(fo)
-
-          setLoading(false)
-        } catch (e: any) {
-          setError(e?.message || "Eroare la încărcarea fișei")
-          setLoading(false)
+    let checklist: RevisionChecklist | undefined
+    let existing: Awaited<ReturnType<typeof getRevisionDoc>> | undefined
+    let initialized = false
+    let structure = ""
+    setLoading(true)
+    verificationLock.current = false
+    verificationConfirmed.current = false
+    setChecklistChanged(false)
+    const apply = () => {
+      if (!checklist || existing === undefined) return
+      const base = existing?.sections?.length ? existing.sections : checklist.sections
+      const nextStructure = checklistIdentity(base)
+      if (initialized && (editorDirty.current || saveLock.current)) {
+        if (structure !== nextStructure && !saveLock.current) {
+          setChecklistChanged(true)
+          setError("Checklistul a fost actualizat. Datele introduse sunt păstrate. Reîncarcă fișa înainte de salvare.")
         }
-      })
-    })
-    
-    return () => {
-      checklistUnsub?.()
-      revisionUnsub?.()
+        if (existing?.qrVerified) setVerified(true)
+        return
+      }
+      structure = nextStructure
+      initialized = true
+      setSections(base)
+      setInitialSectionIdentity(nextStructure)
+      const states: Record<string, ItemState> = {}, notes: Record<string, string> = {}
+      for (const section of existing?.sections || []) for (const item of section.items) {
+        if (item.state) states[item.id] = item.state
+        if (item.obs) notes[item.id] = item.obs
+      }
+      setValues(states); setInitialValues(states)
+      setObs(notes); setInitialObs(notes)
+      const final = String(existing?.finalObservations || "")
+      setFinalObservations(final); setInitialFinalObservations(final)
+      if (existing?.qrVerified) setVerified(true)
+      setExistingPhotos(existing?.photos || [])
+      setLoading(false)
     }
+    const revisionUnsub = subscribeRevisionDoc(workId, equipmentId, doc => { existing = doc; apply() })
+    const checklistUnsub = checklistRootId
+      ? subscribeRevisionChecklistFromRoot(checklistRootId, value => { checklist = value; apply() })
+      : (() => { checklist = {version:"missing-root", sections:[], states:["Functional","Nefunctional"]}; apply(); return () => {} })()
+    return () => { revisionUnsub(); checklistUnsub() }
   }, [workId, equipmentId, checklistRootId])
 
   // Resolve expected QR metadata (client, location, equipment code) for gating
@@ -206,10 +186,10 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     const valuesChanged = JSON.stringify(values) !== JSON.stringify(initialValues)
     const obsChanged = JSON.stringify(obs) !== JSON.stringify(initialObs)
     const finalChanged = finalObservations !== initialFinalObservations
-    const hasChanges = valuesChanged || obsChanged || finalChanged
+    const hasChanges = valuesChanged || obsChanged || finalChanged || checklistIdentity(sections) !== initialSectionIdentity || selectedPhotos.length > 0
     setHasUnsavedChanges(hasChanges)
     onUnsavedChanges?.(hasChanges)
-  }, [values, obs, finalObservations, initialValues, initialObs, initialFinalObservations, onUnsavedChanges])
+  }, [values, obs, finalObservations, initialValues, initialObs, initialFinalObservations, sections, initialSectionIdentity, selectedPhotos.length, onUnsavedChanges])
 
   // Provide save draft function to parent
   useEffect(() => {
@@ -401,6 +381,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   }
 
   const handleSave = async () => {
+    if (saveLock.current || checklistChanged) return
     if (!allCompleted) {
       setError("Completați starea pentru toate punctele de control.")
       toast({
@@ -413,6 +394,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     }
     setError(null)
     setSaving(true)
+    saveLock.current = true
     try {
       console.log("🔄 Începe salvarea reviziei pentru:", { workId, equipmentId, equipmentName })
       
@@ -471,6 +453,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       setPhotoPreviewUrls([])
       
       // Reset unsaved changes flag
+      setInitialSectionIdentity(checklistIdentity(sections))
       setInitialValues({...values})
       setInitialObs({...obs})
       setInitialFinalObservations(finalObservations.trim())
@@ -497,6 +480,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       })
       
       const errorMessage = error?.message || error?.code || error?.toString() || "Eroare necunoscută"
+      if (/checklist|structura secțiunilor/i.test(errorMessage)) {
+        setError("Checklistul a fost actualizat sau nu mai este disponibil. Datele introduse sunt păstrate. Reîncarcă fișa înainte de salvare.")
+      }
       toast({
         title: "❌ Eroare la salvare",
         description: `Nu s-a putut salva fișa de operațiuni.\n\nDetalii: ${errorMessage}`,
@@ -505,13 +491,16 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       })
     } finally {
       setSaving(false)
+      saveLock.current = false
     }
   }
 
   // Save draft (partial save without completion)
   const handleSaveDraft = useStableCallback(async () => {
+    if (saveLock.current || checklistChanged) return false
     setError(null)
     setSaving(true)
+    saveLock.current = true
     try {
       const payloadSections = sections.map((s) => ({
         ...s,
@@ -534,6 +523,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       }
       
       // Reset unsaved changes flag
+      setInitialSectionIdentity(checklistIdentity(sections))
       setInitialValues({...values})
       setInitialObs({...obs})
       setInitialFinalObservations(finalObservations.trim())
@@ -549,6 +539,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     } catch (e: any) {
       console.error("Error saving draft:", e)
       const errorMessage = e?.message || e?.toString() || "Eroare necunoscută"
+      if (/checklist|structura secțiunilor/i.test(errorMessage)) {
+        setError("Checklistul a fost actualizat sau nu mai este disponibil. Datele introduse sunt păstrate. Reîncarcă fișa înainte de salvare.")
+      }
       toast({
         title: "❌ Eroare la salvare progres",
         description: `Nu s-a putut salva progresul.\n\nDetalii: ${errorMessage}`,
@@ -558,6 +551,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       return false
     } finally {
       setSaving(false)
+      saveLock.current = false
     }
   })
 
@@ -612,13 +606,16 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                     onVerificationComplete={async (ok) => {
                       if (ok) {
                         if (userData?.role === "tehnician") {
+                          if (verificationLock.current || verificationConfirmed.current) return
+                          verificationLock.current = true
                           try {
                             await technicianCommand("verify", workId, { code: String(expectedCode || ""), equipmentId })
+                            verificationConfirmed.current = true
                             setVerified(true)
                           } catch (error) {
                             setVerified(false)
                             toast({ title: "Verificare eșuată", description: error instanceof Error ? error.message : "Operația a eșuat.", variant: "destructive" })
-                          }
+                          } finally { verificationLock.current = false }
                           return
                         }
                         setVerified(true)
@@ -909,7 +906,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
               <span>Completați toate punctele</span>
             )}
           </div>
-          <Button onClick={handleSave} disabled={!verified || !allCompleted || saving} size="sm">
+          <Button onClick={handleSave} disabled={!verified || !allCompleted || saving || checklistChanged} size="sm">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             Salvează
           </Button>

@@ -159,3 +159,38 @@ test("personal requests share HR routing, overlap protection and one receipt acr
   assert.equal(web.request.employeeId, suffix);
   await assert.rejects(svc.command(uid, command("request.create", suffix, payload), "mobile"), /Există deja o cerere/);
 });
+
+test("revision empty sections use template; historic sections remain authoritative", async()=>{
+  for(const channel of ["web","mobile"] as const){
+    const id=`${suffix}-empty-${channel}`;
+    await work(id,{tipLucrare:"Revizie",equipmentIds:["eq"],revision:{equipmentStatus:{eq:"pending"}}});
+    await execute(channel,"verify",id,{equipmentId:"eq",code:"QR"});
+    await db.doc(`lucrari/${id}/revisions/eq`).set({sections:[]},{merge:true});
+    const sections=[{id:`${suffix}__root`,title:"Verificări",items:[{id:`${suffix}-item`,label:"Control",state:"functional",obs:"Control efectuat"}]}];
+    await execute(channel,"revision.save",id,{equipmentId:"eq",sections});
+    assert.equal((await db.doc(`lucrari/${id}`).get()).data()?.revision.equipmentStatus.eq,"done");
+    const historical=[{id:"historical-section",title:"Istoric",items:[{id:"historical-point",label:"Punct vechi",state:"functional"}]}];
+    await db.doc(`lucrari/${id}/revisions/eq`).set({sections:historical},{merge:true});
+    await execute(channel,"revision.save",id,{equipmentId:"eq",sections:historical});
+    assert.equal((await db.doc(`lucrari/${id}/revisions/eq`).get()).data()?.sections[0].id,"historical-section");
+  }
+});
+test("paid reports require findings and operations, include current payload, and stay locked",async()=>{
+  const paidUid=`${uid}-paid`, paidName=`${name} paid`;
+  await db.doc(`users/${paidUid}`).set({role:"tehnician",displayName:paidName});
+  const paidExecute=async(action: string,id: string,payload:any)=>svc.command(paidUid,command(action,id,payload,{baseVersion:versionOf((await db.doc(`lucrari/${id}`).get()).data()!)}),"web");
+  for(const action of ["report.finalize","report.later"] as const){
+    const id=`${suffix}-paid-${action.replace('.','-')}`;
+    await work(id,{tipLucrare:"Intervenție contra cost",technicianIds:[paidUid],tehnicieni:[paidName]});
+    await paidExecute("verify",id,{code:"QR"});
+    await assert.rejects(paidExecute(action,id,{cauzaPrincipalaDefectId:"uzura"}),/Completează constatarea/);
+    const fields={constatareLaLocatie:"Diagnostic nou",descriereInterventie:"Reparație nouă",cauzaPrincipalaDefectId:"uzura",numeBeneficiar:"Beneficiar"};
+    await paidExecute(action,id,fields);
+    const saved=(await db.doc(`lucrari/${id}`).get()).data()!;
+    assert.equal(saved.descriereInterventie,fields.descriereInterventie);
+    if(action==="report.finalize"){
+      assert.equal(saved.raportSnapshot.constatareLaLocatie,fields.constatareLaLocatie);
+      await assert.rejects(paidExecute("intervention.save",id,{descriereInterventie:"Modificare interzisă"}),/nu mai permite/);
+    }else assert.equal(saved.statusLucrare,"Fără semnătură");
+  }
+});

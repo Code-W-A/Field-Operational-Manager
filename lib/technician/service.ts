@@ -483,7 +483,7 @@ export function technicianService(db: Firestore) {
               ref.collection("revisions").doc(eq.id),
             );
             const expectedSections =
-              existing.data()?.sections ||
+              (Array.isArray(existing.data()?.sections) && existing.data()!.sections.length ? existing.data()!.sections : undefined) ||
               (eq.rootId ? checklistFromSettings(settings, eq.rootId) : []);
             const sections = validateRevision(
               c.payload.sections,
@@ -536,6 +536,9 @@ export function technicianService(db: Firestore) {
             );
             Object.assign(patch, interventionPatch({ ...w, ...c.payload }, w));
             if (c.action === "report.later" || c.action === "report.finalize") {
+              if (w.tipLucrare === "Intervenție contra cost") {
+                check(String(patch.constatareLaLocatie || "").trim() && String(patch.descriereInterventie || "").trim(), "Completează constatarea și descrierea intervenției.");
+              }
               const causes = failureCauses(settings);
               const cause = causes.find(
                 (o) =>

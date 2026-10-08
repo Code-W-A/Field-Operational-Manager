@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator"
 import { Send, ArrowLeft, Download, Lock, FileDown, Loader2, Save, Calendar, Clock, AlertTriangle, Edit } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
+import { assigned } from "@/packages/fom-domain"
 import { technicianCommand } from "@/lib/technician/client"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -77,6 +78,34 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   // Always treat the latest local version as the source of truth.
   const tichet = updatedLucrare ?? lucrare
   
+  const [paidFinding, setPaidFinding] = useState("")
+  const [paidOperations, setPaidOperations] = useState("")
+  const [savingIntervention, setSavingIntervention] = useState(false)
+  const reportActionLock = useRef(false)
+  const paidDraft = userData?.role === "tehnician" && tichet?.tipLucrare === "Intervenție contra cost" && !tichet?.raportDataLocked && !tichet?.raportGenerat
+  const canEditPaid = paidDraft && !!userData && assigned(tichet, {uid:userData.uid,displayName:userData.displayName || "",role:userData.role}) && tichet.equipmentVerified && !["Anulată", "Arhivată", "Amânată"].includes(tichet.statusLucrare)
+  const paidFields = { constatareLaLocatie: paidFinding.trim(), descriereInterventie: paidOperations.trim() }
+  const validatePaid = () => {
+    if (!paidDraft) return true
+    if (!canEditPaid || !paidFields.constatareLaLocatie || !paidFields.descriereInterventie) {
+      toast({title:"Câmpuri obligatorii", description: canEditPaid ? "Completează constatarea și descrierea intervenției." : "Verifică QR-ul și atribuirea tichetului înainte de completare.", variant:"destructive"})
+      return false
+    }
+    return true
+  }
+  const savePaidIntervention = async () => {
+    if (reportActionLock.current || isSubmitting || isFinalizingLater || !validatePaid()) return
+    reportActionLock.current = true
+    setSavingIntervention(true)
+    try {
+      const result = await technicianCommand("intervention.save", paramsId, paidFields, {work:tichet})
+      setLucrare({...tichet, ...result.work})
+      toast({title:"Intervenție salvată",description:"Constatarea și lucrările executate au fost salvate."})
+    } catch (error) {
+      toast({title:"Eroare la salvare",description:error instanceof Error ? error.message : "Nu s-a putut salva intervenția.",variant:"destructive"})
+    } finally { reportActionLock.current = false; setSavingIntervention(false) }
+  }
+
   // Add name states for signers
   const [numeTehnician, setNumeTehnician] = useState("")
   const [numeBeneficiar, setNumeBeneficiar] = useState("")
@@ -162,6 +191,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             dataInterventie: data.dataInterventie || "",
           }
 
+          setPaidFinding(processedData.constatareLaLocatie)
+          setPaidOperations(processedData.descriereInterventie)
           setLucrare(processedData)
           setStatusLucrare(processedData.statusLucrare)
 
@@ -565,6 +596,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
   const handleSubmit = useStableCallback(async () => {
+    if (reportActionLock.current || isSubmitting || isFinalizingLater || !validatePaid()) return
     const failureCauseLabel = resolveFailureCauseLabel(
       failureCauseOptions,
       cauzaPrincipalaDefectId,
@@ -603,6 +635,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
 
     // Nu mai cerem obligatoriu email manual; se va trimite implicit la emailurile locației
 
+    reportActionLock.current = true
     setIsSubmitting(true)
 
     try {
@@ -652,6 +685,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         const result = await technicianCommand("report.finalize", paramsId, {
           semnaturaTehnician: semnaturaTehnician || "", semnaturaBeneficiar: semnaturaBeneficiar || "",
           numeBeneficiar, products, cauzaPrincipalaDefectId,
+          ...(paidDraft ? paidFields : {}),
           reportManualRecipients: useManualRecipients ? manualEmails : [],
           ...(typeof clientRating === "number" ? { clientRating } : {}),
           ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
@@ -682,7 +716,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         description: err instanceof Error ? err.message : "A apărut o eroare la salvarea semnăturilor.",
       })
       setIsSubmitting(false)
-    }
+    } finally { reportActionLock.current = false }
   })
 
   // Tech signature handlers
@@ -818,6 +852,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   }
 
   const handleFinalizeLater = async () => {
+    if (reportActionLock.current || isSubmitting || isFinalizingLater || !validatePaid()) return
+    reportActionLock.current = true
     try {
       if (!tichet?.id) {
         toast({
@@ -853,8 +889,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         : "-"
 
       const updateData: any = {
-        constatareLaLocatie: tichet?.constatareLaLocatie || "",
-        descriereInterventie: tichet?.descriereInterventie || "",
+        constatareLaLocatie: paidDraft ? paidFields.constatareLaLocatie : tichet?.constatareLaLocatie || "",
+        descriereInterventie: paidDraft ? paidFields.descriereInterventie : tichet?.descriereInterventie || "",
         cauzaPrincipalaDefectId,
         cauzaPrincipalaDefect: failureCauseLabel,
         statusEchipament: tichet?.statusEchipament || "Funcțional",
@@ -912,6 +948,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         variant: "destructive",
       })
     } finally {
+      reportActionLock.current = false
       setIsFinalizingLater(false)
     }
   }
@@ -2056,17 +2093,19 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
 
                 <Separator />
 
-                <div>
-                  <h3 className="font-medium text-gray-500">Constatarea la locație</h3>
-                  <p className="whitespace-pre-line">{lucrare?.constatareLaLocatie || "Nu a fost specificată"}</p>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <h3 className="font-medium text-gray-500">Descriere Intervenție</h3>
-                  <p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p>
-                </div>
+                {canEditPaid ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2"><Label htmlFor="paid-finding">Constatarea la locație *</Label><Textarea id="paid-finding" rows={5} value={paidFinding} onChange={e => setPaidFinding(e.target.value)} disabled={savingIntervention || isSubmitting || isFinalizingLater} /></div>
+                    <div className="space-y-2"><Label htmlFor="paid-operations">Descrierea intervenției *</Label><Textarea id="paid-operations" rows={5} value={paidOperations} onChange={e => setPaidOperations(e.target.value)} disabled={savingIntervention || isSubmitting || isFinalizingLater} /></div>
+                    <Button variant="outline" onClick={savePaidIntervention} disabled={savingIntervention || isSubmitting || isFinalizingLater}>{savingIntervention ? "Se salvează…" : "Salvează intervenția"}</Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div><h3 className="font-medium text-gray-500">Constatarea la locație</h3><p className="whitespace-pre-line">{tichet?.constatareLaLocatie || "Nu a fost specificată"}</p></div>
+                    <div><h3 className="font-medium text-gray-500">Descriere Intervenție</h3><p className="whitespace-pre-line">{tichet?.descriereInterventie || "Nu a fost specificată"}</p></div>
+                    {paidDraft && <p role="alert">Completează verificarea QR în pagina tichetului înainte de raport.</p>}
+                  </div>
+                )}
 
                 <Separator />
 
@@ -2316,7 +2355,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                 <Button
                   type="button"
                   onClick={handleFinalizeLater}
-                  disabled={isFinalizingLater || isSubmitting || lucrare?.raportDataLocked}
+                  disabled={savingIntervention || isFinalizingLater || isSubmitting || lucrare?.raportDataLocked}
                   className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
                 >
                   {isFinalizingLater ? (
@@ -2333,7 +2372,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                 ref={submitButtonRef}
                 className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={savingIntervention || isFinalizingLater || isSubmitting || (paidDraft && !canEditPaid)}
                 style={{
                   position: "relative",
                   zIndex: 50,

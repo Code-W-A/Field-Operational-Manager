@@ -112,29 +112,32 @@ export function checklistFromSettings(
 ): RevisionSection[] {
   const sort = (nodes: RecordData[]) =>
     [...nodes].sort((a, b) => (a.order || 0) - (b.order || 0));
-  const roots = rootId
-    ? settings.filter((s) => s.id === rootId)
-    : sort(
-        settings.filter((s) =>
-          s.assignedTargets?.includes("revisions.checklist.sections"),
-        ),
-      );
+  const selectedRoot = rootId?.trim();
+  const roots = selectedRoot
+    ? [settings.find(s => s.id === selectedRoot) || { id: selectedRoot, name: "Puncte de control" }]
+    : sort(settings.filter(s => s.assignedTargets?.includes("revisions.checklist.sections")));
   const result: RevisionSection[] = [];
-  const visit = (root: RecordData, depth: number) => {
-    if (depth > 4) return;
-    const children = sort(settings.filter((s) => s.parentId === root.id));
-    const variables = children.filter((s) => s.type === "variable");
-    if (variables.length)
-      result.push({
-        id: depth === 0 ? `${root.id}__root` : root.id,
-        title: root.name || "Puncte de control",
-        items: variables.map((s) => ({ id: s.id, label: s.name })),
-      });
-    children
-      .filter((s) => s.type !== "variable")
-      .forEach((s) => visit(s, depth + 1));
+  const childrenOf = (id: string) => sort(settings.filter(s => s.parentId === id));
+  const add = (node: RecordData, variables: RecordData[], root = false) => {
+    if (variables.length) result.push({
+      id: root ? `${node.id}__root` : node.id,
+      title: node.name || "Puncte de control",
+      items: variables.map(s => ({ id: s.id, label: s.name })),
+    });
   };
-  roots.forEach((s) => visit(s, 0));
+  for (const root of roots) {
+    const children = childrenOf(root.id);
+    add(root, children.filter(s => s.type === "variable"), true);
+    for (const child of children.filter(s => s.type !== "variable")) {
+      const grandchildren = childrenOf(child.id);
+      const direct = grandchildren.filter(s => s.type === "variable");
+      // Match the existing web sheet: direct points take precedence over subcategories.
+      if (direct.length) add(child, direct);
+      else for (const sub of grandchildren.filter(s => s.type !== "variable")) {
+        add(sub, childrenOf(sub.id).filter(s => s.type === "variable"));
+      }
+    }
+  }
   return result;
 }
 export function assertCommand(value: unknown): asserts value is Command {
@@ -307,7 +310,7 @@ export function equipmentFor(
       location?.echipamente?.find(
         (v: RecordData) => String(v.id) === eid || String(v.cod) === eid,
       ) || {};
-    const selected = e.dynamicSettings?.["revision.checklistParentId"],
+    const selected = String(e.dynamicSettings?.["revision.checklistParentId"] || "").trim(),
       use = e.dynamicSettings?.["revision.useChecklistForSheet"];
     return {
       id: eid,
@@ -322,8 +325,8 @@ export function equipmentFor(
       ),
       rootId:
         selected && (use === undefined || !!use)
-          ? selected
-          : m.revisionChecklistTemplateId,
+          ? String(selected).trim()
+          : typeof m.revisionChecklistTemplateId === "string" ? m.revisionChecklistTemplateId.trim() : undefined,
     };
   });
 }
