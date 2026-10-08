@@ -160,6 +160,23 @@ test("personal requests share HR routing, overlap protection and one receipt acr
   await assert.rejects(svc.command(uid, command("request.create", suffix, payload), "mobile"), /Există deja o cerere/);
 });
 
+test("legacy revision photos survive JSON field order and dates; forged photos are rejected", async()=>{
+  for(const channel of ["web","mobile"] as const){
+    const id=`${suffix}-legacy-photo-${channel}`;
+    await work(id,{tipLucrare:"Revizie",equipmentIds:["eq"],revision:{equipmentStatus:{eq:"pending"}}});
+    await execute(channel,"verify",id,{equipmentId:"eq",code:"QR"});
+    const sections=[{id:`${suffix}__root`,title:"Verificări",items:[{id:`${suffix}-item`,label:"Control",state:"functional"}]}];
+    const createdAt=Timestamp.fromMillis(1720000000123);
+    const old={path:`revisions/${id}/eq/old.jpg`,url:"https://example.test/old",createdAt,fileName:"old.jpg",uploadedBy:uid};
+    await db.doc(`lucrari/${id}/revisions/eq`).set({sections,photos:[old]},{merge:true});
+    const transported={uploadedBy:uid,fileName:"old.jpg",createdAt:{type:"firestore/timestamp/1.0",seconds:createdAt.seconds,nanoseconds:createdAt.nanoseconds},url:old.url,path:old.path};
+    await execute(channel,"revision.save",id,{equipmentId:"eq",sections,photos:[transported]});
+    assert.deepEqual((await db.doc(`lucrari/${id}/revisions/eq`).get()).data()?.photos,[old]);
+    await assert.rejects(execute(channel,"revision.save",id,{equipmentId:"eq",sections,photos:[{...transported,url:"https://example.test/forged"}]}),/fără identificator/);
+    await assert.rejects(execute(channel,"revision.save",id,{equipmentId:"eq",sections,photos:[{id:"fake-file",path:"forged",url:"forged"}]}),/neautorizată/);
+  }
+});
+
 test("revision empty sections use template; historic sections remain authoritative", async()=>{
   for(const channel of ["web","mobile"] as const){
     const id=`${suffix}-empty-${channel}`;

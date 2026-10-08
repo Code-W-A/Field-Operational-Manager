@@ -70,7 +70,8 @@ async function main() {
     for(const [node,data] of [[root,{name:"Fișă revizie",type:"category"}],[`${root}-cat`,{name:"Categorie mixtă",type:"category",parentId:root}],[`${root}-point`,{name:"Punct vizibil",type:"variable",parentId:`${root}-cat`}],[`${root}-hidden`,{name:"Subcategorie",type:"category",parentId:`${root}-cat`}],[`${root}-hidden-point`,{name:"Punct ascuns",type:"variable",parentId:`${root}-hidden`}]] as const) await db.doc(`settings/${node}`).set(data);
     const common={clientId:uid,client:"Client browser comun",locationId:"loc",locatie:"Sediu comun",equipmentIds:["eq"],echipamentCod:"REVQR1",tehnicieni:[uid],technicianIds:[uid],statusLucrare:"Atribuită",dataInterventie:new Date().toISOString().slice(0,10),updatedAt:Timestamp.now()};
     await db.doc(`lucrari/${revisionId}`).set({...common,tipLucrare:"Revizie",revision:{equipmentStatus:{eq:"pending"},equipment:[{equipmentId:"eq",equipmentName:"Unitate"}]}});
-    await db.doc(`lucrari/${revisionId}/revisions/eq`).set({sections:[]});
+    const legacyPhoto={path:`revisions/${revisionId}/eq/legacy.png`,url:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",createdAt:Timestamp.fromMillis(1720000000123),fileName:"legacy.png"};
+    await db.doc(`lucrari/${revisionId}/revisions/eq`).set({sections:[],photos:[legacyPhoto]});
     await page.goto(`${base}/dashboard/lucrari/${revisionId}/revizie/eq`);
     await page.getByRole("button",{name:"Scanează QR Code",exact:true}).click();
     await expect(page.getByText("Punct vizibil",{exact:true}).first()).toBeVisible({timeout:30000});
@@ -86,6 +87,8 @@ async function main() {
     await page.unroute("**/api/technician/commands");
     await page.getByRole("button",{name:"Salvează",exact:true}).click();
     await expect.poll(async()=>(await db.doc(`lucrari/${revisionId}/revisions/eq`).get()).data()?.finalObservations).toBe("Observații păstrate după eroare");
+    const photos=(await db.doc(`lucrari/${revisionId}/revisions/eq`).get()).data()!.photos;
+    assert.equal(photos.length,2);assert.deepEqual(photos[0],legacyPhoto);assert.ok(photos[1].id);
     await page.goto(`${base}/dashboard/lucrari/${revisionId}/revizie/eq`);
     await expect(page.getByRole("checkbox").first()).toBeChecked();
     await expect(page.getByLabel("Observații",{exact:true})).toHaveValue("Observații păstrate după eroare");
@@ -108,7 +111,7 @@ async function main() {
     await page.getByRole("button",{name:"Înapoi la lucrare",exact:true}).click();
     await page.getByRole("button",{name:"Salvează și ieși",exact:true}).click();
     await expect.poll(async()=>(await db.doc(`lucrari/${changedId}/revisions/eq`).get()).data()?.finalObservations).toBe("Ciornă reală");
-    for(const mode of ["save","finalize","later"]){
+    for(const mode of (process.env.FOM_REVISION_ONLY === "true" ? [] : ["save","finalize","later"])){
       const paidId=`${uid}-paid-${mode}`;
       await db.doc(`lucrari/${paidId}`).set({...common,tipLucrare:"Intervenție contra cost",statusLucrare:"În lucru",equipmentVerified:true,timpSosire:new Date(Date.now()-3600000).toISOString(),cauzaPrincipalaDefectId:"uzura",cauzaPrincipalaDefect:"Uzură"});
       await page.goto(`${base}/raport/${paidId}`);
@@ -141,7 +144,7 @@ async function main() {
       }
     }
     assert.deepEqual(runtimeErrors,[]);
-    console.log("PASS browser: real revision QR -> empty-sheet template -> checks -> errors/retry -> saved data; template edits preserve input; paid report save/finalize/later.");
+    console.log("PASS browser: real revision QR -> legacy and new photos -> checks -> errors/retry -> saved data; template edits preserve input." + (process.env.FOM_REVISION_ONLY === "true" ? "" : " Paid report save/finalize/later."));
   } catch (error) {
     await page.screenshot({ path: "/tmp/fom-unify-web-failure.png", fullPage: true });
     console.error("Browser URL:", page.url(), "Visible page:", (await page.locator("body").innerText()).slice(-2500));

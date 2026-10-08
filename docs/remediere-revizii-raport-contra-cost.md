@@ -26,3 +26,13 @@ Data: 08.10.2026. Domeniu: Next.js și backendul comun web–mobile. Fără modi
 - `npm run build` trece. Configurația existentă exclude verificarea TypeScript/lint din build; verificarea TypeScript separată raportează erori existente în proiect, inclusiv în codul vechi al paginii raportului. Generatorul, serviciul, formularul de revizie și testele modificate nu au erori raportate.
 
 Camera fizică și comportamentul din producție nu sunt confirmate prin aceste teste locale. Remedierea devine disponibilă clienților numai după publicare.
+
+## Corecție pentru „Fotografie fără identificator”
+
+Fotografiile istorice pot să nu aibă `id`. Comparația veche prin `JSON.stringify` nu le recunoștea dacă ordinea câmpurilor sau reprezentarea Timestamp diferă între Firestore, browser și JSON. API-ul ajungea astfel la validarea rezervată fotografiilor noi.
+
+Comparația normalizează acum ordinea câmpurilor și datele, inclusiv JSON-ul SDK-ului web cu `type: "firestore/timestamp/1.0"`. Acceptă numai metadatele identice cu o fotografie deja salvată pe fișa respectivă și păstrează obiectul original din Firestore. Fotografii noi sau modificate necesită în continuare identificator și dovada încărcării autorizate. Nu migrăm fotografiile existente și nu modificăm contractul Expo.
+
+Testul suplimentar web–mobile confirmă păstrarea fotografiei vechi și respinge adresa modificată sau identificatorul inventat. Totalul suitei backend/instalare este acum 50 de teste trecute.
+
+Testul browser dedicat (`FOM_REVISION_ONLY=true`) confirmă QR → fotografie istorică fără ID + fotografie nouă → eroare API → reîncercare → salvare → reîncărcare, precum și ciorna. Testul unitar folosește și serializarea SDK-ului Firebase web real. Extinderea completă a testului browser spre raportul contra cost a întâmpinat o eroare de încărcare a unui chunk în serverul de dezvoltare; acceptarea acestei corecții se bazează pe parcursul dedicat reviziei și pe regresiile backend.

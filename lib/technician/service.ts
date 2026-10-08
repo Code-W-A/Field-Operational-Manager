@@ -1,3 +1,4 @@
+import { photoIdentity } from "./photo-identity";
 import {
   FieldValue,
   Timestamp,
@@ -397,7 +398,7 @@ export function technicianService(db: Firestore) {
           if (channel === "mobile" && c.action !== "postpone")
             await requireAttendance(tx, a, c, occurred);
           const settings = rows(await tx.get(db.collection("settings")));
-          await validatePhotos(tx, a, c, w);
+          const validatedPhotos = await validatePhotos(tx, a, c, w);
           const now = Timestamp.now(),
             patch: RecordData = {};
           if (c.action === "verify") {
@@ -514,7 +515,7 @@ export function technicianService(db: Firestore) {
                 completedAt: c.occurredAt, completedBy: uid, durationMinutes: minutes,
                 durationText: `${Math.floor(minutes / 60)}h ${minutes % 60}m`,
               } : { completedAt: FieldValue.delete(), completedBy: FieldValue.delete() }),
-              photos: c.payload.photos || existing.data()?.photos || [],
+              photos: validatedPhotos || existing.data()?.photos || [],
               checklistVersionId: w.revision?.checklistVersionId || "legacy",
               updatedAt: now,
               ...(!existing.exists ? { createdAt: now } : {}),
@@ -535,6 +536,7 @@ export function technicianService(db: Firestore) {
               "Verifică echipamentul înainte de intervenție.",
             );
             Object.assign(patch, interventionPatch({ ...w, ...c.payload }, w));
+            if (validatedPhotos) patch.imaginiDefecte = validatedPhotos;
             if (c.action === "report.later" || c.action === "report.finalize") {
               if (w.tipLucrare === "Intervenție contra cost") {
                 check(String(patch.constatareLaLocatie || "").trim() && String(patch.descriereInterventie || "").trim(), "Completează constatarea și descrierea intervenției.");
@@ -775,9 +777,14 @@ export function technicianService(db: Firestore) {
               .doc(id(c.payload.equipmentId)),
           )
         ).data()?.photos || [];
+    const validated: RecordData[] = [];
     for (const photo of incoming) {
-      if (old.some((p: any) => JSON.stringify(serial(p)) === JSON.stringify(serial(photo))))
+      check(photo && typeof photo === "object" && !Array.isArray(photo), "Fotografii invalide.");
+      const existing = old.find((p: any) => photoIdentity(p) === photoIdentity(photo));
+      if (existing) {
+        validated.push(existing);
         continue;
+      }
       check(photo.id, "Fotografie fără identificator.");
       const stored = (
         await tx.get(
@@ -793,7 +800,9 @@ export function technicianService(db: Firestore) {
         "Fotografie neautorizată.",
         403,
       );
+      validated.push(photo);
     }
+    return validated;
   }
   async function requireAttendance(
     tx: Transaction,
