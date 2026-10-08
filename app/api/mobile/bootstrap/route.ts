@@ -1,3 +1,4 @@
+import { FOM_CONTRACT_VERSION } from "@/packages/fom-domain";
 import { installationService } from "@/lib/installations/service";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
       );
     return NextResponse.json(
       {
+        contractVersion: FOM_CONTRACT_VERSION,
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         bundle: code ? undefined : await service.bundle(a.uid),
         history: code ? await service.history(a.uid, code) : undefined,

@@ -112,7 +112,7 @@ async function main() {
     defectReclamat: "Montaj server și configurare rețea.",
   };
   const work = await service.create(manager, input, "browser-installation");
-  let started: Awaited<ReturnType<typeof service.start>>;
+  let started!: Awaited<ReturnType<typeof service.start>>;
   const qrSvg = (value: string) =>
     renderToStaticMarkup(
       createElement(QRCodeSVG, {
@@ -179,7 +179,7 @@ async function main() {
       assert.ok(!result.stdout.includes("ERROR_OVERLAY"));
       console.log(result.stdout.trim().slice(0, 1000));
     }
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, channel: process.env.FOM_TEST_BROWSER_CHANNEL });
     const context = await browser.newContext({ acceptDownloads: true });
     async function attachCamera(target: BrowserContext) {
       await target.addInitScript(
@@ -262,14 +262,129 @@ async function main() {
       beneficiarySignature:
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=",
     };
+    async function drawSignatures(p: Page) {
+      const canvases = p.locator("canvas");
+      await expect(canvases).toHaveCount(2);
+      for (let i = 0; i < 2; i++) {
+        await canvases.first().scrollIntoViewIfNeeded();
+        const bounds = await canvases.first().boundingBox();
+        assert.ok(bounds);
+        await p.mouse.move(bounds.x + 20, bounds.y + 30);
+        await p.mouse.down();
+        await p.mouse.move(bounds.x + 95, bounds.y + 60, { steps: 12 });
+        await p.mouse.move(bounds.x + 140, bounds.y + 25, { steps: 12 });
+        await p.mouse.up();
+        await p
+          .getByRole("button", { name: "Salvează semnătura", exact: true })
+          .first()
+          .click();
+      }
+    }
+    if (process.env.INSTALLATION_FEEDBACK_ONLY === "1") {
+      await login(page, "browser-tech");
+      const fixture = await service.create(manager, {...input, nrLucrare: "#FEEDBACK"}, "browser-feedback");
+      await page.goto(`${origin}/dashboard/lucrari/${fixture.id}`);
+      await expect(page.getByText("Echipamente totale", {exact: true})).toHaveCount(0);
+      await expect(page.getByText("Progresul instalării", {exact: true})).toBeVisible();
+      await expect(page.getByText("Detalii instalare", {exact: true})).toBeVisible();
+      await page.getByRole("button", {name: "Începe instalarea", exact: true}).click();
+      const scanner = page.getByRole("dialog", {name: "Scanare QR Code Echipament", exact: true});
+      await expect(scanner).toBeVisible();
+      await expect(scanner.getByText(/nu corespunde/)).toBeVisible({timeout: 30000});
+      assert.equal((await db.collection("lucrari").doc(fixture.id).collection("installationSheets").get()).size, 0);
+      await scanner.getByRole("button", {name:"Close", exact:true}).click();
+      await expect(scanner).toHaveCount(0);
+      assert.equal((await db.collection("lucrari").doc(fixture.id).collection("installationSheets").get()).size, 0);
+      await page.getByRole("button", {name:"Începe instalarea",exact:true}).click();
+      await expect(scanner).toBeVisible();
+      // Valid QR and repeated camera frames, with an explicit server error first.
+      await page.route(`**/api/lucrari/${fixture.id}/installation`, route => route.request().method() === "POST" ? route.fulfill({status:409,contentType:"application/json",body:'{"error":"Eroare API simulată"}'}) : route.continue());
+      await page.evaluate(svg => { (window as typeof window & {installationTestQr:string}).installationTestQr = svg; },qrSvg("BROWSER1"));
+      await expect(scanner.getByText("Eroare API simulată",{exact:true})).toBeVisible();
+      assert.equal((await db.collection("lucrari").doc(fixture.id).collection("installationSheets").get()).size,0);
+
+      await page.evaluate(svg => { (window as typeof window & {installationTestQr:string}).installationTestQr = svg; },qrSvg(JSON.stringify({type:"equipment",id:"wrong-id",code:"BROWSER1"})));
+      await page.unroute(`**/api/lucrari/${fixture.id}/installation`);
+      await expect(scanner.getByText(/ID-ul echipamentului din QR nu corespunde/)).toBeVisible();
+      assert.equal((await db.collection("lucrari").doc(fixture.id).collection("installationSheets").get()).size,0);
+      await page.evaluate(svg => { (window as typeof window & {installationTestQr:string}).installationTestQr = svg; },qrSvg(JSON.stringify({type:"equipment",id:"browser-equipment",code:"BROWSER1",client:"Client browser",location:"Locație browser"})));
+
+      await expect(page.getByLabel("Constatare la locație *",{exact:true})).toBeVisible({timeout:30000});
+      const feedbackSheet = (await db.collection("lucrari").doc(fixture.id).collection("installationSheets").get()).docs[0];
+      assert.equal((await db.collection("lucrari").doc(fixture.id).collection("installationSheets").get()).size,1);
+      await expect(page.getByText("Echipa fișei",{exact:true})).toHaveCount(0);
+      await expect(page.getByText(/Fișă zilnică ·/)).toHaveCount(0);
+      await expect(page.getByText(/Fișa din /)).toHaveCount(0);
+      await expect(page.getByText("Progresul completat este salvat.",{exact:true})).toBeVisible();
+      await page.setViewportSize({width:390,height:844});
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({path:"/private/tmp/fom-installation-feedback-mobile.png",fullPage:true});
+      await adminPage.goto(`${origin}/dashboard/lucrari/${fixture.id}/instalare?sheetId=${feedbackSheet.id}`);
+      await expect(adminPage.getByText("Echipa fișei",{exact:true})).toBeVisible();
+      await expect(adminPage.getByText(/Fișa din /)).toBeVisible();
+      const frozenFields = { finding:"Constatare feedback", operations:"Montaj feedback", installationStatus:"in_progress", blockReason:"", internalNote:"" };
+      await service.save(tech,fixture.id,{sheetId:feedbackSheet.id,revision:feedbackSheet.data().revision,fields:frozenFields,signatures:signature},true);
+      // Manual fallback after timeout, including a code longer than the old ten-character limit.
+      const clientFixture = (await db.collection("clienti").doc("browser-client").get()).data()!;
+      clientFixture.locatii[0].echipamente.push({id:"browser-long-equipment",nume:"Echipament cod lung",cod:"LONG-CODE-123456789",model:"Test"});
+      await db.collection("clienti").doc("browser-client").set(clientFixture);
+      const manualWork = await service.create(manager,{...input,equipmentIds:["browser-long-equipment"],nrLucrare:"#MANUAL"},"browser-feedback-manual");
+      // Blank QR means camera produces no detection and the 15-second fallback is exercised.
+      await page.goto(`${origin}/dashboard/lucrari/${manualWork.id}`);
+      await page.evaluate(()=>{ (window as typeof window & {installationTestQr:string}).installationTestQr='<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><rect width="640" height="640" fill="white"/></svg>'; });
+      await page.getByRole("button",{name:"Începe instalarea",exact:true}).click();
+      await expect(scanner).toBeVisible();
+      await scanner.getByRole("button",{name:"Introdu codul manual",exact:true}).click({timeout:22000});
+      await scanner.getByLabel("Cod echipament",{exact:true}).fill("WRONG-LONG-CODE");
+      await scanner.getByRole("button",{name:"Verifică codul",exact:true}).click();
+      await expect(scanner.getByText(/nu corespunde/)).toBeVisible();
+      assert.equal((await db.collection("lucrari").doc(manualWork.id).collection("installationSheets").get()).size,0);
+      await scanner.getByLabel("Cod echipament",{exact:true}).fill("LONG-CODE-123456789");
+      await scanner.getByRole("button",{name:"Verifică codul",exact:true}).click();
+      await expect(page.getByLabel("Constatare la locație *",{exact:true})).toBeVisible({timeout:30000});
+      const manualSheet=(await db.collection("lucrari").doc(manualWork.id).collection("installationSheets").get()).docs[0];
+      await service.save(tech,manualWork.id,{sheetId:manualSheet.id,revision:manualSheet.data().revision,fields:frozenFields,signatures:signature},true);
+      const deniedContext = await browser.newContext();
+      await deniedContext.addInitScript(() => {
+        navigator.mediaDevices.getUserMedia = async () => { throw new DOMException("Permission denied", "NotAllowedError"); };
+      });
+      const deniedPage = await deniedContext.newPage();
+      await login(deniedPage,"browser-tech");
+      await deniedPage.goto(`${origin}/dashboard/lucrari/${work.id}`);
+      await deniedPage.getByRole("button",{name:"Începe instalarea",exact:true}).click();
+      const deniedScanner = deniedPage.getByRole("dialog",{name:"Scanare QR Code Echipament",exact:true});
+      await deniedScanner.getByRole("button",{name:"Introdu codul manual",exact:true}).click();
+      await expect(deniedScanner.getByLabel("Cod echipament",{exact:true})).toBeVisible();
+      await deniedScanner.getByRole("button",{name:"Close",exact:true}).click();
+      assert.equal((await db.collection("lucrari").doc(work.id).collection("installationSheets").get()).size,0);
+      await deniedContext.close();
+      // Isolate the legacy scanner from its existing ticket-level occupancy check.
+      await db.collection("lucrari").doc(fixture.id).update({statusLucrare:"Finalizat"});
+      await db.collection("lucrari").doc(manualWork.id).update({statusLucrare:"Finalizat"});
+      // The default scanner still validates standard tickets locally.
+      await db.collection("lucrari").doc("browser-feedback-standard").set({...input,id:"browser-feedback-standard",tipLucrare:"Intervenție",echipament:"Server browser",echipamentId:"browser-equipment",echipamentCod:"BROWSER1",statusLucrare:"Atribuită",statusFacturare:"Nefacturat"});
+      await page.goto(`${origin}/dashboard/lucrari/browser-feedback-standard`);
+      await page.getByRole("tab",{name:"Verificare echipament",exact:true}).click();
+      await page.getByRole("button",{name:"Scanează QR Code",exact:true}).click();
+      await expect(scanner).toBeVisible();
+      await page.evaluate(svg => { (window as typeof window & {installationTestQr:string}).installationTestQr = svg; },qrSvg("BROWSER1"));
+      await expect(page.getByRole("heading",{name:"Echipament verificat",exact:true}).first()).toBeVisible({timeout:30000});
+      assert.equal((await db.collection("lucrari").doc("browser-feedback-standard").get()).data()?.equipmentVerified,true);
+      await adminPage.goto(`${origin}/dashboard/lucrari/${fixture.id}`);
+      await expect(adminPage.getByText("Echipamente totale",{exact:true})).toBeVisible();
+      await adminPage.goto(`${origin}/dashboard`);
+      await expect(adminPage.getByText("Instalare",{exact:true}).first()).toBeVisible();
+      await expect(adminPage.getByText(/Emitent:/)).toHaveCount(0);
+      assert.deepEqual(errors,[]);
+      console.log("BROWSER PASS installation feedback: direct QR, rejection, cancellation, API error, one sheet, manual timeout/long code, role-specific compact view, standard scanner and dashboard work type.");
+      return;
+    }
     if (process.env.TICKET_DIALOG_ONLY !== "1") {
     await login(page, "browser-tech");
     await page.goto(
       `${origin}/dashboard/lucrari/${work.id}/instalare?equipmentId=browser-equipment`,
     );
-    await page
-      .getByRole("button", { name: "Scanează QR", exact: true })
-      .click();
+    await expect(page.getByRole("dialog", { name: "Scanare QR Code Echipament", exact: true })).toBeVisible();
     await expect(
       page.getByRole("alert").filter({ hasText: "nu corespunde" }),
     ).toBeVisible({ timeout: 30000 });
@@ -366,24 +481,6 @@ async function main() {
     await page
       .getByLabel("Numele beneficiarului *", { exact: true })
       .fill("Beneficiar browser");
-    async function drawSignatures(p: Page) {
-      const canvases = p.locator("canvas");
-      await expect(canvases).toHaveCount(2);
-      for (let i = 0; i < 2; i++) {
-        await canvases.first().scrollIntoViewIfNeeded();
-        const bounds = await canvases.first().boundingBox();
-        assert.ok(bounds);
-        await p.mouse.move(bounds.x + 20, bounds.y + 30);
-        await p.mouse.down();
-        await p.mouse.move(bounds.x + 95, bounds.y + 60, { steps: 12 });
-        await p.mouse.move(bounds.x + 140, bounds.y + 25, { steps: 12 });
-        await p.mouse.up();
-        await p
-          .getByRole("button", { name: "Salvează semnătura", exact: true })
-          .first()
-          .click();
-      }
-    }
     await drawSignatures(page);
     await page
       .getByRole("button", { name: "Închide fișa zilei", exact: true })
@@ -1124,8 +1221,10 @@ async function main() {
     await page.goto(
       `${origin}/dashboard/lucrari/${teamWork.id}/instalare?sheetId=${teamFirst.sheet.id}`,
     );
+    await expect(page.getByText("Echipa fișei",{exact:true})).toHaveCount(0);
+    await adminPage.goto(page.url());
     await expect(
-      page.getByText("Alt tehnician browser · secundar", { exact: true }),
+      adminPage.getByText("Alt tehnician browser · secundar", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText(/Tehnician fără cont: nu a putut fi alocat automat/),
@@ -1139,16 +1238,14 @@ async function main() {
       `${origin}/dashboard/lucrari/${teamWork.id}/instalare?equipmentId=browser-equipment2`,
     );
     await expect(
-      teamPage.getByRole("button", { name: "Scanează QR", exact: true }),
-    ).toBeEnabled();
+      teamPage.getByRole("dialog", { name: "Scanare QR Code Echipament", exact: true }),
+    ).toBeVisible();
     await teamPage.evaluate((svg) => {
       (
         window as typeof window & { installationTestQr: string }
       ).installationTestQr = svg;
     }, qrSvg("BROWSER2"));
-    await teamPage
-      .getByRole("button", { name: "Scanează QR", exact: true })
-      .click();
+
     await expect(
       teamPage.getByLabel("Constatare la locație *", { exact: true }),
     ).toBeVisible({ timeout: 30000 });
@@ -1179,8 +1276,10 @@ async function main() {
       teamPage.getByText("Semnare ulterioară", { exact: true }),
     ).toBeVisible();
     await page.reload();
+    await expect(page.getByText("Echipa fișei", {exact:true})).toHaveCount(0);
+    await adminPage.goto(page.url());
     await expect(
-      page.getByText("Alt tehnician browser · secundar · mutat pe altă fișă", {
+      adminPage.getByText("Alt tehnician browser · secundar · mutat pe altă fișă", {
         exact: true,
       }),
     ).toBeVisible();
@@ -1386,7 +1485,7 @@ async function main() {
       ),
     );
   } catch (error) {
-    const failedPage = browser
+    const failedPage = process.env.INSTALLATION_FEEDBACK_ONLY === "1" ? browser?.contexts()[0]?.pages()[0] : browser
       ?.contexts()
       .flatMap((context) => context.pages()).at(-1);
     if (failedPage) {

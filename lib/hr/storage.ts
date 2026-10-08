@@ -23,7 +23,8 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+import { technicianCommand } from "@/lib/technician/client"
+import { auth, db } from "@/lib/firebase/config"
 import { isE2eTestMode } from "@/lib/utils/environment"
 import { E2E_HR_DEPARTMENTS, E2E_HR_REQUESTS } from "@/lib/hr/e2e-fixtures"
 import { HR_SEED_EMPLOYEES, buildSeedTimesheets } from "./mock"
@@ -766,7 +767,12 @@ async function notifyHrRequestEmail(params: { requestId: string; event: "created
 
 export async function createHrRequest(
   request: Omit<HrRequest, "id" | "createdAt" | "updatedAt">,
-): Promise<{ id: string; documentSerial: number }> {
+): Promise<{ id: string; documentSerial: number; delivery?: { status: string; error?: string } }> {
+  const profile = auth.currentUser ? (await getDoc(doc(db, "users", auth.currentUser.uid))).data() : undefined
+  if (profile?.role === "tehnician") {
+    const result = await technicianCommand("request.create", request.employeeId, { kind: request.kind, sectorId: request.sectorId, payload: request.payload } as any)
+    return { id: result.id, documentSerial: result.request.documentSerial, delivery: result.delivery }
+  }
   const validationError = validateHrRequestCreateInput(request)
   if (validationError) throw new Error(validationError)
   await assertNoActiveRequestOverlap({

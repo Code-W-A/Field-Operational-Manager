@@ -351,15 +351,12 @@ export default function Dashboard() {
     }
   }
 
-  const bubbleEmitent = (it: { emitentLabel?: string }) =>
-    !isTechnician ? it.emitentLabel : undefined
-
   const statusBubble = (color: string) => (it: any) => (
     <WorkBubbleStatus
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
-      emitent={bubbleEmitent(it)}
+      workType={it.workType}
       colorClass={color}
       href={`/dashboard/lucrari/${it.id}?from=dashboard`}
       className="mb-2"
@@ -371,7 +368,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
-      emitent={bubbleEmitent(it)}
+      workType={it.workType}
       colorClass={color}
       href={it.lucrareId ? `/dashboard/lucrari/${it.lucrareId}?from=dashboard` : undefined}
       onClick={() => {
@@ -390,7 +387,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
-      emitent={bubbleEmitent(it)}
+      workType={it.workType}
       equipmentList={it.equipmentList}
       colorClass={color}
       href={`/dashboard/lucrari/${it.id}?from=dashboard`}
@@ -413,7 +410,7 @@ export default function Dashboard() {
       key={it.id}
       title={it.locatie}
       subtitle={it.equipmentLabel}
-      emitent={bubbleEmitent(it)}
+      workType={it.workType}
       equipmentList={it.equipmentList}
       status={it.statusLucrare}
       colorClass={getTechnicianWorkColor(it.statusLucrare)}
@@ -430,7 +427,7 @@ export default function Dashboard() {
         key={it.id}
         title={it.locatie}
         subtitle={it.equipmentLabel}
-        emitent={bubbleEmitent(it)}
+        workType={it.workType}
         colorClass={color}
         href={`/dashboard/lucrari/${it.id}?from=dashboard`}
         className="mb-2"
@@ -453,7 +450,7 @@ export default function Dashboard() {
         key={it.id}
         title={it.locatie}
         subtitle={it.equipmentLabel}
-        emitent={bubbleEmitent(it)}
+        workType={it.workType}
         colorClass={color}
         href={`/dashboard/lucrari/${it.id}?from=dashboard`}
         className="mb-2"

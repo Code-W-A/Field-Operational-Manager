@@ -2,16 +2,8 @@ import { isContactSyncEligible, type SyncRecord } from "@/firebase-functions/src
 import { linkedClientId } from "@/lib/client-work-links"
 import { resolveTicketLiveDisplay } from "./ticket-live-display"
 
-export type DocumentClientSnapshot = {
-  version: 1
-  clientId: string
-  client: string
-  locatie: string
-  persoanaContact: string
-  telefon: string
-  persoanaContactEmail: string
-  clientInfo: { nume: string; cui: string; rc: string; adresa: string; locationName: string; locationAddress: string }
-}
+import type { DocumentClientSnapshot } from "@/packages/fom-domain/documents";
+export type { DocumentClientSnapshot } from "@/packages/fom-domain/documents";
 
 /** Freeze only document identity fields; never merge this projection into the work document. */
 export function resolveDocumentClientSnapshot(work: SyncRecord, client: SyncRecord): DocumentClientSnapshot {

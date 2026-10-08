@@ -1,3 +1,5 @@
+import type { OfferResponseCertifiedPdf } from "@/packages/fom-domain/documents";
+export type { OfferResponseCertifiedPdf } from "@/packages/fom-domain/documents";
 export type OfferEventType =
   | "OFFER_PREPARED"
   | "OFFER_TOKEN_MINTED"
@@ -66,20 +68,6 @@ export interface OfferEvidenceSummary {
   certifiedPdf?: OfferResponseCertifiedPdf | null
   messageId?: string | null
   statusOferta?: string | null
-}
-
-export interface OfferResponseCertifiedPdf {
-  action: "accept" | "reject"
-  actedAt: string
-  verifiedEmail: string
-  reason?: string
-  renderedProofText: string
-  storagePath: string
-  filename: string
-  mime: "application/pdf"
-  size: number
-  generatedAt: string
-  sourceVersion?: string
 }
 
 export interface OfferEvidencePack {

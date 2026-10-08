@@ -2816,9 +2816,6 @@ video {
 .border-primary {
   border-color: hsl(var(--primary));
 }
-.border-primary\/30 {
-  border-color: hsl(var(--primary) / 0.3);
-}
 .border-purple-200 {
   --tw-border-opacity: 1;
   border-color: rgb(233 213 255 / var(--tw-border-opacity, 1));

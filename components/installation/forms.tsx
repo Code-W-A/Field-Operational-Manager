@@ -142,35 +142,37 @@ export function InstallationSheetForm({
   };
   return (
     <section className="space-y-5">
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <div>
-            <h3 className="font-semibold">
-              Fișa din {dateLabel(sheet.workDate)} · {sheet.principalName}
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {sheet.state === "closed"
-                ? "Document semnat, disponibil pentru consultare și descărcare."
-                : sheet.state === "awaiting_signature"
-                  ? "Conținutul este înghețat. Un tehnician participant poate colecta ambele semnături."
-                  : editable
-                    ? "Completează fișa și salvează progresul înainte de închiderea zilei."
-                    : "Doar principalul acestei fișe o poate modifica."}
-            </p>
-          </div>
-          <Badge variant="secondary">
-            {busy
-              ? "Se salvează…"
-              : dirty
-                ? "Modificări nesalvate"
-                : sheet.state === "closed"
-                  ? "Semnată"
+      {userData?.role !== "tehnician" && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div>
+              <h3 className="font-semibold">
+                Fișa din {dateLabel(sheet.workDate)} · {sheet.principalName}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {sheet.state === "closed"
+                  ? "Document semnat, disponibil pentru consultare și descărcare."
                   : sheet.state === "awaiting_signature"
-                    ? "În așteptarea semnăturilor"
-                    : "Ciornă salvată"}
-          </Badge>
-        </CardContent>
-      </Card>
+                    ? "Conținutul este înghețat. Un tehnician participant poate colecta ambele semnături."
+                    : editable
+                      ? "Completează fișa și salvează progresul înainte de închiderea zilei."
+                      : "Doar principalul acestei fișe o poate modifica."}
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {busy
+                ? "Se salvează…"
+                : dirty
+                  ? "Modificări nesalvate"
+                  : sheet.state === "closed"
+                    ? "Semnată"
+                    : sheet.state === "awaiting_signature"
+                      ? "În așteptarea semnăturilor"
+                      : "Ciornă salvată"}
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
       {error && (
         <p role="alert" className="text-red-700">
           {error}
@@ -455,9 +457,11 @@ export function InstallationSheetForm({
           </fieldset>
           <div className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-lg border bg-background/95 p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              {dirty
-                ? "Deschide o altă pagină numai după salvarea modificărilor."
-                : "Progresul completat este salvat."}
+              {busy
+                ? "Se salvează…"
+                : dirty
+                  ? "Deschide o altă pagină numai după salvarea modificărilor."
+                  : "Progresul completat este salvat."}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button

@@ -13,31 +13,8 @@ import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from "firebas
 import { db, storage } from "@/lib/firebase/config"
 import type { RevisionChecklistSection } from "@/types/revision"
 
-export interface RevisionPhotoMeta {
-  path: string
-  url: string
-  createdAt: any
-  uploadedBy?: string
-  fileName?: string
-}
-
-export interface EquipmentRevisionDoc {
-  equipmentId: string
-  equipmentName?: string
-  sections: RevisionChecklistSection[]
-  photos?: RevisionPhotoMeta[]
-  internalNote?: string
-  /** Observații generale la finalul fișei (distincte de obs. per punct de control). */
-  finalObservations?: string
-  completedAt?: any
-  completedBy?: string
-  overallState?: "functional" | "nefunctional" | "na"
-  qrVerified?: boolean
-  qrVerifiedAt?: string
-  qrVerifiedBy?: string
-  createdAt?: any
-  updatedAt?: any
-}
+import type { RevisionPhotoMeta, EquipmentRevisionDoc } from "@/packages/fom-domain/revision";
+export type { RevisionPhotoMeta, EquipmentRevisionDoc } from "@/packages/fom-domain/revision";
 
 export async function getRevisionDoc(workId: string, equipmentId: string): Promise<EquipmentRevisionDoc | null> {
   const refDoc = doc(db, "lucrari", workId, "revisions", equipmentId)

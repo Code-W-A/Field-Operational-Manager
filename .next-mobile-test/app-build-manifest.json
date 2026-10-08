@@ -20,6 +20,21 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/mobile/document/route.js"
     ],
+    "/api/technician/commands/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/technician/commands/route.js"
+    ],
+    "/api/technician/files/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/technician/files/route.js"
+    ],
+    "/api/technician/document/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/technician/document/route.js"
+    ],
     "/global-error": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -31,10 +46,15 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/page": [
+    "/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+      "static/chunks/app/login/page.js"
+    ],
+    "/api/auth/session/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/auth/session/route.js"
     ]
   }
 }

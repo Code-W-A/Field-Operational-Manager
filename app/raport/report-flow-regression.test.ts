@@ -28,7 +28,7 @@ test("Semnează mai târziu: saves products and stops work time", () => {
 test("Report reopen: non-locked later-sign reports load editable products first", () => {
   const page = read("app/raport/[id]/page.tsx")
   const start = page.indexOf("const snapshotProducts = Array.isArray")
-  const end = page.indexOf("// If the work has an email address")
+  const end = page.indexOf("// emailDestinatar was", start)
   assert.ok(start > -1, "product loading block should exist")
   assert.ok(end > start, "product loading block should be detectable")
 
@@ -59,7 +59,7 @@ test("Raport: finalization requires principal failure cause and stores it", () =
 
 test("Revizie: QR starts timing, completion saves duration, PDF displays it", () => {
   const sheet = read("components/revision-operations-sheet.tsx")
-  const pdf = read("lib/pdf/revision-operations.ts")
+  const pdf = read("lib/pdf/revision-render.ts")
 
   assert.match(sheet, /startIso: now\.toISOString\(\)/)
   assert.match(sheet, /durationMinutes: minutes/)

@@ -497,6 +497,7 @@ test("rules deny direct writes/reads to installation sheets and protected parent
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields }),
     });
+  for(const collection of ["mobileCommands","mobileFiles","mobileEffects","installationCommands"]){assert.equal((await patch(`${collection}/forged`,{uid:{stringValue:"tech1"}})).status,403);assert.equal((await fetch(`${root}/${collection}/forged`)).status,403);}
   assert.equal(
     (
       await patch(`lucrari/${work.id}/installationSheets/forged`, {

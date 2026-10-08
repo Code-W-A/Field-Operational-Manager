@@ -8,8 +8,8 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Scanner } from "@yudiel/react-qr-scanner";
-import { ArrowLeft, RefreshCw, QrCode } from "lucide-react";
+import { QRCodeScanner } from "@/components/qr-code-scanner";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,8 @@ export function InstallationWorkspace({
   const [selected, setSelected] = useState<InstallationSheet | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  const [scanEquipmentId, setScanEquipmentId] = useState<string>();
+  const autoScanOpened = useRef("");
   const [filter, setFilter] = useState<string>();
   const scanRequest = useRef<string | null>(null);
   const scanningRequest = useRef(false);
@@ -86,7 +87,6 @@ export function InstallationWorkspace({
     const result: InstallationListResponse = await installationRequest(
       installationApi(workId),
     );
-    setData(result);
     setHistory(result.sheets);
     const activeId =
       sheetId ||
@@ -111,13 +111,15 @@ export function InstallationWorkspace({
       if (!selection.sheets.length)
         throw new Error("Fișa solicitată nu este disponibilă.");
     } else setSelected(null);
+    setData(result);
   }, [workId, sheetId, equipmentId, userData?.uid]);
   useEffect(() => {
     setData(null);
     setSelected(null);
-    setScanning(false);
+    setScanEquipmentId(undefined);
     setError("");
     scanRequest.current = null;
+    autoScanOpened.current = "";
     void load().catch((e) => setError(e.message));
   }, [load]);
   async function run(action: () => Promise<void>) {
@@ -137,30 +139,69 @@ export function InstallationWorkspace({
     query.delete("complete");
     router.replace(`${pathname}?${query}`, { scroll: false });
   }
+  function beginEquipment(id: string) {
+    const activeId = data?.work.installation.activeSheetByEquipment[id];
+    if (
+      activeId &&
+      (!data?.canStart || data?.currentSession?.sheetId === activeId)
+    ) {
+      router.push(
+        `${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(activeId)}`,
+      );
+      return;
+    }
+    if (data?.currentSession?.role === "principal") {
+      setError(
+        "Ai o fișă în lucru ca principal. Oprește lucrul pe aceasta înainte de a începe alta.",
+      );
+      return;
+    }
+    scanRequest.current = null;
+    setError("");
+    setScanEquipmentId(id);
+  }
+  useEffect(() => {
+    if (
+      !data ||
+      !equipmentId ||
+      selected ||
+      !data.canStart ||
+      data.work.installation.closedReason ||
+      data.work.installation.equipmentStatus[equipmentId] === "done" ||
+      data.work.installation.awaitingSheetByEquipment?.[equipmentId]
+    )
+      return;
+    const key = `${workId}:${equipmentId}`;
+    if (autoScanOpened.current === key) return;
+    autoScanOpened.current = key;
+    beginEquipment(equipmentId);
+  }, [data, equipmentId, selected, workId]);
   async function scan(qrRaw: string) {
-    if (scanningRequest.current) return;
+    if (scanningRequest.current || !scanEquipmentId)
+      throw new Error("Verificarea este deja în curs.");
     scanningRequest.current = true;
     scanRequest.current ||= crypto.randomUUID();
+    setBusy(true);
     try {
-      await run(async () => {
-        const result = await installationRequest(installationApi(workId), {
-          action: "start",
-          equipmentId,
-          qrRaw,
-          requestId: scanRequest.current,
-        });
-        setSelected(result.sheet);
-        setScanning(false);
-        const refreshed = await installationRequest(installationApi(workId));
-        setData(refreshed);
-        setHistory(refreshed.sheets);
+      const result = await installationRequest(installationApi(workId), {
+        action: "start",
+        equipmentId: scanEquipmentId,
+        qrRaw,
+        requestId: scanRequest.current,
       });
+      setScanEquipmentId(undefined);
+      router.push(
+        `${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(result.sheet.id)}`,
+      );
     } finally {
       scanningRequest.current = false;
+      setBusy(false);
     }
   }
   const manager = ["admin", "dispecer"].includes(userData?.role || "");
   const meta = data?.work.installation;
+  const technician = userData?.role === "tehnician";
+  const scanEquipment = meta?.equipment.find((e) => e.id === scanEquipmentId);
   const equipment = meta?.equipment.find(
     (e) => e.id === (selected?.equipmentId || equipmentId),
   );
@@ -223,6 +264,21 @@ export function InstallationWorkspace({
           <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
         </Button>
       </DashboardHeader>
+      {scanEquipment && data && (
+        <QRCodeScanner
+          key={scanEquipment.id}
+          open={Boolean(scanEquipmentId)}
+          onOpenChange={(open) => {
+            if (!open && !scanningRequest.current)
+              setScanEquipmentId(undefined);
+          }}
+          hideTrigger
+          expectedEquipmentCode={scanEquipment.code}
+          expectedClientName={data.work.client}
+          expectedLocationName={data.work.locatie}
+          onValidateRaw={scan}
+        />
+      )}
       {error && (
         <div
           role="alert"
@@ -260,29 +316,33 @@ export function InstallationWorkspace({
                   Înapoi la fișele zilnice
                 </Link>
               </Button>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    Fișă zilnică · {dateLabel(selected.workDate)}
-                  </CardTitle>
-                  <CardDescription>
-                    {equipment?.name} · Model: {equipment?.model || "—"} · Cod:{" "}
-                    {equipment?.code || "—"}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-              <InstallationTeam sheet={selected} />
+              {!technician && (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">
+                        Fișă zilnică · {dateLabel(selected.workDate)}
+                      </CardTitle>
+                      <CardDescription>
+                        {equipment?.name} · Model: {equipment?.model || "—"} ·
+                        Cod: {equipment?.code || "—"}
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+                  <InstallationTeam sheet={selected} />
+                </>
+              )}
+              {technician && <InstallationTeam sheet={selected} compact />}
               {data.canStart &&
                 selected.state === "draft" &&
                 !sheetParticipants(selected).some(
                   (p) => p.uid === userData?.uid && p.active,
                 ) && (
-                  <Button asChild variant="outline">
-                    <Link
-                      href={`${pageUrl(workId)}?equipmentId=${encodeURIComponent(selected.equipmentId)}`}
-                    >
-                      Alătură-te prin QR
-                    </Link>
+                  <Button
+                    variant="outline"
+                    onClick={() => beginEquipment(selected.equipmentId)}
+                  >
+                    Alătură-te prin QR
                   </Button>
                 )}
               <InstallationSheetForm
@@ -310,7 +370,7 @@ export function InstallationWorkspace({
           ) : (
             <>
               {ticketDetails}
-              <InstallationSummary data={data} />
+              <InstallationSummary data={data} hideStats={technician} />
               {!ticketDetails && <InstallationContext data={data} />}
               <Tabs value={tab} onValueChange={chooseTab} className="space-y-5">
                 <TabsList className="grid h-auto w-full grid-cols-3 p-1 sm:w-fit">
@@ -325,62 +385,11 @@ export function InstallationWorkspace({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="equipment" className="space-y-4">
-                  {!compact &&
-                    equipmentId &&
-                    !selected &&
-                    data.canStart &&
-                    !meta?.closedReason &&
-                    meta?.equipmentStatus[equipmentId] !== "done" &&
-                    !meta?.awaitingSheetByEquipment?.[equipmentId] && (
-                      <Card className="border-primary/30">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2 text-lg">
-                            <QrCode className="h-5 w-5" />
-                            Scanare QR · {equipment?.name}
-                          </CardTitle>
-                          <CardDescription>
-                            Scanați QR-ul echipamentului selectat pentru a
-                            deschide o fișă nouă. Codul trebuie să corespundă
-                            echipamentului de mai sus.
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          {data.currentSession?.role === "principal" && (
-                            <p className="text-sm text-muted-foreground">
-                              Ai o fișă în lucru ca principal. Oprește lucrul pe
-                              aceasta înainte de a începe alta.
-                            </p>
-                          )}
-                          <Button
-                            disabled={
-                              busy || data.currentSession?.role === "principal"
-                            }
-                            onClick={() => setScanning((v) => !v)}
-                          >
-                            {scanning ? "Oprește camera" : "Scanează QR"}
-                          </Button>
-                          {scanning && (
-                            <div className="max-w-sm overflow-hidden rounded-lg">
-                              <Scanner
-                                onScan={(codes) => {
-                                  const raw = codes[0]?.rawValue;
-                                  if (raw) void scan(raw);
-                                }}
-                                onError={() => {
-                                  setError(
-                                    "Camera nu poate fi accesată. Permiteți accesul la cameră și reîncercați.",
-                                  );
-                                  setScanning(false);
-                                }}
-                              />
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
                   <InstallationEquipmentList
                     data={data}
                     workId={workId}
+                    onStart={beginEquipment}
+                    busy={busy}
                     onHistory={(id) => {
                       setFilter(id);
                       chooseTab("sheets");

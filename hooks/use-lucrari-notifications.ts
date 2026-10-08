@@ -1,4 +1,5 @@
 "use client"
+import { technicianCommand } from "@/lib/technician/client"
 
 import { useMemo, useCallback } from "react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -297,7 +298,8 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
           const currentReadBy = Array.isArray(lucrare.notificationReadBy) ? lucrare.notificationReadBy : []
           const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
           
-          await updateLucrare(notification.lucrareId, {
+          if (userData?.role === "tehnician") await technicianCommand("notification.read", notification.lucrareId, {})
+          else await updateLucrare(notification.lucrareId, {
             notificationReadBy: updatedReadBy,
             notificationRead: true
           }, undefined, undefined, true) // silent = true
@@ -330,7 +332,8 @@ export function useLucrariNotifications(lucrari: Lucrare[]) {
       const currentReadBy = Array.isArray(lucrare.notificationReadBy) ? lucrare.notificationReadBy : []
       const updatedReadBy = [...new Set([...currentReadBy, userData.uid])]
       
-          await updateLucrare(notification.lucrareId, {
+          if (userData?.role === "tehnician") await technicianCommand("notification.read", notification.lucrareId, {})
+          else await updateLucrare(notification.lucrareId, {
         notificationReadBy: updatedReadBy,
             notificationRead: true
       }, undefined, undefined, true) // silent = true

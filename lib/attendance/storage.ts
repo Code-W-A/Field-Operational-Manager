@@ -16,7 +16,9 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+import { technicianCommand } from "@/lib/technician/client"
+import { finalizeOpenExtraTimeLogs } from "./extra-time-state"
+import { auth, db } from "@/lib/firebase/config"
 import { addUserLogEntry } from "@/lib/firebase/firestore"
 import type {
   AttendanceSession,
@@ -302,44 +304,18 @@ async function getUserRoleForAttendance(userId: string): Promise<string> {
   }
 }
 
-function finalizeOpenExtraTimeLogs(params: {
-  session: any
-  now: number
-  programLucruStart?: string
-  programLucruEnd?: string
-}): ExtraTimeLog[] | undefined {
-  const currentLogs: ExtraTimeLog[] = params.session?.extraTimeLogs || []
-  if (!currentLogs?.length) return undefined
-
-  let changed = false
-  const updated = currentLogs.map((log) => {
-    if (log.endTime) return log
-    changed = true
-    if (log.type === "to_client") {
-      const eightAm = timeOnSameDay(log.startTime, "08:00", { h: 8, m: 0 })
-      const programStartTs = timeOnSameDay(log.startTime, params.programLucruStart ?? DEFAULT_PROGRAM_START, { h: 8, m: 0 })
-      const clientCapEnd = Math.min(eightAm, programStartTs)
-      const effectiveEnd = Math.min(params.now, clientCapEnd)
-      const minutesEligible = Math.max(0, Math.floor((effectiveEnd - log.startTime) / 60000))
-      return { ...log, endTime: effectiveEnd, minutesEligible }
-    }
-    if (log.type === "to_home") {
-      const programEndTs = timeOnSameDay(log.startTime, params.programLucruEnd ?? DEFAULT_PROGRAM_END, { h: 16, m: 30 })
-      const homeCapEnd = programEndTs + 60 * 60 * 1000
-      const effectiveEnd = Math.min(params.now, log.startTime + 60 * 60 * 1000, homeCapEnd)
-      const minutesEligible = Math.max(0, calculateHomeRouteMinutes(log.startTime, effectiveEnd))
-      return { ...log, endTime: effectiveEnd, minutesEligible }
-    }
-    return log
-  })
-
-  return changed ? updated : currentLogs
-}
 
 /**
  * Create a new check-in session
  */
 export async function createCheckIn(request: CheckInRequest): Promise<string> {
+  if (await isOwnTechnician(request.userId)) {
+    const at = request.sessionStartMs ?? getAppNowMs()
+    const { userId, userName, sessionStartMs, specialDayConfirmation, ...payload } = request
+    const sessionId = `att_${userId}_${at}`
+    const result = await technicianCommand("attendance.start", sessionId, { ...payload, specialDayConfirmed: specialDayConfirmation?.confirmed === true }, { occurredAt: new Date(at).toISOString(), retryKey: "attendance.start" })
+    return result.id
+  }
   const now = request.sessionStartMs ?? getAppNowMs()
   const sessionId = `att_${request.userId}_${now}`
 
@@ -457,6 +433,11 @@ export async function createCheckIn(request: CheckInRequest): Promise<string> {
  * Check out from active session
  */
 export async function createCheckOut(request: CheckOutRequest): Promise<UserDaySyncResult | null> {
+  if (await isOwnTechnician()) {
+    const { sessionId, sessionEndMs, debugSimulatedDurationMinutes, ...payload } = request
+    const result = await technicianCommand("attendance.stop", sessionId, payload, { occurredAt: new Date(sessionEndMs ?? getAppNowMs()).toISOString() })
+    return result.timesheetSync || null
+  }
   const sessionRef = doc(db, "attendance", request.sessionId)
 
   // Initial read is used for client-side timing rules; the transaction below revalidates status atomically.
@@ -802,6 +783,10 @@ export function subscribeActiveSession(
  * Start tracking extra time (route to client/home)
  */
 export async function startExtraTimeLog(request: ExtraTimeRequest): Promise<void> {
+  if (await isOwnTechnician()) {
+    await technicianCommand("attendance.extra", request.sessionId, { operation: "start", type: request.type }, { occurredAt: new Date(getAppNowMs()).toISOString() })
+    return
+  }
   const sessionRef = doc(db, "attendance", request.sessionId)
   const now = getAppNowMs()
 
@@ -868,6 +853,10 @@ export async function startExtraTimeLog(request: ExtraTimeRequest): Promise<void
  * End tracking extra time
  */
 export async function endExtraTimeLog(sessionId: string, type: ExtraTimeRequest["type"]): Promise<number> {
+  if (await isOwnTechnician()) {
+    const result = await technicianCommand("attendance.extra", sessionId, { operation: "end", type }, { occurredAt: new Date(getAppNowMs()).toISOString() })
+    return result.minutesEligible
+  }
   const sessionRef = doc(db, "attendance", sessionId)
   const now = getAppNowMs()
 
@@ -988,4 +977,13 @@ export async function getSessionsForDateRange(
       updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.toMillis() || getAppNowMs(),
     } as AttendanceSession
   })
+}
+
+async function isOwnTechnician(userId?: string): Promise<boolean> {
+  const current = auth.currentUser
+  if (!current) return false
+  const profile = (await getDoc(doc(db, "users", current.uid))).data()
+  if (profile?.role !== "tehnician") return false
+  if (userId && userId !== current.uid) throw new Error("Pontajul poate fi modificat numai pentru contul propriu.")
+  return true
 }

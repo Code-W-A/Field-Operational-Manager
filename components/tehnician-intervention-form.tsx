@@ -27,6 +27,7 @@ import {
 import type { Echipament } from "@/lib/firebase/firestore"
 import { ImageDefectUpload } from "@/components/image-defect-upload"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
+import { technicianCommand, technicianFile } from "@/lib/technician/client"
 import { useAuth } from "@/contexts/AuthContext"
 import { useTargetList } from "@/hooks/use-settings"
 import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib/utils/failure-causes"
@@ -36,6 +37,7 @@ import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib
 interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
+    updatedAt?: unknown
     descriereInterventie?: string
     constatareLaLocatie?: string
     statusLucrare: string
@@ -280,7 +282,12 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
+      if (userData?.role === "tehnician") {
+        await technicianCommand("intervention.save", lucrareId, interventionPatch(updateData, initialData), { work: initialData })
+      } else {
+        await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
+      }
+      setImagesToDelete([])
       setUploadedDefectImages(allImages)
 
       // Log upload imaginilor dacă au fost uplodate
@@ -315,7 +322,7 @@ export function TehnicianInterventionForm({
       console.error("Eroare la salvarea datelor:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la salvarea datelor.",
+        description: error instanceof Error ? error.message : "A apărut o eroare la salvarea datelor.",
         variant: "destructive",
       })
     } finally {
@@ -377,7 +384,12 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
+      if (userData?.role === "tehnician") {
+        await technicianCommand("intervention.save", lucrareId, interventionPatch(updateData, initialData), { work: initialData })
+      } else {
+        await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
+      }
+      setImagesToDelete([])
       setUploadedDefectImages(allImages)
 
       // Log upload imaginilor dacă au fost uplodate
@@ -448,6 +460,7 @@ export function TehnicianInterventionForm({
     }
 
     const uploadPromises = selectedImages.map(async (file) => {
+      if (userData?.role === "tehnician") return technicianFile(file, lucrareId)
       const timestamp = Date.now()
       const fileExtension = 'jpg' // Imaginile sunt deja comprimată în format JPG
       const storagePath = `tichete/${lucrareId}/imagini_defecte/img_${timestamp}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`
@@ -508,6 +521,7 @@ export function TehnicianInterventionForm({
 
   // Funcție pentru aplicarea efectivă a ștergerilor în Firebase
   const applyImageDeletions = async (): Promise<any[]> => {
+    if (userData?.role === "tehnician") return uploadedDefectImages.filter((_, index) => !imagesToDelete.includes(index))
     if (imagesToDelete.length === 0) {
       return uploadedDefectImages
     }

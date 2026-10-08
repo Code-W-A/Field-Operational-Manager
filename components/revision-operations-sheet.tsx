@@ -1,5 +1,7 @@
 "use client"
 
+import { technicianCommand, technicianFile } from "@/lib/technician/client"
+import { useStableCallback } from "@/lib/utils/hooks"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, Image as ImageIcon, Plus, X, Trash2, MessageSquare } from "lucide-react"
 import { getRevisionDoc, subscribeRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
 import type { RevisionPhotoMeta } from "@/lib/firebase/revisions"
-import type { RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
+import type { RevisionChecklist, RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
 import { useAuth } from "@/contexts/AuthContext"
 import { QRCodeScanner } from "@/components/qr-code-scanner"
 import { getLucrareById, getClienti, updateLucrare } from "@/lib/firebase/firestore"
@@ -222,7 +224,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   // Set end time and duration when all items completed (first time)
   useEffect(() => {
     const persistEndIfNeeded = async () => {
-      if (!verified || !allCompleted) return
+      if (userData?.role === "tehnician" || !verified || !allCompleted) return
       try {
         const work = await getLucrareById(workId)
         if (work?.tipLucrare !== "Revizie") return
@@ -318,7 +320,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     if (!dialogItemLabel.trim() || !dialogSectionId) return
     
     const newItem: RevisionChecklistItem = {
-      id: `manual-${Date.now()}-${Math.random()}`,
+      id: `manual-${crypto.randomUUID()}`,
       name: dialogItemLabel.trim(),
       label: dialogItemLabel.trim(),
       order: 999,
@@ -424,6 +426,11 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         })),
       }))
       
+      if (userData?.role === "tehnician") {
+        const photos = [...existingPhotos]
+        for (const file of selectedPhotos) photos.push(await technicianFile(file, workId))
+        await technicianCommand("revision.save", workId, { equipmentId, sections: payloadSections, finalObservations: finalObservations.trim(), photos })
+      } else {
       console.log("📝 Pas 1: Salvare document revizie...")
       const savedEquipmentTime = await ensureEquipmentDuration()
       await upsertRevisionDoc(workId, equipmentId, {
@@ -459,6 +466,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       }
       console.log("✅ Pas 3 completat: Fotografii încărcate")
       
+      }
       setSelectedPhotos([])
       setPhotoPreviewUrls([])
       
@@ -501,7 +509,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   }
 
   // Save draft (partial save without completion)
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = useStableCallback(async () => {
     setError(null)
     setSaving(true)
     try {
@@ -513,6 +521,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
           obs: obs[it.id] || "",
         })),
       }))
+      if (userData?.role === "tehnician") {
+        await technicianCommand("revision.save", workId, { equipmentId, draft: true, sections: payloadSections, finalObservations: finalObservations.trim() })
+      } else {
       await upsertRevisionDoc(workId, equipmentId, {
         equipmentId,
         equipmentName,
@@ -520,6 +531,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         finalObservations: finalObservations.trim() || "",
         qrVerified: verified,
       })
+      }
       
       // Reset unsaved changes flag
       setInitialValues({...values})
@@ -547,7 +559,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     } finally {
       setSaving(false)
     }
-  }
+  })
 
   if (loading) {
     return (
@@ -599,6 +611,16 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                     workId={workId}
                     onVerificationComplete={async (ok) => {
                       if (ok) {
+                        if (userData?.role === "tehnician") {
+                          try {
+                            await technicianCommand("verify", workId, { code: String(expectedCode || ""), equipmentId })
+                            setVerified(true)
+                          } catch (error) {
+                            setVerified(false)
+                            toast({ title: "Verificare eșuată", description: error instanceof Error ? error.message : "Operația a eșuat.", variant: "destructive" })
+                          }
+                          return
+                        }
                         setVerified(true)
                         // Save QR verification status to revision doc
                         try {

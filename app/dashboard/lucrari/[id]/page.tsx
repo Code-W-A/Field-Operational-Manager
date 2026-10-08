@@ -58,6 +58,7 @@ import {
   FileCheck2,
 } from "lucide-react"
 import { format } from "date-fns"
+import { technicianCommand } from "@/lib/technician/client"
 import { getLucrareById, deleteLucrare, updateLucrare, addLucrare } from "@/lib/firebase/firestore"
 import { subscribeDocumentatiiFiles, type DocumentatiiFile } from "@/lib/firebase/documentatii"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
@@ -909,7 +910,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               
               // Marcăm lucrarea ca citită fără a afișa notificări utilizatorului
               // Folosim parametrul silent pentru a nu modifica data ultimei modificări
-              await updateLucrare(paramsId, {
+              if (role === "tehnician") await technicianCommand("notification.read", paramsId, {})
+              else await updateLucrare(paramsId, {
                 notificationReadBy: updatedReadBy,
                 notificationRead: true
               }, undefined, undefined, true) // silent = true
@@ -1471,6 +1473,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       for (const d of snap.docs) {
         if (d.id !== lucrare?.id) {
           const data: any = d.data()
+          if (data.installation?.schemaVersion || data.raportGenerat || data.timpPlecare || data.anulat) continue
           const numar = data?.numarRaport || data?.number || d.id
           const client = typeof data?.client === 'string'
             ? data.client
@@ -1607,7 +1610,12 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           })
         }
         
-        await updateLucrare(lucrare.id, updateData)
+        if (role === "tehnician") {
+          const result = await technicianCommand("verify", lucrare.id, { code: String(lucrare.echipamentCod || "") }, { work: lucrare, occurredAt: timpSosire })
+          setLucrare(prev => prev ? { ...prev, ...result.work } : prev)
+        } else {
+          await updateLucrare(lucrare.id, updateData)
+        }
         console.log("✅ timpSosire salvat cu succes în Firestore")
 
         // Actualizăm și starea locală dacă am modificat statusul
@@ -1646,6 +1654,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           setActiveTab("interventie")
         }, 1000)
       } catch (error) {
+        setEquipmentVerified(false)
         console.error("Eroare la actualizarea stării de verificare:", error)
         toast({
           title: "Eroare",
@@ -4675,6 +4684,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               <TehnicianInterventionForm
                 lucrareId={lucrare.id!}
                 initialData={{
+                  updatedAt: lucrare.updatedAt,
                   descriereInterventie: lucrare.descriereInterventie,
                   constatareLaLocatie: lucrare.constatareLaLocatie,
                   statusLucrare: lucrare.statusLucrare,

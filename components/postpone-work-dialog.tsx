@@ -1,5 +1,6 @@
 "use client"
 
+import { technicianCommand } from "@/lib/technician/client"
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -59,6 +60,10 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
         updatedBy: userData?.displayName || "Tehnician necunoscut"
       }
 
+      if (userData?.role === "tehnician") {
+        const result = await technicianCommand("postpone", lucrareId, { motivAmanare: motiv.trim() })
+        if (result.delivery?.error) toast({ title: "Lucrare amânată", description: result.delivery.error, variant: "destructive" })
+      } else {
       await updateLucrare(lucrareId, updateData)
 
       // Trimitem email clientului despre amânare (preferăm email-ul persoanei de contact a locației)
@@ -89,6 +94,8 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
         console.warn("Nu s-a putut trimite notificarea de amânare către client:", e)
       }
 
+      }
+
       toast({
         title: "Tichet amânată",
         description: "Lucrarea a fost amânată cu succes. Nu va mai apărea în lista ta de tichete.",
@@ -104,7 +111,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
       console.error("Eroare la amânarea tichetului:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la amânarea tichetului. Te rog să încerci din nou.",
+        description: error instanceof Error ? error.message : "A apărut o eroare la amânarea tichetului. Te rog să încerci din nou.",
         variant: "destructive",
       })
     } finally {

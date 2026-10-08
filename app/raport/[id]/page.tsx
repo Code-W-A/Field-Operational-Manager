@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator"
 import { Send, ArrowLeft, Download, Lock, FileDown, Loader2, Save, Calendar, Clock, AlertTriangle, Edit } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
+import { technicianCommand } from "@/lib/technician/client"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
 import { useStableCallback } from "@/lib/utils/hooks"
@@ -647,7 +648,19 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       console.log("🔍 DUPĂ creare updatedLucrareData - numarRaport:", updatedLucrareData.numarRaport)
 
       // Save to Firestore
-      await updateLucrare(paramsId, updatedLucrareData)
+      if (userData?.role === "tehnician") {
+        const result = await technicianCommand("report.finalize", paramsId, {
+          semnaturaTehnician: semnaturaTehnician || "", semnaturaBeneficiar: semnaturaBeneficiar || "",
+          numeBeneficiar, products, cauzaPrincipalaDefectId,
+          reportManualRecipients: useManualRecipients ? manualEmails : [],
+          ...(typeof clientRating === "number" ? { clientRating } : {}),
+          ...(clientReview?.trim() ? { clientReview: clientReview.trim() } : {}),
+        }, { work: tichet })
+        Object.assign(updatedLucrareData, result.work)
+        if (result.delivery?.error) toast({ title: "Raport finalizat", description: result.delivery.error, variant: "destructive" })
+      } else {
+        await updateLucrare(paramsId, updatedLucrareData)
+      }
       console.log("✅ SALVAT în Firestore (handleSubmit) - raportGenerat:", updatedLucrareData.raportGenerat || "UNDEFINED")
       console.log("✅ SALVAT în Firestore (handleSubmit) - numarRaport:", updatedLucrareData.numarRaport || "UNDEFINED")
       console.log(`[RAPORT_FLOW ${paramsId}] handleSubmit() saved -> setUpdatedLucrare()`)
@@ -666,7 +679,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       console.error("Eroare la salvarea semnăturilor:", err)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la salvarea semnăturilor.",
+        description: err instanceof Error ? err.message : "A apărut o eroare la salvarea semnăturilor.",
       })
       setIsSubmitting(false)
     }
@@ -743,6 +756,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
 
   // Actualizăm statusul tichetului și marcăm raportul ca generat
   const updateWorkOrderStatus = async (lucrareId: string) => {
+    if (userData?.role === "tehnician") return // Already finalized by the shared server command.
     try {
       if (!lucrareId) {
         console.error("ID-ul lucrării lipsește")
@@ -870,7 +884,12 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         }
       }
 
-      await updateLucrare(tichet.id, updateData)
+      if (userData?.role === "tehnician") {
+        const result = await technicianCommand("report.later", tichet.id, updateData, { work: tichet })
+        Object.assign(updateData, result.work)
+      } else {
+        await updateLucrare(tichet.id, updateData)
+      }
 
       const updatedLucrareData = {
         ...tichet,
@@ -2227,13 +2246,13 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                         pdfBytes: blob?.size,
                       })
                       // Send email automatically when PDF is generated
-                      sendEmail(blob)
+                      (userData?.role === "tehnician" ? Promise.resolve(true) : sendEmail(blob))
                         .then((success) => {
                           if (success) {
                             // Show success toast
                             toast({
                               title: "Raport finalizat",
-                              description: "Raportul a fost generat și trimis pe email cu succes.",
+                              description: userData?.role === "tehnician" ? "Raportul a fost finalizat. Rezultatul trimiterii emailului este afișat separat." : "Raportul a fost generat și trimis pe email cu succes.",
                               variant: "default",
                             })
 

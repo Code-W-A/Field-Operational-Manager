@@ -9,14 +9,8 @@ import { useIsMobile } from "@/components/ui/use-mobile"
 import { cn } from "@/lib/utils"
 import React from "react"
 
-export interface ProductItem {
-  id: string
-  name: string
-  um: string
-  quantity: number
-  price: number
-  total: number
-}
+import type { ReportProduct } from "@/packages/fom-domain/validation";
+export type ProductItem = ReportProduct;
 
 // Re-export a simplified `Product` alias so other modules can depend on
 // a common shape without necessarily caring about `id` or `total`.

@@ -1,29 +1,31 @@
+import { assertPayload } from "./payload-validation";
 /** Serializable mobile/web contract. Canonical Firestore field names are preserved. */
-export class DomainError extends Error {}
+import { DomainError } from "./errors";
+import { COMMAND_ACTIONS, supportedContract } from "./commands";
+import type { Command } from "./commands";
+import {
+  INTERVENTION_PHOTO_LIMIT,
+  EQUIPMENT_STATES,
+  WARRANTY_DECISIONS,
+  REVISION_STATES,
+} from "./validation";
+export * from "./errors";
+export * from "./auth";
+export * from "./procedures";
+export * from "./constants";
+export * from "./commands";
+export * from "./works";
+export * from "./documents";
+export * from "./hr";
+export * from "./attendance";
+export * from "./installation";
+export * from "./revision";
+export * from "./hr-validation";
+export * from "./overtime-duration";
+export * from "./validation";
+export { requestCreateDraft } from "./payload-validation";
 export type RecordData = Record<string, any>;
 export type Actor = { uid: string; displayName: string; role: string };
-export type CommandAction =
-  | "verify"
-  | "intervention.save"
-  | "postpone"
-  | "revision.save"
-  | "report.later"
-  | "report.finalize"
-  | "attendance.start"
-  | "attendance.stop"
-  | "request.create"
-  | "notification.read"
-  | "installation";
-export type Command = {
-  mutationId: string;
-  action: CommandAction;
-  entityId: string;
-  baseVersion: string | null;
-  occurredAt: string;
-  payload: RecordData;
-  attendanceId?: string;
-  predecessorId?: string;
-};
 export type OperationStatus =
   "pending" | "uploading" | "synced" | "error" | "conflict" | "blocked";
 export type LocalFile = {
@@ -41,36 +43,10 @@ export type Operation = Command & {
   files: LocalFile[];
   result?: RecordData;
 };
-export type Work = RecordData & {
-  id: string;
-  statusLucrare: string;
-  tipLucrare: string;
-};
-export type RevisionSection = {
-  id: string;
-  title: string;
-  items: {
-    id: string;
-    label: string;
-    state?: "functional" | "nefunctional" | "na";
-    obs?: string;
-  }[];
-};
-export type Bundle = {
-  works: Work[];
-  clients: RecordData[];
-  attendance: RecordData[];
-  requests: RecordData[];
-  procedures: RecordData[];
-  settings: RecordData[];
-  employee: RecordData | null;
-  departments: RecordData[];
-  revisions: Record<string, RecordData[]>;
-  installations: Record<string, RecordData>;
-  histories: Record<string, RecordData[]>;
-  attendanceSettings?: RecordData;
-  downloadedAt?: string;
-};
+import type { RevisionSection } from "./revision";
+import type { Bundle } from "./wire";
+export * from "./wire";
+export * from "./settings";
 export const emptyBundle = (): Bundle => ({
   works: [],
   clients: [],
@@ -165,8 +141,10 @@ export function assertCommand(value: unknown): asserts value is Command {
   const c = value as Command;
   if (
     !c ||
+    !supportedContract(c.contractVersion) ||
     !/^[a-zA-Z0-9_-]{8,120}$/.test(c.mutationId) ||
     typeof c.entityId !== "string" ||
+    !c.entityId ||
     c.entityId.includes("/") ||
     c.entityId.length > 160 ||
     !Number.isFinite(Date.parse(c.occurredAt)) ||
@@ -175,22 +153,17 @@ export function assertCommand(value: unknown): asserts value is Command {
     Array.isArray(c.payload)
   )
     throw new DomainError("Comandă invalidă.");
-  if (
-    ![
-      "verify",
-      "intervention.save",
-      "postpone",
-      "revision.save",
-      "report.later",
-      "report.finalize",
-      "attendance.start",
-      "attendance.stop",
-      "request.create",
-      "notification.read",
-      "installation",
-    ].includes(c.action)
-  )
+  if (!(COMMAND_ACTIONS as readonly string[]).includes(c.action))
     throw new DomainError("Acțiune invalidă.");
+  if (c.baseVersion !== null && typeof c.baseVersion !== "string")
+    throw new DomainError("Versiune de bază invalidă.");
+  for (const value of [c.attendanceId, c.predecessorId])
+    if (
+      value !== undefined &&
+      (typeof value !== "string" || !/^[\w-]{1,160}$/.test(value))
+    )
+      throw new DomainError("Referință de comandă invalidă.");
+  assertPayload(c);
 }
 export function interventionPatch(data: RecordData, work: RecordData) {
   const keys = [
@@ -222,27 +195,27 @@ export function interventionPatch(data: RecordData, work: RecordData) {
     throw new DomainError("Necesită ofertă trebuie să fie boolean.");
   if (
     patch.statusEchipament &&
-    !["Funcțional", "Parțial funcțional", "Nefuncțional"].includes(
-      patch.statusEchipament,
-    )
+    !(EQUIPMENT_STATES as readonly string[]).includes(patch.statusEchipament)
   )
     throw new DomainError("Status echipament invalid.");
   if (
     patch.imaginiDefecte &&
-    (!Array.isArray(patch.imaginiDefecte) || patch.imaginiDefecte.length > 4)
+    (!Array.isArray(patch.imaginiDefecte) ||
+      patch.imaginiDefecte.length > INTERVENTION_PHOTO_LIMIT)
   )
     throw new DomainError("Maximum 4 fotografii.");
   if (patch.necesitaOferta === false) patch.comentariiOferta = "";
   if (work.tipLucrare === "Intervenție în garanție") {
     if (
-      !["confirma", "nu_intra", "dupa_atelier"].includes(
+      !(WARRANTY_DECISIONS as readonly string[]).includes(
         data.tehnicianGarantieDecizie,
       )
     )
       throw new DomainError("Selectează decizia de garanție.");
     if (
       data.tehnicianGarantieDecizie === "nu_intra" &&
-      !String(data.tehnicianGarantieNuIntraMotiv || "").trim()
+      (typeof data.tehnicianGarantieNuIntraMotiv !== "string" ||
+        !data.tehnicianGarantieNuIntraMotiv.trim())
     )
       throw new DomainError("Completează motivul pentru garanție.");
     Object.assign(patch, {
@@ -259,6 +232,7 @@ export function interventionPatch(data: RecordData, work: RecordData) {
 export function validateRevision(
   sections: RevisionSection[],
   expected: RevisionSection[],
+  options: { draft?: boolean; customItems?: boolean } = {},
 ) {
   if (
     !Array.isArray(sections) ||
@@ -266,20 +240,37 @@ export function validateRevision(
     sections.length !== expected.length
   )
     throw new DomainError("Checklistul reviziei lipsește sau s-a schimbat.");
+  const sectionIds = sections.map((section) => section?.id);
+  if (
+    new Set(sectionIds).size !== sections.length ||
+    !expected.every((section) => sectionIds.includes(section.id))
+  )
+    throw new DomainError("Structura secțiunilor nu corespunde checklistului.");
+  for (const section of expected) {
+    const provided = sections.find((value) => value.id === section.id)!;
+    if (
+      !Array.isArray(provided.items) ||
+      (options.customItems ? !section.items.every(item => provided.items.some(value => value.id === item.id)) : provided.items.length !== section.items.length) ||
+      new Set(provided.items.map((item) => item?.id)).size !==
+        provided.items.length
+    )
+      throw new DomainError("Structura punctelor nu corespunde checklistului.");
+  }
   return expected.map((section) => ({
     ...section,
-    items: section.items.map((item) => {
+    items: (options.customItems ? sections.find(s => s.id === section.id)!.items.map(item => section.items.find(base => base.id === item.id) || item) : section.items).map((item) => {
       const provided = sections
         .find((s) => s.id === section.id)
         ?.items.find((i) => i.id === item.id);
       if (
         !provided ||
-        !["functional", "nefunctional", "na"].includes(provided.state || "")
+        (!options.draft || provided.state !== undefined) && !(REVISION_STATES as readonly string[]).includes(provided.state || "")
       )
         throw new DomainError("Completează toate punctele de control.");
+      if (!item.label.trim() || item.label.length > 1000 || String(provided.obs || "").length > 12000) throw new DomainError("Punct de control invalid.");
       return {
         ...item,
-        state: provided.state!,
+        ...(provided.state ? { state: provided.state } : {}),
         obs: String(provided.obs || ""),
       };
     }),
@@ -342,19 +333,12 @@ export function targetVariables(settings: RecordData[], target: string) {
     (s) => s.type === "variable" && roots.some((r) => s.parentId === r.id),
   );
 }
-export const FALLBACK_CAUSES = [
-  { id: "uzura", label: "Uzură" },
-  { id: "defect-componenta", label: "Defect componentă" },
-  { id: "reglaj-montaj", label: "Reglaj/Montaj" },
-  { id: "alimentare-electrica", label: "Alimentare electrică" },
-  { id: "utilizare-necorespunzatoare", label: "Utilizare necorespunzătoare" },
-  { id: "conditii-externe", label: "Condiții externe" },
-  { id: "alta-cauza", label: "Altă cauză" },
-];
+export { FALLBACK_FAILURE_CAUSES as FALLBACK_CAUSES } from "./failure-causes";
+import { failureCauseOptionsFromSettings } from "./failure-causes";
+
 export function failureCauses(settings: RecordData[]) {
-  const configured = targetVariables(
-    settings,
-    "works.create.failureCauses",
-  ).map((s) => ({ id: s.id, label: String(s.value || s.name) }));
-  return configured.length ? configured : FALLBACK_CAUSES;
+  const roots = settings.filter(s => s.assignedTargets?.includes("works.create.failureCauses"));
+  const children = settings.filter(s => roots.some(root => root.id === s.parentId));
+  children.sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name || "").localeCompare(String(b.name || "")));
+  return failureCauseOptionsFromSettings(children);
 }

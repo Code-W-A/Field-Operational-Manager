@@ -16,6 +16,8 @@ import { createHrRequest, subscribeDepartments, subscribeHrRequestsForEmployee }
 import { toast } from "@/hooks/use-toast"
 import { DateInput } from "@/components/ui/date-input"
 import { formatISODate } from "@/lib/utils/date-utils"
+import { useAuth } from "@/contexts/AuthContext"
+import { technicianFile } from "@/lib/technician/client"
 import { uploadFile } from "@/lib/firebase/storage"
 import { TimeSelector } from "@/components/time-selector"
 import { OvertimeDurationFields } from "@/components/hr/overtime-duration-fields"
@@ -72,6 +74,7 @@ export function CreateHrRequestDialog({
   employee: Employee
   requesterUid: string
 }) {
+  const { userData } = useAuth()
   const sectors = useMemo(() => employee.sectorIds ?? [], [employee.sectorIds])
   const [departments, setDepartments] = useState<Department[]>([])
   const [sectorId, setSectorId] = useState(sectors[0] ?? "")
@@ -252,7 +255,9 @@ export function CreateHrRequestDialog({
           if (!medicalDocumentFile) throw new Error("Pentru concediu medical trebuie să încarci documentul de la medic.")
           const safeName = medicalDocumentFile.name.replace(/\s+/g, "_")
           const path = `hr/requests/cm/${employee.id}/${Date.now()}_${safeName}`
-          const uploaded = await uploadFile(medicalDocumentFile, path)
+          const uploaded = userData?.role === "tehnician"
+            ? await technicianFile(medicalDocumentFile, "", "medical")
+            : await uploadFile(medicalDocumentFile, path)
           medicalDocumentUrl = uploaded.url
           medicalDocumentName = uploaded.fileName
         }
@@ -295,7 +300,7 @@ export function CreateHrRequestDialog({
 
       submittingRef.current = true
       setSubmitting(true)
-      const { documentSerial } = await createHrRequest({
+      const { documentSerial, delivery } = await createHrRequest({
         employeeId: employee.id,
         employeeName: getEmployeeFullName(employee),
         requesterUid,
@@ -308,8 +313,9 @@ export function CreateHrRequestDialog({
 
       toast({
         title: "Cerere creată",
-        description: `Număr cerere: #${formatHrRequestSerial(documentSerial)}. Trimisă către șeful ierarhic.`,
+        description: `Număr cerere: #${formatHrRequestSerial(documentSerial)}. Înregistrată pentru șeful ierarhic.`,
       })
+      if (delivery?.error) toast({ title: "Cerere înregistrată", description: delivery.error, variant: "destructive" })
       reset()
       onOpenChange(false)
     } catch (e: any) {

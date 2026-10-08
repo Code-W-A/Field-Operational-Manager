@@ -1,5 +1,7 @@
 "use client"
 
+import { useAuth } from "@/contexts/AuthContext"
+import { technicianCommand, technicianDocument } from "@/lib/technician/client"
 import { loadDocumentClientSnapshot } from "@/lib/work-documents/load-document-client"
 import { withDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { useState, forwardRef, useEffect } from "react"
@@ -122,6 +124,7 @@ const LIGHT_GRAY = 240 // fill shade (lighter)
 const DARK_GRAY = 210 // darker fill for headers
 
 export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProps>(({ lucrare, onGenerate, readOnly = false, onError }, ref) => {
+  const { userData } = useAuth()
   const [isGen, setIsGen] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
@@ -208,6 +211,22 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     setIsGen(true)
     setHasGenerated(true)
     try {
+      if (userData?.role === "tehnician" && lucrare.id) {
+        if (!readOnly && !lucrare.raportGenerat) {
+          const result = await technicianCommand("report.finalize", lucrare.id, {
+            products: lucrare.products || products,
+            semnaturaTehnician: lucrare.semnaturaTehnician || "", semnaturaBeneficiar: lucrare.semnaturaBeneficiar || "",
+            numeBeneficiar: lucrare.numeBeneficiar || "",
+            ...(typeof clientRating === "number" ? { clientRating } : {}),
+            ...(clientReview.trim() ? { clientReview: clientReview.trim() } : {}),
+          }, { work: lucrare })
+          if (result.delivery?.error) toast({ title: "Raport finalizat", description: result.delivery.error, variant: "destructive" })
+        }
+        const blob = await technicianDocument(lucrare.id)
+        onGenerate?.(blob)
+        setHasGenerated(false)
+        return blob
+      }
       // VERIFICĂM DACĂ ESTE PRIMA GENERARE SAU REGENERARE
       const isOldFinalizedReport = lucrare.raportGenerat && !lucrare.raportDataLocked
       const isFirstGeneration = !lucrare.raportGenerat || (!lucrare.raportDataLocked && !lucrare.raportGenerat)

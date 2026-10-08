@@ -11,7 +11,6 @@ import { useAuth } from "@/contexts/AuthContext"
 import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-settings"
 import { isUninvoicedWork } from "@/lib/reports/uninvoiced"
 import { toDateSafe } from "@/lib/utils/time-format"
-import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 import { buildAutomaticRevisionIndex, findScheduledAutomaticRevision, isListedDashboardWork } from "@/lib/utils/dashboard-revisions"
 
 export interface DashboardBubbleItem {
@@ -26,7 +25,7 @@ export interface DashboardBubbleItem {
   offerStatus?: "accept" | "reject"
   equipmentStatus?: string
   contractId?: string
-  emitentLabel?: string
+  workType?: string
   // Câmpuri pentru sortare specifică
   sortDate?: Date
   createdAt?: Date
@@ -94,8 +93,14 @@ function isOpenWorkStatus(status: string | undefined): boolean {
 function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date, equipmentStatus?: string): DashboardBubbleItem {
   const fallbackLabel = l.echipament || l.echipamentModel || l.echipamentCod || "-"
   const isRevizie = String(l?.tipLucrare || "") === "Revizie"
+  const isInstallation = String(l?.tipLucrare || "") === "Instalare"
   let equipmentLabel = fallbackLabel
   let equipmentList: string[] | undefined
+
+  if (isInstallation) {
+    equipmentList = (l.installation?.equipment || []).map((e: any) => String(e.name || e.code || e.id)).filter(Boolean)
+    if (equipmentList?.length) equipmentLabel = equipmentList.join(", ")
+  }
 
   if (isRevizie) {
     const revList = Array.isArray((l as any)?.revision?.equipment) ? (l as any).revision.equipment : []
@@ -125,7 +130,7 @@ function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date,
     sortDate: sortDate,
     offerStatus: offerStatus,
     equipmentStatus: equipmentStatus,
-    emitentLabel: getTicketEmitent(l),
+    workType: String(l.tipLucrare || ""),
   }
 }
 
@@ -136,7 +141,7 @@ function buildRevisionScheduleBubble(params: {
   locatie: string
   equipmentLabel: string
   sortDate: Date
-  emitentLabel?: string
+  workType?: string
 }): DashboardBubbleItem {
   return {
     id: params.id,
@@ -145,7 +150,7 @@ function buildRevisionScheduleBubble(params: {
     locatie: params.locatie,
     equipmentLabel: params.equipmentLabel,
     sortDate: params.sortDate,
-    emitentLabel: params.emitentLabel,
+    workType: params.workType,
   }
 }
 
@@ -349,7 +354,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
               locatie: locationName,
               equipmentLabel: subtitle,
               sortDate: generateAt,
-              emitentLabel: getTicketEmitent(work),
+              workType: String(work.tipLucrare || "Revizie"),
             })
           )
           added += 1

@@ -27,6 +27,10 @@ import { calculateWarranty, getWarrantyDisplayInfo } from "@/lib/utils/warranty-
 import type { Echipament } from "@/lib/firebase/firestore"
 
 interface QRCodeScannerProps {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+  onValidateRaw?: (raw: string) => Promise<void>
   expectedEquipmentCode?: string
   expectedLocationName?: string
   expectedClientName?: string
@@ -109,6 +113,10 @@ const getCameraAccessErrorInfo = (error: unknown): CameraAccessErrorInfo => {
 }
 
 export function QRCodeScanner({
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+  onValidateRaw,
   expectedEquipmentCode,
   expectedLocationName,
   expectedClientName,
@@ -120,7 +128,14 @@ export function QRCodeScanner({
   onWarrantyVerification,
   equipmentData,
 }: QRCodeScannerProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [localOpen, setLocalOpen] = useState(false)
+  const isOpen = controlledOpen ?? localOpen
+  const validationLock = useRef(false)
+  const setIsOpen = (next: boolean) => {
+    if (!next && validationLock.current) return
+    if (controlledOpen === undefined) setLocalOpen(next)
+    onOpenChange?.(next)
+  }
   const [scanResult, setScanResult] = useState<any>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -170,7 +185,7 @@ export function QRCodeScanner({
 
   // Inițializăm formularul pentru introducerea manuală a codului
   const form = useForm<ManualCodeFormValues>({
-    resolver: zodResolver(manualCodeSchema),
+    resolver: zodResolver(onValidateRaw ? z.object({ equipmentCode: z.string().min(1, "Codul echipamentului este obligatoriu").max(4095, "Codul echipamentului este prea lung") }) : manualCodeSchema),
     defaultValues: {
       equipmentCode: "",
     },
@@ -490,8 +505,38 @@ export function QRCodeScanner({
     }
   }
 
+  // Installation validates the original payload on the server before opening a sheet.
+  const validateRaw = async (raw: string) => {
+    if (!onValidateRaw || validationLock.current) return
+    validationLock.current = true
+    setIsVerifying(true)
+    setIsScanning(false)
+    setScanError(null)
+    setVerificationResult(null)
+    try {
+      await onValidateRaw(raw)
+      validationLock.current = false
+      setIsOpen(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Verificarea echipamentului a eșuat."
+      setVerificationResult({ success: false, message: "Verificare eșuată", details: [message] })
+      onScanError?.(message)
+      setScanResult(null)
+      setIsScanning(!manualInputVisibleRef.current)
+      incrementFailedAttempts()
+      if (!manualInputVisibleRef.current) {
+        startContinuousScanTimeout()
+        startGlobalScanTimeout()
+      }
+    } finally {
+      validationLock.current = false
+      setIsVerifying(false)
+    }
+  }
+
   // Funcție pentru verificarea datelor scanate - îmbunătățită pentru compatibilitate retroactivă
   const verifyScannedData = (data: any) => {
+    if (onValidateRaw) { void validateRaw(String(data)); return }
     setIsVerifying(true)
     setIsScanning(false)
     setScanError(null)
@@ -705,6 +750,7 @@ export function QRCodeScanner({
   }
 
   const handleScan = (detectedCodes: any[]) => {
+    if (validationLock.current) return
     if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0].rawValue) {
       if (debugMode) console.log("QR Code detected:", detectedCodes[0].rawValue)
       lastDetectedRawRef.current = String(detectedCodes[0].rawValue)
@@ -756,6 +802,8 @@ export function QRCodeScanner({
     const errorInfo = getCameraAccessErrorInfo(error)
     setScanError(errorInfo.message)
     setIsScanning(false)
+    setCameraPermissionStatus(errorInfo.permissionDenied ? "denied" : "unknown")
+    setShowManualEntryButton(true)
     if (onScanError) onScanError("Eroare la scanare")
     if (onVerificationComplete) onVerificationComplete(false)
 
@@ -765,6 +813,7 @@ export function QRCodeScanner({
 
   // Funcție pentru verificarea codului introdus manual
   const onSubmitManualCode = (values: ManualCodeFormValues) => {
+    if (onValidateRaw) { void validateRaw(values.equipmentCode); return }
     console.log("Verificare cod manual:", values.equipmentCode)
     setIsVerifying(true)
 
@@ -904,7 +953,7 @@ export function QRCodeScanner({
 
   // Renderăm butonul de introducere manuală a codului
   const renderManualEntryButton = () => {
-    if (showManualEntryButton && !showManualCodeInput) {
+    if (showManualEntryButton && !showManualCodeInput && cameraPermissionStatus !== "denied") {
       return (
         <div className="mt-4 p-4 border rounded-lg bg-muted/30">
           <p className="text-sm text-muted-foreground mb-3">
@@ -1003,7 +1052,7 @@ export function QRCodeScanner({
               name="equipmentCode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cod echipament</FormLabel>
+                  <FormLabel htmlFor="manual-eq-code">Cod echipament</FormLabel>
                   <FormControl>
                     <Input 
                       placeholder="Introduceți codul echipamentului" 
@@ -1017,10 +1066,10 @@ export function QRCodeScanner({
                       id="manual-eq-code"
                       inputMode="text"
                       onChange={(e) => {
-                        const uppercaseValue = e.target.value.toUpperCase()
+                        const uppercaseValue = onValidateRaw ? e.target.value : e.target.value.toUpperCase()
                         field.onChange(uppercaseValue)
                       }}
-                      style={{ textTransform: 'uppercase' }}
+                      style={{ textTransform: onValidateRaw ? 'none' : 'uppercase' }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -1077,9 +1126,9 @@ export function QRCodeScanner({
 
   return (
     <>
-      <Button onClick={() => setIsOpen(true)} variant="outline">
+      {!hideTrigger && <Button onClick={() => setIsOpen(true)} variant="outline">
         Scanează QR Code
-      </Button>
+      </Button>}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">

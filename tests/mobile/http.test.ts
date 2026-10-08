@@ -4,7 +4,7 @@ import { initializeApp, deleteApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { writeFile, mkdir } from "node:fs/promises";
-import { versionOf } from "../../packages/fom-domain";
+import { versionOf, FOM_CONTRACT_VERSION } from "../../packages/fom-domain";
 const enabled = process.env.FOM_TEST_HTTP === "true";
 let app: any,
   db: any,
@@ -56,37 +56,33 @@ before(async () => {
   await db
     .doc(`users/${uid}`)
     .set({ uid, displayName: uid, role: "tehnician" });
-  await db
-    .doc(`clienti/${uid}`)
-    .set({
-      nume: "Client HTTP",
-      locatii: [
-        {
-          id: "loc",
-          nume: "Locație HTTP",
-          adresa: "Adresă test",
-          contactPersoane: [
-            { id: "contact", nume: "Beneficiar", email: "beneficiar@fom.test" },
-          ],
-          echipamente: [{ id: "eq", cod: "HTTP-QR", denumire: "Unitate HTTP" }],
-        },
-      ],
-    });
-  await db
-    .doc(`lucrari/${workId}`)
-    .set({
-      client: "Client HTTP",
-      clientId: uid,
-      locationId: "loc",
-      locatie: "Locație HTTP",
-      equipmentId: "eq",
-      echipamentCod: "HTTP-QR",
-      echipament: "Unitate HTTP",
-      tehnicieni: [uid],
-      tipLucrare: "Intervenție",
-      statusLucrare: "Atribuită",
-      updatedAt: Timestamp.now(),
-    });
+  await db.doc(`clienti/${uid}`).set({
+    nume: "Client HTTP",
+    locatii: [
+      {
+        id: "loc",
+        nume: "Locație HTTP",
+        adresa: "Adresă test",
+        contactPersoane: [
+          { id: "contact", nume: "Beneficiar", email: "beneficiar@fom.test" },
+        ],
+        echipamente: [{ id: "eq", cod: "HTTP-QR", denumire: "Unitate HTTP" }],
+      },
+    ],
+  });
+  await db.doc(`lucrari/${workId}`).set({
+    client: "Client HTTP",
+    clientId: uid,
+    locationId: "loc",
+    locatie: "Locație HTTP",
+    equipmentId: "eq",
+    echipamentCod: "HTTP-QR",
+    echipament: "Unitate HTTP",
+    tehnicieni: [uid],
+    tipLucrare: "Intervenție",
+    statusLucrare: "Atribuită",
+    updatedAt: Timestamp.now(),
+  });
   const r = await fetch(
     "http://127.0.0.1:9199/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo",
     {
@@ -114,7 +110,25 @@ test(
     const b = await json("/api/mobile/bootstrap");
     assert.equal(b.status, 200);
     assert.equal(b.data.projectId, "demo-fom-mobile-auth");
+    assert.equal(b.data.contractVersion, FOM_CONTRACT_VERSION);
     assert(b.data.bundle.works.some((w: any) => w.id === workId));
+  },
+);
+test(
+  "unsupported command contract is rejected without a receipt or mutation",
+  { skip: !enabled },
+  async () => {
+    const before = (await db.doc(`lucrari/${workId}`).get()).data();
+    const command = { ...cmd("notification.read"), contractVersion: 2 };
+    const response = await json("/api/mobile/commands", command);
+    assert.equal(response.status, 400);
+    assert.equal(response.data.kind, "validation");
+    assert.equal(
+      (await db.doc(`mobileCommands/${uid}_${command.mutationId}`).get())
+        .exists,
+      false,
+    );
+    assert.deepEqual((await db.doc(`lucrari/${workId}`).get()).data(), before);
   },
 );
 test(
@@ -186,6 +200,25 @@ test(
     );
     const replay = await json("/api/mobile/commands", finalize);
     assert.equal(replay.data.work.numarRaport, r.data.work.numarRaport);
+    const image = await fetch(
+      base +
+        `/api/mobile/files?workId=${workId}&path=${encodeURIComponent(photo.path)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    assert.equal(image.status, 200, await image.clone().text());
+    assert.equal(
+      Buffer.from(await image.arrayBuffer()).toString("base64"),
+      png,
+    );
+    const foreign = await fetch(
+      base + `/api/mobile/files?workId=${workId}&path=mobile/foreign/photo`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    assert.equal(foreign.status, 403);
     const pdf = await fetch(base + `/api/mobile/document?workId=${workId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });

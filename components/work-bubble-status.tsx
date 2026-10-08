@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export interface WorkBubbleStatusProps extends React.HTMLAttributes<HTMLElement> {
   title?: string
   subtitle?: string
-  emitent?: string
+  workType?: string
   colorClass?: string
   href?: string
   onClick?: () => void
@@ -17,7 +17,7 @@ export interface WorkBubbleStatusProps extends React.HTMLAttributes<HTMLElement>
 export function WorkBubbleStatus({
   title,
   subtitle,
-  emitent,
+  workType,
   colorClass = "bg-slate-600",
   href,
   onClick,
@@ -57,9 +57,9 @@ export function WorkBubbleStatus({
           {subtitle}
         </div>
       )}
-      {emitent && (
+      {workType && (
         <div className="text-xs opacity-80 leading-tight text-white mt-0.5 whitespace-normal break-words min-w-0 max-w-full w-full">
-          Emitent: {emitent}
+          {workType}
         </div>
       )}
     </>
@@ -91,12 +91,12 @@ export function WorkBubbleStatus({
             </div>
           )}
         </TooltipTrigger>
-        {(title || subtitle || emitent) && (
+        {(title || subtitle || workType) && (
           <TooltipContent>
             <div className="text-xs">
               <div className="font-medium">{title}</div>
               {subtitle && <div className="opacity-80">{subtitle}</div>}
-              {emitent && <div className="opacity-80">Emitent: {emitent}</div>}
+              {workType && <div className="opacity-80">{workType}</div>}
             </div>
           </TooltipContent>
         )}

@@ -52,8 +52,10 @@ import { pageUrl, pdf, StatusBadge, dateLabel } from "./shared";
 type Run = (action: () => Promise<void>) => Promise<void>;
 export function InstallationSummary({
   data,
+  hideStats = false,
 }: {
   data: InstallationListResponse;
+  hideStats?: boolean;
 }) {
   const { work } = data;
   const meta = work.installation;
@@ -73,30 +75,36 @@ export function InstallationSummary({
   ];
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map(({ title, value, icon: Icon }) => (
-          <Card key={title}>
-            <CardContent className="flex items-start justify-between gap-2 p-4 sm:p-5">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground sm:text-sm">
-                  {title}
-                </p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight">
-                  {value}
-                </p>
-                {title === "Fișe active" &&
-                  !!Object.keys(meta.awaitingSheetByEquipment || {}).length && (
-                    <p className="mt-1 text-xs text-amber-800">
-                      {Object.keys(meta.awaitingSheetByEquipment || {}).length}{" "}
-                      în așteptarea semnăturilor
-                    </p>
-                  )}
-              </div>
-              <Icon className="h-5 w-5 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {!hideStats && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {stats.map(({ title, value, icon: Icon }) => (
+            <Card key={title}>
+              <CardContent className="flex items-start justify-between gap-2 p-4 sm:p-5">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground sm:text-sm">
+                    {title}
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight">
+                    {value}
+                  </p>
+                  {title === "Fișe active" &&
+                    !!Object.keys(meta.awaitingSheetByEquipment || {})
+                      .length && (
+                      <p className="mt-1 text-xs text-amber-800">
+                        {
+                          Object.keys(meta.awaitingSheetByEquipment || {})
+                            .length
+                        }{" "}
+                        în așteptarea semnăturilor
+                      </p>
+                    )}
+                </div>
+                <Icon className="h-5 w-5 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
       <Card>
         <CardContent className="space-y-3 p-4 sm:p-5">
           <div className="flex justify-between gap-2 text-sm">
@@ -164,14 +172,19 @@ export function InstallationEquipmentList({
   data,
   workId,
   onHistory,
+  onStart,
+  busy,
 }: {
   data: InstallationListResponse;
   workId: string;
   onHistory: (id: string) => void;
+  onStart: (id: string) => void;
+  busy?: boolean;
 }) {
   const meta = data.work.installation;
   const { userData } = useAuth();
-  const canGenerateQr = Boolean(userData?.role) && userData?.role !== "tehnician";
+  const canGenerateQr =
+    Boolean(userData?.role) && userData?.role !== "tehnician";
   return (
     <Card>
       <CardHeader>
@@ -243,19 +256,16 @@ export function InstallationEquipmentList({
                 meta.equipmentStatus[e.id] !== "done" &&
                 (meta.activeSheetByEquipment[e.id] || data.canStart) && (
                   <Button
-                    asChild
+                    disabled={busy}
+                    onClick={() => onStart(e.id)}
                     variant={
                       meta.activeSheetByEquipment[e.id] ? "outline" : "default"
                     }
                   >
-                    <Link
-                      href={`${pageUrl(workId)}?tab=equipment&equipmentId=${encodeURIComponent(e.id)}`}
-                    >
-                      <QrCode className="mr-2 h-4 w-4" />
-                      {meta.activeSheetByEquipment[e.id]
-                        ? "Deschide fișa activă"
-                        : "Începe instalarea"}
-                    </Link>
+                    <QrCode className="mr-2 h-4 w-4" />
+                    {meta.activeSheetByEquipment[e.id]
+                      ? "Deschide fișa activă"
+                      : "Începe instalarea"}
                   </Button>
                 )}
               <Button variant="outline" onClick={() => onHistory(e.id)}>

@@ -6,14 +6,17 @@ service cloud.firestore {
       return request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    function serverOnlyCollection(name) {
+      return name in ['installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects'];
+    }
     // Preserve legacy access while routing the new installation data through verified server APIs.
     // Do not add an overlapping unrestricted recursive wildcard: it would override these exclusions.
     match /{collectionName}/{documentId} {
-      allow read: if collectionName != 'installationTechnicianSessions';
-      allow create: if collectionName != 'installationTechnicianSessions'
+      allow read: if !serverOnlyCollection(collectionName);
+      allow create: if !serverOnlyCollection(collectionName)
         && (collectionName != 'users' || isAdmin())
         && (collectionName != 'lucrari' || !request.resource.data.keys().hasAny(['installation']));
-      allow update: if collectionName != 'installationTechnicianSessions'
+      allow update: if !serverOnlyCollection(collectionName)
         && (collectionName != 'users' || isAdmin()
           || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'displayName', 'uid']))
         && (collectionName != 'lucrari' || (
@@ -26,12 +29,12 @@ service cloud.firestore {
               'raportSnapshot', 'raportGenerat', 'semnaturaTehnician', 'semnaturaBeneficiar'
             ]))
         ));
-      allow delete: if collectionName != 'installationTechnicianSessions'
+      allow delete: if !serverOnlyCollection(collectionName)
         && (collectionName != 'users' || isAdmin())
         && (collectionName != 'lucrari' || !resource.data.keys().hasAny(['installation']));
     }
     match /{collectionName}/{documentId}/{subcollection}/{rest=**} {
-      allow read, write: if collectionName != 'installationTechnicianSessions'
+      allow read, write: if !serverOnlyCollection(collectionName)
         && (collectionName != 'lucrari' || !(subcollection in [
           'installationSheets', 'installationCompletion', 'installationAudit'
         ]));

@@ -6,7 +6,28 @@ import {
   sheetParticipants,
   pendingSignatureMessage,
 } from "@/lib/installations/team";
-export function InstallationTeam({ sheet }: { sheet: InstallationSheet }) {
+export function InstallationTeam({
+  sheet,
+  compact = false,
+}: {
+  sheet: InstallationSheet;
+  compact?: boolean;
+}) {
+  if (compact)
+    return (
+      <div className="space-y-2">
+        {sheet.state === "awaiting_signature" && (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {pendingSignatureMessage}
+          </p>
+        )}
+        {sheet.allocationWarnings?.map((message) => (
+          <p key={message} className="text-sm text-muted-foreground">
+            {message}
+          </p>
+        ))}
+      </div>
+    );
   return (
     <Card>
       <CardHeader>

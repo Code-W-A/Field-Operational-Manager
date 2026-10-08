@@ -22,7 +22,7 @@ const BUBBLE_CONFIG = {
 export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLElement> {
   title?: string
   subtitle?: string
-  emitent?: string
+  workType?: string
   status?: string
   equipmentList?: string[]
   colorClass?: string
@@ -33,7 +33,7 @@ export interface WorkBubbleAssignedProps extends React.HTMLAttributes<HTMLElemen
 export function WorkBubbleAssigned({
   title,
   subtitle,
-  emitent,
+  workType,
   status,
   equipmentList,
   colorClass = "bg-slate-600",
@@ -90,9 +90,9 @@ export function WorkBubbleAssigned({
           subtitle || "-"
         )}
       </div>
-      {emitent && (
+      {workType && (
         <div className="text-xs opacity-80 leading-tight min-w-0 max-w-full w-full whitespace-normal break-words mt-0.5">
-          Emitent: {emitent}
+          {workType}
         </div>
       )}
     </>

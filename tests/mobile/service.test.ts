@@ -129,7 +129,7 @@ test("bootstrap resolves live equipment and filters assigned works", async () =>
   assert(b.works.some((w) => w.id === "mobile-test-visible"));
   assert(!b.works.some((w) => w.id === "mobile-test-hidden"));
   assert.equal(
-    b.works.find((w) => w.id === "mobile-test-visible")!.mobileEquipment[0]
+    b.works.find((w) => w.id === "mobile-test-visible")!.mobileEquipment![0]
       .rootId,
     "mobile-test-root",
   );

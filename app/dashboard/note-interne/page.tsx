@@ -88,17 +88,8 @@ const MAX_PROCEDURE_CONTENT_PLAIN_CHARS = 20000
 const procedureRichHtmlViewClass =
   "text-sm text-gray-600 leading-relaxed break-words [&_p]:mb-1 last:[&_p]:mb-0 [&_strong]:font-semibold [&_b]:font-semibold [&_em]:italic [&_i]:italic [&_u]:underline [&_s]:line-through [&_strike]:line-through [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc [&_ul]:pl-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_ol]:pl-1 [&_li]:my-0.5"
 
-interface Note {
-  id: string
-  title: string
-  content: string
-  priority?: "low" | "medium" | "high"
-  category: "general" | "urgent" | "info" | "task"
-  createdAt: Timestamp
-  updatedAt: Timestamp
-  authorId: string
-  authorName: string
-}
+import type { ProcedureNote } from "@/packages/fom-domain/procedures";
+type Note = ProcedureNote<Timestamp>;
 
 const categoryColors = {
   general: "bg-blue-100 text-blue-800 border-blue-200",

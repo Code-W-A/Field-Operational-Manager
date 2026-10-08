@@ -635,13 +635,13 @@ export function installationService(db: Firestore) {
     const sheetId = identifier(input.sheetId);
     const content = fields(input.fields, mode !== "save");
     return db.runTransaction(async (tx) => {
+      const user = await actorData(tx, actor);
       const receipt = input.requestId ? db.collection("installationCommands").doc(`${actor.uid}_${identifier(input.requestId)}`) : null;
       const previous = receipt ? await tx.get(receipt) : null;
       if (previous?.exists) {
         check(previous.data()?.fingerprint === JSON.stringify({workId,input,mode}), "Identificator reutilizat.", 409);
         return previous.data()!.result;
       }
-      const user = await actorData(tx, actor);
       const ref = workRef(workId);
       const work = (await tx.get(ref)).data();
       assertWork(work);
