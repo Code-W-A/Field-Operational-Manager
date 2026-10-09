@@ -49,6 +49,7 @@ export type Bundle = {
   procedures: ProcedureRead[];
   settings: ReadDocument<import("./settings").Setting<JsonTimestamp>>[];
   employee: ReadDocument<Employee> | null;
+  employeeAssociationError?: string;
   departments: ReadDocument<Department<JsonTimestamp>>[];
   revisions: Record<string, RevisionRead[]>;
   installations: Record<
@@ -116,6 +117,8 @@ export function assertBundle(value: unknown): asserts value is Bundle {
     (!object(value.employee) || typeof value.employee.id !== "string")
   )
     throw new DomainError("Profil HR invalid.");
+  if (value.employeeAssociationError !== undefined && typeof value.employeeAssociationError !== "string")
+    throw new DomainError("Stare asociere HR invalidă.");
   // Missing/new legacy fields are preserved. Write validators are never applied to reads.
 }
 export function readBootstrap(value: unknown, projectId: string): Bundle {

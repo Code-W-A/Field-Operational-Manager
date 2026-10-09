@@ -134,6 +134,21 @@ test("bootstrap resolves live equipment and filters assigned works", async () =>
     "mobile-test-root",
   );
 });
+test("ambiguous HR association preserves tickets and blocks attendance without choosing an employee", async () => {
+  const refs = ["mobile-test-ambiguous-hr-a", "mobile-test-ambiguous-hr-b"].map(id => db.doc(`hrEmployees/${id}`));
+  try {
+    for (const ref of refs) await ref.set({ userUid: uid });
+    await work("mobile-test-hr-visible");
+    const b = await svc.bundle(uid);
+    assert(b.works.some(w => w.id === "mobile-test-hr-visible"));
+    assert.equal(b.employee, null);
+    assert.match(b.employeeAssociationError!, /mai multor salariați/);
+    await assert.rejects(() => svc.command(uid, command("attendance.start", "mobile-test-ambiguous-attendance", { specialDayConfirmed: true })), /Asociere HR ambiguă/);
+    assert.equal((await db.doc("attendance/mobile-test-ambiguous-attendance").get()).exists, false);
+  } finally {
+    for (const ref of refs) await ref.delete();
+  }
+});
 let attendanceId = `mobile-test-attendance-${Date.now()}`;
 test("attendance start idempotent and only one active session", async () => {
   const c = command("attendance.start", attendanceId, {}, null, {

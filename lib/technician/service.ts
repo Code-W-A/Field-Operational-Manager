@@ -169,11 +169,10 @@ export function technicianService(db: Firestore) {
       db.collection("settings").get(),
       db.collection("hrDepartments").get(),
     ]);
-    check(
-      employees.docs.length <= 1,
-      "Contul este asociat mai multor salariați.",
-      409,
-    );
+    // HR ambiguity blocks HR writes, not access to assigned field work.
+    const employeeAssociationError = employees.docs.length > 1
+      ? "Contul este asociat mai multor salariați HR. Solicită administratorului corectarea asocierii pentru pontaj și cereri."
+      : undefined;
     const works = [
       ...new Map(
         [...rows(legacy), ...rows(byUid)].map((w) => [w.id, w]),
@@ -224,7 +223,8 @@ export function technicianService(db: Firestore) {
       clients,
       attendance: rows(att),
       requests: rows(requests),
-      employee: rows(employees)[0] || null,
+      employee: employees.docs.length === 1 ? rows(employees)[0] : null,
+      ...(employeeAssociationError ? { employeeAssociationError } : {}),
       procedures: rows(procedures),
       settings: rows(settings),
       departments: rows(departments),
