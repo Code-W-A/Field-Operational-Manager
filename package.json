@@ -36,6 +36,7 @@
     "test:e2e:real:lucrari": "playwright test -c playwright.real.config.ts e2e/real/stage6-lucrari.spec.ts",
     "test:e2e:real:revision-contract-equipment": "playwright test -c playwright.real.config.ts e2e/real/revision-contract-equipment-readonly.spec.ts",
     "test:revision-equipment-selection": "tsx --test firebase-functions/src/revision-equipment-selection.test.ts",
+    "test:revision-save:browser": "node scripts/test-revision-save-browser.mjs",
     "test:installation": "tsx --test lib/installations/service.test.ts",
     "test:installation:browser": "tsx scripts/test-installation-browser.ts",
     "test:report-resend": "tsx --test lib/work-documents/report-resend.test.ts lib/work-documents/current-ticket-recipients.test.ts",

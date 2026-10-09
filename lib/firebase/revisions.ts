@@ -51,9 +51,15 @@ export async function listRevisionsForWork(workId: string): Promise<EquipmentRev
 export async function upsertRevisionDoc(
   workId: string,
   equipmentId: string,
-  data: Partial<EquipmentRevisionDoc>
+  data: Partial<EquipmentRevisionDoc>,
+  options: { draft?: boolean } = {}
 ) {
-  if(data.sections) data={...data,sections:validateRevision(data.sections as any,data.sections as any) as any};
+  if (data.sections) {
+    data = {
+      ...data,
+      sections: validateRevision(data.sections as any, data.sections as any, options) as any,
+    }
+  }
   const refDoc = doc(db, "lucrari", workId, "revisions", equipmentId)
   
   // Remove undefined values (Firestore doesn't accept them)

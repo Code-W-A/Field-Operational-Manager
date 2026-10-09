@@ -38,13 +38,14 @@ type Props = {
   equipmentName?: string
   checklistRootId?: string
   onUnsavedChanges?: (hasChanges: boolean) => void
+  onSaved?: () => void
   onSaveDraftRef?: (saveFn: () => Promise<boolean>) => void
 }
 
 type ItemState = "functional" | "nefunctional" | "na"
 const checklistIdentity = (sections: RevisionChecklistSection[]) => JSON.stringify(sections.map(s => ({id:s.id,title:s.title,items:s.items.map(i=>({id:i.id,label:i.label}))})))
 
-export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef }: Props) {
+export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef, onSaved }: Props) {
   const { userData } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
@@ -87,7 +88,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   const verificationConfirmed = useRef(false)
   const [checklistChanged, setChecklistChanged] = useState(false)
   const editorDirty = useRef(false)
-  editorDirty.current = checklistIdentity(sections) !== initialSectionIdentity || JSON.stringify(values) !== JSON.stringify(initialValues) || JSON.stringify(obs) !== JSON.stringify(initialObs) || finalObservations !== initialFinalObservations || selectedPhotos.length > 0
+  editorDirty.current = checklistIdentity(sections) !== initialSectionIdentity || JSON.stringify(values) !== JSON.stringify(initialValues) || JSON.stringify(obs) !== JSON.stringify(initialObs) || finalObservations.trim() !== initialFinalObservations.trim() || selectedPhotos.length > 0
 
   // Join two complete snapshots; never subscribe repeatedly or overwrite an edited form.
   useEffect(() => {
@@ -185,7 +186,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   useEffect(() => {
     const valuesChanged = JSON.stringify(values) !== JSON.stringify(initialValues)
     const obsChanged = JSON.stringify(obs) !== JSON.stringify(initialObs)
-    const finalChanged = finalObservations !== initialFinalObservations
+    const finalChanged = finalObservations.trim() !== initialFinalObservations.trim()
     const hasChanges = valuesChanged || obsChanged || finalChanged || checklistIdentity(sections) !== initialSectionIdentity || selectedPhotos.length > 0
     setHasUnsavedChanges(hasChanges)
     onUnsavedChanges?.(hasChanges)
@@ -458,6 +459,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       setInitialObs({...obs})
       setInitialFinalObservations(finalObservations.trim())
       setHasUnsavedChanges(false)
+      onUnsavedChanges?.(false)
       
       // Success toast
       toast({
@@ -465,10 +467,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         description: `Fișa de operațiuni pentru ${equipmentName || "echipament"} a fost completată.`,
       })
       
-      // Navigate back to work order after a short delay
-      setTimeout(() => {
-        router.back()
-      }, 1500)
+      if (onSaved) onSaved()
+      else router.replace(`/dashboard/lucrari/${encodeURIComponent(workId)}`)
     } catch (error: any) {
       console.error("❌ Eroare la salvarea reviziei:", error)
       console.error("Stack trace:", error?.stack)
@@ -504,30 +504,44 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     try {
       const payloadSections = sections.map((s) => ({
         ...s,
-        items: s.items.map((it) => ({
+        items: s.items.map(({ state: _previousState, ...it }: RevisionChecklistItem & { state?: ItemState }) => ({
           ...it,
-          state: values[it.id],
+          ...(values[it.id] ? { state: values[it.id] } : {}),
           obs: obs[it.id] || "",
         })),
       }))
+      const photos = [...existingPhotos]
       if (userData?.role === "tehnician") {
-        await technicianCommand("revision.save", workId, { equipmentId, draft: true, sections: payloadSections, finalObservations: finalObservations.trim() })
+        for (const file of selectedPhotos) photos.push(await technicianFile(file, workId))
+        await technicianCommand("revision.save", workId, { equipmentId, draft: true, sections: payloadSections, finalObservations: finalObservations.trim(), photos })
       } else {
-      await upsertRevisionDoc(workId, equipmentId, {
-        equipmentId,
-        equipmentName,
-        sections: payloadSections,
-        finalObservations: finalObservations.trim() || "",
-        qrVerified: verified,
-      })
+        await upsertRevisionDoc(workId, equipmentId, {
+          equipmentId,
+          equipmentName,
+          sections: payloadSections,
+          finalObservations: finalObservations.trim() || "",
+          qrVerified: verified,
+        }, { draft: true })
+        for (const file of selectedPhotos) {
+          const photo = await uploadRevisionPhoto(workId, equipmentId, file, userData?.uid || "unknown")
+          photos.push(photo)
+          // Keep successful uploads on a later failure; retry only pending files.
+          setExistingPhotos([...photos])
+          setSelectedPhotos(pending => pending.filter(f => f !== file))
+          setPhotoPreviewUrls(previews => previews.slice(1))
+        }
       }
-      
+      setExistingPhotos(photos)
+      setSelectedPhotos([])
+      setPhotoPreviewUrls([])
+
       // Reset unsaved changes flag
       setInitialSectionIdentity(checklistIdentity(sections))
       setInitialValues({...values})
       setInitialObs({...obs})
       setInitialFinalObservations(finalObservations.trim())
       setHasUnsavedChanges(false)
+      onUnsavedChanges?.(false)
       
       toast({
         title: "💾 Progres salvat",
@@ -570,6 +584,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         <CardTitle className="text-lg">Fișa de operațiuni – {equipmentName || "Echipament"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 px-2 pb-3 sm:px-3">
+        <fieldset disabled={saving} className="min-w-0 space-y-3 border-0 p-0">
         {/* QR validation gate */}
         {!verified && (
           <Alert className="bg-slate-50 border-slate-300">
@@ -911,6 +926,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
             Salvează
           </Button>
         </div>
+        </fieldset>
       </CardContent>
 
       {/* Dialog pentru adăugare punct de control */}

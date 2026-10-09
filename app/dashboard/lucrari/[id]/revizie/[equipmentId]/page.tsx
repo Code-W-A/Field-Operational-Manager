@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, Loader2 } from "lucide-react"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -27,6 +26,9 @@ export default function RevisionEquipmentPage() {
   const equipmentId = params?.equipmentId as string
   
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const [savingAndLeaving, setSavingAndLeaving] = useState(false)
+  const leavingRef = useRef(false)
+  const saveAndLeaveLock = useRef(false)
   const hasUnsavedChangesRef = useRef(false)
   const saveDraftRef = useRef<(() => Promise<boolean>) | null>(null)
   const [equipmentName, setEquipmentName] = useState<string>("")
@@ -99,50 +101,53 @@ export default function RevisionEquipmentPage() {
     fetchEquipmentName()
   }, [workId, equipmentId])
 
+  const leaveForWork = () => {
+    // Do not traverse the synthetic history entry used by the back guard.
+    leavingRef.current = true
+    hasUnsavedChangesRef.current = false
+    setShowUnsavedDialog(false)
+    router.replace(`/dashboard/lucrari/${encodeURIComponent(workId)}`)
+  }
+
   const handleBack = () => {
-    if (hasUnsavedChangesRef.current) {
-      setShowUnsavedDialog(true)
-    } else {
-      router.back()
-    }
+    if (saveAndLeaveLock.current) return
+    if (hasUnsavedChangesRef.current) setShowUnsavedDialog(true)
+    else leaveForWork()
   }
 
   const handleSaveAndBack = async () => {
-    if (saveDraftRef.current) {
+    if (saveAndLeaveLock.current || !saveDraftRef.current) return
+    saveAndLeaveLock.current = true
+    setSavingAndLeaving(true)
+    try {
       const saved = await saveDraftRef.current()
-      if (saved) {
-        router.back()
-      }
+      if (saved) leaveForWork()
+    } finally {
+      saveAndLeaveLock.current = false
+      setSavingAndLeaving(false)
     }
   }
 
   const handleDiscardAndBack = () => {
-    // Allow actual back navigation: temporarily remove popstate handler to avoid re-blocking
-    try {
-      if (popstateHandlerRef.current) {
-        window.removeEventListener("popstate", popstateHandlerRef.current as any)
-      }
-    } catch {}
-    router.back()
+    if (!saveAndLeaveLock.current) leaveForWork()
   }
 
   // Trap device/browser back when there are unsaved changes
-  const popstateHandlerRef = useRef<((e: PopStateEvent) => void) | null>(null)
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
-      if (hasUnsavedChangesRef.current) {
+      if (leavingRef.current) return
+      if (hasUnsavedChangesRef.current || saveAndLeaveLock.current) {
         // Re-push the current state to cancel the back and show confirm dialog
         try {
-          history.pushState(null, "", location.href)
+          history.pushState(history.state, "", location.href)
         } catch {}
         setShowUnsavedDialog(true)
       }
     }
-    popstateHandlerRef.current = handlePopState
     window.addEventListener("popstate", handlePopState)
     // Push a state so the first back triggers popstate instead of leaving immediately
     try {
-      history.pushState(null, "", location.href)
+      history.pushState(history.state, "", location.href)
     } catch {}
     return () => {
       window.removeEventListener("popstate", handlePopState)
@@ -193,6 +198,7 @@ export default function RevisionEquipmentPage() {
           equipmentId={equipmentId}
           equipmentName={equipmentName}
           checklistRootId={checklistRootId}
+          onSaved={leaveForWork}
           onUnsavedChanges={(hasChanges) => {
             hasUnsavedChangesRef.current = hasChanges
           }}
@@ -203,7 +209,7 @@ export default function RevisionEquipmentPage() {
       </div>
 
       {/* Dialog pentru modificări nesalvate */}
-      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+      <AlertDialog open={showUnsavedDialog} onOpenChange={(open) => { if (!saveAndLeaveLock.current) setShowUnsavedDialog(open) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Modificări nesalvate</AlertDialogTitle>
@@ -212,15 +218,15 @@ export default function RevisionEquipmentPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel onClick={handleDiscardAndBack} className="sm:order-1">
+            <AlertDialogCancel disabled={savingAndLeaving} onClick={handleDiscardAndBack} className="sm:order-1">
               Nu salva
             </AlertDialogCancel>
-            <AlertDialogCancel onClick={() => setShowUnsavedDialog(false)} className="sm:order-2">
+            <AlertDialogCancel disabled={savingAndLeaving} onClick={() => setShowUnsavedDialog(false)} className="sm:order-2">
               Rămâi aici
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleSaveAndBack} className="sm:order-3">
-              Salvează și ieși
-            </AlertDialogAction>
+            <Button disabled={savingAndLeaving} onClick={handleSaveAndBack} className="sm:order-3">
+              {savingAndLeaving ? "Se salvează…" : "Salvează și ieși"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
