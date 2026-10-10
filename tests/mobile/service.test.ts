@@ -143,7 +143,7 @@ test("ambiguous HR association preserves tickets and blocks attendance without c
     assert(b.works.some(w => w.id === "mobile-test-hr-visible"));
     assert.equal(b.employee, null);
     assert.match(b.employeeAssociationError!, /mai multor salariați/);
-    await assert.rejects(() => svc.command(uid, command("attendance.start", "mobile-test-ambiguous-attendance", { specialDayConfirmed: true })), /Asociere HR ambiguă/);
+    await assert.rejects(() => svc.command(uid, command("attendance.start", "mobile-test-ambiguous-attendance", { specialDayConfirmed: true })), /Contul este asociat mai multor salariați HR/);
     assert.equal((await db.doc("attendance/mobile-test-ambiguous-attendance").get()).exists, false);
   } finally {
     for (const ref of refs) await ref.delete();

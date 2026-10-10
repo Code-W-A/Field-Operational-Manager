@@ -36,7 +36,18 @@ async function POST(request: NextRequest) {
           : bytes.subarray(0, 5).toString() === "%PDF-";
     if (!signatureOk)
       throw new MobileError("Conținutul fișierului nu corespunde formatului.");
-    if (purpose !== "medical") {
+    const selfie = purpose === "attendance-selfie";
+    const sessionId = String(form.get("sessionId") || "");
+    const kind = String(form.get("kind") || "");
+    if (selfie) {
+      if (!/^[\w-]{1,160}$/.test(sessionId) || !["checkin", "checkout"].includes(kind) || file.type !== "image/jpeg")
+        throw new MobileError("Selfie de pontaj invalid.");
+      const session = await adminDb.doc(`attendance/${sessionId}`).get();
+      if ((session.exists && session.data()?.userId !== a.uid) || (kind === "checkout" && !session.exists))
+        throw new MobileError("Sesiune inaccesibilă.", 403);
+      const employees = await adminDb.collection("hrEmployees").where("userUid", "==", a.uid).get();
+      if (employees.size !== 1) throw new MobileError("Asociere HR necesară.", 403);
+    } else if (purpose !== "medical") {
       if (!/^[\w-]{1,160}$/.test(workId) || file.type === "application/pdf")
         throw new MobileError("Fotografie invalidă.");
       const w = await adminDb.collection("lucrari").doc(workId).get();
@@ -49,9 +60,9 @@ async function POST(request: NextRequest) {
         .get();
       if (emp.size !== 1) throw new MobileError("Asociere HR necesară.", 403);
     }
-    if (!["medical", "photo", "installation"].includes(purpose))
+    if (!["medical", "photo", "installation", "attendance-selfie"].includes(purpose))
       throw new MobileError("Scop de fișier invalid.");
-    const path = `mobile/${a.uid}/${workId || "medical"}/${fileId}`,
+    const path = selfie ? `attendance/selfies/${a.uid}/${sessionId}/${kind}-${fileId}.jpg` : `mobile/${a.uid}/${workId || "medical"}/${fileId}`,
       ref = adminDb.collection("mobileFiles").doc(`${a.uid}_${fileId}`),
       digest = createHash("sha256").update(bytes).digest("hex"),
       sheetId = String(form.get("sheetId") || "");

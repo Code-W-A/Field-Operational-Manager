@@ -1,3 +1,5 @@
+import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
+import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
 import { photoIdentity } from "./photo-identity";
 import {
   FieldValue,
@@ -171,7 +173,7 @@ export function technicianService(db: Firestore) {
     ]);
     // HR ambiguity blocks HR writes, not access to assigned field work.
     const employeeAssociationError = employees.docs.length > 1
-      ? "Contul este asociat mai multor salariați HR. Solicită administratorului corectarea asocierii pentru pontaj și cereri."
+      ? AMBIGUOUS_ATTENDANCE_HR
       : undefined;
     const works = [
       ...new Map(
@@ -831,7 +833,7 @@ export function technicianService(db: Firestore) {
     const employees = await tx.get(
       db.collection("hrEmployees").where("userUid", "==", a.uid),
     );
-    check(employees.size <= 1, "Asociere HR ambiguă.", 409);
+    check(employees.size <= 1, AMBIGUOUS_ATTENDANCE_HR, 409);
     const employee = rows(employees)[0];
     const defaults =
       (await tx.get(db.collection("hrSettings").doc("defaults"))).data() || {};
@@ -847,6 +849,10 @@ export function technicianService(db: Firestore) {
     const prefix = c.action === "attendance.start" ? "checkIn" : "checkOut";
     for (const key of ["mode", "location", "faceRecognitionId", "deviceInfo", `${prefix}SelfieUrl`, `${prefix}SelfiePath`, `${prefix}SelfieStatus`]) {
       if (c.payload[key] !== undefined) metadata[key] = c.payload[key];
+    }
+    const selfiePath = c.payload[`${prefix}SelfiePath`];
+    if (selfiePath !== undefined) {
+      check(typeof selfiePath === "string" && selfiePath.startsWith(`attendance/selfies/${a.uid}/`) && !selfiePath.includes(".."), "Selfie inaccesibil.", 403);
     }
     if (c.payload.checkOutAuto || c.payload.autoStopped || c.payload.skipMinimumDurationCheck) {
       check(AUTO_CHECKOUT_ENABLED, "Depontarea automată este dezactivată.", 403);
@@ -864,7 +870,7 @@ export function technicianService(db: Firestore) {
       const active = logs.findIndex(log => log.type === type && !log.endTime);
       let minutesEligible = 0;
       if (c.payload.operation === "start") {
-        check(active === -1, "Există deja un traseu activ.", 409);
+        check(!logs.some(log => log.type === type), "Există deja un traseu de acest tip.", 409);
         if (type === "to_client") check(session.status === "active" && at < cap(at), "Traseul către client este disponibil înainte de începutul programului, până la 08:00.");
         else {
           const end = millis(session.sessionEnd);
@@ -882,8 +888,8 @@ export function technicianService(db: Firestore) {
       const timesheet = session.status === "completed" && c.payload.operation === "end"
         ? await attendanceTimesheet(tx, a, session, employee, c.entityId, { extraTimeLogs: logs }) : null;
       tx.update(sessionRef, { extraTimeLogs: logs, updatedAt: FieldValue.serverTimestamp() });
-      if (timesheet) tx.set(timesheet.ref, timesheet.data, { merge: true });
-      return { id: c.entityId, minutesEligible };
+      if (timesheet?.data) tx.set(timesheet.ref, timesheet.data, { merge: true });
+      return { id: c.entityId, minutesEligible, session: serial({ ...session, extraTimeLogs: logs }), timesheetSync: timesheet?.sync || null };
     }
     if (c.action === "attendance.start") {
       check(!existing.exists, "Sesiune existentă.", 409);
@@ -895,6 +901,9 @@ export function technicianService(db: Firestore) {
         "Există deja un pontaj activ.",
         409,
       );
+      if (c.payload.checkInAuto) {
+        check(!sessions.some(s => localDay(millis(s.sessionStart)) === localDay(at)), "Pontajul automat a fost deja folosit sau există pontaj în această zi.", 409);
+      }
       const day = localDay(at),
         weekday = new Date(day + "T12:00:00Z").getUTCDay(),
         holiday = (
@@ -902,19 +911,7 @@ export function technicianService(db: Firestore) {
         )
           .data()
           ?.items?.find((h: any) => h.date === day);
-      const special = holiday
-        ? {
-            kind: "legal_holiday",
-            label: holiday.label || "Sărbătoare legală",
-            date: day,
-          }
-        : weekday === 6 || weekday === 0
-          ? {
-              kind: weekday === 6 ? "saturday" : "sunday",
-              label: weekday === 6 ? "Sâmbătă" : "Duminică",
-              date: day,
-            }
-          : null;
+      const special = attendanceSpecialDay(at, holiday ? [holiday] : []);
       check(
         !special || c.payload.specialDayConfirmed === true,
         "Confirmă lucrul în ziua specială înainte de pontare.",
@@ -1057,11 +1054,11 @@ export function technicianService(db: Firestore) {
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (lock.exists) tx.delete(lockRef);
-    if (timesheet) tx.set(timesheet.ref, timesheet.data, { merge: true });
+    if (timesheet?.data) tx.set(timesheet.ref, timesheet.data, { merge: true });
     return {
       id: c.entityId,
       session: serial({ ...s, ...changes }),
-      timesheetSync: timesheet?.sync || null,
+      timesheetSync: timesheet?.sync || { synced: false, reason: "no_employee" },
     };
   }
   async function attendanceTimesheet(tx: Transaction, a: Actor, s: RecordData, employee: RecordData | undefined, sessionId: string, changes: RecordData) {
@@ -1103,11 +1100,7 @@ export function technicianService(db: Firestore) {
             ? { start: s.pauzaStart, end: s.pauzaEnd }
             : null,
       });
-      check(
-        built.cell,
-        "Ziua de condică este protejată de un eveniment HR.",
-        409,
-      );
+      if (!built.cell) return { sync: { synced: false, reason: "protected_day", employeeId: employee.id, monthKey: month, day: Number(key) } };
       timesheet = {
         ref,
         sync: { synced: true, reason: "synced", employeeId: employee.id, sessionCount: completed.length, totalHours: built.cell.hours, monthKey: month, day: Number(key) },

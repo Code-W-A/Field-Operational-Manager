@@ -168,6 +168,14 @@
         { "fieldPath": "cycleStatus", "order": "ASCENDING" },
         { "fieldPath": "deadlineAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "trackingPoints",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "capturedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

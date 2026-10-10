@@ -3383,3 +3383,5 @@ export const onHrRequestStatusChangedEmail = functions
 
     return null
   })
+
+export { purgeExpiredTracking } from "./tracking-retention";

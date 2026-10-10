@@ -260,6 +260,14 @@ export function buildNav(ctx: NavCtx): NavNode[] {
         },
         {
           type: "link",
+          id: "tracking-map",
+          label: "Hartă tehnicieni",
+          href: "/dashboard/harta-tehnicieni",
+          icon: Users,
+          visible: () => isAdminOrDispatcher,
+        },
+        {
+          type: "link",
           id: "hr-pontaj",
           label: "Condică prezență",
           href: "/dashboard/resurse-umane/condica-prezenta",

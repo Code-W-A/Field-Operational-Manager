@@ -1,4 +1,5 @@
 "use client"
+import { attendanceHrError } from "@/packages/fom-domain/attendance-hr"
 import { prepareReinterventionContact } from "@/lib/work-documents/live-ticket-contact"
 import { ContactAssociationError } from "@/firebase-functions/src/client-ticket-sync"
 
@@ -272,16 +273,9 @@ export default function Lucrari() {
         const snap = await getDocs(q)
         if (cancelled) return
 
-        if (snap.empty) {
-          setAttendanceDisabled(true)
-          setAttendanceDisabledReason(
-            "Contul tău nu este asociat cu un salariat HR. Mergi în Resurse Umane → Salariați și setează userUid."
-          )
-          return
-        }
-
-        setAttendanceDisabled(false)
-        setAttendanceDisabledReason(undefined)
+        const associationError = attendanceHrError(snap.size)
+        setAttendanceDisabled(Boolean(associationError))
+        setAttendanceDisabledReason(associationError || undefined)
       } catch {
         if (cancelled) return
         setAttendanceDisabled(true)

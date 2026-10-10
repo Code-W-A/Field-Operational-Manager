@@ -1,5 +1,7 @@
 "use client"
 
+import { attendanceRouteState } from "@/packages/fom-domain/attendance-policy"
+
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -131,47 +133,8 @@ export function FieldCheckInCard({ userId, userName, officeLocation, disabled = 
     }
 
     const now = getAppNowMs()
-    const programStart = activeSession.programLucruStart || "08:00"
-    const programEnd = activeSession.programLucruEnd || "16:30"
-
-    const toTs = (base: number, hhmm: string) => {
-      const [hStr, mStr] = hhmm.split(":")
-      const h = Number(hStr)
-      const m = Number(mStr)
-      const d = new Date(base)
-      d.setHours(Number.isFinite(h) ? h : 8, Number.isFinite(m) ? m : 0, 0, 0)
-      return d.getTime()
-    }
-
-    const hasClientRouteLog = activeSession.extraTimeLogs?.some((log) => log.type === "to_client")
-    const hasHomeRouteLog = activeSession.extraTimeLogs?.some((log) => log.type === "to_home")
-
-    // Client route: only during active field session, until min(programStart, 08:00)
-    const eightAm = toTs(now, "08:00")
-    const programStartTs = toTs(now, programStart)
-    const clientCapEnd = Math.min(eightAm, programStartTs)
-    setClientRouteActive(
-      activeSession.status === "active" &&
-        activeSession.mode === "field" &&
-        now < clientCapEnd &&
-        !hasClientRouteLog
-    )
-
-    // Home route: only after completed field session, after program end, within 1h of program end and 1h of stop
-    const programEndTs = toTs(activeSession.sessionEnd || now, programEnd)
-    const homeWindowEnd = programEndTs + 60 * 60 * 1000
-    const sessionEnd = activeSession.sessionEnd
-    const withinOneHourOfStop = sessionEnd ? (now - sessionEnd) / 60000 <= 60 : false
-    const stopAfterProgramEnd = sessionEnd ? sessionEnd >= programEndTs : false
-    setHomeRouteActive(
-      activeSession.status === "completed" &&
-        activeSession.mode === "field" &&
-        Boolean(sessionEnd) &&
-        stopAfterProgramEnd &&
-        withinOneHourOfStop &&
-        now <= homeWindowEnd &&
-        !hasHomeRouteLog
-    )
+    setClientRouteActive(attendanceRouteState(activeSession, "to_client", now).canStart)
+    setHomeRouteActive(attendanceRouteState(activeSession, "to_home", now).canStart)
   }, [activeSession, currentTime])
 
   const loadActiveSession = async () => {
