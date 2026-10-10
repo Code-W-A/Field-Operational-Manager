@@ -17,6 +17,7 @@ import { CRM_VISIBILITIES, CRM_VISIBILITY_LABELS } from "@/lib/crm/constants"
 import { getCrmFileDownloadPath, getCrmFileOpenUrl, isCrmFileDownloadOnly } from "@/lib/crm/file-preview"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { useToast } from "@/hooks/use-toast"
+import { downloadTechnicianCrmFile } from "@/lib/crm/technician-client"
 import type { CrmFileAttachment } from "@/lib/crm/types"
 
 export default function OpportunityFilesPage() {
@@ -367,6 +368,10 @@ export default function OpportunityFilesPage() {
                         rel="noreferrer"
                         {...(downloadViaApi ? {} : { target: "_blank" as const, download: file.filename })}
                         aria-label="Descarcă"
+                        onClick={isTechnician ? (event) => {
+                          event.preventDefault()
+                          void downloadTechnicianCrmFile("file", file.id, file.filename).catch((error) => toast({ title: "Descărcarea a eșuat", description: error.message, variant: "destructive" }))
+                        } : undefined}
                       >
                         <Download className="h-4 w-4" />
                       </a>

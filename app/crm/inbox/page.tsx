@@ -1,4 +1,5 @@
 "use client"
+import { technicianCrmCommand } from "@/lib/crm/technician-client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
@@ -375,6 +376,8 @@ export default function CrmInboxPage() {
   ) => {
     setSavingId(id)
     try {
+      const mobile=await technicianCrmCommand("inbox.update",id,patch);
+      if(mobile){await loadInbox(false);return;}
       const response = await fetch("/api/crm/inbox/update", {
         method: "PATCH",
         headers: {
@@ -410,6 +413,8 @@ export default function CrmInboxPage() {
 
     setLinkingId(item.id)
     try {
+      const mobile=await technicianCrmCommand("inbox.link",item.id,{opportunityId,linkMethod});
+      if(mobile){setLinkDialogItem(null);await loadInbox(false);return;}
       const response = await fetch("/api/crm/inbox/link", {
         method: "POST",
         headers: {

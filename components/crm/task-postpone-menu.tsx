@@ -88,7 +88,7 @@ export function TaskPostponeMenu({ task, actorId, disabled, onSuccess }: TaskPos
   }
 
   const openCustom = () => {
-    setCustomValue(toDateTimeLocal(currentDue))
+    setCustomValue(toDateTimeLocal(currentDue || new Date()))
     setMenuOpen(false)
     setCustomOpen(true)
   }

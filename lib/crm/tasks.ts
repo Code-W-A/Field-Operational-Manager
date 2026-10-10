@@ -1,3 +1,4 @@
+import { technicianCrmRequest, technicianCrmCommand } from "./technician-client";
 import {
   Timestamp,
   addDoc,
@@ -178,6 +179,8 @@ export async function listCrmTasksForOpportunity(params: {
   opportunityOwnerId: string
   assigneeOnlyUserId?: string
 }) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(params.opportunityId)}`);if(mobile)return mobile.detail.tasks as CrmTask[];
+
   const rows = await getDocs(
     query(
       collection(db, CRM_COLLECTIONS.tasks),
@@ -241,6 +244,8 @@ export async function updateCrmTask(params: {
   visibility?: CrmVisibility
   visibleToUserIds?: string[]
 }) {
+  const {taskId,actorId:_actor,...crmPayload}=params;const mobile=await technicianCrmCommand("task.update",taskId,crmPayload);if(mobile)return;
+
   const taskRef = doc(db, CRM_COLLECTIONS.tasks, params.taskId)
   const taskSnap = await getDoc(taskRef)
   if (!taskSnap.exists()) throw new Error("Task-ul nu există")
@@ -310,6 +315,8 @@ export async function updateCrmTask(params: {
 }
 
 export async function completeCrmTask(taskId: string, actorId: string) {
+  const mobile=await technicianCrmCommand("task.complete",taskId,{});if(mobile)return;
+
   await updateCrmTask({
     taskId,
     actorId,
@@ -340,6 +347,8 @@ export async function completeCrmTask(taskId: string, actorId: string) {
 }
 
 export async function deleteCrmTask(taskId: string, actorId: string) {
+  const mobile=await technicianCrmCommand("task.delete",taskId,{});if(mobile)return;
+
   const taskRef = doc(db, CRM_COLLECTIONS.tasks, taskId)
   const taskSnap = await getDoc(taskRef)
   if (!taskSnap.exists()) return
@@ -431,6 +440,8 @@ export async function listCrmNotes(params: {
   userId: string
   opportunityOwnerId: string
 }) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(params.opportunityId)}`);if(mobile)return mobile.detail.notes as CrmNote[];
+
   const rows = await getDocs(
     query(collection(db, CRM_COLLECTIONS.notes), where("opportunityId", "==", params.opportunityId), orderBy("createdAt", "desc"), limit(300))
   )
@@ -702,6 +713,8 @@ export async function listCrmInternalNotesStandalone(params: {
   mailbox: "INBOX" | "SENT" | "ALL"
   status?: "PENDING" | "CONFIRMED" | "ALL"
 }) {
+  const mobile=await technicianCrmRequest("internal");if(mobile)return (mobile.legacyNotes as CrmInternalNote[]).filter((r:any)=>(!params.status||params.status==="ALL"||r.status===params.status) && (params.mailbox==="ALL"|| (params.mailbox==="INBOX"?r.toUserId:r.fromUserId)===params.userId));
+
   const statusFilter = params.status && params.status !== "ALL" ? params.status : null
   const runQuery = async (field: "toUserId" | "fromUserId") => {
     const clauses = [
@@ -738,6 +751,8 @@ export async function confirmCrmInternalNote(params: {
   confirmationMessage?: string
   canOverrideRecipient?: boolean
 }) {
+  const mobile=await technicianCrmCommand("internalNote.confirm",params.noteId,{confirmationMessage:params.confirmationMessage});if(mobile)return;
+
   const noteRef = doc(db, CRM_COLLECTIONS.internalNotes, params.noteId)
   const noteSnap = await getDoc(noteRef)
   if (!noteSnap.exists()) throw new Error("Nota internă nu există")
@@ -852,6 +867,8 @@ function isMissingIndexError(error: unknown) {
 }
 
 export async function createThreadWithFirstMessage(input: CreateInternalThreadWithMessageInput) {
+  const {fromUserId:_from,createdById:_creator,...payload}=input;const mobile=await technicianCrmCommand("thread.create",undefined,payload);if(mobile)return {threadId:mobile.entityId,messageId:mobile.messageId};
+
   const message = input.message.trim()
   if (!message) throw new Error("Mesajul nu poate fi gol")
   const context = input.context?.trim() || null
@@ -913,6 +930,8 @@ export async function createThreadWithFirstMessage(input: CreateInternalThreadWi
 }
 
 export async function addThreadMessage(input: CreateInternalThreadReplyInput) {
+  const {threadId,fromUserId:_from,createdById:_creator,...payload}=input;const mobile=await technicianCrmCommand("thread.reply",threadId,payload);if(mobile)return mobile.messageId;
+
   const threadRef = doc(db, CRM_COLLECTIONS.internalThreads, input.threadId)
   const threadSnap = await getDoc(threadRef)
   if (!threadSnap.exists()) throw new Error("Conversația nu există")
@@ -972,6 +991,8 @@ export async function confirmThreadMessage(params: {
   confirmationMessage?: string
   canOverrideRecipient?: boolean
 }) {
+  const mobile=await technicianCrmCommand("thread.confirm",params.threadId,{messageId:params.messageId,confirmationMessage:params.confirmationMessage});if(mobile)return;
+
   const messageRef = doc(db, CRM_COLLECTIONS.internalThreads, params.threadId, "messages", params.messageId)
   const messageSnap = await getDoc(messageRef)
   if (!messageSnap.exists()) throw new Error("Mesajul nu există")
@@ -1050,6 +1071,8 @@ export async function listInternalThreadsForUser(params: {
   mailbox: "INBOX" | "SENT" | "ALL"
   status?: "ALL" | "PENDING" | "CONFIRMED" | "NONE"
 }) {
+  const mobile=await technicianCrmRequest("internal");if(mobile)return (mobile.threads as CrmInternalThread[]).filter((r:any)=>(!params.status||params.status==="ALL"||r.lastMessageCycleStatus===params.status) && (params.mailbox==="ALL"|| (params.mailbox==="INBOX"?r.lastMessageToUserId:r.lastMessageFromUserId)===params.userId));
+
   const threadCollection = collection(db, CRM_COLLECTIONS.internalThreads)
   let rows
   try {
@@ -1085,6 +1108,8 @@ export async function listInternalThreadsForUser(params: {
 }
 
 export async function listThreadMessages(params: { threadId: string; userId: string }) {
+  const mobile=await technicianCrmRequest(`thread?id=${encodeURIComponent(params.threadId)}`);if(mobile)return mobile.messages as CrmInternalMessage[];
+
   const threadSnap = await getDoc(doc(db, CRM_COLLECTIONS.internalThreads, params.threadId))
   if (!threadSnap.exists()) return []
   const thread = mapInternalThread(threadSnap.id, threadSnap.data() as Record<string, unknown>)
@@ -1324,6 +1349,8 @@ export async function listCrmEmails(params: {
   userId: string
   opportunityOwnerId: string
 }) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(params.opportunityId)}`);if(mobile)return mobile.detail.emails as CrmEmailLog[];
+
   const rows = await getDocs(
     query(collection(db, CRM_COLLECTIONS.emails), where("opportunityId", "==", params.opportunityId), orderBy("createdAt", "desc"), limit(300))
   )
@@ -1475,6 +1502,8 @@ export async function listCrmCalendarEvents(params: {
   userId: string
   opportunityOwnerId: string
 }) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(params.opportunityId)}`);if(mobile)return mobile.detail.events as CrmCalendarEvent[];
+
   const rows = await getDocs(
     query(
       collection(db, CRM_COLLECTIONS.calendarEvents),
@@ -1627,6 +1656,8 @@ export async function listCrmFiles(params: {
   userId: string
   opportunityOwnerId: string
 }) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(params.opportunityId)}`);if(mobile)return mobile.detail.files as CrmFileAttachment[];
+
   const rows = await getDocs(
     query(collection(db, CRM_COLLECTIONS.files), where("opportunityId", "==", params.opportunityId), orderBy("createdAt", "desc"), limit(300))
   )

@@ -1,3 +1,4 @@
+import { technicianCrmRequest } from "./technician-client";
 import {
   addDoc,
   collection,
@@ -53,6 +54,8 @@ export async function listCrmActivity(params: {
   opportunityOwnerId: string
   pageSize?: number
 }) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(params.opportunityId)}`);if(mobile)return (mobile.detail.activity as CrmActivityLog[]).slice(0,params.pageSize||200);
+
   const rows = await getDocs(
     query(
       collection(db, CRM_COLLECTIONS.activityLogs),

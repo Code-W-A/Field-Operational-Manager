@@ -1,3 +1,4 @@
+import { technicianCrmCommand } from "@/lib/crm/technician-client";
 import type { PersoanaContact as CanonicalPersoanaContact, Lucrare as CanonicalLucrare, Client as CanonicalClient, Echipament as CanonicalEchipament, Contract as CanonicalContract, Locatie as CanonicalLocatie, ProductItem as CanonicalProductItem } from "@/packages/fom-domain/works";
 import type { DocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import type { Timestamp, DocumentData } from "firebase/firestore"
@@ -500,6 +501,8 @@ export const updateClientContactDetails = async (params: {
 
 // Add a new client
 export const addClient = async (client: Client) => {
+  const mobile=await technicianCrmCommand("client.create",undefined,{client});if(mobile)return { ...client,id:mobile.entityId };
+
   const clientsCollection = collection(db, "clienti")
 
   // Helper: generate stable ids for nested objects (locații / persoaneContact) – backward compatible

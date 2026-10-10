@@ -1,3 +1,4 @@
+import { technicianCrmRequest } from "./technician-client";
 import { auth } from "@/lib/firebase/config"
 import { listE2eCrmOffers, saveE2eCrmOfferDraft } from "@/lib/crm/e2e-fixtures"
 import { isE2eTestMode } from "@/lib/utils/environment"
@@ -56,6 +57,8 @@ function mapOffer(docId: string, data: Record<string, unknown>): CrmOffer {
 }
 
 export async function listCrmOffers(opportunityId: string) {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(opportunityId)}`);
+  if(mobile)return mobile.detail.offers.map((o:any)=>mapOffer(o.id,{...o,pdfUrl:o.hasPdf?`/api/technician/crm/download?kind=offer&id=${encodeURIComponent(o.id)}`:undefined}));
   if (!opportunityId) return []
   if (isE2eTestMode()) return listE2eCrmOffers(opportunityId)
 

@@ -137,7 +137,7 @@ export function OpportunityTypeSidebar({
         <details className="rounded-md border border-[#004b87] bg-[#005599] shadow-none xl:hidden">
           <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-white">Filtre CRM</summary>
           <div className="border-t border-white/20 px-4 py-3">
-            <SidebarContent homeItem={homeItemWithSelect} items={itemsWithSelect} />
+            <SidebarContent homeItem={homeItemWithSelect} sectionItems={sectionItemsWithSelect} items={itemsWithSelect} />
           </div>
         </details>
       ) : null}

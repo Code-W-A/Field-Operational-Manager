@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { downloadTechnicianCrmFile } from "@/lib/crm/technician-client"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import { resolveClientContactsForOpportunity } from "@/lib/crm/opportunity-contacts"
 import { getCrmClientById, listCrmClientContacts } from "@/lib/crm/opportunities"
@@ -657,11 +658,11 @@ export default function OpportunityOffersPage() {
           </DialogContent>
         </Dialog>
 
-        {offers.some((offer) => offer.status !== "DRAFT") ? (
+        {!isTechnician && offers.some((offer) => offer.status !== "DRAFT") ? (
           <OfferEvidencePanel mode="crm-opportunity" entityId={opportunityId} className="mb-4" />
         ) : null}
 
-        <Dialog open={Boolean(dossierOfferId)} onOpenChange={(open) => !open && setDossierOfferId(null)}>
+        <Dialog open={!isTechnician && Boolean(dossierOfferId)} onOpenChange={(open) => !open && setDossierOfferId(null)}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Dosar ofertă</DialogTitle>
@@ -720,7 +721,10 @@ export default function OpportunityOffersPage() {
                               </a>
                             </Button>
                             <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                              <a href={offer.pdfUrl} target="_blank" rel="noreferrer" download={offer.pdfFilename || `oferta_v${offer.version}.pdf`}>
+                              <a href={offer.pdfUrl} target="_blank" rel="noreferrer" download={offer.pdfFilename || `oferta_v${offer.version}.pdf`} onClick={isTechnician ? (event) => {
+                                event.preventDefault()
+                                void downloadTechnicianCrmFile("offer", offer.id, offer.pdfFilename || `oferta_v${offer.version}.pdf`).catch((error) => toast({ title: "Descărcarea a eșuat", description: error.message, variant: "destructive" }))
+                              } : undefined}>
                                 <Download className="h-4 w-4" />
                               </a>
                             </Button>
@@ -733,6 +737,10 @@ export default function OpportunityOffersPage() {
                               target="_blank"
                               rel="noreferrer"
                               title="PDF dovadă"
+                              onClick={isTechnician ? (event) => {
+                                event.preventDefault()
+                                void downloadTechnicianCrmFile("certified", offer.id, `dovada_v${offer.version}.pdf`).catch((error) => toast({ title: "Descărcarea a eșuat", description: error.message, variant: "destructive" }))
+                              } : undefined}
                             >
                               <FileCheck2 className="h-4 w-4" />
                             </a>
@@ -750,9 +758,9 @@ export default function OpportunityOffersPage() {
                             Încarcă draft
                           </Button>
                         ) : (
-                          <Button size="sm" variant="outline" onClick={() => setDossierOfferId(offer.id)}>
+                          !isTechnician && (<Button size="sm" variant="outline" onClick={() => setDossierOfferId(offer.id)}>
                             Dosar
-                          </Button>
+                          </Button>)
                         )}
                       </div>
                     </div>

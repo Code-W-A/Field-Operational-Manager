@@ -1,4 +1,4 @@
-import { addDays, max, setHours, setMilliseconds, setMinutes, setSeconds, startOfDay } from "date-fns"
+import { postponedDue } from "@/packages/fom-domain/crm-dates";
 
 export type TaskPostponePreset = "TOMORROW" | "IN_3_DAYS" | "IN_1_WEEK" | "IN_2_WEEKS"
 
@@ -23,15 +23,5 @@ export const TASK_POSTPONE_LABELS: Record<TaskPostponePreset, string> = {
  * păstrează ora/minutele/secunde din termenul curent.
  */
 export function computePostponedDueAt(currentDue: Date, preset: TaskPostponePreset): Date {
-  const offset = PRESET_DAY_OFFSET[preset]
-  const todayStart = startOfDay(new Date())
-  const dueDayStart = startOfDay(currentDue)
-  const refStart = max([todayStart, dueDayStart])
-  let next = addDays(refStart, offset)
-
-  next = setHours(next, currentDue.getHours())
-  next = setMinutes(next, currentDue.getMinutes())
-  next = setSeconds(next, currentDue.getSeconds())
-  next = setMilliseconds(next, currentDue.getMilliseconds())
-  return next
+  return new Date(postponedDue(currentDue.toISOString(), PRESET_DAY_OFFSET[preset]));
 }

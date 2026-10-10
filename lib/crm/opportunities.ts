@@ -1,3 +1,4 @@
+import { technicianCrmRequest, technicianCrmCommand } from "./technician-client";
 import {
   Timestamp,
   addDoc,
@@ -101,6 +102,8 @@ function chunk<T>(items: T[], size = OPPORTUNITY_BATCH_SIZE) {
 }
 
 export async function listCrmUsers(): Promise<CrmUserOption[]> {
+  const mobile = await technicianCrmRequest("options"); if (mobile) return mobile.options.users as CrmUserOption[];
+
   if (isE2eTestMode()) return E2E_CRM_USERS
 
   const userRows = await getDocs(query(collection(db, "users"), orderBy("displayName", "asc"), limit(300)))
@@ -123,6 +126,8 @@ function readClientCui(data: Record<string, unknown>): string | undefined {
 }
 
 export async function listCrmClients(): Promise<CrmClient[]> {
+  const mobile = await technicianCrmRequest("options"); if (mobile) return mobile.options.clients as CrmClient[];
+
   const [crmRows, legacyRows] = await Promise.all([
     getDocs(query(collection(db, CRM_COLLECTIONS.clients), orderBy("name", "asc"), limit(500))),
     getDocs(query(collection(db, "clienti"), orderBy("nume", "asc"), limit(500))),
@@ -214,6 +219,8 @@ export async function createCrmClient(input: { name: string; type: string; addre
 }
 
 export async function listCrmClientContacts(clientId: string): Promise<CrmClientContact[]> {
+  const mobile = await technicianCrmRequest(`contacts?clientId=${encodeURIComponent(clientId)}`); if (mobile) return mobile.items as CrmClientContact[];
+
   if (isE2eTestMode()) {
     return E2E_CRM_CONTACTS.filter((contact) => contact.clientId === clientId)
   }
@@ -255,6 +262,9 @@ export async function updateCrmClientContactDetails(input: {
   email?: string
   functie?: string
 }) {
+  const mobile = await technicianCrmRequest("opportunities");
+  if(mobile) { const o=mobile.items.find((o:any)=>o.clientId===input.clientId); if(!o)throw new Error("Nu ai acces la client.");return technicianCrmCommand("contact.update",o.id,input); }
+
   return updateClientContactDetailsInClientDoc(input)
 }
 
@@ -431,6 +441,9 @@ async function getOpportunitySearchContactMap(opportunities: CrmOpportunity[]) {
 }
 
 export async function listCrmOpportunitiesForUser(userId: string, filters?: CrmFilters) {
+  const mobile = await technicianCrmRequest("opportunities");
+  if(mobile) return mobile.items.filter((o:any)=> (!filters?.type || filters.type==="ALL" || o.opportunityType===filters.type) && (!filters?.ownerId || filters.ownerId==="ALL" || o.ownerId===filters.ownerId) && (!filters?.priority || filters.priority==="ALL" || o.priority===filters.priority) && (!filters?.pipelineStage || filters.pipelineStage==="ALL" || o.pipelineStage===filters.pipelineStage) && (!filters?.workStatus || filters.workStatus==="ALL" || o.workStatus===filters.workStatus) && (!filters?.search || [o.code,o.title,o.displayTitle,o.clientName,o.contactSearch,o.searchIndex].join(" ").toLowerCase().includes(filters.search.toLowerCase()))) as CrmOpportunity[];
+
   if (isE2eTestMode()) return E2E_CRM_OPPORTUNITIES
 
   const accessibleIds = await listAccessibleOpportunityIds(userId)
@@ -484,6 +497,8 @@ export async function listCrmOpportunitiesForUser(userId: string, filters?: CrmF
 }
 
 export async function getCrmOpportunityById(opportunityId: string, userId?: string) {
+  const mobile = await technicianCrmRequest(`detail?id=${encodeURIComponent(opportunityId)}`); if(mobile) return mobile.detail.opportunity as CrmOpportunity;
+
   if (isE2eTestMode()) {
     return E2E_CRM_OPPORTUNITIES.find((item) => item.id === opportunityId) || null
   }
@@ -512,6 +527,9 @@ export async function getCrmOpportunityById(opportunityId: string, userId?: stri
 }
 
 export async function createCrmOpportunity(input: CreateOpportunityInput) {
+  const {createdById:_actor,...payload}=input;
+  const mobile=await technicianCrmCommand("opportunity.create",undefined,payload);if(mobile)return {opportunityId:mobile.entityId,code:String(mobile.code)};
+
   if (!input.clientId) {
     throw new Error("Clientul este obligatoriu")
   }
@@ -684,6 +702,8 @@ export async function deleteCrmOpportunity(params: { opportunityId: string; acto
 }
 
 export async function updateCrmOpportunity(opportunityId: string, actorId: string, changes: Partial<CrmOpportunity>) {
+  const mobile=await technicianCrmCommand("opportunity.update",opportunityId,changes);if(mobile)return;
+
   const opportunitySnap = await getDoc(doc(db, CRM_COLLECTIONS.opportunities, opportunityId))
   if (!opportunitySnap.exists()) throw new Error("Oportunitatea nu există")
   const currentOpportunity = mapOpportunity(opportunitySnap.id, opportunitySnap.data() as Record<string, unknown>)
@@ -760,6 +780,8 @@ export async function changeCrmOpportunityStage(input: {
   lostReason?: string
   createRecontactTask?: boolean
 }) {
+  const {actorId:_actor,opportunityId:entityId,...payload}=input;const mobile=await technicianCrmCommand("opportunity.stage",entityId,payload);if(mobile)return;
+
   const snap = await getDoc(doc(db, CRM_COLLECTIONS.opportunities, input.opportunityId))
   if (!snap.exists()) {
     throw new Error("Oportunitatea nu există")
@@ -841,6 +863,8 @@ export async function changeCrmOpportunityStage(input: {
 }
 
 export async function listCrmOpportunityContacts(opportunityId: string): Promise<CrmOpportunityContact[]> {
+  const mobile=await technicianCrmRequest(`detail?id=${encodeURIComponent(opportunityId)}`);if(mobile)return (mobile.detail.contactIds as string[]).map((contactId:string)=>({id:contactId,contactId,opportunityId}));
+
   const rows = await getDocs(
     query(collection(db, CRM_COLLECTIONS.opportunityContacts), where("opportunityId", "==", opportunityId), limit(100))
   )
