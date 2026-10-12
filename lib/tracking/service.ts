@@ -250,5 +250,46 @@ export function trackingService(db: Firestore, clock = Date.now) {
       truncated: snapshot.size > 10000,
     };
   }
-  return { ingest, live, history };
+  async function deleteHistory(uid: string, technician: string, day: string) {
+    await role(uid, ["admin"]);
+    requireId(technician);
+    let bounds: ReturnType<typeof trackingDayBounds>;
+    try {
+      bounds = trackingDayBounds(day);
+    } catch {
+      throw new TrackingError("Data este invalidă.");
+    }
+    const technicianRef = db.doc(`users/${technician}`);
+    const technicianSnap = await technicianRef.get();
+    if (technicianSnap.data()?.role !== "tehnician")
+      throw new TrackingError("Tehnicianul selectat nu există.", 404);
+
+    const now = clock();
+    const upperBound = Math.min(bounds.end, now + 1);
+    if (bounds.start >= upperBound) return { deletedCount: 0 };
+
+    let deletedCount = 0;
+    let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+    while (true) {
+      let query = db
+        .collection("trackingPoints")
+        .where("uid", "==", technician)
+        .where("capturedAt", ">=", bounds.start)
+        .where("capturedAt", "<", upperBound)
+        .orderBy("capturedAt")
+        .limit(400);
+      if (cursor) query = query.startAfter(cursor);
+      const snapshot = await query.get();
+      if (snapshot.empty) break;
+
+      const batch = db.batch();
+      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      deletedCount += snapshot.size;
+      cursor = snapshot.docs[snapshot.docs.length - 1];
+      if (snapshot.size < 400) break;
+    }
+    return { deletedCount };
+  }
+  return { ingest, live, history, deleteHistory };
 }

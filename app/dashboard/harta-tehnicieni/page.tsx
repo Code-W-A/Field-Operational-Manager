@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Navigation,
   CalendarDays,
+  Trash2,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { useAuth } from "@/contexts/AuthContext";
@@ -121,6 +122,8 @@ export default function TrackingPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyDeleting, setHistoryDeleting] = useState(false);
+  const [historyActionMessage, setHistoryActionMessage] = useState("");
   const [lastSync, setLastSync] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [isVisible, setIsVisible] = useState(true);
@@ -177,6 +180,7 @@ export default function TrackingPage() {
     };
     refreshRef.current = refresh;
     setHistory(emptyHistory);
+    setHistoryActionMessage("");
     setHistoryLoading(!!historyUid);
     void refresh();
     const visibility = () => {
@@ -253,6 +257,63 @@ export default function TrackingPage() {
   const viewHistory = (uid: string) => {
     setSelected(uid);
     setMode("history");
+  };
+  const deleteSelectedHistory = async () => {
+    if (!selectedTechnician || userData?.role !== "admin" || historyDeleting)
+      return;
+    const confirmed = window.confirm(
+      `Ștergi definitiv istoricul GPS pentru ${selectedTechnician.name} din ${day}? Poziția live și pontajul nu vor fi șterse.`,
+    );
+    if (!confirmed) return;
+
+    const user = auth.currentUser;
+    if (!user) {
+      setHistoryActionMessage("Autentificare necesară.");
+      return;
+    }
+    setHistoryDeleting(true);
+    setHistoryActionMessage("");
+    try {
+      const response = await fetch("/api/tracking/history", {
+        method: "DELETE",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${await user.getIdToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid: selectedTechnician.uid, day }),
+      });
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Istoricul GPS nu a putut fi șters.");
+
+      setHistory(emptyHistory);
+      const controller = new AbortController();
+      try {
+        const refreshed = await get(
+          `/api/tracking/history?uid=${encodeURIComponent(selectedTechnician.uid)}&day=${day}`,
+          controller.signal,
+        );
+        setHistory(refreshed);
+        setHistoryActionMessage(
+          data.deletedCount
+            ? `Au fost șterse ${data.deletedCount} puncte GPS.`
+            : "Nu existau puncte GPS pentru ziua selectată.",
+        );
+      } catch {
+        setHistoryActionMessage(
+          "Istoricul a fost șters, dar reîncărcarea nu a reușit. Reîmprospătează pagina.",
+        );
+      }
+    } catch (error) {
+      setHistoryActionMessage(
+        error instanceof Error
+          ? error.message
+          : "Istoricul GPS nu a putut fi șters.",
+      );
+    } finally {
+      setHistoryDeleting(false);
+    }
   };
   const changeFilter = (value: Filter) => {
     setFilter(value);
@@ -520,6 +581,19 @@ export default function TrackingPage() {
                       />
                     </label>
                   )}
+                  {mode === "history" &&
+                    selectedTechnician &&
+                    userData?.role === "admin" && (
+                      <button
+                        type="button"
+                        className={styles.deleteHistoryButton}
+                        onClick={() => void deleteSelectedHistory()}
+                        disabled={historyDeleting || historyLoading}
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                        {historyDeleting ? "Se șterge…" : "Șterge istoricul zilei"}
+                      </button>
+                    )}
                   {selectedTechnician && (
                     <span className={styles.selection}>
                       {selectedTechnician.name}{" "}
@@ -573,6 +647,20 @@ export default function TrackingPage() {
                   )}
                 {mode === "history" && selected && (
                   <div className={styles.history} aria-busy={historyLoading}>
+                    {historyActionMessage && (
+                      <p
+                        className={
+                          historyActionMessage.includes("nu a reușit") ||
+                          historyActionMessage.includes("nu a putut") ||
+                          historyActionMessage.includes("necesară")
+                            ? styles.error
+                            : styles.notice
+                        }
+                        role="status"
+                      >
+                        {historyActionMessage}
+                      </p>
+                    )}
                     {historyLoading ? (
                       <p role="status" className={styles.notice}>
                         Se încarcă traseul…

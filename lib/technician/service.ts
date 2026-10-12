@@ -1,3 +1,4 @@
+import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
 import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
 import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
 import { photoIdentity } from "./photo-identity";
@@ -153,6 +154,7 @@ export function technicianService(db: Firestore) {
       procedures,
       settings,
       departments,
+      dashboardSettings,
     ] = await Promise.all([
       a.displayName
         ? db
@@ -170,6 +172,7 @@ export function technicianService(db: Firestore) {
       db.collection("note-interne").get(),
       db.collection("settings").get(),
       db.collection("hrDepartments").get(),
+      db.collection("predefinedSettings").get().catch(() => ({ docs: [] })),
     ]);
     // HR ambiguity blocks HR writes, not access to assigned field work.
     const employeeAssociationError = employees.docs.length > 1
@@ -218,6 +221,7 @@ export function technicianService(db: Firestore) {
     const b: Bundle = {
       ...emptyBundle(),
       works: works as any,
+      dashboardOverdueConfig: overdueConfigFromSettings(dashboardSettings.docs.map(d => ({ id: d.id, value: d.data()?.value }))),
       clients,
       attendance: rows(att),
       requests: rows(requests),

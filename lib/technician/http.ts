@@ -24,7 +24,7 @@ export function headers(request: NextRequest) {
           "Access-Control-Allow-Origin": origin,
           Vary: "Origin",
           "Access-Control-Allow-Headers": "Authorization, Content-Type",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
           "Access-Control-Expose-Headers": "Content-Disposition, Content-Type",
         }
       : {}),

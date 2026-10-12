@@ -390,6 +390,26 @@
   background: white;
   color: #17243c;
 }
+.deleteHistoryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #b91c1c;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.deleteHistoryButton:hover:not(:disabled) {
+  background: #fff5f5;
+}
+.deleteHistoryButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
 .selection {
   font-size: 12px;
   color: #61708a;

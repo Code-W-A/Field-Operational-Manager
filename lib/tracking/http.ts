@@ -4,6 +4,7 @@ import { requireVerifiedRole, RequireRoleError } from "@/lib/auth/require-role";
 import { FOM_CONTRACT_VERSION } from "@/packages/fom-domain";
 import { mobileIdentity, mobileAccess, headers, options } from "@/lib/technician/http";
 import { trackingService, TrackingError } from "./service";
+import { writeServerAuditEvent } from "@/lib/reports/audit-writer.server";
 export { options };
 const service = trackingService(adminDb);
 const result = (request: NextRequest, data: unknown) =>
@@ -67,6 +68,39 @@ export async function history(request: NextRequest) {
         day,
       ),
     );
+  } catch (error) {
+    return failure(request, error);
+  }
+}
+
+export async function deleteHistory(request: NextRequest) {
+  try {
+    const actor = await requireVerifiedRole(["admin"], request);
+    const body = await request.json().catch(() => null);
+    const technician = typeof body?.uid === "string" ? body.uid : "";
+    const day = typeof body?.day === "string" ? body.day : "";
+    if (!technician || !/^\d{4}-\d{2}-\d{2}$/.test(day))
+      throw new TrackingError("Tehnicianul și ziua sunt obligatorii.");
+
+    const { deletedCount } = await service.deleteHistory(
+      actor.uid,
+      technician,
+      day,
+    );
+    const technicianName = String(
+      (await adminDb.doc(`users/${technician}`).get()).data()?.displayName ||
+        technician,
+    );
+    await writeServerAuditEvent({
+      actorId: actor.uid,
+      module: "Tracking GPS",
+      action: "Ștergere istoric GPS",
+      entityType: "Tehnician",
+      entityId: technician,
+      entityLabel: technicianName,
+      summary: `Adminul a șters ${deletedCount} puncte GPS pentru ${technicianName}, în ziua ${day}.`,
+    });
+    return result(request, { deletedCount });
   } catch (error) {
     return failure(request, error);
   }

@@ -1,5 +1,6 @@
 "use client"
 
+import { isOverdueWork } from "@/packages/fom-domain/ticket-dashboard"
 import { useMemo, useEffect, useState } from "react"
 import { Timestamp, where, orderBy, limit } from "firebase/firestore"
 import { useFirebaseCollection } from "@/hooks/use-firebase-collection"
@@ -68,12 +69,6 @@ function formatDateRO(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0")
   const yyyy = String(d.getFullYear())
   return `${dd}.${mm}.${yyyy}`
-}
-
-function getTodayAt(hour: number, minute = 0): Date {
-  const d = new Date()
-  d.setHours(hour, minute, 0, 0)
-  return d
 }
 
 /** Firestore Timestamp, ISO sau DD.MM.YYYY — folosește toDateSafe (evită MM.DD la new Date("04.06.2026")). */
@@ -375,8 +370,6 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
     if (!Array.isArray(activeLucrari) || activeLucrari.length === 0) return res
 
-    const todayAt18 = getTodayAt(18, 0)
-    const endOfToday = getTodayAt(23, 59)
     // Build map pentru data amânării (ultima modificare cu newValue = "Amânată")
     const postponedDateByWork: Record<string, Date> = {}
     for (const m of modificariStatus || []) {
@@ -393,39 +386,8 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       if (isLucrareAnulata(l)) continue
       const technicians = Array.isArray(l.tehnicieni) ? l.tehnicieni : []
 
-      // Intarziate – logic refăcut:
-      // dacă data programată (dataInterventie) este în trecut SAU este azi (după ora 18:00),
-      // lucrarea este atribuită și nu are echipament scanat (equipmentVerified === false)
-      if (cfg.intarziateEnabled) {
-      const execDate = toDate(l.dataInterventie)
-        if (cfg.intarziateRequireExecDate && !execDate) {
-          // skip
-        } else if (execDate) {
-      const isAssigned = technicians.length > 0 || eqInsensitive(status, WORK_STATUS.ASSIGNED)
-      const notScanned = !l.equipmentVerified
-      const notPickedUp = !(l as any).preluatDispecer
-          const isPastDay = execDate < startOfToday
-          const isToday = execDate >= startOfToday && execDate <= endOfToday
-
-          let dateCondition = false
-          if (isPastDay && cfg.intarziateIncludePastDays) dateCondition = true
-          if (isToday && cfg.intarziateIncludeToday) {
-            if (cfg.intarziateTodayRequiresAfter18) {
-              if (new Date() >= todayAt18) dateCondition = true
-            } else {
-              dateCondition = true
-            }
-          }
-
-          const assignedOk = cfg.intarziateRequireAssigned ? isAssigned : true
-          const notScannedOk = cfg.intarziateRequireNotScanned ? notScanned : true
-          const notPickedOk = notPickedUp
-
-          if (dateCondition && assignedOk && notScannedOk && notPickedOk) {
-        // sortăm după data programării pentru relevanță
-        res.intarziate.push(buildBubble(l, undefined, execDate || undefined))
-          }
-        }
+      if (isOverdueWork(l, cfg)) {
+        res.intarziate.push(buildBubble(l, undefined, toDate(l.dataInterventie) || undefined))
       }
 
       // Amânate - sortate după data amânării

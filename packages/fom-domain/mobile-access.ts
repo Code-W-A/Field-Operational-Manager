@@ -1,10 +1,10 @@
-export const MOBILE_TERMS_VERSION = "2026-10-12-draft-1";
+export const MOBILE_TERMS_VERSION = "2026-10-12-draft-2";
 export const MOBILE_TERMS_TITLE =
   "Termeni de utilizare și informare FOM — ciornă";
 export const MOBILE_TERMS_SECTIONS = [
   {
     title: "Acces de serviciu",
-    text: "FOM este destinat activității de serviciu. În aplicația mobilă, informațiile firmei sunt disponibile numai în timpul unui pontaj activ. Pontează-te la începerea activității și depontează-te la încheiere.",
+    text: "FOM este destinat activității de serviciu. În aplicația mobilă, notificările operaționale sunt disponibile după autentificare, inclusiv înainte de pontaj. Detaliile tichetelor și celelalte informații ale firmei sunt disponibile numai în timpul unui pontaj activ. Pontează-te la începerea activității și depontează-te la încheiere.",
   },
   {
     title: "Pontaj și selfie",
@@ -20,7 +20,7 @@ export const MOBILE_TERMS_SECTIONS = [
   },
   {
     title: "Informațiile firmei",
-    text: "Folosește documentele, datele clienților și informațiile interne numai în scop de serviciu. Nu le distribui persoanelor neautorizate. După depontare, informațiile salvate în aplicație nu mai sunt disponibile pentru consultare.",
+    text: "Folosește documentele, datele clienților și informațiile interne numai în scop de serviciu. Nu le distribui persoanelor neautorizate. După depontare, detaliile tichetelor și celelalte informații salvate în aplicație nu mai sunt disponibile pentru consultare. Istoricul notificărilor operaționale rămâne disponibil contului autentificat.",
   },
   {
     title: "Informarea finală a firmei",

@@ -3385,3 +3385,5 @@ export const onHrRequestStatusChangedEmail = functions
   })
 
 export { purgeExpiredTracking } from "./tracking-retention";
+
+export { onTicketNotificationChange, scheduleTicketNotifications, deliverTicketNotifications, checkTicketNotificationReceipts } from "./ticket-notifications";

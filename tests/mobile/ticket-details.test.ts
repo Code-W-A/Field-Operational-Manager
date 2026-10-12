@@ -85,6 +85,8 @@ after(() => deleteApp(app));
 test("all ticket types receive read-only details, scoped documentation and client locations", async () => {
   const bundle = await service.bundle(prefix);
   assert.equal(bundle.works.length, 4);
+  assert.equal(typeof bundle.dashboardOverdueConfig?.intarziateEnabled, "boolean");
+  assert.equal(typeof bundle.dashboardOverdueConfig?.intarziateTodayRequiresAfter18, "boolean");
   for (const work of bundle.works) {
     assert.equal(work.mobileClient?.phone, "0700000000");
     assert.equal(work.mobileEquipment?.[0].model, "Model");
@@ -103,4 +105,23 @@ test("all ticket types receive read-only details, scoped documentation and clien
   const json = JSON.stringify(bundle);
   assert(!json.includes("PRIVATE-"));
   assert(!json.includes("not-selected"));
+});
+
+test("bootstrap reads overdue configuration without exposing setting metadata", async () => {
+  const ref = db.doc(
+    "predefinedSettings/dashboard_intarziate_include_today_after_18",
+  );
+  const previous = await ref.get();
+  try {
+    await ref.set({ value: false, internalNote: "PRIVATE-DASHBOARD-SETTING" });
+    const bundle = await service.bundle(prefix);
+    assert.equal(
+      bundle.dashboardOverdueConfig?.intarziateTodayRequiresAfter18,
+      false,
+    );
+    assert(!JSON.stringify(bundle).includes("PRIVATE-DASHBOARD-SETTING"));
+  } finally {
+    if (previous.exists) await ref.set(previous.data()!);
+    else await ref.delete();
+  }
 });

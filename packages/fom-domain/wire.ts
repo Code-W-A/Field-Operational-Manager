@@ -60,6 +60,7 @@ export type ProcedureRead = ReadDocument<
 >;
 export type RevisionRead = ReadDocument<EquipmentRevisionDoc>;
 export type Bundle = {
+  dashboardOverdueConfig?: import("./ticket-dashboard").OverdueConfig;
   works: Work[];
   clients: ReadDocument<Client<JsonTimestamp>>[];
   attendance: AttendanceRead[];
