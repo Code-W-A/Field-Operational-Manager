@@ -20,13 +20,31 @@ export type MobileEquipment = {
   code: string;
   name: string;
   rootId?: string;
+  model?: string;
+  documentation?: Array<{ id: string; name: string; url: string }>;
+  documentationUnavailable?: boolean;
+  documentationAssociated?: boolean;
+};
+export type MobileClientIdentity = {
+  id?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  cui?: string;
+  representative?: string;
+  representativeRole?: string;
 };
 export type Work = ReadDocument<Lucrare<JsonTimestamp>> & {
   statusLucrare: string;
   tipLucrare: string;
   mobileVersion?: string;
   mobileEquipment?: MobileEquipment[];
+  mobileClient?: MobileClientIdentity;
+  mobileDataIssues?: string[];
+  mobileClientUnavailable?: boolean;
   mobileContact?: {
+    location?: string;
     name?: string;
     phone?: string;
     email?: string;
@@ -68,9 +86,14 @@ export type BootstrapResponse = {
   projectId: string;
   contractVersion?: typeof FOM_CONTRACT_VERSION;
   bundle: Bundle;
+  access?: import("./mobile-access").MobileAccess;
 };
 export type ApiErrorKind = "retryable" | "blocked" | "conflict" | "validation";
-export type ApiErrorResponse = { error: string; kind: ApiErrorKind };
+export type ApiErrorResponse = {
+  error: string;
+  kind: ApiErrorKind;
+  code?: "MOBILE_TERMS_REQUIRED" | "MOBILE_ATTENDANCE_REQUIRED";
+};
 export type DeliveryResult = {
   status:
     "pending" | "processing" | "sent" | "simulated" | "failed" | "uncertain";
@@ -117,7 +140,10 @@ export function assertBundle(value: unknown): asserts value is Bundle {
     (!object(value.employee) || typeof value.employee.id !== "string")
   )
     throw new DomainError("Profil HR invalid.");
-  if (value.employeeAssociationError !== undefined && typeof value.employeeAssociationError !== "string")
+  if (
+    value.employeeAssociationError !== undefined &&
+    typeof value.employeeAssociationError !== "string"
+  )
     throw new DomainError("Stare asociere HR invalidă.");
   // Missing/new legacy fields are preserved. Write validators are never applied to reads.
 }

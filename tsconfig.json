@@ -32,9 +32,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-mobile-test/types/**/*.ts",
+    ".next/technician-ui-test/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next/technician-ui-test/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules"

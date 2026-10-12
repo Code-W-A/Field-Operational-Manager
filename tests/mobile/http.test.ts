@@ -4,7 +4,7 @@ import { initializeApp, deleteApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { writeFile, mkdir } from "node:fs/promises";
-import { versionOf, FOM_CONTRACT_VERSION } from "../../packages/fom-domain";
+import { versionOf, FOM_CONTRACT_VERSION, MOBILE_TERMS_VERSION } from "../../packages/fom-domain";
 const enabled = process.env.FOM_TEST_HTTP === "true";
 let app: any,
   db: any,
@@ -97,6 +97,8 @@ before(async () => {
   );
   token = ((await r.json()) as any).idToken;
   assert(token);
+  const accepted = await json("/api/mobile/terms", { version: MOBILE_TERMS_VERSION, accepted: true });
+  assert.equal(accepted.status, 200);
 });
 after(async () => {
   if (app) await deleteApp(app);
@@ -111,7 +113,8 @@ test(
     assert.equal(b.status, 200);
     assert.equal(b.data.projectId, "demo-fom-mobile-auth");
     assert.equal(b.data.contractVersion, FOM_CONTRACT_VERSION);
-    assert(b.data.bundle.works.some((w: any) => w.id === workId));
+    assert.deepEqual(b.data.bundle.works, []);
+    assert.equal(b.data.access.activeSessionId, null);
   },
 );
 test(

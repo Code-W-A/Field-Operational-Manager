@@ -3,8 +3,13 @@ import { requireVerifiedRole, RequireRoleError } from "@/lib/auth/require-role";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { DomainError } from "@/packages/fom-domain";
 import { InstallationError } from "@/lib/installations/validation";
-import { TechnicianError as MobileError, technicianService as mobileService } from "./service";
+import {
+  TechnicianError as MobileError,
+  technicianService as mobileService,
+} from "./service";
+import { mobileAccessService, MobileAccessError } from "../mobile/access";
 export const service = mobileService(adminDb);
+export const mobileAccess = mobileAccessService(adminDb);
 export function headers(request: NextRequest) {
   const origin = request.headers.get("origin");
   const allowed = (
@@ -20,12 +25,17 @@ export function headers(request: NextRequest) {
           Vary: "Origin",
           "Access-Control-Allow-Headers": "Authorization, Content-Type",
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Expose-Headers":"Content-Disposition, Content-Type",
+          "Access-Control-Expose-Headers": "Content-Disposition, Content-Type",
         }
       : {}),
   };
 }
 export async function mobileActor(request: NextRequest) {
+  const a = await mobileIdentity(request);
+  await mobileAccess.requireAccess(a.uid);
+  return a;
+}
+export async function mobileIdentity(request: NextRequest) {
   if (
     process.env.FOM_MOBILE_ENABLED !== "true" &&
     process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true"
@@ -64,6 +74,7 @@ export function failure(request: NextRequest, e: unknown) {
         : 500;
   return NextResponse.json(
     {
+      ...(e instanceof MobileAccessError ? { code: e.code } : {}),
       error:
         status === 500
           ? "Operația nu a putut fi procesată. Reîncearcă."

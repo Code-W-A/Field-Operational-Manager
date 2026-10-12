@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireVerifiedRole, RequireRoleError } from "@/lib/auth/require-role";
 import { FOM_CONTRACT_VERSION } from "@/packages/fom-domain";
-import { mobileActor, headers, options } from "@/lib/technician/http";
+import { mobileIdentity, mobileAccess, headers, options } from "@/lib/technician/http";
 import { trackingService, TrackingError } from "./service";
 export { options };
 const service = trackingService(adminDb);
@@ -29,7 +29,9 @@ function failure(request: NextRequest, error: unknown) {
 }
 export async function ingest(request: NextRequest) {
   try {
-    const actor = await mobileActor(request);
+    const actor = await mobileIdentity(request);
+    // Historical GPS batches are owned and bounded by the tracking service.
+    await mobileAccess.requireAccess(actor.uid, false);
     const text = await request.text();
     if (text.length > 64000) throw new TrackingError("Lot GPS prea mare.", 413);
     let body;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp, deleteApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import { versionOf } from "../../packages/fom-domain";
+import { versionOf, MOBILE_TERMS_VERSION } from "../../packages/fom-domain";
 const enabled = process.env.FOM_TEST_HTTP === "true";
 const uid = `web-http-${Date.now()}`, id = `${uid}-work`, base = "http://127.0.0.1:3000";
 let app: any, db: any, token = "", seq = 0;
@@ -38,11 +38,17 @@ test("web gateway requires authenticated active technician", { skip: !enabled },
   assert.equal((await json("technician", c)).status, 403);
   await db.doc(`users/${uid}`).update({ disabled: false });
 });
-test("web QR/save and mobile replay share receipts without requiring web attendance", { skip: !enabled }, async () => {
+test("web saves without attendance; mobile replay requires terms and active attendance", { skip: !enabled }, async () => {
   const verified = await json("technician", await command("verify", { code: "WEB-QR" }));
   assert.equal(verified.status, 200, JSON.stringify(verified.data));
   const c = await command("intervention.save", { descriereInterventie: "Salvat din web", notaInternaTehnician: "Privat", cauzaPrincipalaDefectId: "uzura" });
-  const web = await json("technician", c), mobile = await json("mobile", c);
+  const web = await json("technician", c);
+  assert.equal((await json("mobile", c)).status, 403);
+  const acceptance = await fetch(`${base}/api/mobile/terms`, { method: "POST", headers: headers(), body: JSON.stringify({ version: MOBILE_TERMS_VERSION, accepted: true }) });
+  assert.equal(acceptance.status, 200);
+  assert.equal((await json("mobile", c)).status, 403);
+  await db.doc(`attendance/${uid}-session`).set({ userId: uid, status: "active", sessionStart: Timestamp.now() });
+  const mobile = await json("mobile", c);
   assert.equal(web.status, 200, JSON.stringify(web.data));
   assert.equal(mobile.status, 200, JSON.stringify(mobile.data));
   assert.deepEqual(web.data, mobile.data);

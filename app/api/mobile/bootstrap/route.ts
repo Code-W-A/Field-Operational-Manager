@@ -2,7 +2,8 @@ import { FOM_CONTRACT_VERSION } from "@/packages/fom-domain";
 import { installationService } from "@/lib/installations/service";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  mobileActor,
+  mobileIdentity,
+  mobileAccess,
   service,
   headers,
   failure,
@@ -12,9 +13,11 @@ export const runtime = "nodejs";
 export const OPTIONS = options;
 export async function GET(request: NextRequest) {
   try {
-    const a = await mobileActor(request);
+    const a = await mobileIdentity(request);
+    const access = await mobileAccess.requireAccess(a.uid, false);
     const code = request.nextUrl.searchParams.get("code");
     const workId = request.nextUrl.searchParams.get("installation");
+    if (code || workId) await mobileAccess.requireAccess(a.uid);
     if (workId)
       return NextResponse.json(
         await installationService(
@@ -30,7 +33,12 @@ export async function GET(request: NextRequest) {
       {
         contractVersion: FOM_CONTRACT_VERSION,
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        bundle: code ? undefined : await service.bundle(a.uid),
+        access,
+        bundle: code
+          ? undefined
+          : access.activeSessionId
+            ? await service.bundle(a.uid)
+            : await mobileAccess.attendanceBundle(a.uid),
         history: code ? await service.history(a.uid, code) : undefined,
       },
       { headers: headers(request) },

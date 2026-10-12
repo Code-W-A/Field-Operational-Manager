@@ -1,6 +1,7 @@
 import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
 import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
 import { photoIdentity } from "./photo-identity";
+import { ticketPresentation, ticketClientLocation } from "./ticket-presentation";
 import {
   FieldValue,
   Timestamp,
@@ -32,7 +33,6 @@ import { verifyQr } from "@/lib/installations/validation";
 import { installationService } from "@/lib/installations/service";
 import { resolveDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot";
 import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
-import { resolveTicketLiveDisplay } from "@/lib/work-documents/ticket-live-display";
 import { validateHrRequestCreateInput } from "@/lib/hr/request-validation";
 import { isValidOvertimeDuration } from "@/lib/hr/overtime-duration";
 import { buildAttendanceTimesheetCell } from "@/lib/attendance/sync-timesheet-merge";
@@ -200,23 +200,19 @@ export function technicianService(db: Firestore) {
           .get();
         if (s.size === 1) client = rows(s)[0];
       }
+      Object.assign(w, await ticketPresentation(db, w, client));
       if (client) {
-        // Export only ticket-related locations/equipment; no customer-wide account metadata.
-        const display = resolveTicketLiveDisplay(w, client);
-        w.mobileContact = serial(display.contact);
-        const location = resolveTicketLocation(client, w);
-        w.mobileEquipment = equipmentFor(w, location);
-        w.mobileContact = {
-          ...w.mobileContact,
-          address: location?.adresa || w.locatie,
-          ...(location?.lat !== undefined
-            ? { lat: location.lat, lng: location.lng }
-            : {}),
-        };
-        const locations = (client.locatii || []).filter(
-          (l: any) => l.id === w.locationId || l.nume === w.locatie,
-        );
-        clients.push({ id: client.id, nume: client.nume, locatii: locations });
+        // Only locations and equipment actually used by visible assigned tickets.
+        const entry = clients.find((c) => c.id === client!.id);
+        const safeLocation = ticketClientLocation(w, client);
+        if (entry) {
+          const existing = entry.locatii.find((l: any) => l.id === safeLocation.id);
+          if (existing) {
+            existing.echipamente = [...new Map(
+              [...existing.echipamente, ...safeLocation.echipamente].map((e: any) => [e.id || e.cod, e]),
+            ).values()];
+          } else entry.locatii.push(safeLocation);
+        } else clients.push({ id: client.id, nume: client.nume, locatii: [safeLocation] });
       }
     }
     const b: Bundle = {

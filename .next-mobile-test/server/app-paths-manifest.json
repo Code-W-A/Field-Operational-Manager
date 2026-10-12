@@ -1,3 +1,4 @@
 {
-  "/login/page": "app/login/page.js"
+  "/api/mobile/bootstrap/route": "app/api/mobile/bootstrap/route.js",
+  "/api/mobile/document/route": "app/api/mobile/document/route.js"
 }
