@@ -13,5 +13,8 @@ import { NextResponse } from "next/server";
 import { headers } from "@/lib/technician/http";
 import { FOM_CONTRACT_VERSION } from "@/packages/fom-domain";
 export function notificationResponse(request: NextRequest, result: object) {
-  return NextResponse.json({ contractVersion: FOM_CONTRACT_VERSION, ...result }, { headers: headers(request) });
+  return NextResponse.json(
+    { contractVersion: FOM_CONTRACT_VERSION, ...result },
+    { headers: headers(request) },
+  );
 }

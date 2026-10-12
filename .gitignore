@@ -19,6 +19,7 @@ yarn-error.log*
 # env files
 .env*
 !.env.staging.example
+!firebase-functions/.env.notifications.example
 
 # vercel
 .vercel
