@@ -133,6 +133,122 @@ after(async () => {
   await deleteApp(app);
 });
 
+const admin = { uid: "admin", role: "admin" };
+async function seedAdmin() {
+  await db.doc("users/admin").set({ role: "admin", displayName: "Admin test" });
+}
+
+test("termination enforces roles, verified identity and a nonempty cancellation reason", async () => {
+  const work = await create();
+  await assert.rejects(() => service.cancel(tech, work.id, "Motiv"), /dreptul/);
+  await assert.rejects(() => service.delete(manager, work.id), /dreptul/);
+  await assert.rejects(() => service.delete(tech, work.id), /dreptul/);
+  await assert.rejects(() => service.cancel(manager, work.id, "  "), /obligatoriu/);
+  await assert.rejects(() => service.cancel({ ...tech, role: "admin" }, work.id, "Motiv"), /neautorizat/);
+  assert.equal((await db.doc(`lucrari/${work.id}`).get()).data()!.anulat, undefined);
+});
+
+test("cancellation archives once, releases its team and preserves other sessions and signed documents", async () => {
+  const work = await create();
+  const signedSheet = await start(work.id);
+  await close(work.id, signedSheet.sheet);
+  const signedBefore = (await db.doc(`lucrari/${work.id}/installationSheets/${signedSheet.sheet.id}`).get()).data();
+  const active = await start(work.id, "e2");
+  await start(work.id, "e2", tech2);
+  await db.doc("installationTechnicianSessions/other").set({ workId: "another", sheetId: "other" });
+  await service.cancel(manager, work.id, "  Beneficiarul a renunțat  ");
+  const stored = (await db.doc(`lucrari/${work.id}`).get()).data()!;
+  assert.equal(stored.statusLucrare, "Arhivată");
+  assert.equal(stored.anulat, true);
+  assert.equal(stored.motivAnulare, "Beneficiarul a renunțat");
+  assert.equal(stored.anulatDeId, manager.uid);
+  assert.equal(stored.archivedBy, "Dispecer test");
+  assert.ok(stored.archivedAt.toMillis());
+  assert.ok(stored.anulatAt.toMillis());
+  assert.equal(stored.notificationRead, false);
+  assert.deepEqual(stored.notificationReadBy, []);
+  assert.deepEqual(stored.installation.activeSheetByEquipment, {});
+  assert.deepEqual(stored.installation.awaitingSheetByEquipment, {});
+  for (const uid of [tech.uid, tech2.uid]) assert.equal((await db.doc(`installationTechnicianSessions/${uid}`).get()).exists, false);
+  assert.equal((await db.doc("installationTechnicianSessions/other").get()).exists, true);
+  const stopped = (await db.doc(`lucrari/${work.id}/installationSheets/${active.sheet.id}`).get()).data()!;
+  assert.ok(stopped.stoppedAt);
+  assert.ok(stopped.participants.every((member: any) => !member.active));
+  assert.equal(stopped.documentSnapshot, undefined);
+  assert.deepEqual((await db.doc(`lucrari/${work.id}/installationSheets/${signedSheet.sheet.id}`).get()).data(), signedBefore);
+  const listing = await service.list(tech, work.id);
+  assert.equal(listing.canStart, false);
+  assert.equal(listing.work.motivAnulare, stored.motivAnulare);
+  await seedAdmin();
+  await service.cancel(admin, work.id, "Alt motiv");
+  assert.deepEqual((await db.doc(`lucrari/${work.id}`).get()).data(), stored);
+  assert.equal((await db.collection(`lucrari/${work.id}/installationAudit`).where("action", "==", "cancel").get()).size, 1);
+  const next = await create();
+  await start(next.id);
+});
+
+test("canceled installations reject work operations and cannot sign pending sheets", async () => {
+  const work = await create();
+  const { sheet } = await start(work.id);
+  await service.stop(tech, work.id, { sheetId: sheet.id, revision: sheet.revision, fields: content });
+  await service.cancel(manager, work.id, "Anulare");
+  const list = await service.list(tech, work.id);
+  assert.equal(list.sheets[0].canSign, false);
+  await assert.rejects(() => start(work.id), /închis sau anulat/);
+  await assert.rejects(() => service.edit(manager, work.id, {}), /închis sau anulat/);
+  await assert.rejects(() => service.sign(tech, work.id, { sheetId: sheet.id, revision: 1, requestId: randomUUID(), signatures: signed }), /închis sau anulat/);
+  await assert.rejects(() => service.save(tech, work.id, { sheetId: sheet.id, revision: 1, fields: content }), /închis sau anulat/);
+  await assert.rejects(() => service.continueWork(manager, work.id), /închis sau anulat/);
+  await assert.rejects(() => service.complete(tech, work.id, { signatures: signed }), /închis sau anulat/);
+});
+
+test("delete removes only the ticket, releases stale sessions and retains files, continuations and actor audit", async () => {
+  await seedAdmin();
+  const work = await create();
+  const { sheet } = await start(work.id);
+  await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).update({ photos: [{ id: "photo", path: "keep/photo", name: "photo", contentType: "image/png" }] });
+  await db.doc("installationTechnicianSessions/stale").set({ workId: work.id, sheetId: "missing" });
+  await db.doc("installationTechnicianSessions/unrelated").set({ workId: "unrelated", sheetId: sheet.id });
+  await db.doc("lucrari/continuation").set({ installation: { rootWorkId: work.id }, lucrareOriginala: work.id });
+  await service.delete(admin, work.id);
+  assert.equal((await db.doc(`lucrari/${work.id}`).get()).exists, false);
+  assert.equal((await db.doc("lucrari/continuation").get()).exists, true);
+  assert.equal((await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).get()).data()!.photos[0].path, "keep/photo");
+  for (const uid of [tech.uid, "stale"]) assert.equal((await db.doc(`installationTechnicianSessions/${uid}`).get()).exists, false);
+  assert.equal((await db.doc("installationTechnicianSessions/unrelated").get()).exists, true);
+  const logs = await db.collection("logs").where("entityId", "==", work.id).get();
+  assert.equal(logs.size, 1);
+  assert.equal(logs.docs[0].data().utilizatorId, admin.uid);
+  assert.equal(logs.docs[0].data().nrLucrare, work.nrLucrare);
+  await service.delete(admin, work.id);
+  assert.equal((await db.collection("logs").where("entityId", "==", work.id).get()).size, 1);
+});
+
+test("concurrent cancellation and start never leave a session on a canceled ticket", async () => {
+  const work = await create();
+  const results = await Promise.allSettled([start(work.id), service.cancel(manager, work.id, "Anulare concurentă")]);
+  assert.equal(results[1].status, "fulfilled");
+  assert.equal((await db.doc(`lucrari/${work.id}`).get()).data()!.anulat, true);
+  assert.equal((await db.collection("installationTechnicianSessions").where("workId", "==", work.id).get()).empty, true);
+  assert.deepEqual((await db.doc(`lucrari/${work.id}`).get()).data()!.installation.activeSheetByEquipment, {});
+});
+
+test("concurrent cancellation and save preserve the last committed draft and release its session", async () => {
+  const work = await create();
+  const { sheet } = await start(work.id);
+  const results = await Promise.allSettled([
+    service.save(tech, work.id, { sheetId: sheet.id, revision: sheet.revision, fields: content }),
+    service.cancel(manager, work.id, "Anulare concurentă"),
+  ]);
+  assert.equal(results[1].status, "fulfilled");
+  const stored = (await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).get()).data()!;
+  assert.ok(stored.stoppedAt);
+  assert.ok(stored.participants.every((member: any) => !member.active));
+  assert.equal((await db.doc(`installationTechnicianSessions/${tech.uid}`).get()).exists, false);
+  if (results[0].status === "fulfilled") assert.equal(stored.operations, content.operations);
+  await assert.rejects(() => service.save(tech, work.id, { sheetId: sheet.id, revision: stored.revision, fields: content }), /închis sau anulat/);
+});
+
 test("creation is idempotent, rejects outside-location equipment and ignores forged metadata", async () => {
   const requestId = randomUUID();
   const a = await service.create(

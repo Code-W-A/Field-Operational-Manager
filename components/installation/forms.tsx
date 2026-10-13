@@ -36,11 +36,13 @@ export function InstallationSheetForm({
   sheet,
   onSheet,
   onRefresh,
+  readOnly = false,
 }: {
   workId: string;
   sheet: InstallationSheet;
   onSheet: (s: InstallationSheet) => void;
   onRefresh: () => Promise<void>;
+  readOnly?: boolean;
 }) {
   const { userData } = useAuth();
   const [content, setContent] = useState<InstallationFields>({
@@ -98,7 +100,7 @@ export function InstallationSheetForm({
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [dirty]);
   const editable =
-    sheet.state === "draft" && sheet.principalUid === userData?.uid;
+    !readOnly && sheet.state === "draft" && sheet.principalUid === userData?.uid;
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -493,7 +495,7 @@ export function InstallationSheetForm({
           </div>
         </>
       )}
-      {sheet.state === "awaiting_signature" && sheet.canSign && (
+      {!readOnly && sheet.state === "awaiting_signature" && sheet.canSign && (
         <InstallationDeferredSignatures
           key={sheet.id}
           workId={workId}

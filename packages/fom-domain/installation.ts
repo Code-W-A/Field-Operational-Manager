@@ -107,6 +107,9 @@ export type InstallationListResponse = {
     locatie: string;
     nrLucrare?: string;
     statusLucrare: string;
+    anulat?: boolean;
+    motivAnulare?: string;
+    anulatDe?: string;
     tehnicieni: string[];
     dataEmiterii?: string;
     dataInterventie?: string;

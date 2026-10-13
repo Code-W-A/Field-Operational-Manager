@@ -255,6 +255,46 @@ async function main() {
     );
     adminPage.on("pageerror", (e) => errors.push(e.message));
     await login(adminPage, "browser-admin");
+    if (process.env.INSTALLATION_DELETE_UI_ONLY === "1") {
+      const detailUrl = `${origin}/dashboard/lucrari/${work.id}`;
+      const deleteButton = adminPage.getByRole("button", {
+        name: "Șterge tichetul",
+        exact: true,
+      });
+      for (const tab of ["equipment", "sheets", "documents"]) {
+        await adminPage.goto(`${detailUrl}?tab=${tab}`);
+        await expect(deleteButton).toBeVisible({ timeout: 30000 });
+      }
+
+      const dispatcherContext = await browser.newContext();
+      const dispatcherPage = await dispatcherContext.newPage();
+      await login(dispatcherPage, "browser-dispatcher");
+      await dispatcherPage.goto(detailUrl);
+      await expect(
+        dispatcherPage.getByRole("button", {
+          name: "Șterge tichetul",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await dispatcherContext.close();
+
+      await adminPage.goto(detailUrl);
+      await adminPage
+        .getByRole("button", { name: "Șterge tichetul", exact: true })
+        .click();
+      const deleteDialog = adminPage.getByRole("alertdialog", {
+        name: "Șterge tichetul",
+      });
+      await expect(deleteDialog).toBeVisible();
+      await deleteDialog.getByRole("button", { name: "Șterge", exact: true }).click();
+      await expect(adminPage).toHaveURL(/\/dashboard\/lucrari$/);
+      assert.equal((await db.collection("lucrari").doc(work.id).get()).exists, false);
+      assert.deepEqual(errors, []);
+      console.log(
+        "BROWSER PASS installation delete UI: admin action visible on each tab, dispatcher action hidden, confirmation deletes via installation endpoint.",
+      );
+      return;
+    }
     const signature = {
       beneficiaryName: "Beneficiar browser",
       technicianSignature:

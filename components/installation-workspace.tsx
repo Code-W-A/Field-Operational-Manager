@@ -9,10 +9,14 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { QRCodeScanner } from "@/components/qr-code-scanner";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, Trash2, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
 import {
   Card,
   CardContent,
@@ -78,6 +82,11 @@ export function InstallationWorkspace({
   const [selected, setSelected] = useState<InstallationSheet | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmation, setConfirmation] = useState<"cancel" | "delete" | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [terminating, setTerminating] = useState(false);
+  const terminationPending = useRef(false);
   const [scanEquipmentId, setScanEquipmentId] = useState<string>();
   const autoScanOpened = useRef("");
   const [filter, setFilter] = useState<string>();
@@ -200,6 +209,28 @@ export function InstallationWorkspace({
   }
   const manager = ["admin", "dispecer"].includes(userData?.role || "");
   const meta = data?.work.installation;
+  const canceled = Boolean(data?.work.anulat || data?.work.statusLucrare === "Anulat");
+  const inactive = Boolean(canceled || meta?.closedReason || ["Arhivată", "Finalizat", "Anulat"].includes(data?.work.statusLucrare || ""));
+  async function terminate() {
+    if (!confirmation || terminationPending.current || (confirmation === "cancel" && !cancelReason.trim())) return;
+    terminationPending.current = true;
+    setTerminating(true);
+    setActionError("");
+    try {
+      await installationRequest(installationApi(workId), {
+        action: confirmation,
+        ...(confirmation === "cancel" ? { reason: cancelReason.trim() } : {}),
+      });
+      toast({ title: confirmation === "cancel" ? "Tichet anulat" : "Tichet șters", description: confirmation === "cancel" ? "Tichetul a fost anulat și arhivat." : "Tichetul a fost șters cu succes." });
+      setConfirmation(null);
+      router.push(confirmation === "cancel" ? `/dashboard/arhivate/${workId}` : "/dashboard/lucrari");
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Operația a eșuat.");
+    } finally {
+      terminationPending.current = false;
+      setTerminating(false);
+    }
+  }
   const technician = userData?.role === "tehnician";
   const scanEquipment = meta?.equipment.find((e) => e.id === scanEquipmentId);
   const equipment = meta?.equipment.find(
@@ -221,7 +252,7 @@ export function InstallationWorkspace({
         heading={
           <span className="flex flex-wrap items-center gap-3">
             <span>Instalare {data?.work.nrLucrare || ""}</span>
-            {data && <StatusBadge status={data.work.statusLucrare} />}
+            {data && <StatusBadge status={canceled ? "Anulat" : data.work.statusLucrare} />}
           </span>
         }
         text={
@@ -242,9 +273,9 @@ export function InstallationWorkspace({
         </Button>
         {manager &&
           data &&
-          !meta?.closedReason &&
+          !inactive &&
           (onEdit ? (
-            <Button variant="outline" onClick={onEdit}>
+            <Button variant="outline" onClick={onEdit} disabled={busy || terminating}>
               Editează tichetul / echipamentele
             </Button>
           ) : (
@@ -254,16 +285,51 @@ export function InstallationWorkspace({
               </Link>
             </Button>
           ))}
+        {manager && data && !canceled && (
+          <Button variant="destructive" disabled={busy || terminating} onClick={() => { setActionError(""); setConfirmation("cancel"); }}>
+            <X className="mr-2 h-4 w-4" /> Anulează
+          </Button>
+        )}
+        {userData?.role === "admin" && data && (
+          <Button variant="destructive" disabled={busy || terminating} onClick={() => { setActionError(""); setConfirmation("delete"); }}>
+            <Trash2 className="mr-2 h-4 w-4" /> Șterge tichetul
+          </Button>
+        )}
         <Button
           variant="outline"
           size="icon"
           aria-label="Reîncarcă datele"
-          disabled={busy || selected?.state === "draft"}
+          disabled={busy || terminating || (!inactive && selected?.state === "draft")}
           onClick={() => void run(load)}
         >
           <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
         </Button>
       </DashboardHeader>
+      <AlertDialog open={confirmation !== null} onOpenChange={(open) => { if (!open && !terminationPending.current) { setConfirmation(null); setActionError(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmation === "cancel" ? "Anulează tichetul" : "Șterge tichetul"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmation === "cancel" ? "Introduceți motivul anulării. Tichetul va fi anulat și arhivat, iar sesiunile active vor fi oprite." : "Sigur doriți să ștergeți acest tichet? Sesiunile active vor fi eliberate. Fișele și fișierele asociate rămân păstrate."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {confirmation === "cancel" && <div className="space-y-2">
+            <Label htmlFor="installation-cancel-reason">Motiv anulare</Label>
+            <Textarea id="installation-cancel-reason" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} disabled={terminating} maxLength={10000} rows={4} />
+          </div>}
+          {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={terminating}>Renunță</AlertDialogCancel>
+            <Button variant="destructive" disabled={terminating || (confirmation === "cancel" && !cancelReason.trim())} onClick={() => void terminate()}>
+              {terminating ? (confirmation === "cancel" ? "Se anulează..." : "Se șterge...") : (confirmation === "cancel" ? "Anulează" : "Șterge")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {canceled && <div role="status" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <strong>Tichet anulat</strong>{data?.work.motivAnulare && <p>Motiv anulare: {data.work.motivAnulare}</p>}
+        {data?.work.anulatDe && <p>Anulat de: {data.work.anulatDe}</p>}
+      </div>}
       {scanEquipment && data && (
         <QRCodeScanner
           key={scanEquipment.id}
@@ -349,6 +415,7 @@ export function InstallationWorkspace({
                 key={selected.id}
                 workId={workId}
                 sheet={selected}
+                readOnly={inactive}
                 onSheet={setSelected}
                 onRefresh={async () => {
                   const refreshed: InstallationListResponse =
@@ -428,7 +495,7 @@ export function InstallationWorkspace({
                   <InstallationDocuments
                     data={data}
                     workId={workId}
-                    manager={manager}
+                    manager={manager && !inactive}
                     busy={busy}
                     run={run}
                     onContinue={async () => {

@@ -1055,6 +1055,7 @@ export function installationService(db: Firestore) {
     );
     const work = (await workRef(workId).get()).data();
     assertWork(work);
+    const inactive = Boolean(work.anulat || work.archivedAt || work.installation.closedReason || closedStatuses.includes(work.statusLucrare));
     const manager = managers.includes(actor.role);
     // Technicians can read public signed history across a continuation chain; internal notes remain private.
     let allowed = manager || assigned(work, user!);
@@ -1107,11 +1108,12 @@ export function installationService(db: Firestore) {
       : (await query.get()).docs;
     const sanitize = (doc: any) => {
       if (!doc.exists) return null;
-      return visibleSheet(
+      const sheet = visibleSheet(
         { ...doc.data(), id: doc.id } as InstallationSheet,
         actor.uid,
         manager,
       );
+      return inactive ? { ...sheet, canSign: false } : sheet;
     };
     const sheets = snapshots
       .slice(0, 25)
@@ -1124,6 +1126,9 @@ export function installationService(db: Firestore) {
         locatie: work.locatie,
         nrLucrare: work.nrLucrare,
         statusLucrare: work.statusLucrare,
+        anulat: Boolean(work.anulat || work.statusLucrare === "Anulat"),
+        motivAnulare: work.motivAnulare || "",
+        anulatDe: work.anulatDe || "",
         installation: work.installation,
         equipmentIds: work.equipmentIds,
         tehnicieni: work.tehnicieni || [],
@@ -1131,11 +1136,78 @@ export function installationService(db: Firestore) {
         dataInterventie: work.dataInterventie || "",
       },
       currentSession,
-      canStart: actor.role === "tehnician" && assigned(work, user!),
+      canStart: !inactive && actor.role === "tehnician" && assigned(work, user!),
       sheets,
       nextCursor: snapshots.length > 25 ? snapshots[24].id : null,
       completion: completion.exists ? completion.data() : null,
     };
+  }
+
+  /** Release only sessions owned by this work, including legacy/stale sessions. */
+  async function terminate(actor: InstallationActor, workId: string, mode: "cancel" | "delete", reason?: unknown) {
+    check(mode === "delete" ? actor.role === "admin" : managers.includes(actor.role), "Nu aveți dreptul să efectuați această acțiune.", 403);
+    const cancelReason = mode === "cancel" ? text(reason, 10000) : "";
+    if (mode === "cancel") check(cancelReason.length > 0, "Motivul anulării este obligatoriu.");
+    return db.runTransaction(async (tx) => {
+      const user = await actorData(tx, actor);
+      const ref = workRef(workId);
+      const snapshot = await tx.get(ref);
+      if (!snapshot.exists && mode === "delete") return { id: workId };
+      const work = snapshot.data();
+      assertWork(work);
+      if (mode === "cancel" && (work.anulat || work.statusLucrare === "Anulat")) return { id: workId };
+      const sessions = await tx.get(db.collection("installationTechnicianSessions").where("workId", "==", workId));
+      const drafts = await tx.get(sheetsRef(workId).where("state", "==", "draft"));
+      const now = new Date().toISOString();
+      const actorName = user.displayName || user.email || "Dispecer";
+      for (const sheet of drafts.docs) {
+        const data = sheet.data() as InstallationSheet;
+        tx.update(sheet.ref, {
+          participants: sheetParticipants(data).map(member => ({ ...member, active: false })),
+          stoppedAt: data.stoppedAt || now,
+          updatedAt: now,
+          revision: data.revision + 1,
+        });
+      }
+      for (const session of sessions.docs) tx.delete(session.ref);
+      const update = {
+        statusLucrare: "Arhivată",
+        archivedAt: FieldValue.serverTimestamp(),
+        archivedBy: actorName,
+        anulat: true,
+        motivAnulare: cancelReason,
+        anulatAt: FieldValue.serverTimestamp(),
+        anulatDe: actorName,
+        anulatDeId: actor.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+        notificationRead: false,
+        notificationReadBy: [],
+        "installation.activeSheetByEquipment": {},
+        "installation.awaitingSheetByEquipment": {},
+      };
+      if (mode === "cancel") tx.update(ref, update);
+      else tx.delete(ref);
+      audit(tx, workId, actor, mode, { releasedUids: sessions.docs.map(doc => doc.id), ...(mode === "cancel" ? { reason: cancelReason } : {}) });
+      tx.set(db.collection("logs").doc(), {
+        timestamp: FieldValue.serverTimestamp(),
+        utilizator: actorName,
+        utilizatorId: actor.uid,
+        actiune: mode === "cancel" ? "Anulare lucrare" : "Ștergere lucrare",
+        detalii: mode === "cancel" ? cancelReason : `ID: ${workId}`,
+        tip: "Avertisment",
+        categorie: "Lucrări",
+        lucrareId: workId,
+        nrLucrare: work.nrLucrare || "",
+        client: work.client || "",
+        locatie: work.locatie || "",
+        entityType: "Lucrare",
+        entityId: workId,
+        actionOutcome: "success",
+        before: copyKeys(work, ["tipLucrare", "statusLucrare", "statusFacturare", "client", "locatie", "tehnicieni"]),
+        ...(mode === "cancel" ? { after: { statusLucrare: "Arhivată", anulat: true, motivAnulare: cancelReason } } : {}),
+      });
+      return { id: workId };
+    });
   }
 
   /** Upload is server-only. A file uploaded before a concurrent close is never added to the signed snapshot. */
@@ -1181,6 +1253,8 @@ export function installationService(db: Firestore) {
     continueWork,
     complete,
     list,
+    cancel: (actor: InstallationActor, workId: string, reason: unknown) => terminate(actor, workId, "cancel", reason),
+    delete: (actor: InstallationActor, workId: string) => terminate(actor, workId, "delete"),
     attachPhoto,
   };
 }
