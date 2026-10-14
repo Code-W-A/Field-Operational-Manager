@@ -56,7 +56,7 @@ export function assertPayload(command: Command): void {
         "Structură de checklist invalidă.",
       );
       check(
-        p.photos === undefined || Array.isArray(p.photos),
+        p.photos === undefined || (Array.isArray(p.photos) && p.photos.length <= 4),
         "Fotografii invalide.",
       );
       check(

@@ -60,6 +60,7 @@ const record = (id: string) => ({
     name: id,
     downloadUrl: `https://example.test/${id}.pdf`,
     uploadedBy: "private-person",
+    uploadedAt: new Date("2026-01-28T12:00:00Z"),
   }),
 });
 test("presentation limits equipment and docs to the ticket, and exports the web technician identity only", async () => {
@@ -90,6 +91,7 @@ test("presentation limits equipment and docs to the ticket, and exports the web 
   assert.equal(data.mobileEquipment[0].model, "Model X");
   assert.equal(data.mobileEquipment[0].producator, "Nice");
   assert.equal(data.mobileEquipment[0].documentationAssociated, true);
+  assert.equal(data.mobileEquipment[0].documentation?.[0].uploadedAt,"2026-01-28T12:00:00.000Z");
   assert.deepEqual(
     data.mobileEquipment[0].documentation?.map((doc) => doc.id),
     ["allowed"],
@@ -141,4 +143,17 @@ test("legacy client equipment keeps cod/denumire fields and omits unrelated equi
   assert.deepEqual(location.echipamente[0].documentationFileIds, ["allowed"]);
   assert(!JSON.stringify(location).includes("FOREIGN"));
   assert(!JSON.stringify(location).includes("contact-phone"));
+});
+
+test("warranty display is a read projection using the web calculator, not a work migration", async () => {
+  const source = structuredClone(client);
+  Object.assign(source.locatii[0].echipamente[0], {dataInstalarii:"14.10.2025",garantieLuni:24,documentationFolderId:""});
+  const before = JSON.stringify(source);
+  const result = await ticketPresentation({} as any,{...work,tipLucrare:"Intervenție în garanție"},source);
+  assert.equal(result.mobileEquipment[0].warranty?.installationDate,"14.10.2025");
+  assert.equal(result.mobileEquipment[0].warranty?.warrantyExpires,"14.10.2027");
+  assert.equal(result.mobileEquipment[0].warranty?.statusText,"În garanție");
+  assert.equal(JSON.stringify(source),before);
+  const other = await ticketPresentation({} as any,work,source);
+  assert.equal(other.mobileEquipment[0].warranty,undefined);
 });

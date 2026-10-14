@@ -30,6 +30,7 @@ type Props = {
   onSelect: (uid: string) => void;
   onHistory: (uid: string) => void;
   contextKey: string;
+  selectedStopIndex?: number | null;
 };
 function node(tag: string, className: string, text?: string) {
   const element = document.createElement(tag);
@@ -94,6 +95,7 @@ export default function TrackingMap({
   onSelect,
   onHistory,
   contextKey,
+  selectedStopIndex = null,
 }: Props) {
   const frame = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
@@ -103,6 +105,7 @@ export default function TrackingMap({
   const bounds = useRef<LatLngBounds | null>(null);
   const fittedContext = useRef<string | null>(null);
   const focused = useRef<string | null>(null);
+  const focusedStop = useRef<string | null>(null);
   const callbacks = useRef({ onSelect, onHistory });
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -228,19 +231,20 @@ export default function TrackingMap({
             );
           coordinates.forEach((coordinate) => visibleBounds.extend(coordinate));
         });
-        stops.forEach((stop) => {
+        stops.forEach((stop, index) => {
           const text = node(
             "span",
             "",
             `${trackingTime(stop.startedAt)} – ${trackingTime(stop.endedAt)} · ${stop.minutes} minute`,
           );
-          L.circleMarker([stop.lat, stop.lng], {
-            radius: 7,
-            color: "#ea580c",
+          const stopLayer = L.circleMarker([stop.lat, stop.lng], {
+            radius: index === selectedStopIndex ? 11 : 7,
+            color: index === selectedStopIndex ? "#17243c" : "#ea580c",
             fillOpacity: 0.8,
           })
             .bindTooltip(text)
             .addTo(layers.current!);
+          if (index === selectedStopIndex) stopLayer.openTooltip();
           visibleBounds.extend([stop.lat, stop.lng]);
         });
         bounds.current = visibleBounds;
@@ -274,7 +278,28 @@ export default function TrackingMap({
     return () => {
       cancelled = true;
     };
-  }, [ready, markers, segments, stops, selectedUid, contextKey]);
+  }, [
+    ready,
+    markers,
+    segments,
+    stops,
+    selectedUid,
+    contextKey,
+    selectedStopIndex,
+  ]);
+  useEffect(() => {
+    const stop = selectedStopIndex == null ? null : stops[selectedStopIndex];
+    const key = stop ? `${contextKey}-${selectedStopIndex}` : null;
+    if (!key) focusedStop.current = null;
+    if (ready && stop && focusedStop.current !== key) {
+      map.current?.setView(
+        [stop.lat, stop.lng],
+        Math.max(map.current.getZoom(), 15),
+        { animate: false },
+      );
+      focusedStop.current = key;
+    }
+  }, [ready, selectedStopIndex, stops, contextKey]);
   async function toggleFullscreen() {
     try {
       if (document.fullscreenElement === frame.current)
@@ -285,7 +310,7 @@ export default function TrackingMap({
     }
   }
   return (
-    <div>
+    <div className={styles.mapRoot}>
       <div ref={frame} className={styles.mapFrame}>
         <div
           ref={container}

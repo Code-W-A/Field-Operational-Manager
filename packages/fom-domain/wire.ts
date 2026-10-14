@@ -17,12 +17,13 @@ export type JsonTimestamp =
 export type ReadDocument<T> = Partial<T> & { id: string } & Record<string, any>;
 export type MobileEquipment = {
   producator?: string;
+  warranty?: { statusText: string; installationDate?: string; warrantyExpires?: string; warrantyMessage: string };
   id: string;
   code: string;
   name: string;
   rootId?: string;
   model?: string;
-  documentation?: Array<{ id: string; name: string; url: string }>;
+  documentation?: Array<{ id: string; name: string; url: string; uploadedAt?: string }>;
   documentationUnavailable?: boolean;
   documentationAssociated?: boolean;
 };

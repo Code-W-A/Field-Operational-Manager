@@ -253,7 +253,7 @@ export function validateRevision(
     const provided = sections.find((value) => value.id === section.id)!;
     if (
       !Array.isArray(provided.items) ||
-      (options.customItems ? !section.items.every(item => provided.items.some(value => value.id === item.id)) : provided.items.length !== section.items.length) ||
+      (options.customItems ? !section.items.filter(item => !item.id.startsWith("manual-")).every(item => provided.items.some(value => value.id === item.id)) : provided.items.length !== section.items.length) ||
       new Set(provided.items.map((item) => item?.id)).size !==
         provided.items.length
     )
@@ -364,3 +364,4 @@ export * from "./notifications";
 export * from "./work-time";
 
 export * from "./equipment-catalog";
+export * from './revision-editor';

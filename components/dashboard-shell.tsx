@@ -15,7 +15,7 @@ interface DashboardShellProps {
 
 export function DashboardShell({ children, className }: DashboardShellProps) {
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden">
+    <div className={`flex flex-col h-screen w-full overflow-hidden ${className || ""}`}>
       <header className="flex-shrink-0 z-40 border-b bg-background">
         <div className="w-full flex h-16 items-center justify-between py-4 px-3 sm:px-6 lg:px-10">
           <div className="flex items-center gap-2">

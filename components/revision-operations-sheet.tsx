@@ -250,12 +250,12 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     const incoming = Array.from(e.target.files || [])
     e.currentTarget.value = ""
     if (!incoming.length || saveLock.current) return
-    const availableSlots = Math.max(0, 4 - selectedPhotos.length)
+    const availableSlots = Math.max(0, 4 - existingPhotos.length - selectedPhotos.length)
     const toAdd = incoming.slice(0, availableSlots)
     if (incoming.length > availableSlots) {
       toast({
         title: "Limită depășită",
-        description: `Puteți selecta maximum 4 fotografii noi. Aveți ${selectedPhotos.length} selectate; mai puteți adăuga ${availableSlots}.`,
+        description: `Puteți păstra maximum 4 fotografii în total. Aveți ${existingPhotos.length} existente și ${selectedPhotos.length} noi; mai puteți adăuga ${availableSlots}.`,
         variant: "destructive",
       })
     }

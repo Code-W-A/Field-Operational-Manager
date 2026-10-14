@@ -1,6 +1,8 @@
+import { getWarrantyDisplayInfo } from "@/lib/utils/warranty-calculator";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   equipmentFor,
+  workInstant,
   type RecordData,
   type MobileEquipment,
 } from "@/packages/fom-domain";
@@ -77,6 +79,15 @@ export async function ticketPresentation(
         producator: text(source.producator || (item as any).producator),
         documentation: [],
       };
+      if (work.tipLucrare === "Intervenție în garanție" && Object.keys(source).length) {
+        const info = getWarrantyDisplayInfo(source as any);
+        result.warranty = {
+          statusText: info.statusText,
+          ...(info.installationDate ? { installationDate: info.installationDate } : {}),
+          ...(info.warrantyExpires ? { warrantyExpires: info.warrantyExpires } : {}),
+          warrantyMessage: info.warrantyMessage,
+        };
+      }
       const folderId = text(source.documentationFolderId);
       result.documentationAssociated = !!folderId;
       if (folderId) {
@@ -99,6 +110,7 @@ export async function ticketPresentation(
               id: doc.id,
               name: text(doc.data().name) || "Document",
               url: text(doc.data().downloadUrl),
+              ...(workInstant(doc.data().uploadedAt) ? {uploadedAt: workInstant(doc.data().uploadedAt)!.toISOString()} : {}),
             }))
             .filter((doc) => /^https?:\/\//.test(doc.url))
             .sort((a, b) => a.name.localeCompare(b.name, "ro"));

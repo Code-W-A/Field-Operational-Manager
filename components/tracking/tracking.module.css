@@ -713,3 +713,273 @@
 .markerDot.dotRed {
   background: #ef4444;
 }
+
+.viewportShell {
+  height: 100dvh;
+}
+.viewportShell > main {
+  overflow: hidden;
+}
+.viewportShell > main > div {
+  padding-bottom: 16px;
+}
+.page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.breadcrumb {
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.overview {
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 2fr);
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+.title {
+  font-size: 26px;
+  margin-bottom: 4px;
+}
+.subtitle {
+  font-size: 13px;
+}
+.stat {
+  padding: 10px 12px;
+  gap: 10px;
+}
+.statIcon {
+  width: 36px;
+  height: 36px;
+}
+.statIcon svg {
+  width: 20px;
+  height: 20px;
+}
+.statValue {
+  font-size: 25px;
+  margin: 0;
+}
+.statLabel {
+  min-height: 0;
+  font-size: 11px;
+}
+.layout {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: stretch;
+}
+.historyLayout {
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+}
+.sidebar {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px;
+}
+.technicians {
+  min-height: 0;
+  flex: 1;
+  max-height: none;
+  align-content: start;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.mapPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.mapHeader,
+.toolbar {
+  flex-shrink: 0;
+}
+.mapFrame,
+.mapSkeleton {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.mapFrame:fullscreen {
+  height: 100dvh;
+}
+.history {
+  margin: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  overflow: hidden;
+}
+.history > .stopsToggle {
+  cursor: pointer;
+  flex-shrink: 0;
+  padding-bottom: 12px;
+}
+.stopList {
+  overflow-y: auto;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.stop {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: white;
+}
+.stop[aria-pressed="true"] {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.stop:hover {
+  border-color: #93b9ff;
+}
+.footnote {
+  position: relative;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+.footnote summary {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  width: fit-content;
+}
+.footnote p {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  z-index: 30;
+  max-width: 480px;
+  padding: 14px;
+  border: 1px solid #e7edf5;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 8px 24px #17243c20;
+}
+.actionsMenu {
+  position: relative;
+  font-size: 12px;
+}
+.actionsMenu summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+}
+.actionsMenu > button {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  white-space: nowrap;
+  background: white;
+  box-shadow: 0 8px 24px #17243c20;
+}
+@media (min-width: 851px) and (max-width: 1250px) {
+  .overview {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .statistics {
+    gap: 8px;
+  }
+  .historyLayout {
+    grid-template-columns: 230px minmax(0, 1fr);
+    position: relative;
+  }
+  .historyLayout .mapPanel {
+    padding-bottom: 56px;
+  }
+  .history {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: calc(100% - 248px);
+    z-index: 20;
+    max-height: 55%;
+    box-shadow: 0 -4px 20px #17243c18;
+  }
+  .historyCollapsed {
+    height: 48px;
+  }
+  .historyCollapsed .stopList {
+    display: none;
+  }
+}
+@media (max-width: 850px) {
+  .viewportShell > main {
+    overflow: auto;
+  }
+  .page {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+  .overview {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .statistics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .layout,
+  .historyLayout {
+    grid-template-columns: 1fr;
+    flex: none;
+  }
+  .technicians {
+    flex: none;
+    max-height: 220px;
+  }
+  .mapFrame,
+  .mapSkeleton {
+    flex: none;
+    height: 55dvh;
+    min-height: 300px;
+  }
+  .history {
+    max-height: 320px;
+  }
+  .historyCollapsed .stopList {
+    display: none;
+  }
+  .footnote p {
+    max-width: min(480px, 85vw);
+  }
+}
+.mapRoot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.mapRoot > .tileError {
+  flex-shrink: 0;
+}
+
+.stopsToggle {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+}
+.historyCollapsed .stopList {
+  display: none;
+}
+.stopsToggle > svg {
+  margin-left: auto;
+}
+.stopsToggle[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}

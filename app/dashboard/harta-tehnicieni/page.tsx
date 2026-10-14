@@ -16,6 +16,7 @@ import {
   Navigation,
   CalendarDays,
   Trash2,
+  Info,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { useAuth } from "@/contexts/AuthContext";
@@ -114,6 +115,11 @@ export default function TrackingPage() {
   const allowed = userData?.role === "admin" || userData?.role === "dispecer";
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [selected, setSelected] = useState("");
+  const [selectedStop, setSelectedStop] = useState<{
+    context: string;
+    index: number;
+  } | null>(null);
+  const [stopsOpen, setStopsOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [mode, setMode] = useState<"live" | "history">("live");
@@ -327,7 +333,7 @@ export default function TrackingPage() {
         : `Ultima sincronizare: acum ${Math.floor((now - lastSync) / 60000)} min`;
 
   return (
-    <DashboardShell>
+    <DashboardShell className={styles.viewportShell}>
       <div className={styles.page}>
         <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
           <Link href="/dashboard/resurse-umane/salariati">Resurse umane</Link>
@@ -403,7 +409,9 @@ export default function TrackingPage() {
                 </button>
               </div>
             )}
-            <div className={styles.layout}>
+            <div
+              className={`${styles.layout} ${mode === "history" && selected ? styles.historyLayout : ""}`}
+            >
               <aside
                 className={`${styles.panel} ${styles.sidebar}`}
                 aria-label="Lista tehnicienilor"
@@ -584,15 +592,20 @@ export default function TrackingPage() {
                   {mode === "history" &&
                     selectedTechnician &&
                     userData?.role === "admin" && (
-                      <button
-                        type="button"
-                        className={styles.deleteHistoryButton}
-                        onClick={() => void deleteSelectedHistory()}
-                        disabled={historyDeleting || historyLoading}
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                        {historyDeleting ? "Se șterge…" : "Șterge istoricul zilei"}
-                      </button>
+                      <details className={styles.actionsMenu}>
+                        <summary>Acțiuni</summary>
+                        <button
+                          type="button"
+                          className={styles.deleteHistoryButton}
+                          onClick={() => void deleteSelectedHistory()}
+                          disabled={historyDeleting || historyLoading}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                          {historyDeleting
+                            ? "Se șterge…"
+                            : "Șterge istoricul zilei"}
+                        </button>
+                      </details>
                     )}
                   {selectedTechnician && (
                     <span className={styles.selection}>
@@ -626,6 +639,12 @@ export default function TrackingPage() {
                     onHistory={viewHistory}
                     segments={mode === "history" ? history.segments : []}
                     stops={mode === "history" ? history.stops : []}
+                    selectedStopIndex={
+                      mode === "history" &&
+                      selectedStop?.context === `${selected}-${day}`
+                        ? selectedStop.index
+                        : null
+                    }
                     contextKey={
                       mode === "history" ? `${selected}-${day}` : "live"
                     }
@@ -645,8 +664,25 @@ export default function TrackingPage() {
                       </button>
                     </div>
                   )}
-                {mode === "history" && selected && (
-                  <div className={styles.history} aria-busy={historyLoading}>
+              </section>
+              {mode === "history" && selected && (
+                <aside
+                  className={`${styles.panel} ${styles.history} ${!stopsOpen ? styles.historyCollapsed : ""}`}
+                  aria-busy={historyLoading}
+                  aria-label="Opririle traseului"
+                >
+                  <button
+                    type="button"
+                    className={`${styles.sectionHeading} ${styles.stopsToggle}`}
+                    aria-expanded={stopsOpen}
+                    aria-controls="tracking-stops"
+                    onClick={() => setStopsOpen(!stopsOpen)}
+                  >
+                    Opriri{" "}
+                    <span className={styles.count}>{history.stops.length}</span>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                  <div id="tracking-stops" className={styles.stopList}>
                     {historyActionMessage && (
                       <p
                         className={
@@ -687,10 +723,21 @@ export default function TrackingPage() {
                             considerate opriri.
                           </p>
                         )}
-                        <h3>Opriri</h3>
                         {history.stops.length ? (
                           history.stops.map((stop, index) => (
-                            <div
+                            <button
+                              type="button"
+                              aria-pressed={
+                                selectedStop?.context ===
+                                  `${selected}-${day}` &&
+                                selectedStop.index === index
+                              }
+                              onClick={() =>
+                                setSelectedStop({
+                                  context: `${selected}-${day}`,
+                                  index,
+                                })
+                              }
                               key={`${stop.sessionId}-${stop.startedAt}-${index}`}
                               className={styles.stop}
                             >
@@ -703,7 +750,7 @@ export default function TrackingPage() {
                               <span>
                                 {stop.lat.toFixed(5)}, {stop.lng.toFixed(5)}
                               </span>
-                            </div>
+                            </button>
                           ))
                         ) : (
                           <p className={styles.notice}>
@@ -713,16 +760,21 @@ export default function TrackingPage() {
                       </>
                     )}
                   </div>
-                )}
-              </section>
+                </aside>
+              )}
             </div>
-            <p className={styles.footnote}>
-              <Navigation size={12} aria-hidden="true" /> Orele sunt afișate
-              pentru București. Istoricul GPS este disponibil 90 de zile.
-              Pozițiile mai vechi de două minute sunt neactualizate și nu
-              confirmă locația curentă. Trackingul funcționează numai în timpul
-              pontajului.
-            </p>
+            <details className={styles.footnote}>
+              <summary>
+                <Info size={14} aria-hidden="true" /> Despre datele GPS
+              </summary>
+              <p>
+                <Navigation size={12} aria-hidden="true" /> Orele sunt afișate
+                pentru București. Istoricul GPS este disponibil 90 de zile.
+                Pozițiile mai vechi de două minute sunt neactualizate și nu
+                confirmă locația curentă. Trackingul funcționează numai în
+                timpul pontajului.
+              </p>
+            </details>
           </>
         )}
       </div>

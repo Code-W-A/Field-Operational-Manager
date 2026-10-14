@@ -211,3 +211,26 @@ test("paid reports require findings and operations, include current payload, and
     }else assert.equal(saved.statusLucrare,"Fără semnătură");
   }
 });
+
+test("all technician ticket variants complete the same mobile lifecycle, including legacy installations", async () => {
+  const variantUid = `${uid}-variants`, variantName = `${name}-variants`, variantAttendance = `${suffix}-variants-attendance`;
+  await db.doc(`users/${variantUid}`).set({role:"tehnician",displayName:variantName});
+  await db.doc(`attendance/${variantAttendance}`).set({userId:variantUid,status:"completed",sessionStart:Timestamp.fromMillis(Date.parse(at)-3600000),sessionEnd:Timestamp.fromMillis(Date.parse(at)+60000)});
+  const run = async (action: any, id: string, payload: any = {}) => svc.command(variantUid,command(action,id,payload,{baseVersion:versionOf((await db.doc(`lucrari/${id}`).get()).data()!),attendanceId:variantAttendance}),"mobile");
+  for (const [index,tipLucrare] of ["Intervenție contra cost","Intervenție în garanție","Intervenție în contract","Reintervenție","Instalare"].entries()) {
+    const id = `${suffix}-variant-${index}`;
+    await work(id,{tipLucrare,tehnicieni:[variantName]});
+    await assert.rejects(() => run("verify",id,{code:"WRONG"}));
+    await run("verify",id,{code:"QR"});
+    await run("intervention.save",id,{constatareLaLocatie:"Diagnostic",descriereInterventie:"Operațiuni",statusEchipament:"Funcțional",cauzaPrincipalaDefectId:"uzura",...(tipLucrare === "Intervenție în garanție" ? {tehnicianGarantieDecizie:"confirma"}: {})});
+    await run("report.later",id,{products:[{name:"Serviciu",quantity:2,price:10}]});
+    assert.equal((await db.doc(`lucrari/${id}`).get()).data()!.statusLucrare,"Fără semnătură");
+    await run("report.finalize",id,{numeBeneficiar:"Beneficiar",products:[{name:"Serviciu",quantity:2,price:10}]});
+    const saved=(await db.doc(`lucrari/${id}`).get()).data()!;
+    assert.equal(saved.raportGenerat,true);
+    assert.equal(saved.raportDataLocked,true);
+    assert.equal(saved.raportSnapshot.constatareLaLocatie,"Diagnostic");
+    assert.equal(saved.products[0].total,20);
+    await assert.rejects(() => run("intervention.save",id,{descriereInterventie:"Rescriere"}));
+  }
+});

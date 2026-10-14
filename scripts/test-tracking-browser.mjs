@@ -13,7 +13,7 @@ const stubs = {
   "@/lib/firebase/config":
     'export const auth={currentUser:{getIdToken:async()=>"fixture"}};',
   "@/components/dashboard-shell":
-    'export const DashboardShell=({children})=><main style={{width:"100%",padding:24,boxSizing:"border-box",background:"#f7f9fc",minHeight:"100vh"}}>{children}</main>;',
+    'export const DashboardShell=({children,className})=><div className={className} style={{display:"flex",flexDirection:"column"}}><header style={{height:64,flexShrink:0}}>FOM</header><main style={{flex:1,minHeight:0}}><div style={{height:"100%",padding:16,boxSizing:"border-box"}}>{children}</div></main></div>;',
   "next/link":
     "export default function Link({children,...props}){return <a {...props}>{children}</a>}",
   "next/dynamic":
@@ -163,14 +163,12 @@ try {
       json: {
         points: [point],
         segments: [[point]],
-        stops: [
-          {
-            ...point,
-            startedAt: now - 600000,
-            endedAt: now - 180000,
-            minutes: 7,
-          },
-        ],
+        stops: Array.from({ length: 30 }, (_, index) => ({
+          ...point,
+          startedAt: now - 600000 - index * 600000,
+          endedAt: now - 180000 - index * 600000,
+          minutes: 7 + index,
+        })),
         truncated: false,
       },
     }),
@@ -278,6 +276,35 @@ try {
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("7 minute", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Ziua traseului")).toBeVisible();
+  const stopButton = page.getByRole("button", { name: /7 minute/ }).first();
+  await stopButton.click();
+  await expect(stopButton).toHaveAttribute("aria-pressed", "true");
+  for (const width of [1700, 1366, 1024]) {
+    await page.setViewportSize({ width, height: 768 });
+    await page.waitForTimeout(100);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    const stopList = stopButton.locator("..");
+    expect(
+      await stopList.evaluate((el) => el.scrollHeight > el.clientHeight),
+    ).toBe(true);
+  }
+  await page.getByRole("button", { name: "Opriri 30", exact: true }).click();
+  await expect(stopButton).toBeHidden();
+  await page.getByRole("button", { name: "Opriri 30", exact: true }).click();
+  await expect(stopButton).toBeVisible();
+  await page.setViewportSize({ width: 1700, height: 900 });
+  await page.screenshot({ path: "/tmp/fom-tracking-history-desktop.png" });
+  await page.setViewportSize({ width: 1700, height: 1080 });
+
   await page.getByRole("button", { name: "Live", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Reîmprospătează pozițiile" }),

@@ -518,3 +518,23 @@ test('QR arrival uses Romanian time, retains offline occurrence and first scan u
   assert.equal(repeated.timpSosire, at);
   assert.equal(repeated.revisionEquipmentTimes.eq1.startIso, at);
 });
+
+
+test('revision drafts stay in progress and saved manual points can be removed', async () => {
+  const workId='mobile-test-revision-editor';
+  let version=await work(workId,{tipLucrare:'Revizie',equipmentIds:['eq1'],revision:{equipmentStatus:{eq1:'pending'},equipment:[{equipmentId:'eq1',equipmentCode:'EQ1',revisionChecklistTemplateId:'mobile-test-root'}]}});
+  const verified=await svc.command(uid,command('verify',workId,{equipmentId:'eq1',code:'EQ1'},version),'web');
+  version=verified.version;
+  const settings=(await db.collection('settings').get()).docs.map(d=>({id:d.id,...d.data()}));
+  const sections=checklistFromSettings(settings as any,'mobile-test-root');
+  const draft=await svc.command(uid,command('revision.save',workId,{equipmentId:'eq1',sections,draft:true,photos:[]},version),'web');
+  assert.equal((await db.doc(`lucrari/${workId}`).get()).data()!.revision.equipmentStatus.eq1,'in_progress');
+  const completed=sections.map(s=>({...s,items:s.items.map(i=>({...i,state:'functional' as const}))}));
+  completed[0].items.push({id:'manual-test',label:'Punct manual',state:'functional'});
+  const saved=await svc.command(uid,command('revision.save',workId,{equipmentId:'eq1',sections:completed,photos:[]},draft.version),'web');
+  assert.equal((await db.doc(`lucrari/${workId}`).get()).data()!.revision.equipmentStatus.eq1,'done');
+  completed[0].items=completed[0].items.filter(i=>i.id!=='manual-test');
+  await svc.command(uid,command('revision.save',workId,{equipmentId:'eq1',sections:completed,photos:[]},saved.version),'web');
+  const doc=(await db.doc(`lucrari/${workId}/revisions/eq1`).get()).data()!;
+  assert(!doc.sections.some((s:any)=>s.items.some((i:any)=>i.id==='manual-test')));
+});
