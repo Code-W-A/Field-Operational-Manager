@@ -12,6 +12,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // PDF font paths are resolved dynamically and must be included in server bundles.
+  outputFileTracingIncludes: {
+    "/api/technician/*": ["./public/fonts/NotoSans-Regular.ttf", "./public/fonts/NotoSans-Bold.ttf"],
+    "/api/mobile/*": ["./public/fonts/NotoSans-Regular.ttf", "./public/fonts/NotoSans-Bold.ttf"],
+  },
   // Configurație pentru funcții native (cameră, locație)
   async headers() {
     return [
