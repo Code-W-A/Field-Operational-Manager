@@ -2,10 +2,20 @@
 
 import { auth, db } from "@/lib/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
+import { prepareUploadPhoto } from "./upload-photo";
 import { FOM_CONTRACT_VERSION, assertCommand, versionOf, type CommandAction, type CommandPayloadMap, type Command } from "@/packages/fom-domain";
 
 export class TechnicianCommandError extends Error {
   constructor(message: string, public kind: string) { super(message); }
+}
+async function readResponse(response: Response) {
+  const text = await response.text();
+  try { return JSON.parse(text); } catch {
+    const message = response.status === 413
+      ? "Fișierul trimis este prea mare. Datele introduse sunt păstrate; încearcă o fotografie mai mică."
+      : "Serverul nu a putut procesa cererea. Datele introduse sunt păstrate. Reîncearcă salvarea.";
+    throw new TechnicianCommandError(message, response.status === 413 ? "blocked" : "retryable");
+  }
 }
 async function authenticatedFetch(path: string, init: RequestInit = {}) {
   const user = auth.currentUser;
@@ -39,7 +49,7 @@ export async function technicianCommand<A extends CommandAction>(
   const response = await authenticatedFetch("/api/technician/commands", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(command),
   });
-  const result = await response.json();
+  const result = await readResponse(response);
   if (!response.ok) {
     if (result.kind !== "retryable") { try { sessionStorage.removeItem(key); } catch {} }
     throw new TechnicianCommandError(result.error || "Operația a eșuat.", result.kind || "retryable");
@@ -55,16 +65,18 @@ export async function technicianFile(file: File, workId = "", purpose = "photo",
   if (!attempt || attempt.owner !== owner) { attempt = { owner, id: fileId }; fileAttempts.set(file, attempt); }
   if (attempt.result) return attempt.result;
   fileId = attempt.id;
+  const upload = purpose === "photo" ? await prepareUploadPhoto(file) : file;
+  if (upload.size > 3_000_000) throw new TechnicianCommandError("Fișierul depășește limita de 3 MB. Alege un fișier mai mic.", "blocked");
   const form = new FormData();
-  form.set("file", file); form.set("fileId", fileId); form.set("workId", workId); form.set("purpose", purpose);
+  form.set("file", upload); form.set("fileId", fileId); form.set("workId", workId); form.set("purpose", purpose);
   const response = await authenticatedFetch("/api/technician/files", { method: "POST", body: form });
-  const result = await response.json();
+  const result = await readResponse(response);
   if (!response.ok) throw new TechnicianCommandError(result.error || "Încărcarea fișierului a eșuat.", result.kind);
   attempt.result = result;
   return result;
 }
 export async function technicianDocument(workId: string): Promise<Blob> {
   const response = await authenticatedFetch(`/api/technician/document?workId=${encodeURIComponent(workId)}`);
-  if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Document indisponibil."); }
+  if (!response.ok) { const result = await readResponse(response); throw new Error(result.error || "Document indisponibil."); }
   return response.blob();
 }

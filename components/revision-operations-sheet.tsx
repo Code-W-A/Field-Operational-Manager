@@ -237,38 +237,32 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     void persistEndIfNeeded()
   }, [verified, allCompleted, workId, equipmentId])
 
-  // Handle photo selection with preview (limit: max 4 photos)
+  // Derive previews from the actual selection so asynchronous reads cannot reorder them.
+  useEffect(() => {
+    const urls = selectedPhotos.map(file => URL.createObjectURL(file))
+    setPhotoPreviewUrls(urls)
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [selectedPhotos])
+
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const incoming = Array.from(e.target.files || [])
-    if (incoming.length === 0) return
-    setSelectedPhotos((prev) => {
-      const availableSlots = Math.max(0, 4 - prev.length)
-      const toAdd = incoming.slice(0, availableSlots)
-      if (incoming.length > availableSlots) {
-        toast({
-          title: "Limită depășită",
-          description: "Puteți adăuga maximum 4 fotografii la fișa de operațiuni.",
-          variant: "destructive",
-        })
-      }
-      // Create previews only for accepted files
-      toAdd.forEach((file) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setPhotoPreviewUrls((p) => [...p, reader.result as string])
-        }
-        reader.readAsDataURL(file)
-      })
-      return [...prev, ...toAdd]
-    })
-    // clear input to allow re-selecting the same files next time
     e.currentTarget.value = ""
+    if (!incoming.length || saveLock.current) return
+    const availableSlots = Math.max(0, 4 - selectedPhotos.length)
+    const toAdd = incoming.slice(0, availableSlots)
+    if (incoming.length > availableSlots) {
+      toast({
+        title: "Limită depășită",
+        description: `Puteți selecta maximum 4 fotografii noi. Aveți ${selectedPhotos.length} selectate; mai puteți adăuga ${availableSlots}.`,
+        variant: "destructive",
+      })
+    }
+    setSelectedPhotos(prev => [...prev, ...toAdd].slice(0, 4))
   }
 
-  // Remove photo from selection
   const handleRemovePhoto = (index: number) => {
-    setSelectedPhotos((prev) => prev.filter((_, i) => i !== index))
-    setPhotoPreviewUrls((prev) => prev.filter((_, i) => i !== index))
+    if (saveLock.current) return
+    setSelectedPhotos(prev => prev.filter((_, i) => i !== index))
   }
 
   // Open add dialog
@@ -855,6 +849,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                   />
                   <button
                     type="button"
+                    disabled={saving}
+                    aria-label={`Șterge fotografia ${index + 1}`}
                     onClick={() => handleRemovePhoto(index)}
                     className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                   >
@@ -875,6 +871,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                   accept="image/*"
                   multiple
                   onChange={handlePhotoSelect}
+                  disabled={saving}
                   className="hidden"
                 />
               </label>
