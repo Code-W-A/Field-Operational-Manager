@@ -42,6 +42,7 @@ const client = {
           cod: "QR",
           denumire: "Unitate",
           model: "Model X",
+          producator: "Nice",
           documentationFolderId: "folder",
           documentationSubfolderId: "sub",
           documentationFileIds: ["allowed"],
@@ -87,6 +88,7 @@ test("presentation limits equipment and docs to the ticket, and exports the web 
   assert.equal(data.mobileContact.phone, "contact-phone");
   assert.equal(data.mobileEquipment.length, 1);
   assert.equal(data.mobileEquipment[0].model, "Model X");
+  assert.equal(data.mobileEquipment[0].producator, "Nice");
   assert.equal(data.mobileEquipment[0].documentationAssociated, true);
   assert.deepEqual(
     data.mobileEquipment[0].documentation?.map((doc) => doc.id),

@@ -51,6 +51,7 @@ export function CustomEquipmentSelect({
           equipment.nume.toLowerCase().includes(lowercaseSearchTerm) ||
           equipment.cod.toLowerCase().includes(lowercaseSearchTerm) ||
           (equipment.model && equipment.model.toLowerCase().includes(lowercaseSearchTerm)) ||
+          (equipment.producator && equipment.producator.toLowerCase().includes(lowercaseSearchTerm)) ||
           (equipment.serie && equipment.serie.toLowerCase().includes(lowercaseSearchTerm)),
       )
       setFilteredEquipments(filtered)
@@ -314,6 +315,7 @@ function EquipmentItem({
               <p>
                 <span className="font-medium">Cod:</span> {equipment.cod}
               </p>
+              {equipment.producator && <p><span className="font-medium">Producător:</span> {equipment.producator}</p>}
               {equipment.model && (
                 <p>
                   <span className="font-medium">Model:</span> {equipment.model}

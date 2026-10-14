@@ -1,3 +1,4 @@
+import { equipmentCatalogFromSettings } from "@/packages/fom-domain/equipment-catalog";
 import { createHash } from "node:crypto";
 import {
   FieldValue,
@@ -521,6 +522,7 @@ export function technicianCrmService(db: Firestore, clock = () => new Date()) {
         .sort((a, b) => a.name.localeCompare(b.name, "ro")),
       clientFields: tree("dialogs.client.new"),
       equipmentFields: tree("dialogs.equipment.new"),
+      equipmentCatalog: equipmentCatalogFromSettings(settings),
       documentation,
       documentationFolders,
       documentationSubfolders,
@@ -892,6 +894,7 @@ export function technicianCrmService(db: Firestore, clock = () => new Date()) {
               })),
           }),
         );
+        if (locs.some((l: any) => l.echipamente.some((e: any) => [e.producator, e.model].some(v => v !== undefined && v !== null && typeof v !== "string")))) throw new CrmError("Producătorul și modelul trebuie să fie denumiri text.");
         const codes = locs.flatMap((l: any) =>
           l.echipamente.map((e: any) => text(e.cod)),
         );

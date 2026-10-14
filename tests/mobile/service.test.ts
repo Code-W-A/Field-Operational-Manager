@@ -494,3 +494,27 @@ test("personal request preserves canonical HR identity and counter without dupli
     /neautorizat/,
   );
 });
+
+test('QR arrival uses Romanian time, retains offline occurrence and first scan under retries/concurrency', async () => {
+  const workId = 'mobile-test-timezone-revision';
+  const initialVersion = await work(workId, {
+    tipLucrare: 'Revizie', equipmentIds: ['eq1'],
+    revision: { equipmentStatus: { eq1: 'pending' }, equipment: [{ equipmentId: 'eq1', equipmentCode: 'EQ1', revisionChecklistTemplateId: 'mobile-test-root' }] },
+  });
+  const { romanianWorkDate, romanianWorkTime } = await import('../../packages/fom-domain');
+  const at = new Date(Date.now() - 3600000).toISOString();
+  const first = command('verify', workId, { equipmentId: 'eq1', code: 'EQ1' }, initialVersion, { occurredAt: at });
+  const duplicate = { ...first, mutationId: `mobile_test_${++sequence}` };
+  const concurrent = await Promise.allSettled([svc.command(uid, first, 'web'), svc.command(uid, duplicate, 'web')]);
+  assert(concurrent.some(r => r.status === 'fulfilled'));
+  const stored = (await db.doc(`lucrari/${workId}`).get()).data()!;
+  assert.equal(stored.timpSosire, at);
+  assert.equal(stored.dataSosire, romanianWorkDate(at));
+  assert.equal(stored.oraSosire, romanianWorkTime(at));
+  const successful = concurrent[0].status === 'fulfilled' ? first : duplicate;
+  await svc.command(uid, successful, 'web'); // receipt retry must not change the timestamp
+  await svc.command(uid, command('verify', workId, { equipmentId: 'eq1', code: 'EQ1' }, versionOf(stored), { occurredAt: now() }), 'web');
+  const repeated = (await db.doc(`lucrari/${workId}`).get()).data()!;
+  assert.equal(repeated.timpSosire, at);
+  assert.equal(repeated.revisionEquipmentTimes.eq1.startIso, at);
+});

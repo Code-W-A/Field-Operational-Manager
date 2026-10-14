@@ -1,3 +1,4 @@
+import { normalizeWorkTimes } from "@/packages/fom-domain";
 import { jsPDF } from "jspdf";
 import { drawFooter as drawCommonFooter } from "./common";
 import {
@@ -30,6 +31,7 @@ export async function renderServiceReport(
     readOnly?: boolean;
   },
 ) {
+  lucrareForPDF = normalizeWorkTimes(lucrareForPDF);
   const lucrare = lucrareForPDF,
     products = lucrareForPDF.products || [];
   const readOnly = options.readOnly ?? true,

@@ -337,6 +337,7 @@ export interface Client<TTimestamp = unknown> {
 }
 
 export interface Echipament {
+  producator?: string;
   id?: string;
   nume: string;
   cod: string;

@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter, useSearchParams } from "next/navigation"
 import type { Setting } from "@/types/settings"
+import { EquipmentCatalogFields } from "@/components/equipment/equipment-catalog-fields"
 import { useSettings } from "@/hooks/use-settings"
 import {
   createSetting,
@@ -1093,6 +1094,8 @@ export default function SetariPage() {
 
             {/* Tab Content: Variabile (Setări Dinamice) */}
             <TabsContent value="variabile" className="mt-6">
+              {!currentParentId && <Card className="mb-6"><CardHeader><CardTitle>Liste pentru echipamente</CardTitle><CardDescription>Adaugă valori prin +. Pentru redenumire, ordine sau ascundere, deschide categoria corespunzătoare din Variabile.</CardDescription></CardHeader><CardContent><EquipmentCatalogFields producator="" model="" canAdd={true} onChange={() => {}} /></CardContent></Card>}
+
               <div className="space-y-6">
                 {/* Breadcrumbs și butoane acțiune */}
                 <div className="flex items-center justify-between">

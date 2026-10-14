@@ -76,6 +76,13 @@ async function seed() {
 }
 test("shared server service parity and permissions", async (t) => {
   await seed();
+  await t.test("equipment catalogs are included in existing CRM options", async () => {
+    await row("settings", `${prefix}-catalog-manufacturer`, {parentId: "equipment-manufacturers", type:"variable", name:"Nice"});
+    await row("settings", `${prefix}-catalog-model`, {parentId:"equipment-models", type:"variable", name:"M400"});
+    const options = await service.options(tech);
+    assert(options.equipmentCatalog?.manufacturers.some(o => o.name === "Nice"));
+    assert(options.equipmentCatalog?.models.some(o => o.name === "M400"));
+  });
   await t.test(
     "roles, owner, read/edit sharing and explicit permissions",
     async () => {
@@ -437,6 +444,8 @@ test("shared server service parity and permissions", async (t) => {
               echipamente: [
                 {
                   nume: "Motor",
+                  producator: "Nice",
+                  model: "M400",
                   cod: "MOT12",
                   dynamicSettings: {
                     "revision.checklistParentId": "fixture-template",
@@ -454,6 +463,8 @@ test("shared server service parity and permissions", async (t) => {
       const saved = (await db.doc(`clienti/${result.entityId}`).get()).data()!;
       assert.equal(saved.id, result.entityId);
       assert.ok(saved.locatii[0].echipamente[0].id);
+      assert.equal(saved.locatii[0].echipamente[0].producator, "Nice");
+      assert.equal(saved.locatii[0].echipamente[0].model, "M400");
       assert.ok(saved.persoaneContact[0].id);
       assert.equal(saved.customFields.test, "custom");
       await assert.rejects(

@@ -1,4 +1,6 @@
 "use client"
+
+import { romanianWorkDate, romanianWorkTime, romanianWorkDisplay, romanianManualInstant, normalizeWorkTimes } from "@/packages/fom-domain";
 import { isInstallationV1 } from "@/types/installation"
 import { InstallationWorkspace } from "@/components/installation-workspace"
 
@@ -174,7 +176,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         if (data) {
           // Ensure all required fields exist with default values if missing
           const processedData = {
-            ...data,
+            ...normalizeWorkTimes(data),
             // Add default values for potentially missing fields
             constatareLaLocatie: data.constatareLaLocatie || "",
             descriereInterventie: data.descriereInterventie || "",
@@ -882,8 +884,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
 
       const now = new Date()
       const timpPlecare = now.toISOString()
-      const dataPlecare = formatDate(now)
-      const oraPlecare = formatTime(now)
+      const dataPlecare = romanianWorkDate(now)
+      const oraPlecare = romanianWorkTime(now)
       const durataInterventie = tichet?.timpSosire
         ? calculateDuration(tichet.timpSosire, timpPlecare)
         : "-"
@@ -970,7 +972,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       // Construim timestamp-ul complet pentru plecare
       const [day, month, year] = editingDepartureDate.split('.')
       const [hour, minute] = editingDepartureTime.split(':')
-      const departureDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+      const departureDateTime = new Date(romanianManualInstant(`${day}.${month}.${year}`, `${hour}:${minute}`))
       
       // Verificăm dacă data este validă
       if (isNaN(departureDateTime.getTime())) {
@@ -1046,8 +1048,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   const handleStartEditingDepartureTime = () => {
     // Setăm valorile implicite la data și ora curentă
     const now = new Date()
-    const currentDate = now.toLocaleDateString('ro-RO').split('.').map(part => part.padStart(2, '0')).join('.')
-    const currentTime = now.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
+    const currentDate = romanianWorkDate(now)
+    const currentTime = romanianWorkTime(now)
     
     setEditingDepartureDate(currentDate)
     setEditingDepartureTime(currentTime)
@@ -1071,7 +1073,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       // Construim timestamp-ul complet pentru sosire
       const [day, month, year] = editingArrivalDate.split('.')
       const [hour, minute] = editingArrivalTime.split(':')
-      const arrivalDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+      const arrivalDateTime = new Date(romanianManualInstant(`${day}.${month}.${year}`, `${hour}:${minute}`))
       
       // Verificăm dacă data este validă
       if (isNaN(arrivalDateTime.getTime())) {
@@ -1125,7 +1127,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   // Funcție pentru inițierea editării timpului de sosire
   const handleStartEditingArrivalTime = () => {
     // Setăm valorile implicite la data intervenției sau data curentă
-    const interventionDate = tichet?.dataInterventie?.split(' ')[0] || new Date().toLocaleDateString('ro-RO').split('.').map(part => part.padStart(2, '0')).join('.')
+    const interventionDate = tichet?.dataInterventie?.split(' ')[0] || romanianWorkDate(new Date())
     const currentTime = "09:00" // Ora implicită de sosire
     
     setEditingArrivalDate(interventionDate)
@@ -1585,7 +1587,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                       {lucrare?.timpSosire && (
                         <div className="mb-4 p-3 bg-white rounded border text-sm">
                           <p className="text-gray-600 mb-1">
-                            <strong>Timpul de sosire:</strong> {new Date(lucrare.timpSosire).toLocaleString('ro-RO')}
+                            <strong>Timpul de sosire:</strong> {romanianWorkDisplay(lucrare.timpSosire)}
                           </p>
                           {editingDepartureDate && editingDepartureTime && (
                             <p className="text-gray-600">
@@ -1593,7 +1595,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                                 try {
                                   const [day, month, year] = editingDepartureDate.split('.')
                                   const [hour, minute] = editingDepartureTime.split(':')
-                                  const departureDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute))
+                                  const departureDateTime = new Date(romanianManualInstant(`${day}.${month}.${year}`, `${hour}:${minute}`))
                                   
                                   if (!isNaN(departureDateTime.getTime())) {
                                     return calculateDuration(lucrare.timpSosire, departureDateTime.toISOString())

@@ -6,6 +6,10 @@ service cloud.firestore {
       return request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    function catalogDocument(documentId, data) {
+      return documentId.matches('^equipment-(manufacturers|models)(-.*)?$')
+        || data.get('parentId', '') in ['equipment-manufacturers', 'equipment-models'];
+    }
     function serverOnlyCollection(name) {
       return name in ['mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
     }
@@ -14,9 +18,11 @@ service cloud.firestore {
     match /{collectionName}/{documentId} {
       allow read: if !serverOnlyCollection(collectionName);
       allow create: if !serverOnlyCollection(collectionName)
+        && (collectionName != 'settings' || !catalogDocument(documentId, request.resource.data) || isAdmin())
         && (collectionName != 'users' || isAdmin())
         && (collectionName != 'lucrari' || !request.resource.data.keys().hasAny(['installation']));
       allow update: if !serverOnlyCollection(collectionName)
+        && (collectionName != 'settings' || (!catalogDocument(documentId, resource.data) && !catalogDocument(documentId, request.resource.data)) || isAdmin())
         && (collectionName != 'users' || isAdmin()
           || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'displayName', 'uid']))
         && (collectionName != 'lucrari' || (
@@ -30,11 +36,15 @@ service cloud.firestore {
             ]))
         ));
       allow delete: if !serverOnlyCollection(collectionName)
+        && (collectionName != 'settings' || !catalogDocument(documentId, resource.data) || isAdmin())
         && (collectionName != 'users' || isAdmin())
         && (collectionName != 'lucrari' || !resource.data.keys().hasAny(['installation']));
     }
     match /{collectionName}/{documentId}/{subcollection}/{rest=**} {
-      allow read, write: if !serverOnlyCollection(collectionName)
+      allow read: if !serverOnlyCollection(collectionName)
+        && (collectionName != 'lucrari' || !(subcollection in ['installationSheets', 'installationCompletion', 'installationAudit']));
+      allow write: if !serverOnlyCollection(collectionName)
+        && (collectionName != 'settings' || (!documentId.matches('^equipment-(manufacturers|models)(-.*)?$') && (!exists(/databases/$(database)/documents/settings/$(documentId)) || !catalogDocument(documentId, get(/databases/$(database)/documents/settings/$(documentId)).data))) || isAdmin())
         && (collectionName != 'lucrari' || !(subcollection in [
           'installationSheets', 'installationCompletion', 'installationAudit'
         ]));

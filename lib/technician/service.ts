@@ -1,3 +1,4 @@
+import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
 import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
 import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
@@ -46,8 +47,6 @@ import {
 } from "@/lib/attendance/auto-pontaj-schedule";
 import {
   calculateDuration,
-  formatDate,
-  formatTime,
 } from "@/lib/utils/time-format";
 
 export class TechnicianError extends Error {
@@ -434,8 +433,8 @@ export function technicianService(db: Firestore) {
                 equipmentVerifiedBy: uid,
                 statusLucrare: ["Listată", "Atribuită"].includes(w.statusLucrare) ? "În lucru" : w.statusLucrare,
                 timpSosire: w.timpSosire || c.occurredAt,
-                dataSosire: w.dataSosire || formatDate(new Date(occurred)),
-                oraSosire: w.oraSosire || formatTime(new Date(occurred)),
+                dataSosire: romanianWorkDate(w.timpSosire || c.occurredAt) || w.dataSosire || "",
+                oraSosire: romanianWorkTime(w.timpSosire || c.occurredAt) || w.oraSosire || "",
               });
             } else {
               const priorTime = w.revisionEquipmentTimes?.[equipment.id] || {};
@@ -453,8 +452,8 @@ export function technicianService(db: Firestore) {
                 ...(!w.timpSosire
                   ? {
                       timpSosire: c.occurredAt,
-                      dataSosire: formatDate(new Date(occurred)),
-                      oraSosire: formatTime(new Date(occurred)),
+                      dataSosire: romanianWorkDate(c.occurredAt),
+                      oraSosire: romanianWorkTime(c.occurredAt),
                     }
                   : {}),
               });
@@ -567,8 +566,8 @@ export function technicianService(db: Firestore) {
               Object.assign(patch, {
                 products: validateProducts(c.payload.products || []),
                 timpPlecare: w.timpPlecare || c.occurredAt,
-                dataPlecare: w.dataPlecare || formatDate(new Date(occurred)),
-                oraPlecare: w.oraPlecare || formatTime(new Date(occurred)),
+                dataPlecare: romanianWorkDate(w.timpPlecare || c.occurredAt) || w.dataPlecare || "",
+                oraPlecare: romanianWorkTime(w.timpPlecare || c.occurredAt) || w.oraPlecare || "",
                 durataInterventie:
                   w.durataInterventie ||
                   (w.timpSosire

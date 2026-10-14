@@ -1,3 +1,4 @@
+import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 import { NextResponse, type NextRequest } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase/admin"
 
@@ -54,8 +55,8 @@ export async function POST(req: NextRequest) {
     }
     // Arrival times mimicking scan page
     update.timpSosire = now.toISOString()
-    update.dataSosire = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`
-    update.oraSosire = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
+    update.dataSosire = romanianWorkDate(now)
+    update.oraSosire = romanianWorkTime(now)
 
     await workRef.update(update)
 

@@ -7,6 +7,7 @@ export type InstallationEquipment = {
   name: string;
   code: string;
   model: string;
+  producator?: string;
 };
 export type InstallationParticipant = {
   uid: string;

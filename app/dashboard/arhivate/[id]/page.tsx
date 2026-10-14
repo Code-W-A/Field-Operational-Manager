@@ -1,5 +1,7 @@
 "use client"
 
+import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
+
 import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -945,7 +947,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                         <label className="text-sm font-medium text-gray-500">Data Sosire</label>
                         <p className="text-sm flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(lucrare.dataSosire)}
+                          {romanianWorkDate(lucrare.timpSosire) || formatDate(lucrare.dataSosire)}
                         </p>
                       </div>
                     )}
@@ -954,7 +956,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                         <label className="text-sm font-medium text-gray-500">Ora Sosire</label>
                         <p className="text-sm flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {lucrare.oraSosire}
+                          {romanianWorkTime(lucrare.timpSosire) || lucrare.oraSosire}
                         </p>
                       </div>
                     )}
@@ -972,7 +974,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                         <label className="text-sm font-medium text-gray-500">Data Plecare</label>
                         <p className="text-sm flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(lucrare.dataPlecare)}
+                          {romanianWorkDate(lucrare.timpPlecare) || formatDate(lucrare.dataPlecare)}
                         </p>
                       </div>
                     )}
@@ -981,7 +983,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                         <label className="text-sm font-medium text-gray-500">Ora Plecare</label>
                         <p className="text-sm flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {lucrare.oraPlecare}
+                          {romanianWorkTime(lucrare.timpPlecare) || lucrare.oraPlecare}
                         </p>
                       </div>
                     )}

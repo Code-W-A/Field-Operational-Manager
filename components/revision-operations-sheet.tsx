@@ -1,5 +1,7 @@
 "use client"
 
+import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
+
 import { technicianCommand, technicianFile } from "@/lib/technician/client"
 import { subscribeRevisionChecklistFromRoot } from "@/lib/revisions/checklist"
 import { useStableCallback } from "@/lib/utils/hooks"
@@ -663,8 +665,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                             if (!work?.timpSosire) {
                               const payload: any = {
                                 timpSosire: now.toISOString(),
-                                dataSosire: formatUiDate(now),
-                                oraSosire: formatTime(now),
+                                dataSosire: romanianWorkDate(now),
+                                oraSosire: romanianWorkTime(now),
                               }
                               await updateLucrare(workId, payload)
                               console.log("✅ timpSosire set from first QR scan (revizie)", payload)

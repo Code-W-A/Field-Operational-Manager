@@ -360,3 +360,7 @@ export * from "./mobile-access";
 
 export * from "./ticket-dashboard";
 export * from "./notifications";
+
+export * from "./work-time";
+
+export * from "./equipment-catalog";

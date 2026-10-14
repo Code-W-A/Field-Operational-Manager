@@ -111,7 +111,7 @@ const matchesEquipmentFilter = (echipament: Echipament, filter: EquipmentFilterS
 
   const matchesQuery =
     !query ||
-    [echipament.nume, echipament.cod, echipament.serie, echipament.model]
+    [echipament.nume, echipament.cod, echipament.serie, echipament.model, echipament.producator]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(query))
 
@@ -634,8 +634,9 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                                           {/* Detalii echipament */}
                                           <div className="space-y-2">
                                             {/* Informații de bază */}
-                                            {(echipament.model || echipament.serie) && (
+                                            {(echipament.producator || echipament.model || echipament.serie) && (
                                               <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
+                                                {echipament.producator && <div><p className="text-xs text-muted-foreground">Producător</p><p className="truncate font-medium text-foreground">{echipament.producator}</p></div>}
                                                 {echipament.model && (
                                                   <div className="min-w-0">
                                                     <span className="text-muted-foreground">Model</span>

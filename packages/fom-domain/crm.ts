@@ -78,6 +78,7 @@ export type CrmResult = {
   [key: string]: any;
 };
 export type CrmOptions = {
+  equipmentCatalog?: import("./equipment-catalog").EquipmentCatalog;
   users: CrmRow[];
   clients: CrmRow[];
   clientFields: CrmRow[];

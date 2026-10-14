@@ -1,4 +1,6 @@
 "use client"
+
+import { romanianWorkDate, romanianWorkTime, romanianWorkDisplay } from "@/packages/fom-domain";
 import { isInstallationV1 } from "@/types/installation"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { TicketDialog } from "@/components/ticket-dialog"
@@ -1538,8 +1540,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         // Record arrival time
         const now = new Date()
         const timpSosire = now.toISOString()
-        const dataSosire = formatUiDate(now)
-        const oraSosire = formatTime(now)
+        const dataSosire = romanianWorkDate(now)
+        const oraSosire = romanianWorkTime(now)
         
         // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpSosire
         console.log("🕐 SETARE timpSosire la scanarea QR:")
@@ -2689,13 +2691,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   {lucrare.timpSosire && (
                     <div className="flex flex-col min-w-[160px]">
                       <div className="text-sm md:text-xs font-medium text-muted-foreground">Sosire la locație:</div>
-                      <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.timpSosire || lucrare.dataSosire)} {lucrare.oraSosire}</div>
+                      <div className="text-gray-900 whitespace-nowrap">{romanianWorkDisplay(lucrare.timpSosire) || `${formatDateSafe(lucrare.dataSosire)} ${lucrare.oraSosire || ""}`}</div>
                     </div>
                   )}
                   {lucrare.timpPlecare && (
                     <div className="flex flex-col min-w-[160px]">
                       <div className="text-sm md:text-xs font-medium text-muted-foreground">Plecare de la locație:</div>
-                      <div className="text-gray-900 whitespace-nowrap">{formatDateSafe(lucrare.timpPlecare || lucrare.dataPlecare)} {lucrare.oraPlecare}</div>
+                      <div className="text-gray-900 whitespace-nowrap">{romanianWorkDisplay(lucrare.timpPlecare) || `${formatDateSafe(lucrare.dataPlecare)} ${lucrare.oraPlecare || ""}`}</div>
                     </div>
                   )}
                   {lucrare.timpSosire && lucrare.timpPlecare && (

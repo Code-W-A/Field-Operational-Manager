@@ -16,6 +16,7 @@ export type JsonTimestamp =
   string | number | { seconds: number; nanoseconds: number };
 export type ReadDocument<T> = Partial<T> & { id: string } & Record<string, any>;
 export type MobileEquipment = {
+  producator?: string;
   id: string;
   code: string;
   name: string;

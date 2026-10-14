@@ -1,5 +1,7 @@
 "use client"
 
+import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
+
 import { useAuth } from "@/contexts/AuthContext"
 import { technicianCommand, technicianDocument } from "@/lib/technician/client"
 import { loadDocumentClientSnapshot } from "@/lib/work-documents/load-document-client"
@@ -297,8 +299,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
         const departureDate =
           savedDeparture && !Number.isNaN(savedDeparture.getTime()) ? savedDeparture : now
         const timpPlecare = departureDate.toISOString()
-        const dataPlecare = lucrare.dataPlecare || formatDate(departureDate)
-        const oraPlecare = lucrare.oraPlecare || formatTime(departureDate)
+        const dataPlecare = romanianWorkDate(departureDate)
+        const oraPlecare = romanianWorkTime(departureDate)
         // Folosim mereu cele mai recente produse venite prin props (din pagina),
         // iar dacă nu există acolo, cădem înapoi pe state-ul intern.
         const currentProducts = Array.isArray(lucrare?.products) ? lucrare.products : products
@@ -413,8 +415,8 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
           console.log("⚠️ FALLBACK - Snapshot lipsește, generez date noi")
           const now = new Date()
           const timpPlecare = now.toISOString()
-          const dataPlecare = formatDate(now)
-          const oraPlecare = formatTime(now)
+          const dataPlecare = romanianWorkDate(now)
+          const oraPlecare = romanianWorkTime(now)
           
           // DEBUGGING PENTRU TIMPI CORUPȚI - VERIFICARE LA SETARE timpPlecare (FALLBACK)
           console.log("🕐 SETARE timpPlecare la generarea raportului (FALLBACK):")

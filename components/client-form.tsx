@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { EquipmentCatalogFields } from "@/components/equipment/equipment-catalog-fields"
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -192,6 +193,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
   const [echipamentFormData, setEchipamentFormData] = useState<Echipament & { dataInstalare?: string; observatii?: string; dynamicSettings?: any }>({
     nume: "",
     cod: "",
+    producator: "",
     model: "",
     serie: "",
     dataInstalare: "",
@@ -299,6 +301,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
   const [initialEchipamentState, setInitialEchipamentState] = useState<Echipament & { dataInstalare?: string; observatii?: string }>({
     nume: "",
     cod: "",
+    producator: "",
     model: "",
     serie: "",
     dataInstalare: "",
@@ -431,7 +434,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
   // Check if equipment form has been modified
   useEffect(() => {
     const hasChanged = JSON.stringify(echipamentFormData) !== JSON.stringify(initialEchipamentState)
-    const hasContent = echipamentFormData.nume || echipamentFormData.cod || echipamentFormData.model || echipamentFormData.serie || echipamentFormData.dataInstalare || echipamentFormData.observatii
+    const hasContent = echipamentFormData.nume || echipamentFormData.cod || echipamentFormData.producator || echipamentFormData.model || echipamentFormData.serie || echipamentFormData.dataInstalare || echipamentFormData.observatii
 
     setEchipamentFormModified(Boolean(hasChanged && hasContent))
   }, [echipamentFormData, initialEchipamentState])
@@ -613,6 +616,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     setEchipamentFormData({
       nume: "",
       cod: "",
+      producator: "",
       model: "",
       serie: "",
       dataInstalare: "",
@@ -646,6 +650,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     const echipament = locatii[locatieIndex].echipamente?.[echipamentIndex] || {
       nume: "",
       cod: "",
+      producator: "",
       model: "",
       serie: "",
       dataInstalare: "",
@@ -854,6 +859,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     setEchipamentFormData({
       nume: "",
       cod: "",
+      producator: "",
       model: "",
       serie: "",
       dataInstalare: "",
@@ -868,6 +874,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
     setInitialEchipamentState({
       nume: "",
       cod: "",
+      producator: "",
       model: "",
       serie: "",
       dataInstalare: "",
@@ -1578,8 +1585,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
                               </div>
                             </div>
 
-                            {(echipament.model || echipament.serie) && (
+                            {(echipament.producator || echipament.model || echipament.serie) && (
                               <div className="text-sm mt-2">
+                                {echipament.producator && <p>Producător: {echipament.producator}</p>}
                                 {echipament.model && <p>Model: {echipament.model}</p>}
                                 {echipament.serie && <p>Serie: {echipament.serie}</p>}
                               </div>
@@ -1692,19 +1700,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label htmlFor="model" className="text-sm font-medium">
-                  Model
-                </label>
-                <Input
-                  id="model"
-                  placeholder="Model echipament"
-                  value={echipamentFormData.model || ""}
-                  onChange={handleEchipamentInputChange}
-                />
-              </div>
+            <EquipmentCatalogFields producator={echipamentFormData.producator || ""} model={echipamentFormData.model || ""} canAdd={["admin", "dispecer"].includes(userData?.role || "")} onChange={patch => setEchipamentFormData(prev => ({...prev,...patch}))} />
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label htmlFor="serie" className="text-sm font-medium">
                   Serie

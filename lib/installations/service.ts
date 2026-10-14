@@ -172,6 +172,7 @@ export function installationService(db: Firestore) {
         name: String(e.nume || id),
         code: String(e.cod || ""),
         model: String(e.model || ""),
+        producator: String(e.producator || ""),
       };
     });
     return { equipmentIds, equipment, client, location };

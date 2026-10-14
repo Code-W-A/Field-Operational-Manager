@@ -74,6 +74,7 @@ export async function ticketPresentation(
         code: String(item.code),
         name: String(item.name),
         model: text(source.model || item.model || work.echipamentModel),
+        producator: text(source.producator || (item as any).producator),
         documentation: [],
       };
       const folderId = text(source.documentationFolderId);
