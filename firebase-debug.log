@@ -1,0 +1,9 @@
+[debug] [2026-10-13T15:32:17.938Z] ----------------------------------------------------------------------
+[debug] [2026-10-13T15:32:17.939Z] Command:       /opt/homebrew/Cellar/node/25.6.1/bin/node /opt/homebrew/bin/firebase login:list
+[debug] [2026-10-13T15:32:17.939Z] CLI Version:   14.11.0
+[debug] [2026-10-13T15:32:17.939Z] Platform:      darwin
+[debug] [2026-10-13T15:32:17.939Z] Node Version:  v25.6.1
+[debug] [2026-10-13T15:32:17.939Z] Time:          Tue Oct 13 2026 18:32:17 GMT+0300 (Eastern European Summer Time)
+[debug] [2026-10-13T15:32:17.940Z] ----------------------------------------------------------------------
+[debug] 
+[info] Logged in as nrgsistemedeacces@gmail.com

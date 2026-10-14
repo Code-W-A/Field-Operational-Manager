@@ -2283,7 +2283,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                       console.log(`[RAPORT_FLOW ${paramsId}] ReportGenerator.onGenerate()`, {
                         lucrareId: (updatedLucrare?.id || tichet?.id || paramsId),
                         pdfBytes: blob?.size,
-                      })
+                      });
                       // Send email automatically when PDF is generated
                       (userData?.role === "tehnician" ? Promise.resolve(true) : sendEmail(blob))
                         .then((success) => {
