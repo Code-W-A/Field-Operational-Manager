@@ -15,6 +15,7 @@ export * from "./procedures";
 export * from "./constants";
 export * from "./commands";
 export * from "./works";
+export * from "./history";
 export * from "./documents";
 export * from "./hr";
 export * from "./attendance";

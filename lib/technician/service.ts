@@ -4,6 +4,8 @@ import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
 import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
 import { photoIdentity } from "./photo-identity";
 import { ticketPresentation, ticketClientLocation } from "./ticket-presentation";
+import { historyRecord, historyWork } from "./history";
+import { sortHistory } from "@/packages/fom-domain/history";
 import {
   FieldValue,
   Timestamp,
@@ -256,21 +258,23 @@ export function technicianService(db: Firestore) {
       .collection("lucrari")
       .where("echipamentCod", "==", code)
       .get();
-    return serial(
-      rows(snap)
-        .filter((w) => w.raportGenerat)
-        .map((w) => ({
-          id: w.id,
-          client: w.client,
-          locatie: w.locatie,
-          dataInterventie: w.dataInterventie,
-          tipLucrare: w.tipLucrare,
-          constatareLaLocatie: w.constatareLaLocatie,
-          descriereInterventie: w.descriereInterventie,
-          numarRaport: w.numarRaport,
-          statusEchipament: w.statusEchipament,
-        })),
-    );
+    return serial(sortHistory(rows(snap).map(historyRecord)));
+  }
+  async function historyDetail(uid: string, workId: string, code: string) {
+    await actor(uid);
+    check(typeof code === "string" && code.length > 0 && code.length < 200, "Cod invalid.");
+    const snapshot = await workRef(workId).get();
+    const work = { ...snapshot.data(), id: snapshot.id } as RecordData;
+    check(snapshot.exists && work.echipamentCod === code, "Lucrarea nu este disponibilă în istoricul acestui echipament.", 403);
+    let client: RecordData | undefined;
+    if (work.clientId) {
+      const snapshot = await db.collection("clienti").doc(id(work.clientId)).get();
+      if (snapshot.exists) client = { ...snapshot.data(), id: snapshot.id };
+    } else if (work.client) {
+      const matches = await db.collection("clienti").where("nume", "==", work.client).limit(2).get();
+      if (matches.size === 1) client = rows(matches)[0];
+    }
+    return serial(historyWork(work, await ticketPresentation(db, work, client)));
   }
   async function command(uid: string, c: Command, channel: "web" | "mobile" = "mobile") {
     try {
@@ -1243,5 +1247,5 @@ export function technicianService(db: Firestore) {
       }),
     };
   }
-  return { actor, bundle, command, history, resolveEquipment };
+  return { actor, bundle, command, history, historyDetail, resolveEquipment };
 }

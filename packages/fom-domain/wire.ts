@@ -11,6 +11,7 @@ import type {
 } from "./hr";
 import type { InstallationListResponse } from "./installation";
 import type { EquipmentRevisionDoc } from "./revision";
+import type { HistoryRecord } from "./history";
 /** JSON timestamps are a transport representation, not a new Firestore schema. */
 export type JsonTimestamp =
   string | number | { seconds: number; nanoseconds: number };
@@ -81,7 +82,7 @@ export type Bundle = {
       >;
     } & Record<string, any>
   >;
-  histories: Record<string, Work[]>;
+  histories: Record<string, HistoryRecord[]>;
   attendanceSettings?: { defaults?: HrDefaults; holidays?: HrHoliday[] };
   downloadedAt?: string;
 };
@@ -188,13 +189,13 @@ export function requestPeriod(request: Partial<Pick<HrRequest, "payload">>) {
     end: "endDate" in payload ? payload.endDate : "",
   };
 }
-export function readHistory(value: unknown): Work[] {
+export function readHistory(value: unknown): HistoryRecord[] {
   if (
     !Array.isArray(value) ||
     !value.every((work: unknown) => object(work) && typeof work.id === "string")
   )
     throw new DomainError("Istoric FOM invalid.");
-  return value as Work[];
+  return value as HistoryRecord[];
 }
 export function readInstallation(value: unknown): InstallationListResponse {
   if (
