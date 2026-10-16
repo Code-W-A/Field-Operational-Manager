@@ -275,27 +275,27 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       const queries = [
         // Interval pe Timestamp/Date
         fsQuery(
-          collection(db, "lucrari"),
+          collection(db, "tichete"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", ">=", start),
           where("dataInterventie", "<", end),
         ),
         // Interval pe string ISO (fallback pentru câmp salvat ca string)
         fsQuery(
-          collection(db, "lucrari"),
+          collection(db, "tichete"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", ">=", dayStartIso),
           where("dataInterventie", "<", dayEndIso),
         ),
         // Egalitate pe string date-only (ex: "2025-01-01")
         fsQuery(
-          collection(db, "lucrari"),
+          collection(db, "tichete"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", "==", isoDate),
         ),
         // Egalitate pe Timestamp/Date (în caz că a fost salvat ca Date fără timp)
         fsQuery(
-          collection(db, "lucrari"),
+          collection(db, "tichete"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", "==", start),
         ),
@@ -2790,13 +2790,13 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                   {startDateWorkload.loading ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                      <span className="text-slate-600">Se verifică lucrările programate în această zi...</span>
+                      <span className="text-slate-600">Se verifică tichetele programate în această zi...</span>
                     </>
                   ) : startDateWorkload.error ? (
                     <span className="text-red-600">{startDateWorkload.error}</span>
                   ) : (
                     <span className="text-blue-700">
-                      Pe {formatUiDate(toDateSafe(newContractStartDate)!)} există deja {startDateWorkload.count} lucrări (revizii) programate.
+                      Pe {formatUiDate(toDateSafe(newContractStartDate)!)} există deja {startDateWorkload.count} tichete (revizii) programate.
                     </span>
                   )}
                 </div>
@@ -3172,13 +3172,13 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
                   {startDateWorkload.loading ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                      <span className="text-slate-600">Se verifică lucrările programate în această zi...</span>
+                      <span className="text-slate-600">Se verifică tichetele programate în această zi...</span>
                     </>
                   ) : startDateWorkload.error ? (
                     <span className="text-red-600">{startDateWorkload.error}</span>
                   ) : (
                     <span className="text-blue-700">
-                      Pe {formatUiDate(toDateSafe(newContractStartDate)!)} există deja {startDateWorkload.count} lucrări (revizii) programate.
+                      Pe {formatUiDate(toDateSafe(newContractStartDate)!)} există deja {startDateWorkload.count} tichete (revizii) programate.
                     </span>
                   )}
                 </div>

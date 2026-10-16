@@ -99,7 +99,7 @@ export default function LucrariArhivate() {
       // Pentru compatibility cu lucrările arhivate înainte de implementarea câmpului archivedAt,
       // încărcăm toate lucrările arhivate și le sortăm în memorie
       const lucrarireQuery = query(
-        collection(db, "lucrari"),
+        collection(db, "tichete"),
         where("statusLucrare", "==", WORK_STATUS.ARCHIVED)
       )
 
@@ -163,7 +163,7 @@ export default function LucrariArhivate() {
       label: status === "Nedefinit" ? "Nedefinit" : status,
     }))
 
-    // Structură filtre conform cerințelor: Client, Locație, Echipament, Date, Tip lucrare, Tehnicieni, Status echipament
+    // Structură filtre conform cerințelor: Client, Locație, Echipament, Date, Tip tichet, Tehnicieni, Status echipament
     return [
       {
         id: "client",
@@ -416,7 +416,7 @@ export default function LucrariArhivate() {
     try {
       // Eliminăm statusul de arhivare și câmpurile asociate
       await updateLucrare(lucrareId, { 
-        statusLucrare: WORK_STATUS.COMPLETED,
+        statusTichet: WORK_STATUS.COMPLETED,
         archivedAt: null as any, // Eliminăm data arhivării
         archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
       })
@@ -891,7 +891,7 @@ export default function LucrariArhivate() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-gray-400" />
-                          <span className="truncate">{lucrare.tipLucrare}</span>
+                          <span className="truncate">{lucrare.tipLucrareee}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Wrench className="h-4 w-4 text-gray-400" />

@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
     // Folosim funcția sigură de logging
     await safeAddLog(
       "Notificare API",
-      `Încercare trimitere notificări pentru lucrarea ${workOrderId}`,
+      `Încercare trimitere notificări pentru tichetul ${workOrderId}`,
       "Informație",
       "Email",
     )
@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Locație:</strong> ${details?.location || "N/A"}</li>
         ${details?.interventionDate ? `<li><strong>Data intervenție:</strong> ${(details.interventionDate || '').split(' ')[0]}</li>` : ''}
-        ${details?.workType ? `<li><strong>Tip lucrare:</strong> ${details.workType}</li>` : ''}
+        ${details?.workType ? `<li><strong>Tip tichet:</strong> ${details.workType}</li>` : ''}
       </ul>
     `
       : `
@@ -350,7 +350,7 @@ export async function POST(request: NextRequest) {
               "Sending email to technician",
               {
                 recipient: `${tech.name} <${tech.email}>`,
-                subject: `Tichet nouă: ${client?.name}`,
+                subject: `Tichet nou: ${client?.name}`,
               },
               { category: "email", context: logContext },
             )
@@ -363,7 +363,7 @@ export async function POST(request: NextRequest) {
                 </div>
                 <h2 style="color: #0f56b3;">Tichet nou asignată</h2>
                 <p>Salut ${tech.name},</p>
-                <p>Ai fost asignat la o nouă tichet:</p>
+                <p>Ai fost asignat la un tichet nou:</p>
                 
                 <!-- Buton de acces tichet -->
                 <table cellspacing="0" cellpadding="0" border="0" style="margin: 20px 0;">
@@ -372,7 +372,7 @@ export async function POST(request: NextRequest) {
                       <a href="${workOrderUrl}" 
                          target="_blank"
                          style="padding: 10px 15px; border: 1px solid #0f56b3; border-radius: 4px; color: #ffffff; text-decoration: none; display: inline-block; font-weight: bold; background-color: #0f56b3;">
-                         Accesează lucrarea
+                         Accesează tichetul
                       </a>
                     </td>
                   </tr>
@@ -408,7 +408,7 @@ export async function POST(request: NextRequest) {
               from: resolved.mailFrom,
               to: tech.email,
               subject: `Tichet nou: ${client?.name}`,
-              text: `Salut ${tech.name}, ai fost asignat la o nouă tichet pentru clientul ${client?.name || "N/A"}. Accesează lucrarea la: ${workOrderUrl}`,
+              text: `Salut ${tech.name}, ai fost asignat la un tichet nou pentru clientul ${client?.name || "N/A"}. Accesează tichetul la: ${workOrderUrl}`,
               html: htmlContent,
               attachments: [
                 {
@@ -585,7 +585,7 @@ export async function POST(request: NextRequest) {
             <h2 style="color: #0f56b3;">${isPostponed ? "Tichet amânat" : "Confirmare tichet"}</h2>
             <p>Stimate ${client.contactPerson || client.name},</p>
             <p>${isPostponed
-              ? "Vă informăm că lucrarea a fost amânată. Mai jos regăsiți detaliile relevante:"
+              ? "Vă informăm că tichetul a fost amânată. Mai jos regăsiți detaliile relevante:"
               : "Vă confirmăm programarea unei intervenții cu următoarele detalii:"}
             </p>
             
@@ -615,7 +615,7 @@ export async function POST(request: NextRequest) {
             ? `Anunț amânare tichet: ${details?.location || "Locație nedefinită"}`
             : `Confirmare intervenție: ${details?.location || "Locație nedefinită"}`,
           text: isPostponed
-            ? `Stimate ${client.contactPerson || client.name}, vă informăm că lucrarea a fost amânată.${details?.postponeReason ? ` Motiv: ${details.postponeReason}.` : ''}`
+            ? `Stimate ${client.contactPerson || client.name}, vă informăm că tichetul a fost amânată.${details?.postponeReason ? ` Motiv: ${details.postponeReason}.` : ''}`
             : `Stimate ${client.contactPerson || client.name}, vă confirmăm programarea unei intervenții.${revisionClientNotice?.text ? `\n\n${revisionClientNotice.text}` : ""}`,
           html: htmlContent,
           attachments: [
@@ -806,7 +806,7 @@ export async function POST(request: NextRequest) {
     // Folosim funcția sigură de logging în loc de addLog
     await safeAddLog(
       "Notificare API",
-      `Rezultat trimitere notificări pentru lucrarea ${workOrderId}: ${technicianEmails.length} tehnicieni, client: ${clientEmailResult?.success ? "Succes" : "Eșec"}`,
+      `Rezultat trimitere notificări pentru tichetul ${workOrderId}: ${technicianEmails.length} tehnicieni, client: ${clientEmailResult?.success ? "Succes" : "Eșec"}`,
       "Informație",
       "Email",
     )

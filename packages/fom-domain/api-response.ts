@@ -9,6 +9,7 @@ export class ApiResponseError extends Error {
     public kind: string,
     public status: number,
     public httpStatus = status,
+    public code?: string,
   ) {
     super(message);
   }
@@ -57,6 +58,8 @@ export async function readApiJson(
             ? "retryable"
             : "blocked",
       response.status,
+      response.status,
+      typeof data.code === "string" ? data.code : undefined,
     );
   }
   return data;

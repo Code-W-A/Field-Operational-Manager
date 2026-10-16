@@ -251,7 +251,7 @@ export function InstallationWorkspace({
       <DashboardHeader
         heading={
           <span className="flex flex-wrap items-center gap-3">
-            <span>Instalare {data?.work.nrLucrare || ""}</span>
+            <span>Instalare {data?.work.nrLucraree || ""}</span>
             {data && <StatusBadge status={canceled ? "Anulat" : data.work.statusLucrare} />}
           </span>
         }

@@ -139,7 +139,7 @@ export default function OfferActionPage() {
   const generateOfferBlobFromWork = async (work: any) => {
     const products = Array.isArray(work?.products) ? work.products : []
     if (!products.length) {
-      throw new Error("Oferta nu poate fi generată deoarece nu există produse în lucrare.")
+      throw new Error("Oferta nu poate fi generată deoarece nu există produse în tichet.")
     }
 
     const blob = await generateOfferPdf({
@@ -212,12 +212,12 @@ export default function OfferActionPage() {
           technicalParts.push("Nu s-a putut construi linkul API de descărcare pentru URL-ul stocat.")
         }
       } else {
-        technicalParts.push("Nu există ofertăDocument.url în lucrare.")
+        technicalParts.push("Nu există ofertăDocument.url în tichet.")
       }
 
       try {
         if (!fresh) {
-          throw new Error("Datele lucrării nu sunt disponibile în răspunsul serverului.")
+          throw new Error("Datele tichetului nu sunt disponibile în răspunsul serverului.")
         }
         const { blob, fileName } = await generateOfferBlobFromWork(fresh)
         triggerBlobDownload(blob, fileName)
@@ -500,7 +500,7 @@ export default function OfferActionPage() {
       }
 
       try {
-        const ref = doc(db, "lucrari", id)
+        const ref = doc(db, "tichete", id)
         const snap = await getDoc(ref)
         const data: any = snap.exists() ? snap.data() : null
         const freshSnap = await getDoc(ref)

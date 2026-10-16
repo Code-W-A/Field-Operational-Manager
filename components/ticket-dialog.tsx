@@ -161,7 +161,7 @@ export const TicketDialog: React.FC<TicketDialogProps> = ({
               <div className="flex items-center">
                 <span className="text-blue-800 font-medium">
                   Re-intervenție: Acest formular este precompletat cu datele din
-                  lucrarea originală pentru{" "}
+                  tichetul original pentru{" "}
                   <strong>{originalInfo || originalWorkOrderId}</strong>
                   <span className="ml-2 text-xs text-blue-700">
                     (Câmpurile client/locație/echipament sunt înghețate)
@@ -217,7 +217,7 @@ export const TicketDialog: React.FC<TicketDialogProps> = ({
                       formData.echipament ||
                       "selectat"}
                   </strong>
-                  . Nu puteți salva o lucrare nouă.
+                  . Nu puteți salva un tichet nou.
                 </p>
                 {activeWorkItems.length > 0 ? (
                   <div className="mt-2 space-y-1">

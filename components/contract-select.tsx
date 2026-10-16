@@ -274,7 +274,7 @@ export function ContractSelect({
     if (normalizedExcluded.includes(typeNormalized)) {
       toast({
         title: "Contract indisponibil",
-        description: `Contractele de tip "${resolvedType || selectedContract.type}" nu pot fi selectate pentru această tichet.`,
+        description: `Contractele de tip "${resolvedType || selectedContract.type}" nu pot fi selectate pentru acest tichet.`,
         variant: "destructive",
       })
       return

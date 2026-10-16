@@ -189,7 +189,7 @@ export function InstallationSheetForm({
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Lucrări executate</CardTitle>
+              <CardTitle className="text-lg">Tichete executate</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
               <ReadField title="Constatare la locație" value={sheet.finding} />
@@ -280,7 +280,7 @@ export function InstallationSheetForm({
         <>
           <fieldset disabled={busy} className="space-y-5">
             <FormSection
-              title="Lucrări executate"
+              title="Tichete executate"
               description="Constatarea și operațiunile sunt obligatorii la închiderea fișei."
             >
               <div>
@@ -408,7 +408,7 @@ export function InstallationSheetForm({
           <fieldset disabled={busy}>
             <FormSection
               title="Semnături"
-              description="Confirmarea lucrărilor de către tehnician și beneficiar."
+              description="Confirmarea tichetelor de către tehnician și beneficiar."
             >
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
@@ -569,12 +569,12 @@ export function InstallationCompletionForm({
   return (
     <section className="space-y-5">
       <h2 className="text-lg font-semibold">
-        Proces-verbal de terminare a lucrării
+        Proces-verbal de terminare a tichetului
       </h2>
       <fieldset disabled={busy} className="space-y-5">
         <FormSection
           title="Observații finale"
-          description="Detalii opționale pentru predarea lucrării către beneficiar."
+          description="Detalii opționale pentru predarea tichetului către beneficiar."
         >
           <Label htmlFor="completion-observations">Observații finale</Label>
           <Textarea
@@ -587,7 +587,7 @@ export function InstallationCompletionForm({
         </FormSection>
         <FormSection
           title="Semnături"
-          description="Procesul-verbal finalizează lucrarea după semnarea de către tehnician și beneficiar."
+          description="Procesul-verbal finalizează tichetul după semnarea de către tehnician și beneficiar."
         >
           <Label htmlFor="completion-beneficiary">
             Numele beneficiarului *
@@ -646,7 +646,7 @@ export function InstallationCompletionForm({
             }
           }}
         >
-          Semnează și finalizează lucrarea
+          Semnează și finalizează tichetul
         </Button>
       </fieldset>
     </section>
@@ -789,7 +789,7 @@ function InstallationDeferredSignatures({
   return (
     <FormSection
       title="Semnare ulterioară"
-      description="Lucrările sunt înghețate. Semnezi în nume propriu, împreună cu beneficiarul."
+      description="Tichetele sunt înghețate. Semnezi în nume propriu, împreună cu beneficiarul."
     >
       <fieldset disabled={busy} className="space-y-4">
         <Label htmlFor="deferred-beneficiary">Numele beneficiarului *</Label>

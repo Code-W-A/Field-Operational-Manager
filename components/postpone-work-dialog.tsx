@@ -50,7 +50,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
 
     try {
       const updateData: any = {
-        statusLucrare: WORK_STATUS.POSTPONED,
+        statusTichet: WORK_STATUS.POSTPONED,
         motivAmanare: motiv.trim(),
         dataAmanare: new Date().toLocaleString('ro-RO'),
         amanataDe: userData?.displayName || "Tehnician necunoscut",
@@ -62,7 +62,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
 
       if (userData?.role === "tehnician") {
         const result = await technicianCommand("postpone", lucrareId, { motivAmanare: motiv.trim() })
-        if (result.delivery?.error) toast({ title: "Lucrare amânată", description: result.delivery.error, variant: "destructive" })
+        if (result.delivery?.error) toast({ title: "Tichet amânat", description: result.delivery.error, variant: "destructive" })
       } else {
       await updateLucrare(lucrareId, updateData)
 
@@ -77,7 +77,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
           dataAmanare: updateData.dataAmanare,
           locatie: lucrare?.locatie,
           persoanaContact: lucrare?.persoanaContact,
-          tipLucrare: lucrare?.tipLucrare,
+          tipTichet: lucrare?.tipLucrare,
           dataInterventie: lucrare?.dataInterventie,
           // Trimitem numele clientului ca string pentru a permite rezolvarea corectă a emailului în serviciu
           client: lucrare?.client,
@@ -97,8 +97,8 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
       }
 
       toast({
-        title: "Tichet amânată",
-        description: "Lucrarea a fost amânată cu succes. Nu va mai apărea în lista ta de tichete.",
+        title: "Tichet amânat",
+        description: "Tichetul a fost amânat cu succes. Nu va mai apărea în lista ta de tichete.",
       })
 
       setIsOpen(false)
@@ -158,8 +158,8 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Atenție:</strong> După amânare, nu vei mai avea acces la această lucrare. 
-              Lucrarea va trebui reatribuită de către dispecer.
+              <strong>Atenție:</strong> După amânare, nu vei mai avea acces la acest tichet. 
+              Tichetul va trebui reatribuită de către dispecer.
             </AlertDescription>
           </Alert>
 
@@ -169,7 +169,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
             </Label>
             <Textarea
               id="motiv-amanare"
-              placeholder="Descrie motivul pentru care amâni această tichet"
+              placeholder="Descrie motivul pentru care amâni acest tichet"
               value={motiv}
               onChange={(e) => setMotiv(e.target.value)}
               className="min-h-[100px] resize-none"

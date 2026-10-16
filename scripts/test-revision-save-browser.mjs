@@ -10,13 +10,13 @@ const mocks = {
   '@/components/dashboard-header': `export const DashboardHeader = () => null;`,
   '@/components/qr-code-scanner': `export const QRCodeScanner = () => null;`,
   '@/hooks/use-toast': `const toast = value => window.calls.toasts.push(value); export const useToast = () => ({toast});`,
-  '@/lib/firebase/config': `export const db = {}; export const storage = {};`,
+  '@/lib/firebase/config': `export const db = {}; export const storage = {}; export const auth = {currentUser:{getIdToken:async()=> 'test-token'}};`,
   '@/lib/firebase/firestore': `const work = {client:'Client',locatie:'Sediu',tipLucrare:'Revizie',revision:{equipment:[{equipmentId:'eq',equipmentName:'Ușă',revisionChecklistTemplateId:'root'}]}}; export const getLucrareById = async () => work; export const getClienti = async () => []; export const getClientById = async () => null; export const updateLucrare = async () => {};`,
   '@/firebase-functions/src/client-ticket-sync': `export const isContactSyncEligible = () => false; export const resolveTicketLocation = () => null;`,
   '@/lib/client-work-links': `export const createClientIndex = () => ({resolve:()=>null});`,
   '@/lib/revisions/checklist': `export const subscribeRevisionChecklistFromRoot = (id,cb) => { cb({sections:window.seed.sections}); return ()=>{}; };`,
   '@/lib/technician/client': `export const technicianFile = async file => { window.calls.uploads.push(file.name); return {path:file.name,url:'data:image/png;base64,',fileName:file.name}; }; export const technicianCommand = async (action,id,payload) => { window.calls.commands.push(payload); await window.saveDelay(); if(window.fail) throw Error('Rețea indisponibilă'); window.persist(payload); };`,
-  'firebase/firestore': `export const doc = (...args) => args.slice(1).join('/'); export const collection=doc; export const serverTimestamp=()=> 'now'; export const getDocs=async()=>({docs:[]}); const snap=()=>({id:'eq',exists:()=>true,data:()=>window.seed}); export const getDoc=async()=>snap(); export const onSnapshot=(ref,cb)=>{window.snapshot=()=>cb(snap()); window.snapshot(); return ()=>{};}; export const setDoc=async(ref,payload)=>{window.calls.writes.push(payload); await window.saveDelay(); if(window.fail) throw Error('Rețea indisponibilă'); window.persist(payload);}; export const updateDoc=setDoc;`,
+  'firebase/firestore': `export const doc = (...args) => args.slice(1).join('/'); export const collection=doc; export const serverTimestamp=()=> 'now'; export const getDocs=async()=>({docs:[]}); const snap=()=>({id:'eq',exists:()=>true,data:()=>window.seed}); export const getDoc=async()=>snap(); export const onSnapshot=(ref,cb)=>{window.snapshot=()=>cb(snap()); window.snapshot(); return ()=>{};}; export const setDoc=async(ref,payload)=>{window.calls.writes.push(payload); await window.saveDelay(); if(window.fail) throw Error('Rețea indisponibilă'); window.persist(payload);}; export const updateDoc=setDoc; export const runTransaction=async(db,fn)=>{const writes=[];const result=await fn({get:async()=>snap(),set:(...args)=>writes.push(setDoc(...args))});await Promise.all(writes);return result;};`,
   'firebase/storage': `export const ref=(storage,path)=>path; export const uploadBytes=async(path,file)=>{window.calls.uploads.push(file.name);if(window.failPhoto===file.name) throw Error('Încărcare eșuată');}; export const getDownloadURL=async()=> 'data:image/png;base64,'; export const deleteObject=async()=>{}; export const listAll=async()=>({items:[]});`,
 }
 const result = await build({
@@ -47,7 +47,7 @@ async function fixture({role='admin', complete=true}={}) {
 }
 async function openPrompt(page,hardware=false) {
   if(hardware) await page.evaluate(()=>history.back())
-  else await page.getByRole('button',{name:'Înapoi la lucrare'}).click()
+  else await page.getByRole('button',{name:'Înapoi la tichet'}).click()
   await expect(page.getByRole('alertdialog')).toBeVisible()
 }
 try {
@@ -111,7 +111,7 @@ try {
   checks++; await full.close()
   const clean=await fixture()
   await clean.locator('#final-observations').fill('   ')
-  await clean.getByRole('button',{name:'Înapoi la lucrare'}).click()
+  await clean.getByRole('button',{name:'Înapoi la tichet'}).click()
   await expect.poll(()=>clean.evaluate(()=>window.calls.routes.length)).toBe(1)
   await expect(clean.getByRole('alertdialog')).toHaveCount(0)
   checks++; await clean.close()

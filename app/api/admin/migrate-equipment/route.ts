@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         utilizator: actor.email || "admin",
         utilizatorId: actor.userId,
         actiune: result.idempotentReplay ? "Migrare echipamente — reluare idempotentă" : "Migrare echipamente — finalizat",
-        detalii: `Lucrări actualizate: ${result.updatedLucrariCount}; echipamente: ${result.migratedEquipmentIds.length}`,
+        detalii: `Tichete actualizate: ${result.updatedLucrariCount}; echipamente: ${result.migratedEquipmentIds.length}`,
         tip: "Informație",
         categorie: "Migrare echipamente",
         extra: {

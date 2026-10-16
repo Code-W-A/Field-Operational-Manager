@@ -264,11 +264,11 @@ export function DevizEditorDialog({
       const fileName = `deviz_${String((freshWork as any)?.numarRaport || lucrareId)}.pdf`
       const attachmentBase64 = await blobToBase64(blob)
       const sentAtIso = new Date().toISOString()
-      const subject = `Deviz pentru lucrarea ${freshWork?.numarRaport || freshWork?.id || lucrareId}`
+      const subject = `Deviz pentru tichetul ${freshWork?.numarRaport || freshWork?.id || lucrareId}`
       const html = `
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-          <h2 style="margin:0 0 12px;color:#0f56b3">Deviz lucrarea ${freshWork?.numarRaport || freshWork?.id || lucrareId}</h2>
-          <p style="margin:8px 0 12px;color:#0b1220">Atașat găsiți devizul aferent lucrării, cu pozițiile introduse manual.</p>
+          <h2 style="margin:0 0 12px;color:#0f56b3">Deviz tichetul ${freshWork?.numarRaport || freshWork?.id || lucrareId}</h2>
+          <p style="margin:8px 0 12px;color:#0b1220">Atașat găsiți devizul aferent tichetului, cu pozițiile introduse manual.</p>
           <p style="margin:8px 0;color:#0b1220"><strong>Total fără TVA:</strong> ${latestVersion.total.toFixed(2)} lei</p>
           <p style="margin:8px 0;color:#64748b">Locație: ${documentWork.locatie || "-"}</p>
           <div style="margin-top:14px;font-size:11px;color:#6b7280">Acesta este un mesaj automat emis de FOM by NRG.</div>
@@ -444,7 +444,7 @@ export function DevizEditorDialog({
                     ) : null}
                   </>
                 ) : (
-                  <span>Nu există email valid pentru persoana de contact din locația lucrării.</span>
+                  <span>Nu există email valid pentru persoana de contact din locația tichetului.</span>
                 )}
               </div>
 

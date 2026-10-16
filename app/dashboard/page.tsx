@@ -32,14 +32,14 @@ export default function Dashboard() {
   const isTechnician = userData?.role === "tehnician"
 
   type DashboardLucrareFormData = {
-    tipLucrare: string
+    tipTichet: string
     tehnicieni: string[]
     client: string
     locatie: string
     descriere: string
     persoanaContact: string
     telefon: string
-    statusLucrare: string
+    statusTichet: string
     statusFacturare: string
     contract: string
     contractNumber: string
@@ -103,14 +103,14 @@ export default function Dashboard() {
   const [dataEmiterii, setDataEmiterii] = React.useState<Date | undefined>(new Date())
   const [dataInterventie, setDataInterventie] = React.useState<Date | undefined>(undefined)
   const [formData, setFormData] = React.useState<DashboardLucrareFormData>({
-    tipLucrare: "",
+    tipTichet: "",
     tehnicieni: [],
     client: "",
     locatie: "",
     descriere: "",
     persoanaContact: "",
     telefon: "",
-    statusLucrare: "Listată",
+    statusTichet: "Listată",
     statusFacturare: "Nefacturat",
     contract: "",
     contractNumber: "",
@@ -193,7 +193,7 @@ export default function Dashboard() {
         ? prev.tehnicieni.filter(t => t !== value)
         : [...prev.tehnicieni, value]
       const newStatus = newTehnicieni.length > 0 ? "Atribuită" : "Listată"
-      return { ...prev, tehnicieni: newTehnicieni, statusLucrare: newStatus }
+      return { ...prev, tehnicieni: newTehnicieni, statusTichet: newStatus }
     })
   }, [])
 
@@ -206,7 +206,7 @@ export default function Dashboard() {
     setActiveWorkCount(0)
     setActiveWorkEquipmentName("")
     setFormData({
-      tipLucrare: "",
+      tipTichet: "",
       tehnicieni: [],
       client: "",
       locatie: "",
@@ -214,7 +214,7 @@ export default function Dashboard() {
       descriere: "",
       persoanaContact: "",
       telefon: "",
-      statusLucrare: "Listată",
+      statusTichet: "Listată",
       statusFacturare: "Nefacturat",
       contract: "",
       contractNumber: "",
@@ -271,7 +271,7 @@ export default function Dashboard() {
         return
       }
       const equipmentValidation = validateWorkEquipmentForCreation({
-        tipLucrare: formData.tipLucrare,
+        tipTichet: formData.tipLucrare,
         echipamentId: formData.echipamentId,
         echipamentCod: formData.echipamentCod,
         echipament: formData.echipament,
@@ -307,7 +307,7 @@ export default function Dashboard() {
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
-        statusLucrare: statusLucrare,
+        statusTichet: statusLucrare,
       }
 
       // Generăm număr de lucrare din sistemul centralizat
@@ -323,7 +323,7 @@ export default function Dashboard() {
       // Adăugăm lucrarea în Firestore cu nrLucrare
       await addLucrare({
         ...newLucrare,
-        nrLucrare: nrLucrareGenerated,
+        nrTichet: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
@@ -375,7 +375,7 @@ export default function Dashboard() {
         if (it.lucrareId) return
         toast({
           title: "Revizia nu este încă generată ca tichet",
-          description: it.equipmentLabel || "Încă nu există o tichet asociată acestei revizii.",
+          description: it.equipmentLabel || "Încă nu există un tichet asociată acestei revizii.",
         })
       }}
       className="mb-2"

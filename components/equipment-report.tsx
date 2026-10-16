@@ -51,8 +51,8 @@ interface WorkOrder {
   echipamentId?: string
   echipamentCod?: string
   dataInterventie: string
-  tipLucrare: string
-  statusLucrare: string
+  tipTichet: string
+  statusTichet: string
   descriereInterventie?: string
   defectReclamat?: string
   tehnicieni: string[]
@@ -238,7 +238,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         }
 
         // Query work orders by equipment ID or code
-        const workOrdersQuery = query(collection(db, "lucrari"), where("echipamentId", "==", selectedEquipmentId))
+        const workOrdersQuery = query(collection(db, "tichete"), where("echipamentId", "==", selectedEquipmentId))
 
         const workOrdersSnapshot = await getDocs(workOrdersQuery)
         let workOrdersData = workOrdersSnapshot.docs.map((doc) => ({
@@ -249,7 +249,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         // If no results by ID, try by equipment code
         if (workOrdersData.length === 0 && selectedEquipment.cod) {
           const workOrdersByCodeQuery = query(
-            collection(db, "lucrari"),
+            collection(db, "tichete"),
             where("echipamentCod", "==", selectedEquipment.cod),
           )
 
@@ -263,7 +263,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         // If still no results, try by equipment name and client
         if (workOrdersData.length === 0) {
           const workOrdersByNameQuery = query(
-            collection(db, "lucrari"),
+            collection(db, "tichete"),
             where("echipament", "==", selectedEquipment.nume),
             where("client", "==", selectedEquipment.clientName),
           )
@@ -1068,11 +1068,11 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
                   ) : (
                     <Tabs defaultValue="type" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="type">După Tip Lucrare</TabsTrigger>
+                        <TabsTrigger value="type">După Tip Tichet</TabsTrigger>
                         <TabsTrigger value="status">După Status</TabsTrigger>
                       </TabsList>
                       <TabsContent value="type" className="rounded-md border p-4 mt-4">
-                        <h3 className="mb-4 font-medium">Intervenții după Tip Lucrare</h3>
+                        <h3 className="mb-4 font-medium">Intervenții după Tip Tichet</h3>
                         <div className="h-80 w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData.typeData}>

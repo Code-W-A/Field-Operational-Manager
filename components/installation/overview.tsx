@@ -188,7 +188,7 @@ export function InstallationEquipmentList({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Echipamentele lucrării</CardTitle>
+        <CardTitle className="text-lg">Echipamentele tichetului</CardTitle>
         <CardDescription>
           Pornește o fișă prin scanarea QR sau reia fișa activă a
           echipamentului.
@@ -469,7 +469,7 @@ export function InstallationDocuments({
           </div>
           <CardTitle className="text-lg">Proces-verbal final</CardTitle>
           <CardDescription>
-            Predarea lucrării către beneficiar, după finalizarea tuturor
+            Predarea tichetului către beneficiar, după finalizarea tuturor
             echipamentelor.
           </CardDescription>
         </CardHeader>
@@ -524,7 +524,7 @@ export function InstallationDocuments({
               {meta.continuationWorkId && (
                 <p className="text-sm text-muted-foreground">
                   Procesul-verbal se întocmește pe tichetul terminal al
-                  lucrării.
+                  tichetului.
                 </p>
               )}
               {canComplete && (
@@ -538,21 +538,21 @@ export function InstallationDocuments({
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Continuitatea lucrării</CardTitle>
+          <CardTitle className="text-lg">Continuitatea tichetului</CardTitle>
           <CardDescription>
-            Istoricul lucrării și replanificarea echipamentelor rămase.
+            Istoricul tichetului și replanificarea echipamentelor rămase.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {workId !== meta.rootWorkId ? (
             <Button asChild variant="outline">
               <Link href={pageUrl(meta.rootWorkId) + "?tab=sheets"}>
-                Istoricul lucrării inițiale
+                Istoricul tichetului inițiale
               </Link>
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Acesta este tichetul inițial al lucrării.
+              Acesta este tichetul inițial.
             </p>
           )}
           {meta.continuationWorkId && (
@@ -593,7 +593,7 @@ export function InstallationDocuments({
                     <AlertDialogDescription>
                       Se creează un tichet de instalare cu status „Listată”,
                       fără tehnicieni atribuiți. Fișele și documentele existente
-                      rămân în istoricul lucrării.
+                      rămân în istoricul tichetului.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

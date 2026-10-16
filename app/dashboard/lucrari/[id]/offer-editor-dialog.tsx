@@ -53,6 +53,7 @@ type OfferVersion = {
 
 export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [], presetLocationLabel }: OfferEditorDialogProps) {
   const { userData } = useAuth()
+  const canPrepareBeforePickup = userData?.role === "admin" || userData?.role === "dispecer"
   const [products, setProducts] = useState<ProductItem[]>(initialProducts)
   const [saving, setSaving] = useState(false)
   const [versions, setVersions] = useState<OfferVersion[]>([])
@@ -318,10 +319,10 @@ useEffect(() => {
     }
   }
 
-  const canEditOffer = isPickedUp && statusOferta !== "OFERTAT"
+  const canEditOffer = (isPickedUp || canPrepareBeforePickup) && statusOferta !== "OFERTAT"
   const effectiveDisabled = !canEditOffer && !editingNewVersion
   const canPreviewOfferPdf =
-    isPickedUp && (statusOferta !== "OFERTAT" || editingNewVersion) && products.length > 0
+    (isPickedUp || canPrepareBeforePickup) && (statusOferta !== "OFERTAT" || editingNewVersion) && products.length > 0
   const startNewVersion = () => {
     const last = versions && versions.length ? versions[versions.length - 1] : undefined
     const seed = last?.products?.length ? last.products : products
@@ -343,7 +344,7 @@ useEffect(() => {
     try {
       setPreviewingPdf(true)
       const freshWork = await getLucrareById(lucrareId, { serverOnly: true })
-      if (!freshWork) throw new Error("Nu s-au putut încărca datele lucrării.")
+      if (!freshWork) throw new Error("Nu s-au putut încărca datele tichetului.")
 
       const savedVersion = !editingNewVersion ? versions[versions.length - 1] : undefined
       const clientSnapshot = savedVersion ? savedVersion.clientSnapshot : await loadDocumentClientSnapshot(freshWork)
@@ -390,7 +391,7 @@ useEffect(() => {
     try {
       setDownloadingVersionIndex(index)
       const freshWork = await getLucrareById(lucrareId)
-      if (!freshWork) throw new Error("Nu s-au putut încărca datele lucrării.")
+      if (!freshWork) throw new Error("Nu s-au putut încărca datele tichetului.")
 
       const { generateOfferPdf } = await import("@/lib/utils/offer-pdf")
       const versionNumber = index + 1
@@ -474,7 +475,7 @@ useEffect(() => {
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
   
       // construiește tabelul cu produse
-      const subject = `Ofertă pentru lucrarea ${currentWork?.numarRaport || currentWork?.id}`
+      const subject = `Ofertă pentru tichetul ${currentWork?.numarRaport || currentWork?.id}`
       const rows = (products || []).map((p: any) => `
         <tr>
           <td style="padding:6px;border:1px solid #e5e7eb">${p.name || ''}</td>
@@ -490,7 +491,7 @@ useEffect(() => {
       const bullets = (products || []).map((p: any) => `<li>${p?.name || ''}${p?.quantity ? ` — ${Number(p.quantity)} buc.` : ''}${p?.price ? ` @ ${Number(p.price).toFixed(2)} lei` : ''}</li>`).join('')
       const html = `
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220"> 
-          <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă lucrarea ${currentWork?.numarRaport || currentWork?.id}</h2>
+          <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă tichetul ${currentWork?.numarRaport || currentWork?.id}</h2>
 
           <p style="margin:8px 0 6px;color:#0b1220">În vederea finalizării tichetului ${currentWork?.numarRaport || currentWork?.id} am constatat că sunt necesare următoarele echipamente și servicii:</p>
  
@@ -827,9 +828,9 @@ useEffect(() => {
                     ) : null}
                   </>
                 ) : (!currentWork || clientData === null) ? (
-                  <span>Se identifică adresa de email a persoanei de contact din locația lucrării...</span>
+                  <span>Se identifică adresa de email a persoanei de contact din locația tichetului...</span>
                 ) : (
-                  <span>Nu există email valid pentru persoana de contact din locația lucrării. La trimitere se caută și fallback-uri (lucrare/client).</span>
+                  <span>Nu există email valid pentru persoana de contact din locația tichetului. La trimitere se caută și fallback-uri (tichet/client).</span>
                 )}
               </div>
               {lastEmailDebug && (
@@ -852,9 +853,9 @@ useEffect(() => {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
               <div className="mr-auto space-y-1">
-                {(!isPickedUp || statusOferta === "OFERTAT") && (
+                {((!isPickedUp && !canPrepareBeforePickup) || statusOferta === "OFERTAT") && (
                   <span className="text-xs text-muted-foreground block">
-                    {!isPickedUp
+                    {!isPickedUp && !canPrepareBeforePickup
                       ? "Editorul este disponibil după preluarea tichetului de către dispecer."
                       : "Oferta trimisă este înghețată. Creați o versiune nouă pentru modificări."}
                   </span>
@@ -869,7 +870,7 @@ useEffect(() => {
               {statusOferta === "OFERTAT" && !editingNewVersion ? (
                 <Button onClick={startNewVersion} disabled={saving || previewingPdf}>Începe versiune nouă</Button>
               ) : (
-                <Button onClick={handleSave} disabled={saving || previewingPdf || products.length === 0 || (!isPickedUp && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
+                <Button onClick={handleSave} disabled={saving || previewingPdf || products.length === 0 || (!isPickedUp && !canPrepareBeforePickup && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
               )}
               {canPreviewOfferPdf && (
                 <Button

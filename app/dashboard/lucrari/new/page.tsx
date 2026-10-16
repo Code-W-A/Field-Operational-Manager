@@ -38,7 +38,7 @@ export default function NewLucrarePage() {
   
   // Actualizăm starea formData pentru a include contractType
   const [formData, setFormData] = useState({
-    tipLucrare: "",
+    tipTichet: "",
     tehnicieni: [] as string[],
     client: "",
     locatie: "",
@@ -46,7 +46,7 @@ export default function NewLucrarePage() {
     descriere: "",
     persoanaContact: "",
     telefon: "",
-    statusLucrare: WORK_STATUS.WAITING,
+    statusTichet: WORK_STATUS.WAITING,
     statusFacturare: INVOICE_STATUS.NOT_INVOICED,
     contract: "",
     contractNumber: "",
@@ -70,7 +70,7 @@ export default function NewLucrarePage() {
       
       // Precompletăm formularul cu datele din URL
       const prefilledData = {
-        tipLucrare: urlParams.get('tipLucrare') || "",
+        tipTichet: urlParams.get('tipLucrare') || "",
         tehnicieni: [] as string[],
         client: urlParams.get('client') || "",
         locatie: urlParams.get('locatie') || "",
@@ -83,7 +83,7 @@ export default function NewLucrarePage() {
         contract: urlParams.get('contract') || "",
         contractNumber: urlParams.get('contractNumber') || "",
         contractType: urlParams.get('contractType') || "",
-        statusLucrare: WORK_STATUS.WAITING,
+        statusTichet: WORK_STATUS.WAITING,
         statusFacturare: INVOICE_STATUS.NOT_INVOICED,
         persoaneContact: [] as PersoanaContact[],
         echipamentId: "",
@@ -160,7 +160,7 @@ export default function NewLucrarePage() {
       const ids = payload.equipmentIds.map((id: any) => String(id)).filter(Boolean)
       const snapshots = await Promise.all(
         ids.map((eid) =>
-          getDocs(query(collection(db, "lucrari"), where("equipmentIds", "array-contains", eid))),
+          getDocs(query(collection(db, "tichete"), where("equipmentIds", "array-contains", eid))),
         ),
       )
       snapshots.forEach((snap) => {
@@ -175,7 +175,7 @@ export default function NewLucrarePage() {
       const equipmentName = String(payload.echipament || "").trim()
 
       if (equipmentId) {
-        const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentId", "==", equipmentId)))
+        const snap = await getDocs(query(collection(db, "tichete"), where("echipamentId", "==", equipmentId)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -183,7 +183,7 @@ export default function NewLucrarePage() {
       }
 
       if (results.length === 0 && equipmentCod) {
-        const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentCod", "==", equipmentCod)))
+        const snap = await getDocs(query(collection(db, "tichete"), where("echipamentCod", "==", equipmentCod)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -191,7 +191,7 @@ export default function NewLucrarePage() {
       }
 
       if (results.length === 0 && !equipmentId && !equipmentCod && equipmentName) {
-        const snap = await getDocs(query(collection(db, "lucrari"), where("echipament", "==", equipmentName)))
+        const snap = await getDocs(query(collection(db, "tichete"), where("echipament", "==", equipmentName)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -224,7 +224,7 @@ export default function NewLucrarePage() {
       }
 
       const equipmentValidation = validateWorkEquipmentForCreation({
-        tipLucrare: newWorkOrderData.tipLucrare,
+        tipTichet: newWorkOrderData.tipLucrare,
         echipamentId: newWorkOrderData.echipamentId,
         echipamentCod: newWorkOrderData.echipamentCod,
         echipament: newWorkOrderData.echipament,
@@ -244,7 +244,7 @@ export default function NewLucrarePage() {
       if (existingWorks.length > 0) {
         toast({
           title: "Eroare",
-          description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+          description: "Nu puteți crea un tichet nou pe acest echipament. Există deja tichete active pe acest echipament.",
           variant: "destructive",
         })
         return
@@ -297,7 +297,7 @@ export default function NewLucrarePage() {
       // Dacă este re-intervenție, adăugăm câmpurile specifice
       if (isReassignment && originalWorkOrderId) {
         newWorkOrderData.lucrareOriginala = originalWorkOrderId
-        newWorkOrderData.mesajReatribuire = `Re-intervenție de la lucrarea ${originalWorkOrderId}`
+        newWorkOrderData.mesajReatribuire = `Re-intervenție de la tichetul ${originalWorkOrderId}`
       }
 
       // Generăm nrLucrare din sistemul centralizat (egal ulterior cu numărul de raport)
@@ -311,15 +311,15 @@ export default function NewLucrarePage() {
       // Adăugăm lucrarea în Firestore cu nrLucrare
       const lucrareId = await addLucrare({
         ...newWorkOrderData,
-        nrLucrare: nrLucrareGenerated,
+        nrTichet: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
 
       // Adăugăm un log pentru crearea lucrării
       const logMessage = isReassignment 
-        ? `A fost adăugată o re-intervenție pentru clientul "${formData.client}" cu ID-ul ${lucrareId} (din lucrarea originală ${originalWorkOrderId})`
-        : `A fost adăugată o nouă tichet pentru clientul "${formData.client}" cu ID-ul ${lucrareId}`
+        ? `A fost adăugată o re-intervenție pentru clientul "${formData.client}" cu ID-ul ${lucrareId} (din tichetul original ${originalWorkOrderId})`
+        : `A fost adăugată un tichet nou pentru clientul "${formData.client}" cu ID-ul ${lucrareId}`
       
       await addLog("Adăugare", logMessage, "Informație", "Tichete")
 
@@ -436,11 +436,11 @@ export default function NewLucrarePage() {
   return (
     <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
-        <CardTitle>{isReassignment ? "Re-intervenție" : "Adaugă tichet nouă"}</CardTitle>
+        <CardTitle>{isReassignment ? "Re-intervenție" : "Adaugă tichet nou"}</CardTitle>
         <CardDescription>
           {isReassignment 
-            ? `Crearea unei re-intervenții bazate pe lucrarea ${originalWorkOrderId}` 
-            : "Completați informațiile pentru a adăuga o tichet nouă în sistem"
+            ? `Crearea unei re-intervenții bazate pe tichetul ${originalWorkOrderId}` 
+            : "Completați informațiile pentru a adăuga un tichet nou în sistem"
           }
         </CardDescription>
         </CardHeader>
@@ -450,7 +450,7 @@ export default function NewLucrarePage() {
           <Alert className="mb-6 border-blue-200 bg-blue-50">
             <RefreshCw className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
-              <strong>Re-intervenție:</strong> Acest formular este precompletat cu datele din lucrarea originală <strong>{originalWorkOrderId}</strong>. 
+              <strong>Re-intervenție:</strong> Acest formular este precompletat cu datele din tichetul original <strong>{originalWorkOrderId}</strong>. 
               Puteți modifica orice informație necesară înainte de a salva noua lucrare.
             </AlertDescription>
           </Alert>

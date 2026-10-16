@@ -115,7 +115,7 @@ export function LucrariNotificationsDialog({
         <DialogHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 pb-4">
           <div className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
-            <DialogTitle className="text-lg sm:text-xl">Modificări Lucrări</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Modificări Tichete</DialogTitle>
             {unreadCount > 0 && (
               <Badge variant="destructive" className="ml-2">
                 {unreadCount} necitite
@@ -247,7 +247,7 @@ export function LucrariNotificationsDialog({
                           }}
                         >
                           <Eye className="h-3 w-3 mr-1" />
-                          <span className="hidden sm:inline">Vezi lucrarea</span>
+                          <span className="hidden sm:inline">Vezi tichetul</span>
                           <span className="sm:hidden">Vezi</span>
                         </Link>
                       </Button>

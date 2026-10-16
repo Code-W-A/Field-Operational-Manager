@@ -83,7 +83,7 @@ import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts
 interface Lucrare {
   dataEmiterii: string
   dataInterventie: string
-  tipLucrare: string
+  tipTichet: string
   tehnicieni: string[]
   client: string
   locatie: string
@@ -100,7 +100,7 @@ interface Lucrare {
   contactSelectionMessage?: string
   // Cached recipient email used for offer/report sending (optional)
   persoanaContactEmail?: string
-  statusLucrare: string
+  statusTichet: string
   statusFacturare: string
   contract?: string
   contractNumber?: string
@@ -127,7 +127,7 @@ function safeSerializeFormData(value: unknown) {
   } catch (error) {
     if (!hasLoggedFormSerializationError) {
       hasLoggedFormSerializationError = true
-      console.error("[LucrareForm] Failed to serialize form state safely.", {
+      console.error("[TichetForm] Failed to serialize form state safely.", {
         error,
         topLevelKeys: value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [],
       })
@@ -139,7 +139,7 @@ function safeSerializeFormData(value: unknown) {
 export type ActiveWorkSummary = {
   id: string
   nrDisplay: string
-  statusLucrare: string
+  statusTichet: string
   dataInterventie?: string
   tehnicieni?: string[]
 }
@@ -153,7 +153,7 @@ interface LucrareFormProps {
   dataInterventie: Date | undefined
   setDataInterventie: (date: Date | undefined) => void
   formData: {
-    tipLucrare: string
+    tipTichet: string
     tehnicieni: string[]
     client: string
     locatie: string
@@ -161,7 +161,7 @@ interface LucrareFormProps {
     descriere: string
     persoanaContact: string
     telefon: string
-    statusLucrare: string
+    statusTichet: string
     statusFacturare: string
     contract?: string
     contractNumber?: string
@@ -968,7 +968,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         const toSummary = (id: string, raw: any): ActiveWorkSummary => ({
           id,
           nrDisplay: String(raw?.nrLucrare || raw?.numarRaport || id),
-          statusLucrare: String(raw?.statusLucrare || "N/A"),
+          statusTichet: String(raw?.statusLucrare || "N/A"),
           dataInterventie: raw?.dataInterventie ? String(raw.dataInterventie) : undefined,
           tehnicieni: Array.isArray(raw?.tehnicieni) ? raw.tehnicieni.map((t: unknown) => String(t)) : [],
         })
@@ -986,7 +986,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         if (equipmentId) {
           const lucrariQuery = query(
-            collection(db, "lucrari"),
+            collection(db, "tichete"),
             where("echipamentId", "==", equipmentId)
           )
           const snapshot = await getDocs(lucrariQuery)
@@ -995,7 +995,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         if (equipmentCod && (byId.size === 0 || !equipmentId)) {
           const lucrariByCodQuery = query(
-            collection(db, "lucrari"),
+            collection(db, "tichete"),
             where("echipamentCod", "==", equipmentCod)
           )
           const codSnapshot = await getDocs(lucrariByCodQuery)
@@ -1004,7 +1004,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         if (equipmentName && byId.size === 0 && !equipmentId && !equipmentCod) {
           const lucrariByNameQuery = query(
-            collection(db, "lucrari"),
+            collection(db, "tichete"),
             where("echipament", "==", equipmentName)
           )
           const nameSnapshot = await getDocs(lucrariByNameQuery)
@@ -1039,7 +1039,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         let docs: any[] = []
         for (const lookup of lookupKeys) {
-          const snap = await getDocs(query(collection(db, "lucrari"), where(lookup.field, "==", lookup.value)))
+          const snap = await getDocs(query(collection(db, "tichete"), where(lookup.field, "==", lookup.value)))
           docs = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
           if (docs.length > 0) break
         }
@@ -1109,7 +1109,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
     // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
     const handleEquipmentSelect = async (equipmentId: string, equipment: Echipament) => {
       if (associationLocked) return // Asocierea validă a reintervenției este păstrată
-      console.log("Echipament selectat în LucrareForm:", equipment)
+      console.log("Echipament selectat în TichetForm:", equipment)
 
       // Actualizăm toate câmpurile relevante (ordine: ID -> cod -> nume)
       if (handleCustomChange) {
@@ -1766,7 +1766,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       const equipmentValidation = validateWorkEquipmentForCreation({
-        tipLucrare: formData.tipLucrare,
+        tipTichet: formData.tipLucrare,
         echipamentId: formData.echipamentId,
         echipamentCod: formData.echipamentCod,
         echipament: formData.echipament,
@@ -1843,10 +1843,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               ? await checkExistingWorkOrders(equipmentId, equipmentCod, equipmentName)
               : []
         if (currentExisting.length > 0) {
-          setError("Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.")
+          setError("Nu puteți crea un tichet nou pe acest echipament. Există deja tichete active pe acest echipament.")
           toast({
             title: "Eroare",
-            description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+            description: "Nu puteți crea un tichet nou pe acest echipament. Există deja tichete active pe acest echipament.",
             variant: "destructive",
           })
           return
@@ -1854,10 +1854,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       if (!isEdit && existingWorkOnEquipment.length > 0) {
-        setError("Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.")
+        setError("Nu puteți crea un tichet nou pe acest echipament. Există deja tichete active pe acest echipament.")
         toast({
           title: "Eroare",
-          description: "Nu puteți crea o tichet nouă pe acest echipament. Există deja tichete active pe acest echipament.",
+          description: "Nu puteți crea un tichet nou pe acest echipament. Există deja tichete active pe acest echipament.",
           variant: "destructive",
         })
         return
@@ -1882,10 +1882,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             
             // Dacă contractul are o locație specificată, verificăm că locația lucrării este aceeași
             if (contractLocation && contractLocation !== formData.locatie) {
-              setError(`Contractul selectat este valid doar pentru locația "${contractLocation}". Lucrarea are setată locația "${formData.locatie}".`)
+              setError(`Contractul selectat este valid doar pentru locația "${contractLocation}". Tichetul are setată locația "${formData.locatie}".`)
               toast({
                 title: "Eroare - Locație incorectă",
-                description: `Contractul selectat este valid doar pentru locația "${contractLocation}". Nu puteți crea o tichet cu acest contract pentru o altă locație.`,
+                description: `Contractul selectat este valid doar pentru locația "${contractLocation}". Nu puteți crea un tichet cu acest contract pentru o altă locație.`,
                 variant: "destructive",
               })
               return
@@ -1929,7 +1929,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         const updatedData: Partial<Lucrare> = {
           dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
           dataInterventie: dataInterventieFormatted,
-          tipLucrare: formData.tipLucrare,
+          tipTichet: formData.tipLucrare,
           tehnicieni: formData.tehnicieni,
           client: formData.client,
           locatie: formData.locatie,
@@ -1943,7 +1943,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           ...(formData.contactId ? { contactId: formData.contactId } : {}),
           ...(formData.contactSync ? { contactSync: formData.contactSync } : {}),
           ...(formData.persoanaContactEmail !== undefined ? { persoanaContactEmail: formData.persoanaContactEmail } : {}),
-          statusLucrare: formData.statusLucrare,
+          statusTichet: formData.statusLucrare,
           statusFacturare: formData.statusFacturare,
           contract: formData.contract,
           contractNumber: formData.contractNumber,
@@ -2440,7 +2440,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Selectați locația clientului pentru această lucrare. Toate persoanele de contact vor fi asociate
+                Selectați locația clientului pentru acest tichet. Toate persoanele de contact vor fi asociate
                 automat.
               </p>
             </div>
@@ -2552,10 +2552,10 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                         ⚠️ ATENȚIE: Există {existingWorkOnEquipment.length} {existingWorkOnEquipment.length === 1 ? 'tichet activă' : 'tichete active'} pe acest echipament!
                       </p>
                       <p className="text-sm">
-                        Nu puteți crea o lucrare nouă pe acest echipament până când lucrările active nu sunt finalizate.
+                        Nu puteți crea un tichet nou pe acest echipament până când tichetele active nu sunt finalizate.
                       </p>
                       <div className="space-y-1 mt-2">
-                        <p className="text-sm font-medium">Lucrări active:</p>
+                        <p className="text-sm font-medium">Tichete active:</p>
                         {existingWorkOnEquipment.map((work: ActiveWorkSummary, index: number) => (
                           <div key={work.id || index} className="text-sm bg-white/50 p-2 rounded border border-red-200">
                             <div className="mb-1 flex items-center justify-between gap-2">
@@ -2656,7 +2656,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           {/* Revizie: listă echipamente multi-select pentru locația aleasă */}
           {isMultiEquipment && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Echipamente pentru {formData.tipLucrare === "Instalare" ? "instalare" : "revizie"}</label>
+              <label className="text-sm font-medium">Echipamente pentru {formData.tipLucraree === "Instalare" ? "instalare" : "revizie"}</label>
               {!formData.locatie ? (
                 <p className="text-xs text-muted-foreground">
                   Selectați mai întâi o locație pentru a afișa echipamentele disponibile.
@@ -3066,7 +3066,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-3">
-                Toate persoanele de contact vor fi asociate automat cu această lucrare
+                Toate persoanele de contact vor fi asociate automat cu acest tichet
               </p>
             </Card>
           )}
@@ -3124,14 +3124,14 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           {isEdit && (
             <div className="space-y-2">
               <label htmlFor="statusLucrare" className="text-sm font-medium">
-                Status Lucrare
+                Status tichet
               </label>
               <div className="flex items-center h-10 px-3 py-2 text-sm border rounded-md bg-muted/50">
                 <Badge className={getWorkStatusClass(formData.statusLucrare)}>{formData.statusLucrare === "Finalizat" ? "Raport generat" : formData.statusLucrare}</Badge>
                 <span className="ml-2 text-xs text-muted-foreground">Status automatizat</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Statusul lucrării este actualizat automat în funcție de atribuirea tehnicienilor și progresul lucrării
+                Statusul tichetului este actualizat automat în funcție de atribuirea tehnicienilor și progresul tichetului
               </p>
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <p className="text-xs text-blue-700">
@@ -3147,7 +3147,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             {!isEdit && existingWorkOnEquipment.length > 0 && (
               <div className="mb-3 text-sm text-destructive">
                 Există deja un tichet activ pentru echipamentul{" "}
-                <strong>{selectedEquipment?.nume || formData.echipament || "selectat"}</strong>. Nu puteți salva o lucrare nouă.
+                <strong>{selectedEquipment?.nume || formData.echipament || "selectat"}</strong>. Nu puteți salva un tichet nou.
               </div>
             )}
             <div className="flex justify-end space-x-2">

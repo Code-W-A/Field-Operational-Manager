@@ -83,7 +83,7 @@ export default function ReviewPage() {
             <CardTitle>Mulțumim pentru feedback!</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>Feedback-ul a fost înregistrat pentru lucrarea {workNumber || String(id)}.</p>
+            <p>Feedback-ul a fost înregistrat pentru tichetul {workNumber || String(id)}.</p>
           </CardContent>
           <CardFooter>
             <Button asChild>

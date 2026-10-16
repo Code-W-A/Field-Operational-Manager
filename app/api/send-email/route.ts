@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       }
       to = Array.from(new Set([...current.emails, ...manual.map(value => String(value).trim().toLowerCase())])).join(", ")
       subject = `Raport Interventie - ${current.clientName || "Client"} - ${String(current.work.dataInterventie || "Data").split(" ")[0]}`
-      message = `Stimata/Stimate ${current.contactName || "Client"},\n\nVa transmitem atasat raportul de interventie pentru lucrarea efectuata in data de ${String(current.work.dataInterventie || "N/A").split(" ")[0]}.\n\nCu stima,\nFOM by NRG`
+      message = `Stimata/Stimate ${current.contactName || "Client"},\n\nVa transmitem atasat raportul de interventie pentru tichetul asociat interventiei efectuate in data de ${String(current.work.dataInterventie || "N/A").split(" ")[0]}.\n\nCu stima,\nFOM by NRG`
     }
     errorTo = to || "unknown"
     errorSubject = subject || "unknown"
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
           ...(info?.messageId ? { messageId: info.messageId } : {}),
           ...(resendMode ? { actorUid: session.uid, action: "report-resend", sent, failed } : {}),
         }
-        const ref = adminDb.collection("lucrari").doc(String(lucrareId))
+        const ref = adminDb.collection("tichete").doc(String(lucrareId))
         if (resendMode) await ref.update({ lastReportEmail })
         else await ref.set({ lastReportEmail }, { merge: true })
       }
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (errorLucrareId) {
-        await adminDb.collection("lucrari").doc(String(errorLucrareId)).set(
+        await adminDb.collection("tichete").doc(String(errorLucrareId)).set(
           {
             lastReportEmail: {
               ...(resendMode ? { actorUid, action: "report-resend" } : {}),
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
         )
       }
     } catch (parseError) {
-      console.error("Eroare la actualizarea lucrării după eșec email:", parseError)
+      console.error("Eroare la actualizarea tichetului după eșec email:", parseError)
     }
     
     try {

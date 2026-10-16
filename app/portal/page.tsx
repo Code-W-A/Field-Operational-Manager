@@ -262,7 +262,7 @@ export default function ClientPortalPage() {
             <SelectItem value="statusLucrare">Status</SelectItem>
             <SelectItem value="client">Client</SelectItem>
             <SelectItem value="locatie">Locație</SelectItem>
-            <SelectItem value="tipLucrare">Tip lucrare</SelectItem>
+            <SelectItem value="tipLucrare">Tip tichet</SelectItem>
           </SelectContent>
         </Select>
           <Button
@@ -390,7 +390,7 @@ export default function ClientPortalPage() {
               </CardContent>
             </Card>
           ))}
-          {!visibleSorted.length && <div className="text-sm text-muted-foreground">Nu există lucrări disponibile.</div>}
+          {!visibleSorted.length && <div className="text-sm text-muted-foreground">Nu există tichete disponibile.</div>}
         </div>
       ) : (
         <div className="border rounded-lg">
@@ -399,7 +399,7 @@ export default function ClientPortalPage() {
               <TableRow>
                 <TableHead>Client</TableHead>
                 <TableHead>Locație</TableHead>
-                <TableHead>Tip lucrare</TableHead>
+                <TableHead>Tip tichet</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Dată intervenție</TableHead>
                 <TableHead>Documente</TableHead>
@@ -416,7 +416,7 @@ export default function ClientPortalPage() {
                   >
                     <TableCell className="font-medium">{w.client}</TableCell>
                     <TableCell>{w.locatie}</TableCell>
-                    <TableCell>{w.tipLucrare}</TableCell>
+                    <TableCell>{w.tipLucrareee}</TableCell>
                     <TableCell>
                       <Badge className={b.className}>{b.label}</Badge>
                     </TableCell>
@@ -464,7 +464,7 @@ export default function ClientPortalPage() {
               {!visibleSorted.length && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
-                    Nu există lucrări disponibile.
+                    Nu există tichete disponibile.
                   </TableCell>
                 </TableRow>
               )}

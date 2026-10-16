@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext"
 
 interface ImageDefectUploadProps {
   lucrareId: string
-  lucrare: any
+  tichet: any
   selectedImages: File[] // Imaginile selectate, gestionate de părinte
   imagePreviews: string[] // URL-urile pentru preview, gestionate de părinte
   imagesToDelete: number[] // Indicii imaginilor marcate pentru ștergere
@@ -356,7 +356,7 @@ export function ImageDefectUpload({ lucrareId, lucrare, selectedImages, imagePre
         <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded-lg">
           <p><strong>Specificații tehnice:</strong></p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>Maxim {maxImages} imagini per lucrare</li>
+            <li>Maxim {maxImages} imagini per tichet</li>
             <li>Doar fișiere imagine sunt acceptate</li>
         
          

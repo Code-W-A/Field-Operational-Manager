@@ -18,7 +18,7 @@ test("Semnează mai târziu: saves products and stops work time", () => {
   assert.match(block, /const dataPlecare = formatDate\(now\)/)
   assert.match(block, /const oraPlecare = formatTime\(now\)/)
   assert.match(block, /durataInterventie = tichet\?\.timpSosire\s*\?\s*calculateDuration\(tichet\.timpSosire, timpPlecare\)/)
-  assert.match(block, /statusLucrare: WORK_STATUS\.NO_SIGNATURE/)
+  assert.match(block, /statusTichet: WORK_STATUS\.NO_SIGNATURE/)
   assert.match(block, /products,/)
   assert.match(block, /cauzaPrincipalaDefectId/)
   assert.match(block, /cauzaPrincipalaDefect: failureCauseLabel/)

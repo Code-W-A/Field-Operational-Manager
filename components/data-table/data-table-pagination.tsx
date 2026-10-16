@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
-  persistenceKey?: string // Cheia pentru localStorage (ex: "lucrari", "clienti", etc.)
+  persistenceKey?: string // Cheia pentru localStorage (ex: "tichete", "clienti", etc.)
 }
 
 export function DataTablePagination<TData>({ table, persistenceKey }: DataTablePaginationProps<TData>) {

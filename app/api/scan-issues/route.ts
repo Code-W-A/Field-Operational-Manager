@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       timeRemaining,
     } = body || {}
 
-    if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
+    if (!lucrareId) return NextResponse.json({ error: "tichetId lipsă" }, { status: 400 })
 
     // Identify user via session cookie (best-effort)
     let userId: string | undefined
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // Fetch work document for context
-    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
+    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) return NextResponse.json({ error: "Tichet inexistent" }, { status: 404 })
     const workData = workSnap.data() as any

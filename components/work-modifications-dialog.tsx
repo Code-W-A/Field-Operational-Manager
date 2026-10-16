@@ -113,7 +113,7 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
-              Modificări Lucrări
+              Modificări tichete
               {hasUnreadNotifications && (
                 <Badge variant="destructive" className="text-xs">
                   {unreadCount} noi
@@ -143,7 +143,7 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
             <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Nu sunt modificări noi</h3>
             <p className="text-gray-500 text-center">
-              Nu există modificări recent la lucrări făcute de alți utilizatori.
+              Nu există modificări recente la tichete făcute de alți utilizatori.
             </p>
           </div>
         ) : (
@@ -286,7 +286,7 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
                               onClick={() => prepareViewLucrare(modification)}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              Vezi lucrarea
+                              Vezi ticheta
                             </Link>
                           </Button>
                         </div>
@@ -315,7 +315,7 @@ export function WorkModificationsDialog({ isOpen, onClose }: WorkModificationsDi
             <Button asChild>
               <Link href="/dashboard/lucrari" onClick={() => onClose()}>
                 <Eye className="h-4 w-4 mr-2" />
-                Vezi toate lucrările
+                Vezi toate tichetele
               </Link>
             </Button>
           </div>

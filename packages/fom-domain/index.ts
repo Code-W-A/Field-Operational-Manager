@@ -115,28 +115,47 @@ export function checklistFromSettings(
     [...nodes].sort((a, b) => (a.order || 0) - (b.order || 0));
   const selectedRoot = rootId?.trim();
   const roots = selectedRoot
-    ? [settings.find(s => s.id === selectedRoot) || { id: selectedRoot, name: "Puncte de control" }]
-    : sort(settings.filter(s => s.assignedTargets?.includes("revisions.checklist.sections")));
+    ? [
+        settings.find((s) => s.id === selectedRoot) || {
+          id: selectedRoot,
+          name: "Puncte de control",
+        },
+      ]
+    : sort(
+        settings.filter((s) =>
+          s.assignedTargets?.includes("revisions.checklist.sections"),
+        ),
+      );
   const result: RevisionSection[] = [];
-  const childrenOf = (id: string) => sort(settings.filter(s => s.parentId === id));
+  const childrenOf = (id: string) =>
+    sort(settings.filter((s) => s.parentId === id));
   const add = (node: RecordData, variables: RecordData[], root = false) => {
-    if (variables.length) result.push({
-      id: root ? `${node.id}__root` : node.id,
-      title: node.name || "Puncte de control",
-      items: variables.map(s => ({ id: s.id, label: s.name })),
-    });
+    if (variables.length)
+      result.push({
+        id: root ? `${node.id}__root` : node.id,
+        title: node.name || "Puncte de control",
+        items: variables.map((s) => ({ id: s.id, label: s.name })),
+      });
   };
   for (const root of roots) {
     const children = childrenOf(root.id);
-    add(root, children.filter(s => s.type === "variable"), true);
-    for (const child of children.filter(s => s.type !== "variable")) {
+    add(
+      root,
+      children.filter((s) => s.type === "variable"),
+      true,
+    );
+    for (const child of children.filter((s) => s.type !== "variable")) {
       const grandchildren = childrenOf(child.id);
-      const direct = grandchildren.filter(s => s.type === "variable");
+      const direct = grandchildren.filter((s) => s.type === "variable");
       // Match the existing web sheet: direct points take precedence over subcategories.
       if (direct.length) add(child, direct);
-      else for (const sub of grandchildren.filter(s => s.type !== "variable")) {
-        add(sub, childrenOf(sub.id).filter(s => s.type === "variable"));
-      }
+      else
+        for (const sub of grandchildren.filter((s) => s.type !== "variable")) {
+          add(
+            sub,
+            childrenOf(sub.id).filter((s) => s.type === "variable"),
+          );
+        }
     }
   }
   return result;
@@ -254,7 +273,13 @@ export function validateRevision(
     const provided = sections.find((value) => value.id === section.id)!;
     if (
       !Array.isArray(provided.items) ||
-      (options.customItems ? !section.items.filter(item => !item.id.startsWith("manual-")).every(item => provided.items.some(value => value.id === item.id)) : provided.items.length !== section.items.length) ||
+      (options.customItems
+        ? !section.items
+            .filter((item) => !item.id.startsWith("manual-"))
+            .every((item) =>
+              provided.items.some((value) => value.id === item.id),
+            )
+        : provided.items.length !== section.items.length) ||
       new Set(provided.items.map((item) => item?.id)).size !==
         provided.items.length
     )
@@ -262,16 +287,31 @@ export function validateRevision(
   }
   return expected.map((section) => ({
     ...section,
-    items: (options.customItems ? sections.find(s => s.id === section.id)!.items.map(item => section.items.find(base => base.id === item.id) || item) : section.items).map((item) => {
+    items: (options.customItems
+      ? sections
+          .find((s) => s.id === section.id)!
+          .items.map(
+            (item) => section.items.find((base) => base.id === item.id) || item,
+          )
+      : section.items
+    ).map((item) => {
       const provided = sections
         .find((s) => s.id === section.id)
         ?.items.find((i) => i.id === item.id);
       if (
         !provided ||
-        (!options.draft || provided.state !== undefined) && !(REVISION_STATES as readonly string[]).includes(provided.state || "")
+        ((!options.draft || provided.state !== undefined) &&
+          !(REVISION_STATES as readonly string[]).includes(
+            provided.state || "",
+          ))
       )
         throw new DomainError("Completează toate punctele de control.");
-      if (!item.label.trim() || item.label.length > 1000 || String(provided.obs || "").length > 12000) throw new DomainError("Punct de control invalid.");
+      if (
+        !item.label.trim() ||
+        item.label.length > 1000 ||
+        String(provided.obs || "").length > 12000
+      )
+        throw new DomainError("Punct de control invalid.");
       return {
         ...item,
         ...(provided.state ? { state: provided.state } : {}),
@@ -311,7 +351,9 @@ export function equipmentFor(
       location?.echipamente?.find(
         (v: RecordData) => String(v.id) === eid || String(v.cod) === eid,
       ) || {};
-    const selected = String(e.dynamicSettings?.["revision.checklistParentId"] || "").trim(),
+    const selected = String(
+        e.dynamicSettings?.["revision.checklistParentId"] || "",
+      ).trim(),
       use = e.dynamicSettings?.["revision.useChecklistForSheet"];
     return {
       id: eid,
@@ -327,7 +369,9 @@ export function equipmentFor(
       rootId:
         selected && (use === undefined || !!use)
           ? String(selected).trim()
-          : typeof m.revisionChecklistTemplateId === "string" ? m.revisionChecklistTemplateId.trim() : undefined,
+          : typeof m.revisionChecklistTemplateId === "string"
+            ? m.revisionChecklistTemplateId.trim()
+            : undefined,
     };
   });
 }
@@ -341,9 +385,17 @@ export { FALLBACK_FAILURE_CAUSES as FALLBACK_CAUSES } from "./failure-causes";
 import { failureCauseOptionsFromSettings } from "./failure-causes";
 
 export function failureCauses(settings: RecordData[]) {
-  const roots = settings.filter(s => s.assignedTargets?.includes("works.create.failureCauses"));
-  const children = settings.filter(s => roots.some(root => root.id === s.parentId));
-  children.sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name || "").localeCompare(String(b.name || "")));
+  const roots = settings.filter((s) =>
+    s.assignedTargets?.includes("works.create.failureCauses"),
+  );
+  const children = settings.filter((s) =>
+    roots.some((root) => root.id === s.parentId),
+  );
+  children.sort(
+    (a, b) =>
+      (a.order || 0) - (b.order || 0) ||
+      String(a.name || "").localeCompare(String(b.name || "")),
+  );
   return failureCauseOptionsFromSettings(children);
 }
 
@@ -365,4 +417,6 @@ export * from "./notifications";
 export * from "./work-time";
 
 export * from "./equipment-catalog";
-export * from './revision-editor';
+export * from "./revision-editor";
+
+export * from "./error-codes";

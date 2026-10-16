@@ -125,12 +125,20 @@ export function SignaturePad({ onSave, existingSignature, title = "Semnătură",
             </Button>
           </div>
         ) : (
-          <div className="border rounded p-1 bg-white">
+          <div className="border rounded p-1 bg-white touch-none select-none">
             <SignatureCanvas
               ref={(ref) => (signatureRef.current = ref)}
               canvasProps={{
-                className: "w-full h-40 border rounded",
-                style: { width: "100%", height: "160px" },
+                className: "w-full h-40 border rounded touch-none select-none",
+                // Keep touch and stylus gestures on the drawing surface instead
+                // of letting the installed PWA interpret them as page scrolling.
+                style: {
+                  width: "100%",
+                  height: "160px",
+                  touchAction: "none",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                },
               }}
               onBegin={handleBegin}
               onEnd={handleEnd}

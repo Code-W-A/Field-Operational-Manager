@@ -220,7 +220,7 @@ export function ReinterventionReasonDialog({
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               <strong>Important:</strong> Aceste informații vor fi salvate în detaliile lucrarii originale
-              precum si in lucrarea noua care va fi creata.
+              precum și în tichetul nou care va fi creat.
             </AlertDescription>
           </Alert>
 

@@ -18,8 +18,8 @@ import { NoInvoiceReasonDialog } from "@/components/no-invoice-reason-dialog"
 
 interface DocumentUploadProps {
   lucrareId: string
-  lucrare: any // Tipul complet al lucrării
-  onLucrareUpdate: (updatedLucrare: any) => void
+  tichet: any // Tipul complet al lucrării
+  onLucrareUpdate: (updatedTichet: any) => void
   hideOfertaUpload?: boolean
 }
 
@@ -42,7 +42,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
   // Verificăm permisiunile (doar admin și dispecer)
   const hasPermission = userData?.role === "admin" || userData?.role === "dispecer"
   
-  // Verificăm dacă lucrarea a fost preluată (condiție pentru upload)
+  // Verificăm dacă tichetul a fost preluat (condiție pentru upload)
   const isWorkPickedUp = lucrare.preluatDispecer === true
   
   // Verificăm dacă oferta este necesară (condiție pentru upload ofertă)
@@ -348,12 +348,12 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         <div className="hidden">
           <ReportGenerator lucrare={lucrare as any} onGenerate={handleReportGenerate} ref={reportGeneratorRef} />
         </div>
-        {/* Verificăm dacă lucrarea a fost preluată */}
+        {/* Verificăm dacă tichetul a fost preluat */}
         {!isWorkPickedUp && (
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Încărcarea documentelor este disponibilă doar după preluarea lucrării de către dispecer.
+              Încărcarea documentelor este disponibilă doar după preluarea tichetului de către dispecer.
             </AlertDescription>
           </Alert>
         )}
@@ -552,7 +552,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   {!needsOffer 
-                    ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că această tichet necesită ofertă."
+                    ? "Încărcarea ofertei este dezactivată. Tehnicianul nu a marcat că acest tichet necesită ofertă."
                     : "Încărcarea ofertei este disponibilă doar când statusul ofertei este setat pe \"OFERTAT\"."
                   }
                 </AlertDescription>
@@ -565,7 +565,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         {/* <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded-lg">
           <p><strong>Condiții pentru încărcare:</strong></p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>Lucrarea trebuie să fie preluată de dispecer</li>
+            <li>Tichetul trebuie să fie preluat de dispecer</li>
             <li>Pentru ofertă: tehnicianul trebuie să marcheze "Necesită ofertă"</li>
             <li>Orice tip de fișier este acceptat (fără restricții de dimensiune)</li>
             <li>Completarea numărului și datei este obligatorie</li>
@@ -599,7 +599,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
             <DialogHeader>
               <DialogTitle>Motivul pentru care nu se facturează</DialogTitle>
               <DialogDescription>
-                Introdu motivul pentru care această lucrare nu se facturează.
+                Introdu motivul pentru care acest tichet nu se facturează.
               </DialogDescription>
             </DialogHeader>
 

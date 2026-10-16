@@ -49,7 +49,7 @@ async function sendResponseConfirmation(params: {
     await logOfferEvent(
       {
         type: "OFFER_CONFIRMATION_SENT",
-        source: "lucrari",
+        source: "tichete",
         status: "skipped",
         lucrareId: params.lucrareId,
         actorType: "system",
@@ -93,14 +93,14 @@ async function sendResponseConfirmation(params: {
       content: messageParagraph,
       type: "GENERIC",
       lucrareId: params.lucrareId,
-      source: "lucrari",
+      source: "tichete",
       route: "/api/offer/respond",
       flow: "offer_confirmation",
     })
     await logOfferEvent(
       {
         type: "OFFER_CONFIRMATION_SENT",
-        source: "lucrari",
+        source: "tichete",
         status: "sent",
         lucrareId: params.lucrareId,
         actorType: "system",
@@ -115,7 +115,7 @@ async function sendResponseConfirmation(params: {
     await logOfferEvent(
       {
         type: "OFFER_CONFIRMATION_SENT",
-        source: "lucrari",
+        source: "tichete",
         status: "failed",
         lucrareId: params.lucrareId,
         actorType: "system",
@@ -178,12 +178,12 @@ export async function POST(req: NextRequest) {
 
     const crypto = await import("crypto")
     const proofHash = crypto.createHash("sha256").update(proof).digest("hex")
-    const workRef = adminDb.collection("lucrari").doc(workId)
+    const workRef = adminDb.collection("tichete").doc(workId)
 
     const txResult = await adminDb.runTransaction<RespondTxResult>(async (tx) => {
       const workSnap = await tx.get(workRef)
       if (!workSnap.exists) {
-        return { kind: "error", status: "invalid", statusCode: 404, message: "Lucrarea nu există." }
+        return { kind: "error", status: "invalid", statusCode: 404, message: "Tichetul nu există." }
       }
 
       const data: any = workSnap.data() || {}
@@ -314,7 +314,7 @@ export async function POST(req: NextRequest) {
       meta: { route: "/api/offer/respond" },
     })
 
-    const workSnapAfter = await adminDb.collection("lucrari").doc(workId).get()
+    const workSnapAfter = await adminDb.collection("tichete").doc(workId).get()
     const workDataAfter = workSnapAfter.data() as any
     try {
       const responseCertifiedPdf = await generateCertifiedLucrariOfferPdf({
@@ -323,14 +323,14 @@ export async function POST(req: NextRequest) {
         action: txResult.action,
       })
       if (responseCertifiedPdf) {
-        await adminDb.collection("lucrari").doc(workId).set({ responseCertifiedPdf }, { merge: true })
+        await adminDb.collection("tichete").doc(workId).set({ responseCertifiedPdf }, { merge: true })
         ;(workDataAfter as any).responseCertifiedPdf = responseCertifiedPdf
       }
     } catch (error) {
       await logOfferEvent(
         {
           type: "OFFER_ERROR_REPORTED",
-          source: "lucrari",
+          source: "tichete",
           status: "certified_pdf_failed",
           lucrareId: workId,
           actorType: "system",
@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
     await logOfferEvent(
       {
         type: txResult.action === "accept" ? "OFFER_ACCEPTED" : "OFFER_REJECTED",
-        source: "lucrari",
+        source: "tichete",
         status: "success",
         lucrareId: workId,
         actorType: "portal_client",

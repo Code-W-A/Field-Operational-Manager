@@ -3,6 +3,7 @@ import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboar
 import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
 import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
 import { photoIdentity } from "./photo-identity";
+import { revisionPhotoDeletionId } from "@/lib/revisions/photos";
 import { ticketPresentation, ticketClientLocation } from "./ticket-presentation";
 import { historyRecord, historyWork } from "./history";
 import { sortHistory } from "@/packages/fom-domain/history";
@@ -596,16 +597,8 @@ export function technicianService(db: Firestore) {
                     numarRaport: (n.data()?.numarRaport || 1) + 1,
                   });
                 validateReportSignatures(c.payload);
-                const rating = c.payload.clientRating;
-                check(
-                  rating === undefined ||
-                    (Number.isFinite(rating) && rating >= 1 && rating <= 5),
-                  "Evaluarea trebuie să fie între 1 și 5.",
-                );
-                const review = String(c.payload.clientReview || "").trim();
-                check(review.length <= 2000, "Recenzia este prea lungă.");
-                if (rating !== undefined) patch.clientRating = rating;
-                if (review) patch.clientReview = review;
+                // Feedback belongs to the beneficiary's email review flow.
+                // Ignore legacy technician payloads without altering stored feedback.
                 const emails = c.payload.reportManualRecipients || [];
                 check(
                   Array.isArray(emails) &&
@@ -785,6 +778,11 @@ export function technicianService(db: Firestore) {
     const validated: RecordData[] = [];
     for (const photo of incoming) {
       check(photo && typeof photo === "object" && !Array.isArray(photo), "Fotografii invalide.");
+      // A stale editor must never restore an immediately deleted revision photo.
+      if (c.action === "revision.save" && typeof photo.path === "string" &&
+          (await tx.get(db.collection("revisionPhotoDeletions").doc(
+            revisionPhotoDeletionId(c.entityId, c.payload.equipmentId, photo.path),
+          ))).exists) continue;
       const existing = old.find((p: any) => photoIdentity(p) === photoIdentity(photo));
       if (existing) {
         validated.push(existing);

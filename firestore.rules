@@ -11,7 +11,7 @@ service cloud.firestore {
         || data.get('parentId', '') in ['equipment-manufacturers', 'equipment-models'];
     }
     function serverOnlyCollection(name) {
-      return name in ['mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
+      return name in ['revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
     }
     // Preserve legacy access while routing the new installation data through verified server APIs.
     // Do not add an overlapping unrestricted recursive wildcard: it would override these exclusions.

@@ -187,7 +187,7 @@ export default function RevisionEquipmentPage() {
           className="text-muted-foreground hover:text-foreground -ml-2"
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
-          Înapoi la lucrare
+          Înapoi la tichet
         </Button>
       </div>
       

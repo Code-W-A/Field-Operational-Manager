@@ -140,7 +140,7 @@ export function NoInvoiceReasonDialog({
             Motiv nefacturare
           </DialogTitle>
           <DialogDescription>
-            Selectați motivul pentru care această lucrare nu se va factura.
+            Selectați motivul pentru care acest tichet nu se va factura.
           </DialogDescription>
         </DialogHeader>
 

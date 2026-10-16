@@ -109,7 +109,7 @@ export function WorkNotificationsWelcomeDialog({
                   <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-3" />
                   <h3 className="font-semibold text-green-800 mb-2">Excelent!</h3>
                   <p className="text-sm text-green-700">
-                    Toate lucrările sunt la zi. Nu există notificări.
+                    Toate tichetele sunt la zi. Nu există notificări.
                   </p>
                 </CardContent>
               </Card>
@@ -204,7 +204,7 @@ export function WorkNotificationsWelcomeDialog({
                   variant={hasCriticalNotifications ? "destructive" : "default"}
                 >
                   <Bell className="h-4 w-4 mr-2" />
-                  Vezi toate lucrările
+                  Vezi toate tichetele
                 </Button>
               )}
               

@@ -376,7 +376,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                 <CardContent className="p-4">
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Număr lucrări</span>
+                      <span className="text-sm text-muted-foreground">Număr tichete</span>
                       <span className="font-semibold">{lucrariClient.length}</span>
                     </div>
                     <Separator />
@@ -407,7 +407,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                           href={`/dashboard/lucrari/${lucrare.id}`}
                           className="group block cursor-pointer rounded-md border px-3 py-2 transition-all hover:bg-muted no-underline text-inherit"
                         >
-                          <p className="text-sm font-medium line-clamp-1">{lucrare.tipLucrare}</p>
+                          <p className="text-sm font-medium line-clamp-1">{lucrare.tipLucrareee}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {(() => {
                               const d = toDateSafe((lucrare as any).dataInterventie ?? (lucrare as any).timpSosire ?? (lucrare as any).dataEmiterii)
@@ -439,7 +439,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-1 py-4 text-center text-muted-foreground">
                       <FileText className="h-5 w-5 opacity-50" />
-                      <p className="text-sm">Nu există lucrări recente</p>
+                      <p className="text-sm">Nu există tichete recente</p>
                     </div>
                   )}
                 </CardContent>

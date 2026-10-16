@@ -256,7 +256,7 @@ export async function GET(request: Request) {
           sampleCandidates: sampleCandidates,
           normalizedSampleCandidates: normalizedSample,
         })
-        return NextResponse.json({ error: "URL nevalid pentru lucrarea indicată" }, { status: 403 })
+        return NextResponse.json({ error: "URL nevalid pentru tichetul indicată" }, { status: 403 })
       }
     }
 
@@ -266,7 +266,7 @@ export async function GET(request: Request) {
     if (shouldLog) {
       try {
         await adminDb
-          .collection("lucrari")
+          .collection("tichete")
           .doc(lucrareId)
           .collection("downloads")
           .add({

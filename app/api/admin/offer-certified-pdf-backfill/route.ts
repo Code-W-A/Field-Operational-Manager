@@ -20,7 +20,7 @@ async function backfillLucrari(limit: number): Promise<BackfillResult> {
   const result: BackfillResult = { checked: 0, generated: 0, skipped: 0, failed: [] }
   const statuses: Array<"accept" | "reject"> = ["accept", "reject"]
   for (const status of statuses) {
-    const snap = await adminDb.collection("lucrari").where("offerResponse.status", "==", status).limit(limit).get()
+    const snap = await adminDb.collection("tichete").where("offerResponse.status", "==", status).limit(limit).get()
     for (const doc of snap.docs) {
       result.checked += 1
       const data = doc.data() as Record<string, any>
@@ -106,11 +106,11 @@ export async function POST(request: NextRequest) {
   try {
     await requireRole(["admin"], request)
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
-    const target = body.target === "crm" || body.target === "lucrari" || body.target === "all" ? body.target : "all"
+    const target = body.target === "crm" || body.target === "tichete" || body.target === "all" ? body.target : "all"
     const limit = Math.min(Math.max(Number(body.limit || 25), 1), 100)
 
     const lucrari = target === "crm" ? null : await backfillLucrari(limit)
-    const crm = target === "lucrari" ? null : await backfillCrm(limit)
+    const crm = target === "tichete" ? null : await backfillCrm(limit)
     return NextResponse.json({ ok: true, target, limit, lucrari, crm })
   } catch (error) {
     if (error instanceof RequireRoleError) {

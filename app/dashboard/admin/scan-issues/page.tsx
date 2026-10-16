@@ -91,7 +91,7 @@ export default function ScanIssuesAdminPage() {
               <Card key={it.id} className={it.status === "pending" ? "border-red-300" : ""}>
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center">
-                    <span>Tichet #{it.lucrareId}</span>
+                    <span>Tichet #{it.lucrareIddd}</span>
                     <Badge variant={it.status === "pending" ? "destructive" : "default"}>{it.status}</Badge>
                   </CardTitle>
                 </CardHeader>
@@ -103,7 +103,7 @@ export default function ScanIssuesAdminPage() {
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" asChild>
                       <a href={`/dashboard/lucrari/${it.lucrareId}`} target="_blank" rel="noreferrer">
-                        <ExternalLink className="h-4 w-4 mr-2" /> Vezi lucrarea
+                        <ExternalLink className="h-4 w-4 mr-2" /> Vezi ticheta
                       </a>
                     </Button>
                     {it.status === "pending" && (

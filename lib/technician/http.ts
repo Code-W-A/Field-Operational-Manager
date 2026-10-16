@@ -1,3 +1,4 @@
+import { mobileErrorCode } from "@/packages/fom-domain/error-codes";
 import { NextRequest, NextResponse } from "next/server";
 import { requireVerifiedRole, RequireRoleError } from "@/lib/auth/require-role";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
@@ -74,7 +75,10 @@ export function failure(request: NextRequest, e: unknown) {
         : 500;
   return NextResponse.json(
     {
-      ...(e instanceof MobileAccessError ? { code: e.code } : {}),
+      code:
+        e instanceof MobileAccessError
+          ? e.code
+          : mobileErrorCode((e as Error).message, status),
       error:
         status === 500
           ? "Operația nu a putut fi procesată. Reîncearcă."

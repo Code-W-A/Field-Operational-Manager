@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       attachments,
       type,
       lucrareId: explicitLucrareId || undefined,
-      source: explicitLucrareId ? "lucrari" : undefined,
+      source: explicitLucrareId ? "tichete" : undefined,
       route: "/api/users/invite",
       flow: String(type || "invite").toLowerCase(),
       actorUserId: session.uid,
@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
           },
         }
         if (String(type || "").toUpperCase() === "OFFER") {
-          const workSnap = await adminDb.collection("lucrari").doc(String(lucrareId)).get()
+          const workSnap = await adminDb.collection("tichete").doc(String(lucrareId)).get()
           const currentCount = Number((workSnap.data() as any)?.offerSendCount || 0)
           patch.offerSendCount = currentCount + 1
         }
-        await adminDb.collection("lucrari").doc(String(lucrareId)).set(patch, { merge: true })
+        await adminDb.collection("tichete").doc(String(lucrareId)).set(patch, { merge: true })
       }
     } catch (error) {
       console.error("Eroare la logging eveniment email sent:", error)
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       if (lucrareId) {
         const emailStatusField =
           String(body?.type || "").toUpperCase() === "DEVIZ" ? "lastDevizEmail" : "lastOfferEmail"
-        await adminDb.collection("lucrari").doc(String(lucrareId)).set(
+        await adminDb.collection("tichete").doc(String(lucrareId)).set(
           {
             [emailStatusField]: {
               sentAt: new Date().toISOString(),

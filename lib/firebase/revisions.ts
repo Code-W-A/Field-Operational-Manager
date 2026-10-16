@@ -8,9 +8,10 @@ import {
   updateDoc,
   serverTimestamp,
   onSnapshot,
+  runTransaction,
 } from "firebase/firestore"
-import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from "firebase/storage"
-import { db, storage } from "@/lib/firebase/config"
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { auth, db, storage } from "@/lib/firebase/config"
 import type { RevisionChecklistSection } from "@/types/revision"
 
 import type { RevisionPhotoMeta, EquipmentRevisionDoc } from "@/packages/fom-domain/revision";
@@ -92,7 +93,7 @@ export async function uploadRevisionPhoto(
 ): Promise<RevisionPhotoMeta> {
   const ts = Date.now()
   const safeName = file.name.replace(/\s+/g, "_")
-  const path = `revisions/${workId}/${equipmentId}/${ts}_${safeName}`
+  const path = `revisions/${workId}/${equipmentId}/${ts}_${crypto.randomUUID()}_${safeName}`
   const sref = ref(storage, path)
   await uploadBytes(sref, file)
   const url = await getDownloadURL(sref)
@@ -103,16 +104,33 @@ export async function uploadRevisionPhoto(
     uploadedBy,
     fileName: file.name,
   }
-  // push meta into doc
-  await upsertRevisionDoc(workId, equipmentId, {
-    photos: [...(((await getRevisionDoc(workId, equipmentId))?.photos) || []), meta],
+  // Append atomically: a concurrent deletion must not be restored by an older array.
+  const revisionRef = doc(db, "lucrari", workId, "revisions", equipmentId)
+  await runTransaction(db, async tx => {
+    const existing = await tx.get(revisionRef)
+    tx.set(revisionRef, {
+      photos: [...(existing.data()?.photos || []), meta],
+      updatedAt: serverTimestamp(),
+      ...(!existing.exists() ? { createdAt: serverTimestamp() } : {}),
+    }, { merge: true })
   })
   return meta
 }
 
-export async function deleteRevisionPhoto(path: string): Promise<void> {
-  const sref = ref(storage, path)
-  await deleteObject(sref)
+export async function deleteRevisionPhoto(workId: string, equipmentId: string, path: string): Promise<void> {
+  const user = auth.currentUser
+  if (!user) throw new Error("Autentifică-te din nou.")
+  const response = await fetch(`/api/lucrari/${encodeURIComponent(workId)}/revisions/${encodeURIComponent(equipmentId)}/photos`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
+    body: JSON.stringify({ path }),
+  })
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}))
+    throw new Error(result.error || "Fotografia nu a putut fi ștearsă. Reîncearcă.")
+  }
 }
 
 

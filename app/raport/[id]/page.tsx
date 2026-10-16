@@ -102,7 +102,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     try {
       const result = await technicianCommand("intervention.save", paramsId, paidFields, {work:tichet})
       setLucrare({...tichet, ...result.work})
-      toast({title:"Intervenție salvată",description:"Constatarea și lucrările executate au fost salvate."})
+      toast({title:"Intervenție salvată",description:"Constatarea și tichetele executate au fost salvate."})
     } catch (error) {
       toast({title:"Eroare la salvare",description:error instanceof Error ? error.message : "Nu s-a putut salva intervenția.",variant:"destructive"})
     } finally { reportActionLock.current = false; setSavingIntervention(false) }
@@ -186,7 +186,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             persoanaContact: data.persoanaContact || "",
             products: data.products || [],
             emailDestinatar: (data as any).emailDestinatar || "",
-            statusLucrare: data.statusLucrare || "În lucru",
+            statusTichet: data.statusLucrare || "În lucru",
             tehnicieni: data.tehnicieni || [],
             client: data.client || "",
             locatie: data.locatie || "",
@@ -338,7 +338,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                                     processedData.numeTehnician || ""
           
           if (!defaultNumeTehnician) {
-            // Verificăm dacă utilizatorul autentificat este tehnician și este alocat la această lucrare
+            // Verificăm dacă utilizatorul autentificat este tehnician și este alocat la acest tichet
             if (userData?.displayName && 
                 userData?.role === "tehnician" && 
                 processedData.tehnicieni && 
@@ -382,7 +382,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             )
           } catch {}
         } else {
-          setError("Lucrarea nu a fost găsită")
+          setError("Tichetul nu a fost găsit")
         }
       } catch (err) {
         console.error("Eroare la încărcarea tichetului:", err)
@@ -395,7 +395,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     fetchLucrare()
   }, [paramsId, userData])
 
-  // Verificăm dacă tehnicianul are acces la această lucrare
+  // Verificăm dacă tehnicianul are acces la acest tichet
   useEffect(() => {
     const checkAccess = async () => {
       if (
@@ -406,7 +406,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         lucrare.tehnicieni &&
         !lucrare.tehnicieni.includes(userData.displayName)
       ) {
-        // Tehnicianul nu este alocat la această lucrare, redirecționăm la dashboard
+        // Tehnicianul nu este alocat la acest tichet, redirecționăm la dashboard
         alert("Nu aveți acces la raportul acestei tichete.")
         router.push("/dashboard")
       }
@@ -795,25 +795,25 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     if (userData?.role === "tehnician") return // Already finalized by the shared server command.
     try {
       if (!lucrareId) {
-        console.error("ID-ul lucrării lipsește")
+        console.error("ID-ul tichetului lipsește")
         return
       }
 
-      console.log("Actualizăm statusul lucrării și marcăm raportul ca generat:", lucrareId)
+      console.log("Actualizăm statusul tichetului și marcăm raportul ca generat:", lucrareId)
 
       // Actualizăm documentul în Firestore direct
-      const lucrareRef = doc(db, "lucrari", lucrareId)
+      const lucrareRef = doc(db, "tichete", lucrareId)
 
       // Folosim updateDoc direct, fără a mai importa din nou
       await updateDoc(lucrareRef, {
         raportGenerat: true,
-        statusLucrare: "Finalizat", // Actualizez și statusul pentru consistență
+        statusTichet: "Finalizat", // Actualizez și statusul pentru consistență
         preluatDispecer: false,
         updatedAt: serverTimestamp(),
       })
 
       // LOG DEBUG – confirmare după updateWorkOrderStatus
-      console.log("🔍 updateWorkOrderStatus – raportGenerat:true, statusLucrare:Finalizat, preluatDispecer:false")
+      console.log("🔍 updateWorkOrderStatus – raportGenerat:true, statusTichet:Finalizat, preluatDispecer:false")
 
       if (userData?.role === "tehnician" && userData.uid && updatedLucrare?.semnaturaBeneficiar) {
         void ensureAutoCheckOut({
@@ -829,7 +829,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
               description: "Pontajul a fost oprit după raportul semnat de beneficiar.",
             })
           } else if (!res.ok && res.skipped && res.reason === "remaining_work_today") {
-            console.log("Depontare automată amânată: tehnicianul mai are lucrări neterminate azi.")
+            console.log("Depontare automată amânată: tehnicianul mai are tichete neterminate azi.")
             if (userData?.uid) {
               logPontajAutoStopSkipped({
                 userId: userData.uid,
@@ -844,7 +844,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         })
       }
     } catch (error) {
-      console.error("Eroare la actualizarea statusului lucrării:", error)
+      console.error("Eroare la actualizarea statusului tichetului:", error)
       toast({
         title: "Atenție",
         description: "Raportul a fost generat, dar nu s-a putut actualiza starea în sistem.",
@@ -860,7 +860,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       if (!tichet?.id) {
         toast({
           title: "Eroare",
-          description: "Nu s-a putut identifica lucrarea.",
+          description: "Nu s-a putut identifica tichetul.",
           variant: "destructive",
         })
         return
@@ -900,7 +900,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         comentariiOferta: tichet?.necesitaOferta ? tichet?.comentariiOferta || "" : "",
         imaginiDefecte: Array.isArray(tichet?.imaginiDefecte) ? tichet.imaginiDefecte : [],
         notaInternaTehnician: tichet?.notaInternaTehnician || "",
-        statusLucrare: WORK_STATUS.NO_SIGNATURE,
+        statusTichet: WORK_STATUS.NO_SIGNATURE,
         statusFinalizareInterventie: "NEFINALIZAT",
         timpPlecare,
         dataPlecare,
@@ -1140,7 +1140,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     if (!tichet?.id) {
       toast({
         title: "Eroare",
-        description: "Nu s-a putut identifica lucrarea.",
+        description: "Nu s-a putut identifica tichetul.",
         variant: "destructive",
       })
       return
@@ -1291,7 +1291,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             <p className="mt-2 text-center text-gray-500">{error || "Nu s-au putut încărca datele raportului."}</p>
             <Button asChild className="mt-6">
               <Link href="/dashboard/lucrari">
-                Înapoi la lucrări
+                Înapoi la tichete
               </Link>
             </Button>
           </CardContent>
@@ -1901,7 +1901,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                   a.href = url
                     const numRaw = String(lucrare?.nrLucrare || lucrare?.numarRaport || paramsId || "")
                     const num = numRaw.replace(/^#\s*/, "").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
-                    const clientPart = String(tichet?.client || "Interventie").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
+                    const clientPart = String(lucrare?.client || "Interventie").replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                     a.download = `Raport_${clientPart}_${num}.pdf`
                   document.body.appendChild(a)
                   a.click()
@@ -2103,8 +2103,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div><h3 className="font-medium text-gray-500">Constatarea la locație</h3><p className="whitespace-pre-line">{tichet?.constatareLaLocatie || "Nu a fost specificată"}</p></div>
-                    <div><h3 className="font-medium text-gray-500">Descriere Intervenție</h3><p className="whitespace-pre-line">{tichet?.descriereInterventie || "Nu a fost specificată"}</p></div>
+                    <div><h3 className="font-medium text-gray-500">Constatarea la locație</h3><p className="whitespace-pre-line">{lucrare?.constatareLaLocatie || "Nu a fost specificată"}</p></div>
+                    <div><h3 className="font-medium text-gray-500">Descriere Intervenție</h3><p className="whitespace-pre-line">{lucrare?.descriereInterventie || "Nu a fost specificată"}</p></div>
                     {paidDraft && <p role="alert">Completează verificarea QR în pagina tichetului înainte de raport.</p>}
                   </div>
                 )}
@@ -2280,10 +2280,10 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                 <div className="hidden">
                   <ReportGenerator
                     ref={reportGeneratorRef}
-                    lucrare={tichet}
+                    lucrare={lucrare}
                     onGenerate={(blob) => {
                       console.log(`[RAPORT_FLOW ${paramsId}] ReportGenerator.onGenerate()`, {
-                        lucrareId: (updatedLucrare?.id || tichet?.id || paramsId),
+                        lucrareId: (updatedLucrare?.id || lucrare?.id || paramsId),
                         pdfBytes: blob?.size,
                       });
                       // Send email automatically when PDF is generated
@@ -2307,12 +2307,12 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                           } else {
                             toast({
                               title: "Raport finalizat",
-                              description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Lucrarea a fost finalizată.",
+                              description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Tichetul a fost finalizat.",
                               variant: "destructive",
                             })
 
-                            if (updatedLucrare && updatedLucrare.id) {
-                              updateWorkOrderStatus(updatedLucrare.id)
+                            if (updatedLucraree && updatedLucraree.id) {
+                              updateWorkOrderStatus(updatedLucraree.id)
                             }
 
                             router.push("/dashboard/lucrari")
@@ -2322,11 +2322,11 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                           console.error("Eroare la trimiterea emailului:", error)
                           toast({
                             title: "Eroare",
-                            description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Lucrarea a fost finalizată.",
+                            description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Tichetul a fost finalizat.",
                             variant: "destructive",
                           })
-                          if (updatedLucrare && updatedLucrare.id) {
-                            updateWorkOrderStatus(updatedLucrare.id)
+                          if (updatedLucraree && updatedLucraree.id) {
+                            updateWorkOrderStatus(updatedLucraree.id)
                           }
                           router.push("/dashboard/lucrari")
                         })
@@ -2383,7 +2383,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
               >
                 {isSubmitting ? (
                   <>Se procesează...</>
-                ) : tichet?.raportDataLocked ? (
+                ) : lucrare?.raportDataLocked ? (
                   <div className="text-center text-gray-600 p-8">
                     <Lock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                     <p className="text-lg font-medium">Raportul a fost finalizat și datele sunt blocate</p>

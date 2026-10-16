@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const workRef = adminDb.collection("lucrari").doc(workId)
+    const workRef = adminDb.collection("tichete").doc(workId)
     const workSnap = await workRef.get()
     if (!workSnap.exists) {
       await logOfferPortalEvent({
@@ -49,11 +49,11 @@ export async function GET(req: NextRequest) {
         action: "link-open",
         status: "invalid",
         token: providedToken,
-        details: "Lucrarea nu a fost găsită.",
+        details: "Tichetul nu a fost găsit.",
         meta: { route: "/api/offer", reason: "work_not_found" },
       })
       return NextResponse.json(
-        { status: "invalid", message: "Lucrarea nu a fost găsită." },
+        { status: "invalid", message: "Tichetul nu a fost găsit." },
         { status: 404 },
       )
     }
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
     await logOfferEvent(
       {
         type: "OFFER_LINK_OPENED",
-        source: "lucrari",
+        source: "tichete",
         status,
         lucrareId: workId,
         actorType: "portal_client",
@@ -156,11 +156,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { lucrareId, snapshot } = await req.json()
-    if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
+    if (!lucrareId) return NextResponse.json({ error: "tichetId lipsă" }, { status: 400 })
 
-    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
+    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
     const workSnap = await workRef.get()
-    if (!workSnap.exists) return NextResponse.json({ error: "Lucrarea nu există" }, { status: 404 })
+    if (!workSnap.exists) return NextResponse.json({ error: "Tichetul nu există" }, { status: 404 })
 
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 zile
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
 
     await logOfferEvent({
       type: "OFFER_TOKEN_MINTED",
-      source: "lucrari",
+      source: "tichete",
       status: "ok",
       lucrareId: String(lucrareId),
       actorType: "staff",

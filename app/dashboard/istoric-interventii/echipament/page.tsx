@@ -18,8 +18,8 @@ import { db } from "@/lib/firebase/config"
 
 type Row = {
   id: string
-  source: "lucrari"
-  nrLucrare: string
+  source: "tichete"
+  nrTichet: string
   dataInterventie: string
   locatie: string
   client: string
@@ -51,7 +51,7 @@ function TechnicianHistoryCard({ r }: { r: Row }) {
     <Card className="border-gray-200">
       <CardContent className="p-0">
         <div className="border border-gray-300">
-          {/* Row 1: Nr. Lucrare + Data */}
+          {/* Row 1: Nr. tichet + Data */}
           <div className="grid grid-cols-2 border-b border-gray-300">
             <div className="border-r border-gray-300 p-3">
               <div className="font-semibold text-gray-900">Nr. Tichet:</div>
@@ -115,7 +115,7 @@ function TechnicianHistoryCard({ r }: { r: Row }) {
               href={`/dashboard/lucrari/${r.id}?from=istoric-echipament`}
               className="text-blue-700 underline font-medium"
             >
-              Vezi lucrarea
+              Vezi ticheta
             </Link>
           </div>
         </div>
@@ -135,15 +135,15 @@ export default function IstoricEchipamentPage() {
   const [fallbackLoading, setFallbackLoading] = useState(false)
 
   // Istoricul se caută după `echipamentCod`.
-  // Colecția reală pentru work orders este `lucrari` (UI poate afișa "tichet", dar storage rămâne `lucrari`).
+  // Colecția reală pentru work orders este `tichete` (UI poate afișa "tichet", dar storage rămâne `tichete`).
   // Folosim `customQuery` (nu `constraints`) ca să ne asigurăm că se resubscrie când se schimbă codul.
   const codForQuery = cod || "__NO_MATCH__"
   const qLucrari = useMemo(
-    () => query(collection(db, "lucrari"), where("echipamentCod", "==", codForQuery)),
+    () => query(collection(db, "tichete"), where("echipamentCod", "==", codForQuery)),
     [codForQuery],
   )
 
-  const { data: worksLucrari, loading: loadingLucrari } = useFirebaseCollection<Lucrare>("lucrari", [], qLucrari)
+  const { data: worksLucrari, loading: loadingLucrari } = useFirebaseCollection<Lucrare>("tichete", [], qLucrari)
   const loading = loadingLucrari
 
   useEffect(() => {
@@ -165,17 +165,17 @@ export default function IstoricEchipamentPage() {
       const sample = (worksLucrari || []).slice(0, 8).map((w: any) => ({
         id: w?.id,
         echipamentCod: String(w?.echipamentCod || ""),
-        nrLucrare: String(w?.nrLucrare || w?.numarRaport || ""),
+        nrTichet: String(w?.nrLucrare || w?.numarRaport || ""),
         raportGenerat: Boolean(w?.raportGenerat),
       }))
       console.log(`[ISTORIC_ECHIP] sample docs for cod=${cod}`, sample)
 
       if ((worksLucrari || []).length === 0) {
         console.warn("[ISTORIC_ECHIP] 0 matches from Firestore query", {
-          collection: "lucrari",
+          collection: "tichete",
           where: { echipamentCod: cod },
           hint:
-            "Dacă știi sigur că există istoric, cel mai probabil lucrările vechi NU au câmpul `echipamentCod` setat sau au alt format (spații/litere mici).",
+            "Dacă știi sigur că există istoric, cel mai probabil tichetele vechi NU au câmpul `echipamentCod` setat sau au alt format (spații/litere mici).",
         })
       }
     }
@@ -229,7 +229,7 @@ export default function IstoricEchipamentPage() {
       const SAMPLE = 2000
       console.log(`[ISTORIC_ECHIP] fallbackScan start for cod=${cod} (sample=${SAMPLE})`)
       try {
-        const q = query(collection(db, "lucrari"), orderBy("updatedAt", "desc"), limit(SAMPLE))
+        const q = query(collection(db, "tichete"), orderBy("updatedAt", "desc"), limit(SAMPLE))
         const snap = await getDocs(q)
         if (cancelled) return
         const docs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -243,7 +243,7 @@ export default function IstoricEchipamentPage() {
           const derived = deriveEquipmentCode(w)
           return {
             id: w?.id,
-            nrLucrare: String(w?.nrLucrare || w?.numarRaport || ""),
+            nrTichet: String(w?.nrLucrare || w?.numarRaport || ""),
             echipamentCod: String(w?.echipamentCod || ""),
             derivedCode: derived.code,
             derivedFrom: derived.source,
@@ -257,8 +257,8 @@ export default function IstoricEchipamentPage() {
           sample: sampleHits,
           hint:
             hits.length > 0
-              ? "Aha: există lucrări care corespund, dar `echipamentCod` lipsește/nu e completat. Recomand backfill/migrare pentru câmpul `echipamentCod`."
-              : "Nicio potrivire în eșantion. Ori codul e diferit, ori lucrarea e prea veche (în afara eșantionului).",
+              ? "Aha: există tichete care corespund, dar `echipamentCod` lipsește/nu e completat. Recomand backfill/migrare pentru câmpul `echipamentCod`."
+              : "Nicio potrivire în eșantion. Ori codul e diferit, ori tichetul e prea veche (în afara eșantionului).",
         })
 
         setFallbackWorks(hits)
@@ -295,8 +295,8 @@ export default function IstoricEchipamentPage() {
 
         return {
           id: String(w.id),
-        source: "lucrari" as const,
-          nrLucrare: String(w.nrLucrare || w.numarRaport || "").trim(),
+        source: "tichete" as const,
+          nrTichet: String(w.nrLucrare || w.numarRaport || "").trim(),
           dataInterventie: String(w.dataInterventie || "").trim(),
           locatie: String(w.locationName || w.locatie || "").trim(),
           client: String(w.client || "").trim(),
@@ -321,7 +321,7 @@ export default function IstoricEchipamentPage() {
     console.log("[ISTORIC_ECHIP] computed rows", {
       cod,
       rowsCount: rows.length,
-      firstRow: rows[0] ? { id: rows[0].id, nrLucrare: rows[0].nrLucrare, echipamentCod: rows[0].echipamentCod } : null,
+      firstRow: rows[0] ? { id: rows[0].id, nrTichet: rows[0].nrLucrare, echipamentCod: rows[0].echipamentCod } : null,
       usedFallback: (worksLucrari || []).length === 0 && (fallbackWorks || []).length > 0,
       fallbackLoading,
     })
@@ -349,7 +349,7 @@ export default function IstoricEchipamentPage() {
 
       <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
         <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/lucrari">Înapoi la lucrări</Link>
+          <Link href="/dashboard/lucrari">Înapoi la tichete</Link>
         </Button>
         {cod ? (
           <div className="text-sm text-muted-foreground">
@@ -375,7 +375,7 @@ export default function IstoricEchipamentPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-semibold text-gray-900">{r.nrLucrare || "-"}</div>
+                        <div className="font-semibold text-gray-900">{r.nrLucrareee || "-"}</div>
                         <div className="text-xs text-muted-foreground">
                           {r.dataInterventie ? formatUiDate(r.dataInterventie) : "-"}
                         </div>
@@ -397,7 +397,7 @@ export default function IstoricEchipamentPage() {
                       </div>
                     </div>
                     <Button asChild size="sm" variant="outline" className="shrink-0">
-                      <Link href={`/dashboard/lucrari/${r.id}?from=istoric-echipament`}>Vezi lucrarea</Link>
+                      <Link href={`/dashboard/lucrari/${r.id}?from=istoric-echipament`}>Vezi tichetul</Link>
                     </Button>
                   </div>
                 </CardHeader>

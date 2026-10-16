@@ -49,7 +49,7 @@ export function ArchiveButton({
   // Verificăm regulile de arhivare
   const details = lucrareData ? getArchiveValidationDetails(lucrareData, archiveRulesConfig) : { canArchive: true, blockingReasons: [], ignoredRules: [] }
   const canArchive = details.canArchive
-  const archiveReason = details.blockingReasons?.[0] || "Arhivează lucrarea"
+  const archiveReason = details.blockingReasons?.[0] || "Arhivează tichetul"
 
   const handleArchive = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -59,7 +59,7 @@ export function ArchiveButton({
       return
     }
 
-    const confirmMessage = "Sigur doriți să arhivați această tichet? Lucrarea va fi mutată în secțiunea Arhivate."
+    const confirmMessage = "Sigur doriți să arhivați acest tichet? Tichetul va fi mutat în secțiunea Arhivate."
     
     if (!window.confirm(confirmMessage)) {
       return
@@ -69,14 +69,14 @@ export function ArchiveButton({
     try {
       // Setăm statusul de arhivare împreună cu data și utilizatorul care a arhivat
       await updateLucrare(lucrareId, { 
-        statusLucrare: WORK_STATUS.ARCHIVED,
+        statusTichet: WORK_STATUS.ARCHIVED,
         archivedAt: serverTimestamp() as any, // Firestore va converti automat la Timestamp
         archivedBy: userData?.displayName || userData?.email || "Utilizator necunoscut"
       })
       
       toast({
         title: "Succes",
-        description: "Lucrarea a fost arhivată cu succes.",
+        description: "Tichetul a fost arhivat cu succes.",
       })
       
       // Apelăm callback-ul de succes dacă există
@@ -85,7 +85,7 @@ export function ArchiveButton({
       console.error("Eroare la arhivare:", error)
       toast({
         title: "Eroare",
-        description: "Nu s-a putut arhiva lucrarea.",
+        description: "Nu s-a putut arhiva tichetul.",
         variant: "destructive",
       })
     } finally {

@@ -40,7 +40,7 @@ interface TehnicianInterventionFormProps {
     updatedAt?: unknown
     descriereInterventie?: string
     constatareLaLocatie?: string
-    statusLucrare: string
+    statusTichet: string
     raportGenerat?: boolean
     necesitaOferta?: boolean
     comentariiOferta?: string
@@ -237,7 +237,7 @@ export function TehnicianInterventionForm({
   }
 
   const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, statusLucrare: value }))
+    setFormData((prev) => ({ ...prev, statusTichet: value }))
   }
 
   const handleSave = async () => {
@@ -401,7 +401,7 @@ export function TehnicianInterventionForm({
       }
 
       // Use the safe logging service instead of addLog to avoid database issues
-      logInfo(`Navigare către pagina de raport pentru lucrarea ${lucrareId}`, { lucrareId }, { category: "rapoarte" })
+      logInfo(`Navigare către pagina de raport pentru tichetul ${lucrareId}`, { lucrareId }, { category: "rapoarte" })
 
       // Construim mesajul pentru toast
       let description = "Datele au fost salvate"
@@ -771,7 +771,7 @@ export function TehnicianInterventionForm({
                 <Alert variant="default" className="mt-3">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    Dispecerul va fi notificat că această lucrare necesită o ofertă pentru client.
+                    Dispecerul va fi notificat că acest tichet necesită o ofertă pentru client.
                   </AlertDescription>
                 </Alert>
               )}
@@ -808,9 +808,9 @@ export function TehnicianInterventionForm({
             {formDisabled ? (
               <Alert variant="default">
                 <Info className="h-4 w-4" />
-                <AlertTitle>Tichet finalizată</AlertTitle>
+                <AlertTitle>Tichet finalizat</AlertTitle>
                 <AlertDescription>
-                  Această lucrare este finalizată și raportul a fost generat. Nu mai puteți face modificări.
+                  Acest tichet este finalizat și raportul a fost generat. Nu mai puteți face modificări.
                 </AlertDescription>
               </Alert>
             ) : (

@@ -240,6 +240,10 @@ test("concurrent changes reject and preserve external values", async () => {
   );
 });
 test("later signing preserves official number and snapshot excludes internal note", async () => {
+  await db.doc("lucrari/mobile-test-work").update({
+    clientRating: 5,
+    clientReview: "Feedback beneficiar prin email",
+  });
   let v = versionOf((await db.doc("lucrari/mobile-test-work").get()).data()!);
   const later = await svc.command(
     uid,
@@ -259,12 +263,18 @@ test("later signing preserves official number and snapshot excludes internal not
       cauzaPrincipalaDefectId: "uzura",
       products: [{ id: "p", name: "Piesă", um: "buc", quantity: 2, price: 10 }],
       numeBeneficiar: "Beneficiar",
+      clientRating: 99,
+      clientReview: "Legacy technician feedback",
     },
     later.version,
     { attendanceId },
   );
   const report = await svc.command(uid, c);
   assert.equal(report.work.raportGenerat, true);
+  assert.equal(report.work.clientRating, 5);
+  assert.equal(report.work.clientReview, "Feedback beneficiar prin email");
+  assert.equal(report.work.raportSnapshot.clientRating, 5);
+  assert.equal(report.work.raportSnapshot.clientReview, "Feedback beneficiar prin email");
   assert.equal(report.work.raportSnapshot.products[0].total, 20);
   assert(!("notaInternaTehnician" in report.work.raportSnapshot));
   assert.deepEqual(await svc.command(uid, c), report);

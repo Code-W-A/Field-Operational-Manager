@@ -7,7 +7,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     await requireRole(["admin", "dispecer"], request)
     const { id: lucrareId } = await context.params
     if (!lucrareId) {
-      return NextResponse.json({ error: "lucrareId lipsă." }, { status: 400 })
+      return NextResponse.json({ error: "tichetId lipsă." }, { status: 400 })
     }
 
     const pack = await buildLucrariEvidencePack(lucrareId)

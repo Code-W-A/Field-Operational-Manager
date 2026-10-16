@@ -11,10 +11,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   try {
     await requireRole(["admin", "dispecer", "tehnician"], request)
     const { id } = await context.params
-    const lucrareId = String(id || "").trim()
-    if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
+    const tichetId = String(id || "").trim()
+    if (!tichetId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
 
-    const snap = await adminDb.collection("lucrari").doc(lucrareId).get()
+    const snap = await adminDb.collection("lucrari").doc(tichetId).get()
     if (!snap.exists) return NextResponse.json({ error: "Tichet inexistent" }, { status: 404 })
     const data = snap.data() as Record<string, any>
     const pdf = data.responseCertifiedPdf || {}

@@ -221,7 +221,7 @@ export default function EmailDebugTool() {
         <CardHeader>
           <CardTitle>Email Notification Debug Tool</CardTitle>
           <CardDescription>
-            Testează funcționalitatea de trimitere a email-urilor pentru notificări de lucrări
+            Testează funcționalitatea de trimitere a email-urilor pentru notificări de tichete
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -1504,7 +1504,7 @@ export default function Loguri() {
                           <span className="text-xs text-muted-foreground">{(ev as any)?.createdAt?.toDate ? (ev as any).createdAt.toDate().toLocaleString('ro-RO') : '-'}</span>
                         </div>
                         <div className="grid grid-cols-1 gap-1 text-sm">
-                          {ev.lucrareId && <div>Tichet: <span className="font-mono">{ev.lucrareId}</span></div>}
+                          {ev.lucrareId && <div>Tichet: <span className="font-mono">{ev.lucrareIdddd}</span></div>}
                           {ev.clientId && <div>ClientID: <span className="font-mono text-xs">{ev.clientId}</span></div>}
                           {Array.isArray(ev.to) && ev.to.length > 0 && <div>Către: <span className="truncate inline-block max-w-full align-top">{ev.to.join(', ')}</span></div>}
                           {Array.isArray((ev as any).cc) && (ev as any).cc.length > 0 && <div>CC: <span className="truncate inline-block max-w-full align-top">{(ev as any).cc.join(', ')}</span></div>}
@@ -1557,7 +1557,7 @@ export default function Loguri() {
                       {(selectedEmailEvent as any).provider && <Badge variant="outline">{(selectedEmailEvent as any).provider}</Badge>}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div><span className="text-muted-foreground">Tichet:</span> <span className="font-mono">{selectedEmailEvent.lucrareId || "-"}</span></div>
+                      <div><span className="text-muted-foreground">Tichet:</span> <span className="font-mono">{selectedEmailEvent.lucrareIdd || "-"}</span></div>
                       <div><span className="text-muted-foreground">ClientID:</span> <span className="font-mono">{selectedEmailEvent.clientId || "-"}</span></div>
                       <div className="sm:col-span-2"><span className="text-muted-foreground">Către:</span> {(selectedEmailEvent.to || []).join(", ") || "-"}</div>
                       <div className="sm:col-span-2"><span className="text-muted-foreground">CC:</span> {((selectedEmailEvent as any).cc || []).join(", ") || "-"}</div>
@@ -1827,11 +1827,11 @@ export default function Loguri() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <span className="text-muted-foreground">Tichet:</span>{" "}
-                        <span className="font-mono">{selectedOfferError.lucrareId || "-"}</span>
+                        <span className="font-mono">{selectedOfferError.lucrareIdd || "-"}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Număr:</span>{" "}
-                        <span>{selectedOfferError.nrLucrare || "-"}</span>
+                        <span>{selectedOfferError.nrLucraree || "-"}</span>
                       </div>
                       <div className="sm:col-span-2">
                         <span className="text-muted-foreground">Client:</span> {selectedOfferError.client || "-"}

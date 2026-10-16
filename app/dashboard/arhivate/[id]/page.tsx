@@ -154,7 +154,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
           if (lucrareData.statusLucrare !== WORK_STATUS.ARCHIVED) {
             toast({
               title: "Eroare",
-              description: "Această tichet nu este arhivată.",
+              description: "acest tichet nu este arhivat.",
               variant: "destructive",
             })
             router.push("/dashboard/arhivate")
@@ -170,7 +170,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
         } else {
           toast({
             title: "Eroare",
-            description: "Lucrarea nu a fost găsită.",
+            description: "Tichetul nu a fost găsit.",
             variant: "destructive",
           })
           router.push("/dashboard/arhivate")
@@ -199,13 +199,13 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
     try {
       // Eliminăm statusul de arhivare și câmpurile asociate
       await updateLucrare(paramsId, { 
-        statusLucrare: WORK_STATUS.COMPLETED,
+        statusTichet: WORK_STATUS.COMPLETED,
         archivedAt: null as any, // Eliminăm data arhivării
         archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
       })
       toast({
         title: "Succes",
-        description: "Lucrarea a fost dezarhivată cu succes și a fost mutată în tichetele active.",
+        description: "Tichetul a fost dezarhivată cu succes și a fost mutată în tichetele active.",
       })
       
       // Refresh cache-ul Next.js pentru a actualiza toate paginile
@@ -220,7 +220,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
       console.error("Eroare la dezarhivare:", error)
       toast({
         title: "Eroare",
-        description: "Nu s-a putut dezarhiva lucrarea.",
+        description: "Nu s-a putut dezarhiva tichetul.",
         variant: "destructive",
       })
     } finally {
@@ -315,7 +315,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-500">Se încarcă lucrarea arhivată...</p>
+            <p className="mt-2 text-gray-500">Se încarcă tichetul arhivat...</p>
           </div>
         </div>
       </DashboardShell>
@@ -328,11 +328,11 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Lucrarea nu a fost găsită</h2>
-            <p className="text-gray-500 mb-4">Nu s-a putut găsi lucrarea solicitată.</p>
+            <h2 className="text-xl font-semibold mb-2">Tichetul nu a fost găsit</h2>
+            <p className="text-gray-500 mb-4">Nu s-a putut găsi tichetul solicitată.</p>
             <Button asChild>
               <Link href="/dashboard/arhivate">
-                Înapoi la Lucrări Arhivate
+                Înapoi la tichete arhivate
               </Link>
             </Button>
           </div>
@@ -355,7 +355,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
         <DashboardHeader
           heading={
             <span className="flex items-center gap-2">
-              Detalii Tichet Arhivată
+              Detalii tichet arhivat
               {lucrare.nrLucrare && (
                 <Badge className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-100 text-base font-semibold px-3 py-1 rounded-md">
                   {lucrare.nrLucrare}
@@ -394,7 +394,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     {isUpdating ? "Se dezarhivează..." : "Dezarhivează"}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Dezarhivează lucrarea și o returnează la statusul Finalizat</TooltipContent>
+                <TooltipContent>Dezarhivează tichetul și o returnează la statusul Finalizat</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
@@ -963,7 +963,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     {/* {lucrare.timpSosire && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Timp Sosire</label>
-                        <p className="text-sm">{lucrare.timpSosire}</p>
+                        <p className="text-sm">{tichet.timpSosire}</p>
                       </div>
                     )} */}
                   </div>
@@ -990,7 +990,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                     {/* {lucrare.timpPlecare && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Timp Plecare</label>
-                        <p className="text-sm">{lucrare.timpPlecare}</p>
+                        <p className="text-sm">{tichet.timpPlecare}</p>
                       </div>
                     )} */}
                     {lucrare.durataInterventie && (
@@ -1178,7 +1178,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 {lucrare.lucrareOriginala && (
                   <div>
                     <label className="text-sm font-medium text-gray-500">Tichet Original</label>
-                    <p className="text-sm font-mono">{lucrare.lucrareOriginala}</p>
+                    <p className="text-sm font-mono">{lucrare.lucrareOriginalaaa}</p>
                   </div>
                 )}
                 {lucrare.mesajReatribuire && (
@@ -1199,7 +1199,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <CardHeader>
                 <CardTitle>Documente Încărcate</CardTitle>
                 <CardDescription>
-                  Documentele pot fi doar vizualizate și descărcate pentru lucrările arhivate.
+                  Documentele tichetelor arhivate pot fi doar vizualizate și descărcate.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1257,7 +1257,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
               <CardHeader>
                 <CardTitle>Imagini Defecte</CardTitle>
                 <CardDescription>
-                  Imaginile pot fi doar vizualizate pentru lucrările arhivate.
+                  Imaginile tichetelor arhivate pot fi doar vizualizate.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1289,7 +1289,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
                 {lucrare.nrLucrare && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500">Număr Tichet:</span>
-                    <span className="text-sm font-mono">{lucrare.nrLucrare}</span>
+                    <span className="text-sm font-mono">{lucrare.nrLucrareee}</span>
                   </div>
                 )}
                 {lucrare.raportDataLocked && (

@@ -443,7 +443,7 @@ export function EquipmentMigrateWizardDialog({
                         <div>
                           <div className="text-sm font-semibold text-destructive">Mută</div>
                           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                            Echipamentul dispare de la clientul curent. Contractele sursă pierd referința. Lucrările
+                            Echipamentul dispare de la clientul curent. Contractele sursă pierd referința. Tichetele
                             afectate:{" "}
                             <span className="font-mono font-medium text-foreground">
                               {previewMove?.affectedLucrareIds?.length ?? "—"}
@@ -469,7 +469,7 @@ export function EquipmentMigrateWizardDialog({
                             . Nu se modifică tichetele existente. Istoricul după cod poate include ambele site-uri.
                           </p>
                           <p className="text-xs mt-2 text-muted-foreground">
-                            Lucrări modificate:{" "}
+                            Tichete modificate:{" "}
                             <span className="font-mono font-medium text-foreground">
                               {previewCopy?.affectedLucrareIds?.length ?? 0}
                             </span>

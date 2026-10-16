@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const crypto = await import("crypto")
-    const workRef = adminDb.collection("lucrari").doc(workId)
+    const workRef = adminDb.collection("tichete").doc(workId)
 
     const txResult = await adminDb.runTransaction<ReissueTxResult>(async (tx) => {
       const workSnap = await tx.get(workRef)
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (txResult.kind === "not_found") {
-      return NextResponse.json({ error: "Lucrarea nu există." }, { status: 404 })
+      return NextResponse.json({ error: "Tichetul nu există." }, { status: 404 })
     }
     if (txResult.kind === "used") {
       return NextResponse.json({ error: "Link deja folosit. Nu se poate reemite." }, { status: 409 })
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       await logOfferEvent(
         {
           type: "OFFER_TOKEN_REISSUED",
-          source: "lucrari",
+          source: "tichete",
           status: "reissued",
           lucrareId: workId,
           actorType: "portal_client",

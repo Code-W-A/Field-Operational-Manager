@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Save, Image as ImageIcon, Plus, X, Trash2, MessageSquare } from "lucide-react"
-import { getRevisionDoc, subscribeRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
+import { Loader2, Save, Image as ImageIcon, Plus, Trash2, MessageSquare } from "lucide-react"
+import { deleteRevisionPhoto, getRevisionDoc, subscribeRevisionDoc, upsertRevisionDoc, uploadRevisionPhoto } from "@/lib/firebase/revisions"
 import type { RevisionPhotoMeta } from "@/lib/firebase/revisions"
 import type { RevisionChecklist, RevisionChecklistSection, RevisionChecklistItem } from "@/types/revision"
 import { useAuth } from "@/contexts/AuthContext"
@@ -30,6 +30,10 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { formatUiDate, formatTime } from "@/lib/utils/time-format"
 import { createClientIndex } from "@/lib/client-work-links"
 import { isContactSyncEligible, resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync"
@@ -60,6 +64,10 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([])
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([])
   const [existingPhotos, setExistingPhotos] = useState<RevisionPhotoMeta[]>([])
+  const [photoToDelete, setPhotoToDelete] = useState<RevisionPhotoMeta | null>(null)
+  const [deletingPhoto, setDeletingPhoto] = useState(false)
+  const [photoDeleteError, setPhotoDeleteError] = useState<string | null>(null)
+  const photoDeletionLock = useRef(false)
   // QR validation gating
   const [expectedCode, setExpectedCode] = useState<string | undefined>(undefined)
   const [expectedClient, setExpectedClient] = useState<string | undefined>(undefined)
@@ -103,6 +111,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     verificationConfirmed.current = false
     setChecklistChanged(false)
     const apply = () => {
+      // Photos synchronize independently, even while checklist/observations have a local draft.
+      if (existing !== undefined) setExistingPhotos(existing?.photos || [])
       if (!checklist || existing === undefined) return
       const base = existing?.sections?.length ? existing.sections : checklist.sections
       const nextStructure = checklistIdentity(base)
@@ -128,7 +138,6 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       const final = String(existing?.finalObservations || "")
       setFinalObservations(final); setInitialFinalObservations(final)
       if (existing?.qrVerified) setVerified(true)
-      setExistingPhotos(existing?.photos || [])
       setLoading(false)
     }
     const revisionUnsub = subscribeRevisionDoc(workId, equipmentId, doc => { existing = doc; apply() })
@@ -267,6 +276,25 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     setSelectedPhotos(prev => prev.filter((_, i) => i !== index))
   }
 
+  const handleDeleteSavedPhoto = async () => {
+    if (!photoToDelete || photoDeletionLock.current || saveLock.current) return
+    photoDeletionLock.current = true
+    setDeletingPhoto(true)
+    setPhotoDeleteError(null)
+    try {
+      await deleteRevisionPhoto(workId, equipmentId, photoToDelete.path)
+      setExistingPhotos(photos => photos.filter(photo => photo.path !== photoToDelete.path))
+      setPhotoToDelete(null)
+      toast({ title: "Fotografie ștearsă", description: "Fotografia a fost eliminată din revizie." })
+    } catch (error) {
+      // Keep the target for retry even if Firestore removal succeeded before Storage failed.
+      setPhotoDeleteError(error instanceof Error ? error.message : "Fotografia nu a putut fi ștearsă. Reîncearcă.")
+    } finally {
+      photoDeletionLock.current = false
+      setDeletingPhoto(false)
+    }
+  }
+
   // Open add dialog
   const openAddDialog = (sectionId: string) => {
     setDialogSectionId(sectionId)
@@ -378,7 +406,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   }
 
   const handleSave = async () => {
-    if (saveLock.current || checklistChanged) return
+    if (saveLock.current || photoDeletionLock.current || checklistChanged) return
     if (!allCompleted) {
       setError("Completați starea pentru toate punctele de control.")
       toast({
@@ -493,7 +521,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
 
   // Save draft (partial save without completion)
   const handleSaveDraft = useStableCallback(async () => {
-    if (saveLock.current || checklistChanged) return false
+    if (saveLock.current || photoDeletionLock.current || checklistChanged) return false
     setError(null)
     setSaving(true)
     saveLock.current = true
@@ -522,12 +550,11 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
           const photo = await uploadRevisionPhoto(workId, equipmentId, file, userData?.uid || "unknown")
           photos.push(photo)
           // Keep successful uploads on a later failure; retry only pending files.
-          setExistingPhotos([...photos])
+          setExistingPhotos(current => current.some(p => p.path === photo.path) ? current : [...current, photo])
           setSelectedPhotos(pending => pending.filter(f => f !== file))
           setPhotoPreviewUrls(previews => previews.slice(1))
         }
       }
-      setExistingPhotos(photos)
       setSelectedPhotos([])
       setPhotoPreviewUrls([])
 
@@ -807,7 +834,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         )}
 
         {/* Galerie fotografii - max 4 */}
-        <div className={`space-y-2 ${!verified ? "pointer-events-none opacity-60" : ""}`}>
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium">
             <ImageIcon className="h-4 w-4" />
             <span>
@@ -827,6 +854,15 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                       alt={p.fileName || `Foto ${index + 1}`} 
                       className="w-full h-full object-cover"
                     />
+                    <button
+                      type="button"
+                      disabled={saving || deletingPhoto}
+                      aria-label={`Șterge fotografia salvată ${index + 1}`}
+                      onClick={() => { setPhotoDeleteError(null); setPhotoToDelete(p) }}
+                      className="absolute top-1 right-1 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white shadow-md hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
                       {p.fileName || "fotografie"}
                     </div>
@@ -854,9 +890,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                     disabled={saving}
                     aria-label={`Șterge fotografia ${index + 1}`}
                     onClick={() => handleRemovePhoto(index)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                    className="absolute top-1 right-1 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white shadow-md hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-50"
                   >
-                    <X className="h-4 w-4" />
+                    <Trash2 className="h-5 w-5" />
                   </button>
                   <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
                     {selectedPhotos[index]?.name}
@@ -865,7 +901,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
               ))}
               
               {/* Buton adaugă poză */}
-              <label className="relative aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-gray-700">
+              <label className={`relative aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-gray-700 ${!verified ? "pointer-events-none opacity-60" : ""}`}>
                 <Plus className="h-6 w-6" />
                 <span className="text-xs font-medium px-1 text-center">Adaugă</span>
                 <input
@@ -873,7 +909,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
                   accept="image/*"
                   multiple
                   onChange={handlePhotoSelect}
-                  disabled={saving}
+                  disabled={saving || !verified}
                   className="hidden"
                 />
               </label>
@@ -881,7 +917,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
             
             {selectedPhotos.length > 0 && (
               <div className="text-xs text-muted-foreground">
-                💡 Tip: Click pe poză pentru a o șterge
+                Folosiți coșul roșu pentru a șterge o fotografie.
               </div>
             )}
           </div>
@@ -920,13 +956,34 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
               <span>Completați toate punctele</span>
             )}
           </div>
-          <Button onClick={handleSave} disabled={!verified || !allCompleted || saving || checklistChanged} size="sm">
+          <Button onClick={handleSave} disabled={!verified || !allCompleted || saving || deletingPhoto || checklistChanged} size="sm">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             Salvează
           </Button>
         </div>
         </fieldset>
       </CardContent>
+
+      <AlertDialog open={!!photoToDelete} onOpenChange={open => {
+        if (!open && !photoDeletionLock.current) { setPhotoToDelete(null); setPhotoDeleteError(null) }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Șterge fotografia?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Fotografia va fi ștearsă imediat din fișa de revizie. Această acțiune nu poate fi anulată.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {photoDeleteError && <p role="alert" className="text-sm text-red-600">{photoDeleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingPhoto}>Renunță</AlertDialogCancel>
+            <Button variant="destructive" disabled={deletingPhoto} onClick={handleDeleteSavedPhoto}>
+              {deletingPhoto && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deletingPhoto ? "Se șterge…" : photoDeleteError ? "Reîncearcă ștergerea" : "Șterge fotografia"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog pentru adăugare punct de control */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

@@ -12,7 +12,7 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import type { ProductItem } from "@/lib/firebase/firestore"
 
 interface EmailSenderProps {
-  lucrare: Lucrare & { products?: ProductItem[] }
+  tichet: Lucrare & { products?: ProductItem[] }
   defaultEmail?: string
 }
 
@@ -127,7 +127,7 @@ Echipa de interventie`,
   return (
     <div className="space-y-4">
       <div className="hidden">
-        <ReportGenerator tichet={tichet} onGenerate={handleGeneratePDF} ref={reportGeneratorRef} />
+        <ReportGenerator tichet={lucrare} onGenerate={handleGeneratePDF} ref={reportGeneratorRef} />
       </div>
 
       <div className="space-y-2">
@@ -171,7 +171,7 @@ Echipa de interventie`,
             const generatorButton = document.createElement("button")
             generatorButton.onclick = () => {
               const reportGenerator = new ReportGenerator({
-                tichet,
+                lucrare,
                 onGenerate: (blob) => {
                   setPdfBlob(blob)
                   setIsGenerating(false)

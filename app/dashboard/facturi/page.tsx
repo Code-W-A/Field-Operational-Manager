@@ -23,7 +23,7 @@ import { toast } from "@/hooks/use-toast"
 
 type InvoiceRow = {
   lucrareId: string
-  nrLucrare: string
+  nrTichet: string
   client: string
   locatie?: string
   statusFacturare?: string
@@ -113,7 +113,7 @@ export default function FacturiPage() {
     if (!isAdminOrDispatcher) router.replace("/dashboard")
   }, [userData, isAdminOrDispatcher, router])
 
-  const { data: rawLucrari, loading, error } = useFirebaseCollection<Lucrare>("lucrari", [])
+  const { data: rawLucrari, loading, error } = useFirebaseCollection<Lucrare>("tichete", [])
 
   const allInvoiceRows = useMemo<InvoiceRow[]>(() => {
     if (!rawLucrari || rawLucrari.length === 0) return []
@@ -303,7 +303,7 @@ export default function FacturiPage() {
       },
       {
         accessorKey: "nrLucrare",
-        header: "Lucrare",
+        header: "Tichet",
         cell: ({ row }: any) => {
           const r = row.original as InvoiceRow
           return <Badge className="bg-purple-100 text-purple-800 font-mono text-xs">{r.nrLucrare || "-"}</Badge>
@@ -340,10 +340,10 @@ export default function FacturiPage() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                title="Deschide lucrarea"
+                title="Deschide tichetul"
               >
                 <Link href={`/dashboard/lucrari/${encodeURIComponent(r.lucrareId)}`}>
-                  <ExternalLink className="mr-2 h-4 w-4" /> Lucrare
+                  <ExternalLink className="mr-2 h-4 w-4" /> Tichet
                 </Link>
               </Button>
             </div>
@@ -358,7 +358,7 @@ export default function FacturiPage() {
 
   return (
     <DashboardShell>
-      <DashboardHeader heading="Facturi" text="Registru facturi încărcate pe lucrări. Caută după număr, nume fișier sau client." />
+      <DashboardHeader heading="Facturi" text="Registru facturi încărcate pe tichete. Caută după număr, nume fișier sau client." />
 
       <Card>
         <CardContent className="p-4 space-y-4">
@@ -467,7 +467,7 @@ export default function FacturiPage() {
             </div>
             {editRow ? (
               <div className="text-xs text-gray-500">
-                Lucrare: <span className="font-mono">{editRow.nrLucrare}</span> • Client:{" "}
+                Tichet: <span className="font-mono">{editRow.nrLucraree}</span> • Client:{" "}
                 <span className="font-medium">{editRow.client || "-"}</span>
               </div>
             ) : null}

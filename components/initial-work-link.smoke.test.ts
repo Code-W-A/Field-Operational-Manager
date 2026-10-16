@@ -6,8 +6,8 @@ import { join } from "node:path"
 const source = readFileSync(join(process.cwd(), "app/dashboard/lucrari/[id]/page.tsx"), "utf8")
 
 test("linkul către lucrarea inițială e Link real (același tab / open in new tab)", () => {
-  const labelStart = source.indexOf("Vezi lucrarea inițială")
-  assert.ok(labelStart >= 0, "Nu a fost găsit textul „Vezi lucrarea inițială”")
+  const labelStart = source.indexOf("Vezi tichetul inițială")
+  assert.ok(labelStart >= 0, "Nu a fost găsit textul „Vezi tichetul inițială”")
 
   const buttonStart = source.lastIndexOf("<Button", labelStart)
   const buttonEnd = source.indexOf("</Button>", labelStart)
@@ -16,9 +16,9 @@ test("linkul către lucrarea inițială e Link real (același tab / open in new 
       ? source.slice(buttonStart, buttonEnd + "</Button>".length)
       : undefined
 
-  assert.ok(buttonBlock, "Nu a fost găsit butonul linkului către lucrarea inițială")
+  assert.ok(buttonBlock, "Nu a fost găsit butonul linkului către tichetul inițială")
   assert.match(buttonBlock, /asChild/)
   assert.match(buttonBlock, /<Link href=\{relatedTicketUrl\(String\(lucrare\.lucrareOriginala\)\)\}>/)
   assert.doesNotMatch(buttonBlock, /target="_blank"/)
-  assert.match(buttonBlock, /Vezi lucrarea inițială/)
+  assert.match(buttonBlock, /Vezi ticheta inițială/)
 })

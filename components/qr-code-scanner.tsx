@@ -616,7 +616,7 @@ export function QRCodeScanner({
         setVerificationResult({
           success: true,
           message: "Verificare reușită!",
-          details: [`Echipamentul scanat corespunde cu lucrarea (${formatInfo}).`],
+          details: [`Echipamentul scanat corespunde cu tichetul (${formatInfo}).`],
         })
         
         // Verificăm garanția pentru lucrări de tip "Intervenție în garanție"
@@ -638,7 +638,7 @@ export function QRCodeScanner({
             setIsOpen(false)
             toast({
               title: "Verificare reușită",
-              description: `Echipamentul scanat corespunde cu lucrarea (${formatInfo}). Puteți continua intervenția.`,
+              description: `Echipamentul scanat corespunde cu tichetul (${formatInfo}). Puteți continua intervenția.`,
             })
           }, 2000)
         }

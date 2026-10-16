@@ -40,7 +40,7 @@ export default function PortalWorkDetail() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Se încarcă detaliile lucrării...</p>
+          <p className="text-muted-foreground">Se încarcă detaliile tichetului...</p>
         </div>
       </div>
     )
@@ -95,7 +95,7 @@ export default function PortalWorkDetail() {
             <p><strong>Tichet:</strong> ${id}</p>
             <p><strong>Client:</strong> ${w?.client || '-'} • <strong>Locație:</strong> ${w?.locatie || '-'}</p>
             ${reason ? `<p><strong>Motiv:</strong> ${reason}</p>` : ''}
-            <p><a href="${origin}/dashboard/lucrari/${id}" target="_blank">Deschide lucrarea</a></p>
+            <p><a href="${origin}/dashboard/lucrari/${id}" target="_blank">Deschide tichetul</a></p>
           </div>`
         // Trimitem către lista de admin/dispecer cunoscută sau configurată (fallback: către EMAIL_USER)
         const recipients = [process.env.NEXT_PUBLIC_NOTIF_ADMIN || '', process.env.NEXT_PUBLIC_NOTIF_DISPECER || ''].filter(Boolean)
@@ -277,7 +277,7 @@ export default function PortalWorkDetail() {
           <Button asChild variant="ghost" className="mb-4">
             <Link href="/portal">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Înapoi la lucrări
+              Înapoi la tichete
             </Link>
           </Button>
         </div>
@@ -296,7 +296,7 @@ export default function PortalWorkDetail() {
                     </div>
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
-                      <span>{w.tipLucrare}</span>
+                      <span>{w.tipLucraree}</span>
                     </div>
                     {w.dataProgramare && (
                       <div className="flex items-center gap-2">
@@ -355,7 +355,7 @@ export default function PortalWorkDetail() {
                   )}
                   {!w.raportSnapshot?.url && !w.facturaDocument?.url && !w.ofertaDocument?.url && (
                     <div className="text-center py-8 text-muted-foreground">
-                      Nu sunt disponibile documente pentru această lucrare.
+                      Nu sunt disponibile documente pentru acest tichet.
                     </div>
                   )}
                 </div>
@@ -366,7 +366,7 @@ export default function PortalWorkDetail() {
           <div className="flex justify-center items-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Se încarcă detaliile lucrării...</p>
+              <p className="text-muted-foreground">Se încarcă detaliile tichetului...</p>
             </div>
           </div>
         )}

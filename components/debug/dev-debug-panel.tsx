@@ -30,7 +30,7 @@ function eqInsensitive(a: any, b: any) {
   return String(a || "").toLowerCase() === String(b || "").toLowerCase()
 }
 
-export function DevDebugPanel({ lucrare }: { lucrare: any }) {
+export function DevDebugPanel({ lucrare }: { tichet: any }) {
   const { userData } = useAuth()
   const isAdmin = userData?.role === "admin"
   if (!isAdmin) return null
@@ -112,7 +112,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     const list_shouldShowPreia =
       !isTechnicianRole && isFinalizatByReport && raportGenerat === true && preluatDispecer === false
 
-    // /dashboard/lucrari/[id] (details) - shows "Preia lucrare" for completed-with-report OR postponed, if not already picked up.
+    // /dashboard/lucrari/[id] (details) - shows "Preia tichet" for completed-with-report OR postponed, if not already picked up.
     const details_shouldShowPreia =
       isAdminOrDispatcherRole &&
       preluatDispecer === false &&
@@ -165,7 +165,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
       oraPlecare: l.oraPlecare ?? null,
       durataInterventie: l.durataInterventie ?? null,
       // context fields that are often suspected (but may or may not be used in preluare logic)
-      tipLucrare: l.tipLucrare ?? null,
+      tipTichet: l.tipLucrare ?? null,
       lockedAfterReintervention: Boolean((l as any).lockedAfterReintervention),
       reinterventieMotiv: (l as any)?.reinterventieMotiv ?? null,
       mesajReatribuire: (l as any)?.mesajReatribuire ?? null,
@@ -206,8 +206,8 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
     lines.push(`lucrare.id: ${String(l.id || "")}`)
     lines.push(`client: ${String(l.client || "")}`)
     lines.push(`locatie: ${String(l.locatie || "")}`)
-    lines.push(`tipLucrare: ${tipLucrare}`)
-    lines.push(`statusLucrare: ${status}`)
+    lines.push(`tipTichet: ${tipLucrare}`)
+    lines.push(`statusTichet: ${status}`)
     lines.push(`statusFinalizareInterventie: ${statusFinalizareInterventie}`)
     lines.push(`raportGenerat: ${String(Boolean(l.raportGenerat))}`)
     lines.push(`preluatDispecer: ${String(Boolean(l.preluatDispecer))}`)
@@ -239,14 +239,14 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
 
     lines.push("Context A: /dashboard/lucrari (LISTĂ) – butonul 'Preia' (coloana 'Preluat Dispecer')")
     lines.push(`- role != 'tehnician': ${String(!computed.isTechnicianRole)}`)
-    lines.push(`- statusLucrare == 'Finalizat': ${String(status === "Finalizat")}`)
+    lines.push(`- statusTichet == 'Finalizat': ${String(status === "Finalizat")}`)
     lines.push(`- statusFinalizareInterventie == 'FINALIZAT': ${String(statusFinalizareInterventie.toUpperCase() === "FINALIZAT")}`)
     lines.push(`- raportGenerat == true: ${String(Boolean(l.raportGenerat) === true)}`)
     lines.push(`- preluatDispecer == false: ${String(Boolean(l.preluatDispecer) === false)}`)
     lines.push(`=> REZULTAT: ${computed.list_shouldShowPreia ? "ARATĂ butonul 'Preia'" : "NU arată butonul 'Preia'"}`)
     lines.push("")
 
-    lines.push("Context B: /dashboard/lucrari/[id] (DETALII) – butonul 'Preia lucrare'")
+    lines.push("Context B: /dashboard/lucrari/[id] (DETALII) – butonul 'Preia tichet'")
     lines.push(`- role in {'admin','dispecer'}: ${String(computed.isAdminOrDispatcherRole)}`)
     lines.push(`- preluatDispecer == false: ${String(Boolean(l.preluatDispecer) === false)}`)
     lines.push(
@@ -255,18 +255,18 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
           status === WORK_STATUS.POSTPONED,
       )}`,
     )
-    lines.push(`=> REZULTAT: ${computed.details_shouldShowPreia ? "ARATĂ butonul 'Preia lucrare'" : "NU arată butonul 'Preia lucrare'"}`)
+    lines.push(`=> REZULTAT: ${computed.details_shouldShowPreia ? "ARATĂ butonul 'Preia tichet'" : "NU arată butonul 'Preia tichet'"}`)
     lines.push("")
 
     lines.push("Context C: /dashboard/lucrari/[id] (DETALII) – butonul 'Reintervenție'")
     lines.push(`- role in {'admin','dispecer'}: ${String(computed.isAdminOrDispatcherRole)}`)
     lines.push(`- preluatDispecer == true: ${String(Boolean(l.preluatDispecer) === true)}`)
-    lines.push(`- statusLucrare != 'Anulat': ${String(computed.isCanceled === false)}`)
+    lines.push(`- statusTichet != 'Anulat': ${String(computed.isCanceled === false)}`)
     lines.push(`- raportGenerat == true OR hasPostponeContext == true: ${String(Boolean(l.raportGenerat) === true || computed.hasPostponeContext)}`)
     lines.push(`=> REZULTAT: ${computed.details_shouldShowReintervention ? "ARATĂ butonul 'Reintervenție'" : "NU arată butonul 'Reintervenție'"}`)
     lines.push("")
 
-    lines.push("Notă: lock-ul de reintervenție blochează editarea lucrării originale,")
+    lines.push("Notă: lock-ul de reintervenție blochează editarea tichetului originale,")
     lines.push("dar regulile de afișare pentru 'Reintervenție' folosesc preluare/raport/context amânare + rol.")
 
     return lines.join("\n")
@@ -335,7 +335,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
                 <TabsTrigger value="build">Build</TabsTrigger>
                 <TabsTrigger value="computed">Computed</TabsTrigger>
                 <TabsTrigger value="preluare">Preluare</TabsTrigger>
-                <TabsTrigger value="lucrare">Lucrare</TabsTrigger>
+                <TabsTrigger value="lucrare">Tichet</TabsTrigger>
               </TabsList>
 
               <TabsContent value="build" className="mt-3 min-h-0">
@@ -372,7 +372,7 @@ export function DevDebugPanel({ lucrare }: { lucrare: any }) {
               <TabsContent value="lucrare" className="mt-3 min-h-0">
             <div className="rounded-lg border">
               <div className="p-3 border-b flex items-center justify-between">
-                <div className="text-sm font-semibold">Lucrare (doc dump)</div>
+                <div className="text-sm font-semibold">Tichet (doc dump)</div>
                 <div className="text-xs text-muted-foreground">scroll</div>
               </div>
               <ScrollArea className="h-[60vh] p-3">

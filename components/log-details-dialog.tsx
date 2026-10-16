@@ -213,24 +213,24 @@ export function LogDetailsDialog({ log, isOpen, onClose }: LogDetailsDialogProps
               <>
                 <Separator />
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">Context lucrare:</h4>
+                  <h4 className="font-semibold text-sm">Context tichet:</h4>
                   <div className="grid grid-cols-2 gap-4">
                     {log.nrLucrare && (
                       <div>
-                        <span className="text-sm font-medium text-muted-foreground">Număr lucrare:</span>
-                        <p className="text-sm mt-1 font-mono">{log.nrLucrare}</p>
+                        <span className="text-sm font-medium text-muted-foreground">Număr tichet:</span>
+                        <p className="text-sm mt-1 font-mono">{log.nrLucrareee}</p>
                       </div>
                     )}
                     {log.lucrareId && (
                       <div>
-                        <span className="text-sm font-medium text-muted-foreground">ID lucrare:</span>
+                        <span className="text-sm font-medium text-muted-foreground">ID tichet:</span>
                         <div className="flex items-center gap-2 mt-1">
                           <Link 
                             href={`/dashboard/lucrari/${log.lucrareId}`}
                             className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                             target="_blank"
                           >
-                            Vezi lucrare <ExternalLink className="h-3 w-3" />
+                            Vezi tichet <ExternalLink className="h-3 w-3" />
                           </Link>
                         </div>
                       </div>
@@ -249,8 +249,8 @@ export function LogDetailsDialog({ log, isOpen, onClose }: LogDetailsDialogProps
                     )}
                     {log.lucrareTitlu && (
                       <div className="col-span-2">
-                        <span className="text-sm font-medium text-muted-foreground">Titlu lucrare:</span>
-                        <p className="text-sm mt-1">{log.lucrareTitlu}</p>
+                        <span className="text-sm font-medium text-muted-foreground">Titlu tichet:</span>
+                        <p className="text-sm mt-1">{log.lucrareTitluuu}</p>
                       </div>
                     )}
                   </div>

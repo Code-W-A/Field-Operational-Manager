@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(now.getTime() + CODE_TTL_MS)
     const resendAvailableAt = new Date(now.getTime() + CODE_RESEND_COOLDOWN_MS)
 
-    const workRef = adminDb.collection("lucrari").doc(workId)
+    const workRef = adminDb.collection("tichete").doc(workId)
     const txResult = await adminDb.runTransaction<SendCodeTxResult>(async (tx) => {
       const workSnap = await tx.get(workRef)
       if (!workSnap.exists) return { kind: "not_found" }
@@ -148,10 +148,10 @@ export async function POST(req: NextRequest) {
         status: "invalid",
         token: providedToken,
         email: cleanEmail,
-        details: "Lucrarea nu există.",
+        details: "Tichetul nu există.",
         meta: { route: "/api/offer/send-code", reason: "work_not_found" },
       })
-      return NextResponse.json({ status: "invalid", message: "Lucrarea nu există." }, { status: 404 })
+      return NextResponse.json({ status: "invalid", message: "Tichetul nu există." }, { status: 404 })
     }
     if (txResult.kind === "invalid") {
       await logOfferPortalEvent({
@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
     await logOfferEvent(
       {
         type: "OFFER_CODE_SENT",
-        source: "lucrari",
+        source: "tichete",
         status: "sent",
         lucrareId: workId,
         actorType: "portal_client",

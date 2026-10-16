@@ -747,7 +747,7 @@ export default function SetariPage() {
                               Motive arhivare
                             </div>
                             <div className="text-xs text-gray-600 mt-0.5 font-normal">
-                              Configurează regulile care blochează arhivarea lucrărilor. Modificările se salvează automat.
+                              Configurează regulile care blochează arhivarea tichetelor. Modificările se salvează automat.
                             </div>
                           </div>
                         </div>
@@ -817,7 +817,7 @@ export default function SetariPage() {
                         <div className="flex gap-2 text-xs text-gray-600">
                           <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-gray-500" />
                           <p>
-                            Regulile dezactivate nu vor mai bloca arhivarea, dar vor fi afișate ca "reguli ignorate" pe pagina lucrării.
+                            Regulile dezactivate nu vor mai bloca arhivarea, dar vor fi afișate ca "reguli ignorate" pe pagina tichetului.
                           </p>
                         </div>
                       </div>
