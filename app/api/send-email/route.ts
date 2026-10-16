@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
           ...(info?.messageId ? { messageId: info.messageId } : {}),
           ...(resendMode ? { actorUid: session.uid, action: "report-resend", sent, failed } : {}),
         }
-        const ref = adminDb.collection("tichete").doc(String(lucrareId))
+        const ref = adminDb.collection("lucrari").doc(String(lucrareId))
         if (resendMode) await ref.update({ lastReportEmail })
         else await ref.set({ lastReportEmail }, { merge: true })
       }
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (errorLucrareId) {
-        await adminDb.collection("tichete").doc(String(errorLucrareId)).set(
+        await adminDb.collection("lucrari").doc(String(errorLucrareId)).set(
           {
             lastReportEmail: {
               ...(resendMode ? { actorUid, action: "report-resend" } : {}),

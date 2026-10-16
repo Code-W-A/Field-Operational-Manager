@@ -33,8 +33,8 @@ import { isPrimaryUnmodifiedClick, openHrefInNewTab, preventMiddleClickAutoscrol
 
 type HistoryRow = {
   id: string
-  nrTichet: string
-  tipTichet: string
+  nrLucrare: string
+  tipLucrare: string
   // For export + UI, we keep the raw date-like value (Firestore Timestamp/string/Date)
   // Data execuției = timpSosire (scanare QR / sosire la intervenție)
   dataInterventie: any
@@ -161,7 +161,7 @@ export default function IstoricInterventiiPage() {
   const isAdminOrDispatcher = role === "admin" || role === "dispecer"
   const isClient = role === "client"
   const isTechnician = role === "tehnician"
-  const { data: works, loading } = useFirebaseCollection<Lucrare>("tichete", [where("raportGenerat", "==", true)])
+  const { data: works, loading } = useFirebaseCollection<Lucrare>("lucrari", [where("raportGenerat", "==", true)])
 
   const [table, setTable] = useState<any>(null)
   const exportRef = useRef<HTMLDivElement | null>(null)

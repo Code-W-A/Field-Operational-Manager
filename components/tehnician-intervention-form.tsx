@@ -40,7 +40,7 @@ interface TehnicianInterventionFormProps {
     updatedAt?: unknown
     descriereInterventie?: string
     constatareLaLocatie?: string
-    statusTichet: string
+    statusLucrare: string
     raportGenerat?: boolean
     necesitaOferta?: boolean
     comentariiOferta?: string
@@ -237,7 +237,7 @@ export function TehnicianInterventionForm({
   }
 
   const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, statusTichet: value }))
+    setFormData((prev) => ({ ...prev, statusLucrare: value }))
   }
 
   const handleSave = async () => {

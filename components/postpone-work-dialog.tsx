@@ -50,7 +50,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
 
     try {
       const updateData: any = {
-        statusTichet: WORK_STATUS.POSTPONED,
+        statusLucrare: WORK_STATUS.POSTPONED,
         motivAmanare: motiv.trim(),
         dataAmanare: new Date().toLocaleString('ro-RO'),
         amanataDe: userData?.displayName || "Tehnician necunoscut",
@@ -77,7 +77,7 @@ export function PostponeWorkDialog({ lucrareId, onSuccess, className }: Postpone
           dataAmanare: updateData.dataAmanare,
           locatie: lucrare?.locatie,
           persoanaContact: lucrare?.persoanaContact,
-          tipTichet: lucrare?.tipLucrare,
+          tipLucrare: lucrare?.tipLucrare,
           dataInterventie: lucrare?.dataInterventie,
           // Trimitem numele clientului ca string pentru a permite rezolvarea corectă a emailului în serviciu
           client: lucrare?.client,

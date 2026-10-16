@@ -38,7 +38,7 @@ export default function NewLucrarePage() {
   
   // Actualizăm starea formData pentru a include contractType
   const [formData, setFormData] = useState({
-    tipTichet: "",
+    tipLucrare: "",
     tehnicieni: [] as string[],
     client: "",
     locatie: "",
@@ -46,7 +46,7 @@ export default function NewLucrarePage() {
     descriere: "",
     persoanaContact: "",
     telefon: "",
-    statusTichet: WORK_STATUS.WAITING,
+    statusLucrare: WORK_STATUS.WAITING,
     statusFacturare: INVOICE_STATUS.NOT_INVOICED,
     contract: "",
     contractNumber: "",
@@ -70,7 +70,7 @@ export default function NewLucrarePage() {
       
       // Precompletăm formularul cu datele din URL
       const prefilledData = {
-        tipTichet: urlParams.get('tipLucrare') || "",
+        tipLucrare: urlParams.get('tipLucrare') || "",
         tehnicieni: [] as string[],
         client: urlParams.get('client') || "",
         locatie: urlParams.get('locatie') || "",
@@ -83,7 +83,7 @@ export default function NewLucrarePage() {
         contract: urlParams.get('contract') || "",
         contractNumber: urlParams.get('contractNumber') || "",
         contractType: urlParams.get('contractType') || "",
-        statusTichet: WORK_STATUS.WAITING,
+        statusLucrare: WORK_STATUS.WAITING,
         statusFacturare: INVOICE_STATUS.NOT_INVOICED,
         persoaneContact: [] as PersoanaContact[],
         echipamentId: "",
@@ -160,7 +160,7 @@ export default function NewLucrarePage() {
       const ids = payload.equipmentIds.map((id: any) => String(id)).filter(Boolean)
       const snapshots = await Promise.all(
         ids.map((eid) =>
-          getDocs(query(collection(db, "tichete"), where("equipmentIds", "array-contains", eid))),
+          getDocs(query(collection(db, "lucrari"), where("equipmentIds", "array-contains", eid))),
         ),
       )
       snapshots.forEach((snap) => {
@@ -175,7 +175,7 @@ export default function NewLucrarePage() {
       const equipmentName = String(payload.echipament || "").trim()
 
       if (equipmentId) {
-        const snap = await getDocs(query(collection(db, "tichete"), where("echipamentId", "==", equipmentId)))
+        const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentId", "==", equipmentId)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -183,7 +183,7 @@ export default function NewLucrarePage() {
       }
 
       if (results.length === 0 && equipmentCod) {
-        const snap = await getDocs(query(collection(db, "tichete"), where("echipamentCod", "==", equipmentCod)))
+        const snap = await getDocs(query(collection(db, "lucrari"), where("echipamentCod", "==", equipmentCod)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -191,7 +191,7 @@ export default function NewLucrarePage() {
       }
 
       if (results.length === 0 && !equipmentId && !equipmentCod && equipmentName) {
-        const snap = await getDocs(query(collection(db, "tichete"), where("echipament", "==", equipmentName)))
+        const snap = await getDocs(query(collection(db, "lucrari"), where("echipament", "==", equipmentName)))
         snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter(isActive)
@@ -224,7 +224,7 @@ export default function NewLucrarePage() {
       }
 
       const equipmentValidation = validateWorkEquipmentForCreation({
-        tipTichet: newWorkOrderData.tipLucrare,
+        tipLucrare: newWorkOrderData.tipLucrare,
         echipamentId: newWorkOrderData.echipamentId,
         echipamentCod: newWorkOrderData.echipamentCod,
         echipament: newWorkOrderData.echipament,
@@ -311,7 +311,7 @@ export default function NewLucrarePage() {
       // Adăugăm lucrarea în Firestore cu nrLucrare
       const lucrareId = await addLucrare({
         ...newWorkOrderData,
-        nrTichet: nrLucrareGenerated,
+        nrLucrare: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })

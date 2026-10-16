@@ -186,7 +186,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             persoanaContact: data.persoanaContact || "",
             products: data.products || [],
             emailDestinatar: (data as any).emailDestinatar || "",
-            statusTichet: data.statusLucrare || "În lucru",
+            statusLucrare: data.statusLucrare || "În lucru",
             tehnicieni: data.tehnicieni || [],
             client: data.client || "",
             locatie: data.locatie || "",
@@ -802,18 +802,18 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       console.log("Actualizăm statusul tichetului și marcăm raportul ca generat:", lucrareId)
 
       // Actualizăm documentul în Firestore direct
-      const lucrareRef = doc(db, "tichete", lucrareId)
+      const lucrareRef = doc(db, "lucrari", lucrareId)
 
       // Folosim updateDoc direct, fără a mai importa din nou
       await updateDoc(lucrareRef, {
         raportGenerat: true,
-        statusTichet: "Finalizat", // Actualizez și statusul pentru consistență
+        statusLucrare: "Finalizat", // Actualizez și statusul pentru consistență
         preluatDispecer: false,
         updatedAt: serverTimestamp(),
       })
 
       // LOG DEBUG – confirmare după updateWorkOrderStatus
-      console.log("🔍 updateWorkOrderStatus – raportGenerat:true, statusTichet:Finalizat, preluatDispecer:false")
+      console.log("🔍 updateWorkOrderStatus – raportGenerat:true, statusLucrare:Finalizat, preluatDispecer:false")
 
       if (userData?.role === "tehnician" && userData.uid && updatedLucrare?.semnaturaBeneficiar) {
         void ensureAutoCheckOut({
@@ -900,7 +900,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         comentariiOferta: tichet?.necesitaOferta ? tichet?.comentariiOferta || "" : "",
         imaginiDefecte: Array.isArray(tichet?.imaginiDefecte) ? tichet.imaginiDefecte : [],
         notaInternaTehnician: tichet?.notaInternaTehnician || "",
-        statusTichet: WORK_STATUS.NO_SIGNATURE,
+        statusLucrare: WORK_STATUS.NO_SIGNATURE,
         statusFinalizareInterventie: "NEFINALIZAT",
         timpPlecare,
         dataPlecare,
@@ -2311,8 +2311,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                               variant: "destructive",
                             })
 
-                            if (updatedLucraree && updatedLucraree.id) {
-                              updateWorkOrderStatus(updatedLucraree.id)
+                            if (updatedLucrare && updatedLucrare.id) {
+                              updateWorkOrderStatus(updatedLucrare.id)
                             }
 
                             router.push("/dashboard/lucrari")
@@ -2325,8 +2325,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                             description: "Raportul a fost generat, dar trimiterea pe email a eșuat. Tichetul a fost finalizat.",
                             variant: "destructive",
                           })
-                          if (updatedLucraree && updatedLucraree.id) {
-                            updateWorkOrderStatus(updatedLucraree.id)
+                          if (updatedLucrare && updatedLucrare.id) {
+                            updateWorkOrderStatus(updatedLucrare.id)
                           }
                           router.push("/dashboard/lucrari")
                         })

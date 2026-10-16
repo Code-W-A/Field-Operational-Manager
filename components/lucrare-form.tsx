@@ -83,7 +83,7 @@ import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts
 interface Lucrare {
   dataEmiterii: string
   dataInterventie: string
-  tipTichet: string
+  tipLucrare: string
   tehnicieni: string[]
   client: string
   locatie: string
@@ -100,7 +100,7 @@ interface Lucrare {
   contactSelectionMessage?: string
   // Cached recipient email used for offer/report sending (optional)
   persoanaContactEmail?: string
-  statusTichet: string
+  statusLucrare: string
   statusFacturare: string
   contract?: string
   contractNumber?: string
@@ -139,7 +139,7 @@ function safeSerializeFormData(value: unknown) {
 export type ActiveWorkSummary = {
   id: string
   nrDisplay: string
-  statusTichet: string
+  statusLucrare: string
   dataInterventie?: string
   tehnicieni?: string[]
 }
@@ -153,7 +153,7 @@ interface LucrareFormProps {
   dataInterventie: Date | undefined
   setDataInterventie: (date: Date | undefined) => void
   formData: {
-    tipTichet: string
+    tipLucrare: string
     tehnicieni: string[]
     client: string
     locatie: string
@@ -161,7 +161,7 @@ interface LucrareFormProps {
     descriere: string
     persoanaContact: string
     telefon: string
-    statusTichet: string
+    statusLucrare: string
     statusFacturare: string
     contract?: string
     contractNumber?: string
@@ -968,7 +968,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         const toSummary = (id: string, raw: any): ActiveWorkSummary => ({
           id,
           nrDisplay: String(raw?.nrLucrare || raw?.numarRaport || id),
-          statusTichet: String(raw?.statusLucrare || "N/A"),
+          statusLucrare: String(raw?.statusLucrare || "N/A"),
           dataInterventie: raw?.dataInterventie ? String(raw.dataInterventie) : undefined,
           tehnicieni: Array.isArray(raw?.tehnicieni) ? raw.tehnicieni.map((t: unknown) => String(t)) : [],
         })
@@ -986,7 +986,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         if (equipmentId) {
           const lucrariQuery = query(
-            collection(db, "tichete"),
+            collection(db, "lucrari"),
             where("echipamentId", "==", equipmentId)
           )
           const snapshot = await getDocs(lucrariQuery)
@@ -995,7 +995,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         if (equipmentCod && (byId.size === 0 || !equipmentId)) {
           const lucrariByCodQuery = query(
-            collection(db, "tichete"),
+            collection(db, "lucrari"),
             where("echipamentCod", "==", equipmentCod)
           )
           const codSnapshot = await getDocs(lucrariByCodQuery)
@@ -1004,7 +1004,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         if (equipmentName && byId.size === 0 && !equipmentId && !equipmentCod) {
           const lucrariByNameQuery = query(
-            collection(db, "tichete"),
+            collection(db, "lucrari"),
             where("echipament", "==", equipmentName)
           )
           const nameSnapshot = await getDocs(lucrariByNameQuery)
@@ -1039,7 +1039,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
         let docs: any[] = []
         for (const lookup of lookupKeys) {
-          const snap = await getDocs(query(collection(db, "tichete"), where(lookup.field, "==", lookup.value)))
+          const snap = await getDocs(query(collection(db, "lucrari"), where(lookup.field, "==", lookup.value)))
           docs = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
           if (docs.length > 0) break
         }
@@ -1766,7 +1766,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
       }
 
       const equipmentValidation = validateWorkEquipmentForCreation({
-        tipTichet: formData.tipLucrare,
+        tipLucrare: formData.tipLucrare,
         echipamentId: formData.echipamentId,
         echipamentCod: formData.echipamentCod,
         echipament: formData.echipament,
@@ -1929,7 +1929,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
         const updatedData: Partial<Lucrare> = {
           dataEmiterii: dataEmiterii ? formatDateTime24(dataEmiterii) : "",
           dataInterventie: dataInterventieFormatted,
-          tipTichet: formData.tipLucrare,
+          tipLucrare: formData.tipLucrare,
           tehnicieni: formData.tehnicieni,
           client: formData.client,
           locatie: formData.locatie,
@@ -1943,7 +1943,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
           ...(formData.contactId ? { contactId: formData.contactId } : {}),
           ...(formData.contactSync ? { contactSync: formData.contactSync } : {}),
           ...(formData.persoanaContactEmail !== undefined ? { persoanaContactEmail: formData.persoanaContactEmail } : {}),
-          statusTichet: formData.statusLucrare,
+          statusLucrare: formData.statusLucrare,
           statusFacturare: formData.statusFacturare,
           contract: formData.contract,
           contractNumber: formData.contractNumber,

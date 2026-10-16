@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext"
 
 interface ImageDefectUploadProps {
   lucrareId: string
-  tichet: any
+  lucrare: any
   selectedImages: File[] // Imaginile selectate, gestionate de părinte
   imagePreviews: string[] // URL-urile pentru preview, gestionate de părinte
   imagesToDelete: number[] // Indicii imaginilor marcate pentru ștergere

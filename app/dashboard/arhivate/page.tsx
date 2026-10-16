@@ -99,7 +99,7 @@ export default function LucrariArhivate() {
       // Pentru compatibility cu lucrările arhivate înainte de implementarea câmpului archivedAt,
       // încărcăm toate lucrările arhivate și le sortăm în memorie
       const lucrarireQuery = query(
-        collection(db, "tichete"),
+        collection(db, "lucrari"),
         where("statusLucrare", "==", WORK_STATUS.ARCHIVED)
       )
 
@@ -416,7 +416,7 @@ export default function LucrariArhivate() {
     try {
       // Eliminăm statusul de arhivare și câmpurile asociate
       await updateLucrare(lucrareId, { 
-        statusTichet: WORK_STATUS.COMPLETED,
+        statusLucrare: WORK_STATUS.COMPLETED,
         archivedAt: null as any, // Eliminăm data arhivării
         archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
       })

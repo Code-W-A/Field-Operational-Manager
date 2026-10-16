@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     check(JSON.stringify(body).length < 700000, "Datele tichetului sunt prea mari.")
     const result = await installationService(adminDb).create(actor, body.work, body.requestId)
-    const saved = await adminDb.collection("tichete").doc(result.id).get()
+    const saved = await adminDb.collection("lucrari").doc(result.id).get()
     return NextResponse.json({ id: saved.id, ...saved.data() })
   } catch (error) { return installationFailure(error) }
 }

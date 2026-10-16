@@ -12,14 +12,14 @@ import type { OfferEvidencePack, OfferEvidenceTimelineItem } from "@/lib/offer/e
 import { generateOfferEvidencePdf } from "@/lib/offer/evidence-pdf"
 
 type OfferEvidencePanelProps = {
-  mode: "tichete" | "crm-opportunity" | "crm-offer"
+  mode: "lucrari" | "crm-opportunity" | "crm-offer"
   entityId: string
   title?: string
   className?: string
 }
 
 function resolveApiPath(props: OfferEvidencePanelProps): string {
-  if (props.mode === "tichete") {
+  if (props.mode === "lucrari") {
     return `/api/lucrari/${encodeURIComponent(props.entityId)}/offer-evidence`
   }
   if (props.mode === "crm-offer") {
@@ -261,11 +261,11 @@ export function OfferEvidencePanel({ mode, entityId, title = "Dosar ofertă", cl
   }
 
   const logsHref =
-    mode === "tichete"
+    mode === "lucrari"
       ? `/dashboard/loguri?lucrareId=${encodeURIComponent(entityId)}&categorie=${encodeURIComponent("Portal ofertă")}`
       : "/dashboard/loguri"
   const certifiedPdfHref =
-    mode === "tichete"
+    mode === "lucrari"
       ? `/api/lucrari/${encodeURIComponent(entityId)}/offer-certified-pdf`
       : mode === "crm-offer"
         ? `/api/crm/offers/${encodeURIComponent(entityId)}/certified-pdf`

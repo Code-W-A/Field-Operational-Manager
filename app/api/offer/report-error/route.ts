@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const lucrareId = safeString((body as any).lucrareId, MAX_ID_LEN)
     if (!lucrareId) {
-      return NextResponse.json({ error: "tichetId este obligatoriu." }, { status: 400 })
+      return NextResponse.json({ error: "lucrareId este obligatoriu." }, { status: 400 })
     }
 
     const action = safeString((body as any).action, MAX_ACTION_LEN)
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       timestamp: safeString(browserRaw.timestamp, 64) || null,
     }
 
-    const workRef = adminDb.collection("tichete").doc(lucrareId)
+    const workRef = adminDb.collection("lucrari").doc(lucrareId)
     const workSnap = await workRef.get()
     if (!workSnap.exists) {
       return NextResponse.json({ error: "Tichetul nu există." }, { status: 404 })
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       source: "offer-public",
       status: "nou",
       lucrareId,
-      nrTichet: String(workData?.numarRaport || workData?.nrLucrare || "") || null,
+      nrLucrare: String(workData?.numarRaport || workData?.nrLucrare || "") || null,
       client: String(workData?.client || workData?.clientInfo?.nume || "") || null,
       action: action || null,
       pageState: pageState || null,
@@ -116,11 +116,11 @@ export async function POST(req: NextRequest) {
         utilizator: "Portal client",
         utilizatorId: "portal",
         actiune: "Raportare eroare descărcare ofertă",
-        detalii: `tichetId: ${lucrareId}; status: ${pageState || "-"}; tokenStatus: ${tokenStatus}; reportId: ${reportRef.id}`,
+        detalii: `lucrareId: ${lucrareId}; status: ${pageState || "-"}; tokenStatus: ${tokenStatus}; reportId: ${reportRef.id}`,
         tip: "Eroare",
         categorie: "Portal ofertă",
         lucrareId,
-        nrTichet: String(workData?.numarRaport || workData?.nrLucrare || "") || undefined,
+        nrLucrare: String(workData?.numarRaport || workData?.nrLucrare || "") || undefined,
         client: String(workData?.client || workData?.clientInfo?.nume || "") || undefined,
       })
     } catch (logError) {
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     await logOfferEvent(
       {
         type: "OFFER_ERROR_REPORTED",
-        source: "tichete",
+        source: "lucrari",
         status: pageState || "error",
         lucrareId,
         actorType: "portal_client",

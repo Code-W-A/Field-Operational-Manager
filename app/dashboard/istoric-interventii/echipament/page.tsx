@@ -18,8 +18,8 @@ import { db } from "@/lib/firebase/config"
 
 type Row = {
   id: string
-  source: "tichete"
-  nrTichet: string
+  source: "lucrari"
+  nrLucrare: string
   dataInterventie: string
   locatie: string
   client: string
@@ -135,15 +135,15 @@ export default function IstoricEchipamentPage() {
   const [fallbackLoading, setFallbackLoading] = useState(false)
 
   // Istoricul se caută după `echipamentCod`.
-  // Colecția reală pentru work orders este `tichete` (UI poate afișa "tichet", dar storage rămâne `tichete`).
+  // Colecția reală pentru work orders este `lucrari` (UI poate afișa "tichet", dar storage rămâne `lucrari`).
   // Folosim `customQuery` (nu `constraints`) ca să ne asigurăm că se resubscrie când se schimbă codul.
   const codForQuery = cod || "__NO_MATCH__"
   const qLucrari = useMemo(
-    () => query(collection(db, "tichete"), where("echipamentCod", "==", codForQuery)),
+    () => query(collection(db, "lucrari"), where("echipamentCod", "==", codForQuery)),
     [codForQuery],
   )
 
-  const { data: worksLucrari, loading: loadingLucrari } = useFirebaseCollection<Lucrare>("tichete", [], qLucrari)
+  const { data: worksLucrari, loading: loadingLucrari } = useFirebaseCollection<Lucrare>("lucrari", [], qLucrari)
   const loading = loadingLucrari
 
   useEffect(() => {
@@ -165,14 +165,14 @@ export default function IstoricEchipamentPage() {
       const sample = (worksLucrari || []).slice(0, 8).map((w: any) => ({
         id: w?.id,
         echipamentCod: String(w?.echipamentCod || ""),
-        nrTichet: String(w?.nrLucrare || w?.numarRaport || ""),
+        nrLucrare: String(w?.nrLucrare || w?.numarRaport || ""),
         raportGenerat: Boolean(w?.raportGenerat),
       }))
       console.log(`[ISTORIC_ECHIP] sample docs for cod=${cod}`, sample)
 
       if ((worksLucrari || []).length === 0) {
         console.warn("[ISTORIC_ECHIP] 0 matches from Firestore query", {
-          collection: "tichete",
+          collection: "lucrari",
           where: { echipamentCod: cod },
           hint:
             "Dacă știi sigur că există istoric, cel mai probabil tichetele vechi NU au câmpul `echipamentCod` setat sau au alt format (spații/litere mici).",
@@ -229,7 +229,7 @@ export default function IstoricEchipamentPage() {
       const SAMPLE = 2000
       console.log(`[ISTORIC_ECHIP] fallbackScan start for cod=${cod} (sample=${SAMPLE})`)
       try {
-        const q = query(collection(db, "tichete"), orderBy("updatedAt", "desc"), limit(SAMPLE))
+        const q = query(collection(db, "lucrari"), orderBy("updatedAt", "desc"), limit(SAMPLE))
         const snap = await getDocs(q)
         if (cancelled) return
         const docs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -243,7 +243,7 @@ export default function IstoricEchipamentPage() {
           const derived = deriveEquipmentCode(w)
           return {
             id: w?.id,
-            nrTichet: String(w?.nrLucrare || w?.numarRaport || ""),
+            nrLucrare: String(w?.nrLucrare || w?.numarRaport || ""),
             echipamentCod: String(w?.echipamentCod || ""),
             derivedCode: derived.code,
             derivedFrom: derived.source,
@@ -295,8 +295,8 @@ export default function IstoricEchipamentPage() {
 
         return {
           id: String(w.id),
-        source: "tichete" as const,
-          nrTichet: String(w.nrLucrare || w.numarRaport || "").trim(),
+        source: "lucrari" as const,
+          nrLucrare: String(w.nrLucrare || w.numarRaport || "").trim(),
           dataInterventie: String(w.dataInterventie || "").trim(),
           locatie: String(w.locationName || w.locatie || "").trim(),
           client: String(w.client || "").trim(),
@@ -321,7 +321,7 @@ export default function IstoricEchipamentPage() {
     console.log("[ISTORIC_ECHIP] computed rows", {
       cod,
       rowsCount: rows.length,
-      firstRow: rows[0] ? { id: rows[0].id, nrTichet: rows[0].nrLucrare, echipamentCod: rows[0].echipamentCod } : null,
+      firstRow: rows[0] ? { id: rows[0].id, nrLucrare: rows[0].nrLucrare, echipamentCod: rows[0].echipamentCod } : null,
       usedFallback: (worksLucrari || []).length === 0 && (fallbackWorks || []).length > 0,
       fallbackLoading,
     })

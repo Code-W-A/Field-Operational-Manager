@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     const now = new Date()
     const crypto = await import("crypto")
-    const workRef = adminDb.collection("tichete").doc(workId)
+    const workRef = adminDb.collection("lucrari").doc(workId)
 
     const txResult = await adminDb.runTransaction<VerifyTxResult>(async (tx) => {
       const workSnap = await tx.get(workRef)
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
 
     let msSinceCodeSent: number | null = null
     try {
-      const workSnap = await adminDb.collection("tichete").doc(workId).get()
+      const workSnap = await adminDb.collection("lucrari").doc(workId).get()
       const verification = (workSnap.data() as any)?.offerActionVerification || {}
       const codeSentAt = toDate(verification?.codeSentAt)
       if (codeSentAt) msSinceCodeSent = Date.now() - codeSentAt.getTime()
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
     await logOfferEvent(
       {
         type: "OFFER_CODE_VERIFIED",
-        source: "tichete",
+        source: "lucrari",
         status: "verified",
         lucrareId: workId,
         actorType: "portal_client",

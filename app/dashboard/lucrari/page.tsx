@@ -156,7 +156,7 @@ export default function Lucrari() {
   const [editInitialData, setEditInitialData] = useState<any>(null)
   const [editClientIssues, setEditClientIssues] = useState<string[]>([])
   const [formData, setFormData] = useState<React.ComponentProps<typeof LucrareForm>["formData"] & { originalWorkOrderInfo?: string; reinterventieMotiv?: any; echipamentModel?: string }>({
-    tipTichet: "",
+    tipLucrare: "",
     tehnicieni: [],
     client: "",
     locatie: "",
@@ -168,7 +168,7 @@ export default function Lucrari() {
     locationId: "",
     contactId: "",
     persoanaContactEmail: "",
-    statusTichet: "Listată",
+    statusLucrare: "Listată",
     statusFacturare: "Nefacturat",
     contract: "",
     defectReclamat: "",
@@ -188,7 +188,7 @@ export default function Lucrari() {
   const fieldLabels: Record<string, string> = {
     dataEmiterii: "Data emiterii",
     dataInterventie: "Data intervenției",
-    tipTichet: "Tip tichet",
+    tipLucrare: "Tip tichet",
     client: "Client",
     contract: "Contract",
     echipament: "Echipament",
@@ -219,7 +219,7 @@ export default function Lucrari() {
   
 
   // Persistența tabelului
-  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("tichete")
+  const { loadSettings, saveFilters, saveColumnVisibility, saveSorting, saveSearchText } = useTablePersistence("lucrari")
 
   // State pentru sorting (folosit intern de DataTable prin defaultSort). Nu mai controlăm sorting-ul din exterior
   // pentru a permite sortarea liberă pe toate coloanele.
@@ -431,7 +431,7 @@ export default function Lucrari() {
     })
   }, [rawLucrari])
 
-  const isFinalizatByReport = useCallback((tichet: any) => {
+  const isFinalizatByReport = useCallback((lucrare: any) => {
     const status = String(lucrare?.statusLucrare || "").toLowerCase()
     const byStatus = status === "finalizat"
     const byFinalizare = String(lucrare?.statusFinalizareInterventie || "").toUpperCase() === "FINALIZAT"
@@ -573,7 +573,7 @@ export default function Lucrari() {
           const workId = String(w.id || w._id || "")
           if (!workId) continue
           try {
-            const revCol = collection(db, "tichete", workId, "revisions")
+            const revCol = collection(db, "lucrari", workId, "revisions")
             const snap = await getDocs(revCol)
             const fromRevisions = snap.docs
               .map((d) => {
@@ -1339,7 +1339,7 @@ export default function Lucrari() {
         ? prev.tehnicieni.filter(t => t !== value)
         : [...prev.tehnicieni, value]
       const newStatus = newTehnicieni.length > 0 ? "Atribuită" : "Listată"
-      return { ...prev, tehnicieni: newTehnicieni, statusTichet: newStatus }
+      return { ...prev, tehnicieni: newTehnicieni, statusLucrare: newStatus }
     })
   }, [])
 
@@ -1355,7 +1355,7 @@ export default function Lucrari() {
     setActiveWorkEquipmentName("")
     setActiveWorkItems([])
     setFormData({
-      tipTichet: "",
+      tipLucrare: "",
       tehnicieni: [],
       client: "",
       locatie: "",
@@ -1367,7 +1367,7 @@ export default function Lucrari() {
       locationId: "",
       contactId: "",
       persoanaContactEmail: "",
-      statusTichet: "Programată",
+      statusLucrare: "Programată",
       statusFacturare: "Nefacturat",
       contract: "",
       contractNumber: "",
@@ -1388,14 +1388,14 @@ export default function Lucrari() {
     setActiveWorkEquipmentName("")
     setActiveWorkItems([])
     setFormData({
-      tipTichet: "",
+      tipLucrare: "",
       tehnicieni: [],
       client: "",
       locatie: "",
       descriere: "",
       persoanaContact: "",
       telefon: "",
-      statusTichet: "Listată", // Schimbat din "În așteptare" în "Listată"
+      statusLucrare: "Listată", // Schimbat din "În așteptare" în "Listată"
       statusFacturare: "Nefacturat",
       contract: "",
       defectReclamat: "",
@@ -1460,7 +1460,7 @@ export default function Lucrari() {
       
       // Reset form și închidere dialog
       setFormData({
-        tipTichet: "",
+        tipLucrare: "",
         tehnicieni: [],
         client: "",
         locatie: "",
@@ -1468,7 +1468,7 @@ export default function Lucrari() {
         descriere: "",
         persoanaContact: "",
         telefon: "",
-        statusTichet: "Programată",
+        statusLucrare: "Programată",
         statusFacturare: "Nefacturat",
         contract: "",
         contractNumber: "",
@@ -1536,7 +1536,7 @@ export default function Lucrari() {
       }
 
       const equipmentValidation = validateWorkEquipmentForCreation({
-        tipTichet: formData.tipLucrare,
+        tipLucrare: formData.tipLucrare,
         echipamentId: formData.echipamentId,
         echipamentCod: formData.echipamentCod,
         echipament: formData.echipament,
@@ -1608,7 +1608,7 @@ export default function Lucrari() {
         dataEmiterii: format(dataEmiterii, "dd.MM.yyyy HH:mm"),
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
         ...formData,
-        statusTichet: statusLucrare, // Suprascriem statusul cu valoarea calculată
+        statusLucrare: statusLucrare, // Suprascriem statusul cu valoarea calculată
         // Dacă este re-intervenție, adăugăm referința către tichetul original
         ...(isReassignment && originalWorkOrderId
           ? {
@@ -1633,7 +1633,7 @@ export default function Lucrari() {
       // Adăugăm lucrarea în Firestore cu nrLucrare
       const createdWork = await addLucrare({
         ...newLucrare,
-        nrTichet: nrLucrareGenerated,
+        nrLucrare: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
@@ -1687,7 +1687,7 @@ export default function Lucrari() {
               message: "CreateWork about to call sendWorkOrderNotifications",
               data: {
                 lucrareId: String(lucrareId || ""),
-                nrTichet: String(nrLucrareGenerated || ""),
+                nrLucrare: String(nrLucrareGenerated || ""),
                 hasClientId: Boolean((newLucrare as any)?.clientId),
                 hasLocationId: Boolean((newLucrare as any)?.locationId),
                 hasPersoanaContactEmail: Boolean((newLucrare as any)?.persoanaContactEmail),
@@ -1844,7 +1844,7 @@ export default function Lucrari() {
 
     // Populăm formularul cu datele lucrării
     setFormData({
-      tipTichet: lucrare.tipLucrare,
+      tipLucrare: lucrare.tipLucrare,
       tehnicieni: [...lucrare.tehnicieni],
       client: editProjection.fields.client,
       locatie: editProjection.fields.locatie,
@@ -1857,7 +1857,7 @@ export default function Lucrari() {
       ...((lucrare as any).contactSync ? { contactSync: (lucrare as any).contactSync } : {}),
       ...((lucrare as any).clientInfo ? { clientInfo: (lucrare as any).clientInfo } : {}),
       persoanaContactEmail: editProjection.fields.persoanaContactEmail,
-      statusTichet: lucrare.statusLucrare,
+      statusLucrare: lucrare.statusLucrare,
       statusFacturare: lucrare.statusFacturare,
       contract: lucrare.contract || "",
       defectReclamat: lucrare.defectReclamat || "",
@@ -1911,7 +1911,7 @@ export default function Lucrari() {
 
       const updatedLucrare = {
         ...formData,
-        statusTichet: statusLucrare, // Folosim statusul calculat
+        statusLucrare: statusLucrare, // Folosim statusul calculat
         dataEmiterii: selectedLucrare.dataEmiterii,
         dataInterventie: format(dataInterventie, "dd.MM.yyyy HH:mm"),
       }
@@ -2144,7 +2144,7 @@ export default function Lucrari() {
   }
 
   // Funcție pentru reatribuirea unei lucrări (pentru dispecer)
-  const handleReassign = useCallback(async (originalTichet: any) => {
+  const handleReassign = useCallback(async (originalLucrare: any) => {
     try {
       const currentContact = await prepareReinterventionContact(originalLucrare)
       // Creăm un mesaj informativ cu detaliile lucrării originale
@@ -2152,7 +2152,7 @@ export default function Lucrari() {
       
       // Precompletăm formularul cu datele din tichetul original
       const prefilledData = {
-        tipTichet: WORK_TYPES.RE_INTERVENTION,
+        tipLucrare: WORK_TYPES.RE_INTERVENTION,
         // Pentru reintervenție pornim fără tehnicieni atribuiți
         tehnicieni: [],
         client: originalLucrare.client || "",
@@ -2162,7 +2162,7 @@ export default function Lucrari() {
         descriere: originalLucrare.descriere || "",
         persoanaContact: originalLucrare.persoanaContact || "",
         telefon: originalLucrare.telefon || "",
-        statusTichet: "Listată", // Resetăm statusul
+        statusLucrare: "Listată", // Resetăm statusul
         statusFacturare: "Nefacturat", // Resetăm statusul facturării
         contract: originalLucrare.contract || "",
         contractNumber: originalLucrare.contractNumber || "",
@@ -2248,7 +2248,7 @@ export default function Lucrari() {
   }, [reinterventionId, isTechnician, router, handleReassign, toast])
 
   // Funcție pentru a verifica dacă o lucrare necesită reatribuire (bazat pe status finalizare intervenție)
-  const needsReassignment = useCallback((tichet: any) => {
+  const needsReassignment = useCallback((lucrare: any) => {
     if (lucrare.lockedAfterReintervention) return false
     // Reatribuirea nu mai depinde de statusul NEFINALIZAT
     return false
@@ -2901,7 +2901,7 @@ export default function Lucrari() {
         try {
           const next = await getNextReportNumber()
           const display = `#${String(next).padStart(6, '0')}`
-          await updateLucrare(id, { nrTichet: next, nrLucrareDisplay: display })
+          await updateLucrare(id, { nrLucrare: next, nrLucrareDisplay: display })
 
           // După alocarea numărului, programăm următoarea lucrare pentru contractele auto-generate
           try {
@@ -2937,13 +2937,13 @@ export default function Lucrari() {
                       telefon: ww.telefon || "",
                       dataEmiterii: format(new Date(), "dd.MM.yyyy HH:mm"),
                       dataInterventie: format(nextReview, "dd.MM.yyyy HH:mm"),
-                      tipTichet: ww.tipLucrare || 'Revizie',
+                      tipLucrare: ww.tipLucrare || 'Revizie',
                       locatie: ww.locatie || "",
                       echipament: ww.echipament || "",
                       echipamentCod: ww.echipamentCod || "",
                       echipamentModel: ww.echipamentModel || '',
                       descriere: ww.descriere || `Revizie programată (contract ${ww.contractNumber || ww.contract || ''})`,
-                      statusTichet: 'Listată',
+                      statusLucrare: 'Listată',
                       statusFacturare: 'Nefacturat',
                       tehnicieni: [],
                       contract: ww.contract || ww.contractNumber || '',

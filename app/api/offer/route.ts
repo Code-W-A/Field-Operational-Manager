@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const workRef = adminDb.collection("tichete").doc(workId)
+    const workRef = adminDb.collection("lucrari").doc(workId)
     const workSnap = await workRef.get()
     if (!workSnap.exists) {
       await logOfferPortalEvent({
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
     await logOfferEvent(
       {
         type: "OFFER_LINK_OPENED",
-        source: "tichete",
+        source: "lucrari",
         status,
         lucrareId: workId,
         actorType: "portal_client",
@@ -156,9 +156,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { lucrareId, snapshot } = await req.json()
-    if (!lucrareId) return NextResponse.json({ error: "tichetId lipsă" }, { status: 400 })
+    if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
 
-    const workRef = adminDb.collection("tichete").doc(String(lucrareId))
+    const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) return NextResponse.json({ error: "Tichetul nu există" }, { status: 404 })
 
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
 
     await logOfferEvent({
       type: "OFFER_TOKEN_MINTED",
-      source: "tichete",
+      source: "lucrari",
       status: "ok",
       lucrareId: String(lucrareId),
       actorType: "staff",

@@ -14,7 +14,7 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
   useEffect(() => {
     const load = async () => {
       try {
-        const q = query(collection(db, "tichete", lucrareId, "downloads"), orderBy("timestamp", "desc"))
+        const q = query(collection(db, "lucrari", lucrareId, "downloads"), orderBy("timestamp", "desc"))
         const snap = await getDocs(q)
         const list: any[] = []
         snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }))
@@ -23,7 +23,7 @@ export function DownloadHistory({ lucrareId, locationEmail }: { lucrareId: strin
         // Derivăm emailul persoanei de contact a locației doar dacă nu este furnizat de părinte
         if (!locationEmail) {
           try {
-            const workRef = doc(db, "tichete", lucrareId)
+            const workRef = doc(db, "lucrari", lucrareId)
             const workSnap = await getDoc(workRef)
             const work = workSnap.exists() ? (workSnap.data() as any) : null
             if (work) {

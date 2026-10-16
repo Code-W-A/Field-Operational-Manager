@@ -12,7 +12,7 @@ import type { Lucrare } from "@/lib/firebase/firestore"
 import type { ProductItem } from "@/lib/firebase/firestore"
 
 interface EmailSenderProps {
-  tichet: Lucrare & { products?: ProductItem[] }
+  lucrare: Lucrare & { products?: ProductItem[] }
   defaultEmail?: string
 }
 

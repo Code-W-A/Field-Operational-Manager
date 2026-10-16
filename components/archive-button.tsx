@@ -69,7 +69,7 @@ export function ArchiveButton({
     try {
       // Setăm statusul de arhivare împreună cu data și utilizatorul care a arhivat
       await updateLucrare(lucrareId, { 
-        statusTichet: WORK_STATUS.ARCHIVED,
+        statusLucrare: WORK_STATUS.ARCHIVED,
         archivedAt: serverTimestamp() as any, // Firestore va converti automat la Timestamp
         archivedBy: userData?.displayName || userData?.email || "Utilizator necunoscut"
       })

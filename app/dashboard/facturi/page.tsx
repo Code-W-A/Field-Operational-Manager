@@ -23,7 +23,7 @@ import { toast } from "@/hooks/use-toast"
 
 type InvoiceRow = {
   lucrareId: string
-  nrTichet: string
+  nrLucrare: string
   client: string
   locatie?: string
   statusFacturare?: string
@@ -113,7 +113,7 @@ export default function FacturiPage() {
     if (!isAdminOrDispatcher) router.replace("/dashboard")
   }, [userData, isAdminOrDispatcher, router])
 
-  const { data: rawLucrari, loading, error } = useFirebaseCollection<Lucrare>("tichete", [])
+  const { data: rawLucrari, loading, error } = useFirebaseCollection<Lucrare>("lucrari", [])
 
   const allInvoiceRows = useMemo<InvoiceRow[]>(() => {
     if (!rawLucrari || rawLucrari.length === 0) return []

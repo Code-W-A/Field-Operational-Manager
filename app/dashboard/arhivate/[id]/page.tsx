@@ -199,7 +199,7 @@ export default function ArchivedWorkDetailPage({ params }: ArchivedWorkDetailPag
     try {
       // Eliminăm statusul de arhivare și câmpurile asociate
       await updateLucrare(paramsId, { 
-        statusTichet: WORK_STATUS.COMPLETED,
+        statusLucrare: WORK_STATUS.COMPLETED,
         archivedAt: null as any, // Eliminăm data arhivării
         archivedBy: null as any  // Eliminăm utilizatorul care a arhivat
       })

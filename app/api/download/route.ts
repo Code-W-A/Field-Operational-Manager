@@ -266,7 +266,7 @@ export async function GET(request: Request) {
     if (shouldLog) {
       try {
         await adminDb
-          .collection("tichete")
+          .collection("lucrari")
           .doc(lucrareId)
           .collection("downloads")
           .add({

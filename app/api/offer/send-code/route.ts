@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(now.getTime() + CODE_TTL_MS)
     const resendAvailableAt = new Date(now.getTime() + CODE_RESEND_COOLDOWN_MS)
 
-    const workRef = adminDb.collection("tichete").doc(workId)
+    const workRef = adminDb.collection("lucrari").doc(workId)
     const txResult = await adminDb.runTransaction<SendCodeTxResult>(async (tx) => {
       const workSnap = await tx.get(workRef)
       if (!workSnap.exists) return { kind: "not_found" }
@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
     await logOfferEvent(
       {
         type: "OFFER_CODE_SENT",
-        source: "tichete",
+        source: "lucrari",
         status: "sent",
         lucrareId: workId,
         actorType: "portal_client",

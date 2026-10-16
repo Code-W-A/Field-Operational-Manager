@@ -51,8 +51,8 @@ interface WorkOrder {
   echipamentId?: string
   echipamentCod?: string
   dataInterventie: string
-  tipTichet: string
-  statusTichet: string
+  tipLucrare: string
+  statusLucrare: string
   descriereInterventie?: string
   defectReclamat?: string
   tehnicieni: string[]
@@ -238,7 +238,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         }
 
         // Query work orders by equipment ID or code
-        const workOrdersQuery = query(collection(db, "tichete"), where("echipamentId", "==", selectedEquipmentId))
+        const workOrdersQuery = query(collection(db, "lucrari"), where("echipamentId", "==", selectedEquipmentId))
 
         const workOrdersSnapshot = await getDocs(workOrdersQuery)
         let workOrdersData = workOrdersSnapshot.docs.map((doc) => ({
@@ -249,7 +249,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         // If no results by ID, try by equipment code
         if (workOrdersData.length === 0 && selectedEquipment.cod) {
           const workOrdersByCodeQuery = query(
-            collection(db, "tichete"),
+            collection(db, "lucrari"),
             where("echipamentCod", "==", selectedEquipment.cod),
           )
 
@@ -263,7 +263,7 @@ export function EquipmentReport({ className = "", reportType = "detailed" }: Equ
         // If still no results, try by equipment name and client
         if (workOrdersData.length === 0) {
           const workOrdersByNameQuery = query(
-            collection(db, "tichete"),
+            collection(db, "lucrari"),
             where("echipament", "==", selectedEquipment.nume),
             where("client", "==", selectedEquipment.clientName),
           )

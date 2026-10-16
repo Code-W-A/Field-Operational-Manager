@@ -18,8 +18,8 @@ import { NoInvoiceReasonDialog } from "@/components/no-invoice-reason-dialog"
 
 interface DocumentUploadProps {
   lucrareId: string
-  tichet: any // Tipul complet al lucrării
-  onLucrareUpdate: (updatedTichet: any) => void
+  lucrare: any // Tipul complet al lucrării
+  onLucrareUpdate: (updatedLucrare: any) => void
   hideOfertaUpload?: boolean
 }
 

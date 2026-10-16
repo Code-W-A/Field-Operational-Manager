@@ -9,7 +9,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
 
     if (!lucrareId) {
-      return NextResponse.json({ error: "tichetId lipsă." }, { status: 400 })
+      return NextResponse.json({ error: "lucrareId lipsă." }, { status: 400 })
     }
 
     const snapshot = body?.snapshot
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const eventId = await logOfferEvent({
       type: "OFFER_PREPARED",
-      source: "tichete",
+      source: "lucrari",
       status: "saved",
       lucrareId,
       actorId: session.uid,

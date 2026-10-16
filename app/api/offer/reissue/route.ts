@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const crypto = await import("crypto")
-    const workRef = adminDb.collection("tichete").doc(workId)
+    const workRef = adminDb.collection("lucrari").doc(workId)
 
     const txResult = await adminDb.runTransaction<ReissueTxResult>(async (tx) => {
       const workSnap = await tx.get(workRef)
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       await logOfferEvent(
         {
           type: "OFFER_TOKEN_REISSUED",
-          source: "tichete",
+          source: "lucrari",
           status: "reissued",
           lucrareId: workId,
           actorType: "portal_client",

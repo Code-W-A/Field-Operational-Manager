@@ -500,7 +500,7 @@ export default function OfferActionPage() {
       }
 
       try {
-        const ref = doc(db, "tichete", id)
+        const ref = doc(db, "lucrari", id)
         const snap = await getDoc(ref)
         const data: any = snap.exists() ? snap.data() : null
         const freshSnap = await getDoc(ref)

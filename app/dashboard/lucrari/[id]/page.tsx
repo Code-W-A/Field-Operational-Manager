@@ -124,7 +124,7 @@ const extractCUI = (client: any) => {
 type ActiveWorkSummary = {
   id: string
   nrDisplay: string
-  statusTichet: string
+  statusLucrare: string
   dataInterventie?: string
   tehnicieni?: string[]
 }
@@ -144,7 +144,7 @@ type EditFormData = {
   persoanaContactEmail?: string
   clientInfo?: Record<string, any>
   contactSync?: Lucrare["contactSync"]
-  tipTichet: string
+  tipLucrare: string
   tehnicieni: string[]
   client: string
   locatie: string
@@ -152,7 +152,7 @@ type EditFormData = {
   descriere: string
   persoanaContact: string
   telefon: string
-  statusTichet: string
+  statusLucrare: string
   statusFacturare: string
   contract?: string
   contractNumber?: string
@@ -166,7 +166,7 @@ type EditFormData = {
 }
 
 const EMPTY_EDIT_FORM: EditFormData = {
-  tipTichet: "",
+  tipLucrare: "",
   tehnicieni: [],
   client: "",
   locatie: "",
@@ -174,7 +174,7 @@ const EMPTY_EDIT_FORM: EditFormData = {
   descriere: "",
   persoanaContact: "",
   telefon: "",
-  statusTichet: "Listată",
+  statusLucrare: "Listată",
   statusFacturare: "Nefacturat",
   contract: "",
   contractNumber: "",
@@ -245,7 +245,7 @@ function EquipmentDocumentationList({
 }
 
 // Funcție pentru calcularea corectă a duratei intervenției
-const calculateInterventionDuration = (tichet: any): string => {
+const calculateInterventionDuration = (lucrare: any): string => {
   // Încercăm să găsim durata din câmpul salvat
   const savedDuration = lucrare?.durataInterventie;
   
@@ -376,7 +376,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     let signature = ""
     let active = true
     setContactSyncIssues([])
-    const stopTicket = onSnapshot(doc(db, "tichete", paramsId), snapshot => {
+    const stopTicket = onSnapshot(doc(db, "lucrari", paramsId), snapshot => {
       if (!active || !snapshot.exists()) return
       const data = snapshot.data()
       const fields = ["client", "locatie", "locationName", "clientId", "locationId", "contactId", "persoanaContact", "telefon", "persoanaContactEmail", "clientInfo", "persoaneContact", "contactSync", "statusLucrare", "archivedAt", "archived", "anulat", "anulatAt"]
@@ -467,11 +467,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
     return {
       when: new Date().toISOString(),
-      tichet: {
+      lucrare: {
         id: lucrare.id,
-        nrTichet: (lucrare as any)?.nrLucrare || "",
-        tipTichet: lucrare.tipLucrare,
-        statusTichet: lucrare.statusLucrare,
+        nrLucrare: (lucrare as any)?.nrLucrare || "",
+        tipLucrare: lucrare.tipLucrare,
+        statusLucrare: lucrare.statusLucrare,
         raportGenerat: Boolean(lucrare.raportGenerat),
         equipmentVerified: Boolean((lucrare as any)?.equipmentVerified),
       },
@@ -550,7 +550,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     // Linie simplă (ușor de văzut/căutat) + grup detaliat
     console.log("🔎 [Revizie Debug] summary", {
       lucrareId: lucrare.id,
-      nrTichet: (lucrare as any)?.nrLucrare || "",
+      nrLucrare: (lucrare as any)?.nrLucrare || "",
       equipmentIdsCount: equipmentIds.length,
       revizieEquipmentIdsCount: revizieEquipmentIds.length,
       revisionEquipmentCount: revisionEquipment.length,
@@ -559,7 +559,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     })
 
     console.groupCollapsed(`🔎 [Revizie Debug] tichet=${lucrare.id} nr=${(lucrare as any)?.nrLucrare || ""}`)
-    console.log("tipTichet:", lucrare.tipLucrare)
+    console.log("tipLucrare:", lucrare.tipLucrare)
     console.log("equipmentIds (array):", { count: equipmentIds.length, equipmentIds })
     console.log("revizieEquipmentIds (computed):", { count: revizieEquipmentIds.length, revizieEquipmentIds })
     console.log("single equipment fields:", { echipamentId: equipmentIdSingle, echipamentCod: equipmentCodeSingle })
@@ -601,7 +601,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     
     setLoadingReinterventii(true)
     try {
-      const lucrariCollection = collection(db, "tichete")
+      const lucrariCollection = collection(db, "lucrari")
       const q = query(lucrariCollection, where("lucrareOriginala", "==", lucrareId))
       const querySnapshot = await getDocs(q)
       
@@ -729,7 +729,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         const toSummary = (id: string, raw: any): ActiveWorkSummary => ({
           id,
           nrDisplay: String(raw?.nrLucrare || raw?.numarRaport || id),
-          statusTichet: String(raw?.statusLucrare || "N/A"),
+          statusLucrare: String(raw?.statusLucrare || "N/A"),
           dataInterventie: raw?.dataInterventie ? String(raw.dataInterventie) : undefined,
           tehnicieni: Array.isArray(raw?.tehnicieni) ? raw.tehnicieni.map((t: unknown) => String(t)) : [],
         })
@@ -745,13 +745,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         }
 
         if (equipmentId) {
-          const byIdQuery = query(collection(db, "tichete"), where("echipamentId", "==", equipmentId))
+          const byIdQuery = query(collection(db, "lucrari"), where("echipamentId", "==", equipmentId))
           const byIdSnapshot = await getDocs(byIdQuery)
           addSnapshotEntries(byIdSnapshot)
         }
 
         if (equipmentCod && (byId.size === 0 || !equipmentId)) {
-          const byCodQuery = query(collection(db, "tichete"), where("echipamentCod", "==", equipmentCod))
+          const byCodQuery = query(collection(db, "lucrari"), where("echipamentCod", "==", equipmentCod))
           const byCodSnapshot = await getDocs(byCodQuery)
           addSnapshotEntries(byCodSnapshot)
         }
@@ -887,7 +887,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             workId: paramsId,
             clientName: data?.client,
             locatieName: data?.locatie,
-            tipTichet: data?.tipLucrare,
+            tipLucrare: data?.tipLucrare,
             clientId: workAny?.clientId,
             clientInfoId: workAny?.clientInfo?.id,
             locationId: workAny?.locationId,
@@ -1023,7 +1023,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         prev.statusLucrare === "Finalizat" || prev.statusLucrare === "Arhivată" || prev.statusLucrare === WORK_STATUS.CANCELED
           ? prev.statusLucrare
           : (nextTehnicieni.length > 0 ? "Atribuită" : "Listată")
-      return { ...prev, tehnicieni: nextTehnicieni, statusTichet: nextStatus }
+      return { ...prev, tehnicieni: nextTehnicieni, statusLucrare: nextStatus }
     })
   }, [])
 
@@ -1166,7 +1166,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       persoanaContactEmail: lucrare.persoanaContactEmail || "",
       ...((lucrare as any).clientInfo ? { clientInfo: (lucrare as any).clientInfo } : {}),
       ...(lucrare.contactSync ? { contactSync: lucrare.contactSync } : {}),
-      tipTichet: lucrare.tipLucrare || "",
+      tipLucrare: lucrare.tipLucrare || "",
       tehnicieni: Array.isArray(lucrare.tehnicieni) ? [...lucrare.tehnicieni] : [],
       client: lucrare.client || "",
       locatie: lucrare.locatie || "",
@@ -1174,7 +1174,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       descriere: (lucrare as any).descriere || "",
       persoanaContact: (lucrare as any).persoanaContact || "",
       telefon: (lucrare as any).telefon || "",
-      statusTichet: lucrare.statusLucrare || "Listată",
+      statusLucrare: lucrare.statusLucrare || "Listată",
       statusFacturare: lucrare.statusFacturare || "Nefacturat",
       contract: (lucrare as any).contract || "",
       contractNumber: (lucrare as any).contractNumber || "",
@@ -1333,7 +1333,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       await updateLucrare(
         lucrare.id!,
         {
-          statusTichet: WORK_STATUS.COMPLETED,
+          statusLucrare: WORK_STATUS.COMPLETED,
           equipmentIds: done,
           ["revision.equipmentStatus"]: filteredStatus as any,
           mesajReatribuire: "Revizie finalizată parțial – echipamentele rămase vor fi replanificate",
@@ -1348,10 +1348,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         telefon: lucrare.telefon,
         dataEmiterii: lucrare.dataEmiterii,
         dataInterventie: lucrare.dataInterventie,
-        tipTichet: "Revizie",
+        tipLucrare: "Revizie",
         locatie: lucrare.locatie,
         descriere: lucrare.descriere || `Echipamente rămase din revizie parțială (${done.length}/${all.length} finalizate)`,
-        statusTichet: WORK_STATUS.POSTPONED,
+        statusLucrare: WORK_STATUS.POSTPONED,
         statusFacturare: "Nefacturat",
         tehnicieni: [],
         contract: (lucrare as any).contract,
@@ -1464,7 +1464,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const findOtherActiveWorkForTechnician = useStableCallback(async (): Promise<null | { id: string; numar: string; client?: string; locatie?: string }> => {
     try {
       if (!userData?.displayName) return null
-      const lucrariRef = collection(db, "tichete")
+      const lucrariRef = collection(db, "lucrari")
       const q = query(
         lucrariRef,
         where("tehnicieni", "array-contains", userData.displayName),
@@ -1582,7 +1582,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           dataSosire: updateData.dataSosire,
           oraSosire: updateData.oraSosire,
           equipmentVerified: updateData.equipmentVerified,
-          statusTichet: updateData.statusLucrare
+          statusLucrare: updateData.statusLucrare
         })
         
         // Verificare finală pentru timpSosire înainte de salvare
@@ -1626,7 +1626,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
             prev
               ? {
                   ...prev,
-                  statusTichet: "În lucru",
+                  statusLucrare: "În lucru",
                   timpSosire,
                   dataSosire,
                   oraSosire,
@@ -1688,7 +1688,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       await updateLucrare(lucrare.id, { 
         preluatDispecer: true, 
         preluatDe: userData?.displayName || userData?.email || "Dispecer",
-        ...(shouldList ? { statusTichet: WORK_STATUS.LISTED } : {}),
+        ...(shouldList ? { statusLucrare: WORK_STATUS.LISTED } : {}),
       })
 
       // Actualizăm lucrarea local
@@ -1696,7 +1696,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         ...prev, 
         preluatDispecer: true, 
         preluatDe: userData?.displayName || userData?.email || "Dispecer",
-        ...(shouldList ? { statusTichet: WORK_STATUS.LISTED } : {}),
+        ...(shouldList ? { statusLucrare: WORK_STATUS.LISTED } : {}),
       } : null))
 
       toast({
@@ -1735,7 +1735,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       await updateLucrare(
         lucrare.id,
         {
-          statusTichet: WORK_STATUS.ARCHIVED,
+          statusLucrare: WORK_STATUS.ARCHIVED,
           archivedAt: serverTimestamp(),
           archivedBy,
           anulat: true,
@@ -1752,7 +1752,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         prev
           ? {
               ...prev,
-              statusTichet: WORK_STATUS.ARCHIVED,
+              statusLucrare: WORK_STATUS.ARCHIVED,
               archivedBy,
               anulat: true,
               motivAnulare: cancelReason.trim(),
@@ -2000,7 +2000,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   }
   
   // Condiții pentru reintervenție: lucrare preluată + (raport generat sau context de amânare) + neanulată
-  const needsReintervention = (tichet: any) => {
+  const needsReintervention = (lucrare: any) => {
     const hasWorkPostponeContext = Boolean(lucrare?.motivAmanare || lucrare?.dataAmanare || lucrare?.amanataDe)
     return Boolean(
       lucrare?.preluatDispecer === true &&
@@ -4163,7 +4163,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   </div>
                 )}
                 {role !== "client" && hasOfferHistory && lucrare.id && (
-                  <OfferEvidencePanel mode="tichete" entityId={lucrare.id} className="mb-4" />
+                  <OfferEvidencePanel mode="lucrari" entityId={lucrare.id} className="mb-4" />
                 )}
                 {role !== "client" && hasOfferHistory && (
                   <div className="p-3 border rounded-md bg-white mb-4">

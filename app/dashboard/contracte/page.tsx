@@ -275,27 +275,27 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
       const queries = [
         // Interval pe Timestamp/Date
         fsQuery(
-          collection(db, "tichete"),
+          collection(db, "lucrari"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", ">=", start),
           where("dataInterventie", "<", end),
         ),
         // Interval pe string ISO (fallback pentru câmp salvat ca string)
         fsQuery(
-          collection(db, "tichete"),
+          collection(db, "lucrari"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", ">=", dayStartIso),
           where("dataInterventie", "<", dayEndIso),
         ),
         // Egalitate pe string date-only (ex: "2025-01-01")
         fsQuery(
-          collection(db, "tichete"),
+          collection(db, "lucrari"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", "==", isoDate),
         ),
         // Egalitate pe Timestamp/Date (în caz că a fost salvat ca Date fără timp)
         fsQuery(
-          collection(db, "tichete"),
+          collection(db, "lucrari"),
           where("tipLucrare", "==", "Revizie"),
           where("dataInterventie", "==", start),
         ),
