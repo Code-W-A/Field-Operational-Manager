@@ -19,6 +19,8 @@ export interface Setting<TTimestamp = unknown> {
   documentUrl?: string; // URL document/fișier încărcat în Firebase Storage
   fileName?: string; // Numele original al fișierului/imaginii
   parentId: string | null; // null = root
+  /** Catalog models reference one producer; global legacy rows omit this. */
+  manufacturerId?: string;
   order: number;
   hidden: boolean;
   favorite: boolean;

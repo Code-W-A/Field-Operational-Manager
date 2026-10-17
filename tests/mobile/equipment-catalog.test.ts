@@ -30,11 +30,13 @@ test("catalog creation is shared, audited, concurrent-safe and restricted", asyn
   ]);
   assert.equal(results[0].id, results[1].id);
   assert.equal((await service.list()).manufacturers.length, 1);
-  assert((await db.doc("settings/equipment-models").get()).exists);
+  assert(!(await db.doc("settings/equipment-models").get()).exists);
   assert.equal((await db.collection("settingsHistory").get()).size, 1);
-  await service.add({ uid: "dispatch", role: "dispecer" }, "models", "M400");
+  await assert.rejects(() => service.add({ uid: "dispatch", role: "dispecer" }, "models", "M400"), /producătorul/);
+  await service.add({ uid: "dispatch", role: "dispecer" }, "models", "M400", results[0].id);
   await db.doc(`settings/${results[0].id}`).update({ hidden: true });
   assert.equal((await service.list()).manufacturers.length, 0);
+  assert.equal((await service.list()).models.length, 0);
   await assert.rejects(
     () => service.add({ uid: "admin", role: "admin" }, "manufacturers", "Nice"),
     /ascunsă/,
@@ -43,6 +45,30 @@ test("catalog creation is shared, audited, concurrent-safe and restricted", asyn
     .doc(`settings/${results[0].id}`)
     .update({ name: "Renamed", hidden: false });
   assert.equal((await service.list()).manufacturers[0].name, "Renamed");
+});
+test("models are scoped, concurrent-safe, renameable and hidden with their manufacturer", async () => {
+  const admin = { uid: "admin", role: "admin" }, dispatch = { uid: "dispatch", role: "dispecer" };
+  const first = await service.add(admin, "manufacturers", "First"), second = await service.add(admin, "manufacturers", "Second");
+  await assert.rejects(() => service.add(admin, "models", "X", "missing"), /invalid/);
+  const [a, same] = await Promise.all([service.add(admin, "models", " M1 ", first.id), service.add(dispatch, "models", "m1", first.id)]);
+  assert.equal(a.id, same.id);
+  const b = await service.add(admin, "models", "M1", second.id);
+  assert.notEqual(a.id, b.id);
+  await assert.rejects(() => service.update(dispatch, "models", a.id, { name: "No" }), /administratorul/);
+  await service.update(admin, "models", a.id, { name: "Renamed model" });
+  const [oldName, oldName2] = await Promise.all([service.add(admin, "models", "M1", first.id), service.add(dispatch, "models", "M1", first.id)]);
+  assert.equal(oldName.id, oldName2.id);
+  assert.notEqual(oldName.id, a.id);
+  await service.update(admin, "manufacturers", first.id, { hidden: true });
+  assert(!(await service.list()).models.some(model => model.manufacturerId === first.id));
+  assert((await service.list(true)).models.some(model => model.id === a.id));
+  await assert.rejects(() => service.add(admin, "models", "Blocked", first.id), /ascuns/);
+  await service.update(admin, "manufacturers", first.id, { hidden: false });
+  await service.update(admin, "models", a.id, { hidden: true });
+  assert(!(await service.list()).models.some(model => model.id === a.id));
+  await service.update(admin, "models", a.id, { hidden: false });
+  assert((await service.list()).models.some(model => model.id === a.id));
+  await assert.rejects(() => service.update(admin, "models", a.id, { name: "M1" }), /există deja/);
 });
 test("Firestore denies technician and dispatcher direct catalog writes, including moves/subcollections", async () => {
   await db.doc("users/admin").set({ role: "admin" });

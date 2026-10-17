@@ -78,7 +78,7 @@ test("shared server service parity and permissions", async (t) => {
   await seed();
   await t.test("equipment catalogs are included in existing CRM options", async () => {
     await row("settings", `${prefix}-catalog-manufacturer`, {parentId: "equipment-manufacturers", type:"variable", name:"Nice"});
-    await row("settings", `${prefix}-catalog-model`, {parentId:"equipment-models", type:"variable", name:"M400"});
+    await row("settings", `${prefix}-catalog-model`, {parentId:"equipment-models", type:"variable", name:"M400", manufacturerId:`${prefix}-catalog-manufacturer`});
     const options = await service.options(tech);
     assert(options.equipmentCatalog?.manufacturers.some(o => o.name === "Nice"));
     assert(options.equipmentCatalog?.models.some(o => o.name === "M400"));

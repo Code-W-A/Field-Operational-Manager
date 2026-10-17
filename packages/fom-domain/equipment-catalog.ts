@@ -3,10 +3,17 @@ export const EQUIPMENT_CATALOG_ROOTS = {
   models: "equipment-models",
 } as const;
 export type EquipmentCatalogKind = keyof typeof EQUIPMENT_CATALOG_ROOTS;
-export type EquipmentCatalogOption = { id: string; name: string };
+export type EquipmentCatalogOption = {
+  id: string;
+  name: string;
+  hidden?: boolean;
+};
+export type EquipmentCatalogModel = EquipmentCatalogOption & {
+  manufacturerId: string;
+};
 export type EquipmentCatalog = {
   manufacturers: EquipmentCatalogOption[];
-  models: EquipmentCatalogOption[];
+  models: EquipmentCatalogModel[];
 };
 export function catalogName(value: unknown): string {
   if (typeof value !== "string") throw new Error("Introdu o denumire validă.");
@@ -24,17 +31,19 @@ export function catalogKey(value: string): string {
 }
 export function equipmentCatalogFromSettings(
   rows: Array<{ id: string; [key: string]: any }>,
+  options: { includeHidden?: boolean } = {},
 ): EquipmentCatalog {
   const select = (kind: EquipmentCatalogKind) => {
     const root = EQUIPMENT_CATALOG_ROOTS[kind];
-    if (rows.find((r) => r.id === root)?.hidden) return [];
+    if (!options.includeHidden && rows.find((r) => r.id === root)?.hidden)
+      return [];
     const seen = new Set<string>();
     return rows
       .filter(
         (r) =>
           r.parentId === root &&
           r.type === "variable" &&
-          !r.hidden &&
+          (options.includeHidden || !r.hidden) &&
           typeof r.name === "string" &&
           r.name.trim(),
       )
@@ -44,13 +53,45 @@ export function equipmentCatalogFromSettings(
       )
       .flatMap((r) => {
         const name = r.name.trim().replace(/\s+/g, " ").normalize("NFC"),
-          key = catalogKey(name);
+          key = `${kind === "models" ? r.manufacturerId || "" : ""}:${catalogKey(name)}`;
         if (seen.has(key)) return [];
         seen.add(key);
-        return [{ id: r.id, name }];
+        return [
+          {
+            id: r.id,
+            name,
+            ...(r.hidden ? { hidden: true } : {}),
+            ...(kind === "models" ? { manufacturerId: r.manufacturerId } : {}),
+          },
+        ];
       });
   };
-  return { manufacturers: select("manufacturers"), models: select("models") };
+  const manufacturers = select("manufacturers");
+  const manufacturerIds = new Set(manufacturers.map((option) => option.id));
+  // Legacy global models remain stored, but are never offered as new selections.
+  const models = select("models").filter(
+    (option) =>
+      typeof option.manufacturerId === "string" &&
+      manufacturerIds.has(option.manufacturerId),
+  ) as EquipmentCatalogModel[];
+  return { manufacturers, models };
+}
+export function equipmentCatalogManufacturer(
+  catalog: EquipmentCatalog,
+  name: string,
+) {
+  return catalog.manufacturers.find(
+    (option) => catalogKey(option.name) === catalogKey(name),
+  );
+}
+export function equipmentCatalogModels(
+  catalog: EquipmentCatalog,
+  manufacturer: string,
+) {
+  const selected = equipmentCatalogManufacturer(catalog, manufacturer);
+  return selected
+    ? catalog.models.filter((option) => option.manufacturerId === selected.id)
+    : [];
 }
 export function equipmentCatalogChoices(
   options: EquipmentCatalogOption[],

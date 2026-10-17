@@ -31,10 +31,17 @@ function error(e: unknown) {
 }
 export async function GET(request: NextRequest) {
   try {
-    await actor(request, ["admin", "dispecer", "tehnician"]);
-    return NextResponse.json(await equipmentCatalogService(adminDb).list(), {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    const manage = request.nextUrl.searchParams.get("manage") === "1";
+    await actor(
+      request,
+      manage ? ["admin"] : ["admin", "dispecer", "tehnician"],
+    );
+    return NextResponse.json(
+      await equipmentCatalogService(adminDb).list(manage),
+      {
+        headers: { "Cache-Control": "private, no-store" },
+      },
+    );
   } catch (e) {
     return error(e);
   }
@@ -51,8 +58,31 @@ export async function POST(request: NextRequest) {
     if (!data || !["manufacturers", "models"].includes(data.kind))
       throw new CatalogError("Listă invalidă.");
     const service = equipmentCatalogService(adminDb);
-    const option = await service.add(user, data.kind, data.name);
+    const option = await service.add(
+      user,
+      data.kind,
+      data.name,
+      data.manufacturerId,
+    );
     return NextResponse.json({ option, catalog: await service.list() });
+  } catch (e) {
+    return error(e);
+  }
+}
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await actor(request, ["admin"]);
+    const data = await request.json().catch(() => {
+      throw new CatalogError("Cerere invalidă.");
+    });
+    if (!data || !["manufacturers", "models"].includes(data.kind))
+      throw new CatalogError("Listă invalidă.");
+    const service = equipmentCatalogService(adminDb);
+    const option = await service.update(user, data.kind, data.id, {
+      name: data.name,
+      hidden: data.hidden,
+    });
+    return NextResponse.json({ option, catalog: await service.list(true) });
   } catch (e) {
     return error(e);
   }

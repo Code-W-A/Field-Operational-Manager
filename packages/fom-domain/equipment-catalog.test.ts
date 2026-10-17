@@ -5,6 +5,7 @@ import {
   catalogKey,
   equipmentCatalogFromSettings,
   equipmentCatalogChoices,
+  equipmentCatalogModels,
 } from "./equipment-catalog";
 test("names trim whitespace and compare case-insensitively", () => {
   assert.equal(catalogName("  Nice   România  "), "Nice România");
@@ -12,7 +13,7 @@ test("names trim whitespace and compare case-insensitively", () => {
   assert.throws(() => catalogName(" "));
   assert.throws(() => catalogName({}));
 });
-test("independent catalogs respect hidden options, order and duplicates", () => {
+test("manufacturer catalogs respect hidden options, order and scoped duplicates", () => {
   const rows = [
     {
       id: "a",
@@ -37,6 +38,7 @@ test("independent catalogs respect hidden options, order and duplicates", () => 
     },
     {
       id: "model",
+      manufacturerId: "a",
       parentId: "equipment-models",
       type: "variable",
       name: "M400",
@@ -45,7 +47,7 @@ test("independent catalogs respect hidden options, order and duplicates", () => 
   ];
   assert.deepEqual(equipmentCatalogFromSettings(rows), {
     manufacturers: [{ id: "a", name: "Nice" }],
-    models: [{ id: "model", name: "M400" }],
+    models: [{ id: "model", name: "M400", manufacturerId: "a" }],
   });
   assert.equal(
     equipmentCatalogFromSettings([
@@ -53,6 +55,73 @@ test("independent catalogs respect hidden options, order and duplicates", () => 
       { id: "equipment-models", hidden: true },
     ]).models.length,
     0,
+  );
+});
+test("global old models are excluded, same model name belongs to different producers", () => {
+  const rows = [
+    {
+      id: "a",
+      parentId: "equipment-manufacturers",
+      type: "variable",
+      name: "Nice",
+    },
+    {
+      id: "b",
+      parentId: "equipment-manufacturers",
+      type: "variable",
+      name: "Came",
+    },
+    {
+      id: "old",
+      parentId: "equipment-models",
+      type: "variable",
+      name: "Legacy",
+    },
+    {
+      id: "ma",
+      parentId: "equipment-models",
+      type: "variable",
+      name: "M1",
+      manufacturerId: "a",
+    },
+    {
+      id: "mb",
+      parentId: "equipment-models",
+      type: "variable",
+      name: "M1",
+      manufacturerId: "b",
+    },
+    {
+      id: "orphan",
+      parentId: "equipment-models",
+      type: "variable",
+      name: "Orphan",
+      manufacturerId: "missing",
+    },
+  ];
+  const catalog = equipmentCatalogFromSettings(rows);
+  assert.equal(catalog.models.length, 2);
+  assert.deepEqual(
+    equipmentCatalogModels(catalog, " NICE ").map((model) => model.id),
+    ["ma"],
+  );
+  assert.deepEqual(
+    equipmentCatalogModels(catalog, "Came").map((model) => model.id),
+    ["mb"],
+  );
+  assert.deepEqual(equipmentCatalogModels(catalog, ""), []);
+  assert.equal(
+    equipmentCatalogFromSettings(
+      rows.map((row) => (row.id === "a" ? { ...row, hidden: true } : row)),
+    ).models.length,
+    1,
+  );
+  assert.equal(
+    equipmentCatalogFromSettings(
+      rows.map((row) => (row.id === "a" ? { ...row, hidden: true } : row)),
+      { includeHidden: true },
+    ).models.length,
+    2,
   );
 });
 test("legacy and hidden current values remain selectable, optional values can be cleared", () => {

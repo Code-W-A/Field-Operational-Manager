@@ -13,6 +13,7 @@ test("catalog HTTP enforces role allowlists and validates payload; real service 
     "catalog-http",
   );
   const db = getFirestore(app);
+  await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/demo-fom-catalog-http/databases/(default)/documents`, { method: "DELETE" });
   (globalThis as any).__catalogDb = db;
   const mocks: Record<string, string> = {
     "@/lib/firebase/admin": `export const adminDb=globalThis.__catalogDb; export const adminAuth={getUser:async()=>({disabled:false})};`,
@@ -51,9 +52,9 @@ test("catalog HTTP enforces role allowlists and validates payload; real service 
       `${process.cwd()}/catalog-http-test.cjs`,
     );
     const route = mod.exports;
-    const req = (uid: string, body?: any) =>
+    const req = (uid: string, body?: any, method?: string) =>
       new NextRequest("http://localhost/api/equipment-catalog", {
-        method: body ? "POST" : "GET",
+        method: method || (body ? "POST" : "GET"),
         headers: { "x-test-uid": uid, "Content-Type": "application/json" },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
@@ -74,14 +75,26 @@ test("catalog HTTP enforces role allowlists and validates payload; real service 
       (await route.POST(req("admin", { kind: "models", name: {} }))).status,
       400,
     );
+    assert.equal((await route.POST(req("admin", { kind: "models", name: "Missing parent" }))).status, 400);
+    const producer = await (await route.POST(req("admin", { kind: "manufacturers", name: "Nice" }))).json();
+    const manufacturerId = producer.option.id;
     for (const role of ["admin", "dispecer"])
       assert.equal(
-        (await route.POST(req(role, { kind: "models", name: "M400" }))).status,
+        (await route.POST(req(role, { kind: "models", name: "M400", manufacturerId }))).status,
         200,
       );
     const data = await (await route.GET(req("tehnician"))).json();
     assert.equal(data.models.length, 1);
     assert.equal(data.models[0].name, "M400");
+    assert.equal(data.models[0].manufacturerId, manufacturerId);
+    assert.equal((await route.PATCH(req("dispecer", { kind: "models", id: data.models[0].id, hidden: true }, "PATCH"))).status, 403);
+    assert.equal((await route.PATCH(req("admin", { kind: "models", id: data.models[0].id, hidden: true }, "PATCH"))).status, 200);
+    assert.equal((await (await route.GET(req("tehnician"))).json()).models.length, 0);
+    for (const [role, status] of [["tehnician", 403], ["admin", 200]] as const) {
+      const management = await route.GET(new NextRequest("http://localhost/api/equipment-catalog?manage=1", { headers: { "x-test-uid": role } }));
+      assert.equal(management.status, status);
+      if (status === 200) assert.equal((await management.json()).models[0].hidden, true);
+    }
   } finally {
     delete (globalThis as any).__catalogDb;
     await deleteApp(app);

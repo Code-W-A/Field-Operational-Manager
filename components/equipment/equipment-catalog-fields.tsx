@@ -1,9 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
-import { auth } from "@/lib/firebase/config";
+import { useRef, useState } from "react";
+import {
+  catalogRequest,
+  useEquipmentCatalog,
+} from "@/lib/equipment-catalog/client";
 import {
   equipmentCatalogChoices,
-  type EquipmentCatalog,
+  equipmentCatalogManufacturer,
+  equipmentCatalogModels,
+  type EquipmentCatalogOption,
   type EquipmentCatalogKind,
 } from "@/packages/fom-domain/equipment-catalog";
 import { Button } from "@/components/ui/button";
@@ -19,39 +24,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-const EMPTY: EquipmentCatalog = { manufacturers: [], models: [] };
-export async function catalogRequest(body?: {
-  kind: EquipmentCatalogKind;
-  name: string;
-}) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Autentifică-te din nou.");
-  const response = await fetch("/api/equipment-catalog", {
-    method: body ? "POST" : "GET",
-    cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${await user.getIdToken()}`,
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const data = await response.json().catch(() => {
-    throw new Error("Serverul nu a putut procesa cererea. Reîncearcă.");
-  });
-  if (!response.ok)
-    throw new Error(data.error || "Listele nu au putut fi încărcate.");
-  return data;
-}
 function CatalogSelect({
   label,
   value,
   options,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: string;
-  options: EquipmentCatalog["models"];
+  options: EquipmentCatalogOption[];
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false),
     [search, setSearch] = useState("");
@@ -73,6 +57,7 @@ function CatalogSelect({
           role="combobox"
           aria-label={label}
           aria-expanded={open}
+          disabled={disabled}
           className="w-full justify-between"
         >
           {value || "Nespecificat"}
@@ -126,49 +111,40 @@ export function EquipmentCatalogFields({
   canAdd: boolean;
   onChange: (patch: { producator?: string; model?: string }) => void;
 }) {
-  const [catalog, setCatalog] = useState<EquipmentCatalog>(EMPTY),
-    [error, setError] = useState("");
+  const { catalog, setCatalog, error, loading, reload } = useEquipmentCatalog();
+  const manufacturer = equipmentCatalogManufacturer(catalog, producator);
+  const models = equipmentCatalogModels(catalog, producator);
+  const saveLock = useRef(false);
   const [kind, setKind] = useState<EquipmentCatalogKind | null>(null),
     [name, setName] = useState(""),
     [saving, setSaving] = useState(false),
     [addError, setAddError] = useState("");
-  const load = async () => {
-    try {
-      setCatalog(await catalogRequest());
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-  useEffect(() => {
-    let live = true;
-    catalogRequest()
-      .then((data) => {
-        if (live) setCatalog(data);
-      })
-      .catch((e) => {
-        if (live) setError(e.message);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
   const add = async () => {
-    if (!kind || saving) return;
+    if (!kind || saveLock.current || (kind === "models" && !manufacturer))
+      return;
+    saveLock.current = true;
     setSaving(true);
     setAddError("");
     try {
-      const result = await catalogRequest({ kind, name });
+      const result = await catalogRequest({
+        kind,
+        name,
+        ...(kind === "models" ? { manufacturerId: manufacturer!.id } : {}),
+      });
       setCatalog(result.catalog);
       onChange(
         kind === "manufacturers"
-          ? { producator: result.option.name }
+          ? {
+              producator: result.option.name,
+              ...(result.option.name !== producator ? { model: "" } : {}),
+            }
           : { model: result.option.name },
       );
       setKind(null);
     } catch (e) {
       setAddError((e as Error).message);
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
@@ -184,11 +160,17 @@ export function EquipmentCatalogFields({
                 <CatalogSelect
                   label={label}
                   value={key === "manufacturers" ? producator : model}
-                  options={catalog[key]}
+                  options={
+                    key === "manufacturers" ? catalog.manufacturers : models
+                  }
+                  disabled={loading || (key === "models" && !manufacturer)}
                   onChange={(value) =>
                     onChange(
                       key === "manufacturers"
-                        ? { producator: value }
+                        ? {
+                            producator: value,
+                            ...(value !== producator ? { model: "" } : {}),
+                          }
                         : { model: value },
                     )
                   }
@@ -198,6 +180,7 @@ export function EquipmentCatalogFields({
                     type="button"
                     variant="outline"
                     aria-label={`Adaugă ${label.toLowerCase()}`}
+                    disabled={loading || (key === "models" && !manufacturer)}
                     onClick={() => {
                       setKind(key);
                       setName("");
@@ -208,6 +191,16 @@ export function EquipmentCatalogFields({
                   </Button>
                 )}
               </div>
+              {key === "models" && !manufacturer && (
+                <p className="text-xs text-muted-foreground">
+                  Selectați mai întâi producătorul.
+                </p>
+              )}
+              {key === "models" && manufacturer && !models.length && (
+                <p className="text-xs text-muted-foreground">
+                  Niciun model pentru acest producător.
+                </p>
+              )}
             </div>
           );
         })}
@@ -215,7 +208,7 @@ export function EquipmentCatalogFields({
       {error && (
         <div role="alert" className="text-sm text-red-600">
           {error}{" "}
-          <Button type="button" variant="link" onClick={() => void load()}>
+          <Button type="button" variant="link" onClick={() => void reload()}>
             Reîncearcă încărcarea listelor
           </Button>
         </div>
@@ -229,7 +222,9 @@ export function EquipmentCatalogFields({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {kind === "manufacturers" ? "Adaugă producător" : "Adaugă model"}
+              {kind === "manufacturers"
+                ? "Adaugă producător"
+                : `Adaugă model pentru ${manufacturer?.name || "producător"}`}
             </DialogTitle>
           </DialogHeader>
           <Input
@@ -256,7 +251,9 @@ export function EquipmentCatalogFields({
             </Button>
             <Button
               type="button"
-              disabled={saving || !name.trim()}
+              disabled={
+                saving || !name.trim() || (kind === "models" && !manufacturer)
+              }
               onClick={() => void add()}
             >
               {saving ? "Se salvează…" : "Adaugă și selectează"}
