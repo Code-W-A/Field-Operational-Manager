@@ -32,6 +32,8 @@ export function revisionStructure(sections: RevisionSection[]) {
   return JSON.stringify(
     sections.map((s) => ({
       id: s.id,
+      title: s.title,
+      showTitle: s.showTitle || false,
       items: s.items.map((i) => ({ id: i.id, label: i.label })),
     })),
   );
@@ -71,4 +73,20 @@ export function completeRevisionSections(
     for (const item of missing) itemIds.add(item.id);
   }
   return result;
+}
+
+/** Green confirmation is reserved for actual checks, never QR validation or parent groups. */
+export function revisionChecksVerified(sections: RevisionSection[]) {
+  const items = sections.flatMap((section) => section.items);
+  return items.length > 0 && items.every((item) => item.state === "functional");
+}
+
+/** A saved sheet is its own template, including drafts and reopened completed sheets.
+ * QR-only documents have no points yet and can use the current settings.
+ */
+export function revisionSectionsForSheet(
+  existing: RevisionSection[] | undefined,
+  checklist: RevisionSection[],
+): RevisionSection[] {
+  return existing?.length ? existing : checklist;
 }

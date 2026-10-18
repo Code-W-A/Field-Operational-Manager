@@ -127,24 +127,33 @@ export function checklistFromSettings(
         ),
       );
   const result: RevisionSection[] = [];
-  const childrenOf = (id: string) =>
-    sort(settings.filter((s) => s.parentId === id));
-  const add = (node: RecordData, variables: RecordData[], root = false) => {
-    if (variables.length)
-      result.push({
-        id: root ? `${node.id}__root` : node.id,
-        title: node.name || "Puncte de control",
-        items: variables.map((s) => ({ id: s.id, label: s.name })),
-      });
-  };
+  const childrenByParent = new Map<string, RecordData[]>();
+  for (const setting of settings) {
+    const siblings = childrenByParent.get(setting.parentId) || [];
+    siblings.push(setting);
+    childrenByParent.set(setting.parentId, siblings);
+  }
+  const childrenOf = (id: string) => sort(childrenByParent.get(id) || []);
   const visited = new Set<string>();
-  const visit = (node: RecordData, root = false) => {
+  const visit = (
+    node: RecordData,
+    root = false,
+  ) => {
     if (visited.has(node.id)) return;
     visited.add(node.id);
     const children = childrenOf(node.id);
-    add(node, children.filter((s) => s.type === "variable"), root);
-    for (const child of children.filter((s) => s.type !== "variable")) {
-      visit(child);
+    // A variable can itself be a group. Only terminal variables are checks.
+    const leaves = children.filter((child) =>
+      child.type === "variable" && childrenOf(child.id).length === 0,
+    );
+    if (leaves.length) result.push({
+      id: root ? `${node.id}__root` : node.id,
+      title: node.name || "Puncte de control",
+      showTitle: true,
+      items: leaves.map((child) => ({ id: child.id, label: child.name })),
+    });
+    for (const child of children) {
+      if (childrenOf(child.id).length) visit(child);
     }
   };
   for (const root of roots) visit(root, true);
@@ -270,6 +279,10 @@ export function validateRevision(
               provided.items.some((value) => value.id === item.id),
             )
         : provided.items.length !== section.items.length) ||
+      provided.items.some((item) =>
+        !section.items.some((base) => base.id === item.id) &&
+        !(options.customItems && item.id?.startsWith("manual-")),
+      ) ||
       new Set(provided.items.map((item) => item?.id)).size !==
         provided.items.length
     )

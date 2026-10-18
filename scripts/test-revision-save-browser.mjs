@@ -30,11 +30,11 @@ const result = await build({
 })
 const browser = await chromium.launch({headless:true,channel:'chrome'})
 let checks = 0
-async function fixture({role='admin', complete=true, recover=false, finalized=false}={}) {
+async function fixture({role='admin', complete=true, recover=false, finalized=false, hierarchy=false}={}) {
   const page = await browser.newPage({viewport:{width:390,height:844}})
   await page.route('https://revision.test/**',route=>route.fulfill({contentType:'text/html',body:'<div id="root"></div>'}))
   await page.goto('https://revision.test/work')
-  await page.evaluate(({role,complete,recover,finalized})=>{
+  await page.evaluate(({role,complete,recover,finalized,hierarchy})=>{
     window.role=role
     window.seed={qrVerified:true,sections:[{id:'s',title:'Control',items:[{id:'i',label:'Luft canat/toc',...(complete?{state:'functional'}:{})}]}],photos:[],finalObservations:''}
     if (finalized) window.seed.completedAt = '2026-10-18T08:00:00Z'
@@ -42,10 +42,18 @@ async function fixture({role='admin', complete=true, recover=false, finalized=fa
       window.seed.sections[0].items[0].obs = 'Observație păstrată'
       window.checklist = [...window.seed.sections, {id:'sub',title:'Subsecțiune recuperată',items:[{id:'nested',label:'Punct omis anterior'}]}]
     }
+    if (hierarchy) {
+      window.seed.sections = []
+      window.checklist = [{id:'canat',title:'Canat mobil',showTitle:true,items:[
+        {id:'integrity',label:'Verificare integritate canat mobil'},
+        {id:'glass',label:'Verificare sticlă'},
+        {id:'corners',label:'Verificare colțare de îmbinare'},
+      ]}]
+    }
     window.calls={writes:[],commands:[],routes:[],uploads:[],toasts:[]}
     window.saveDelay=()=>new Promise(resolve=>setTimeout(resolve,100))
     window.persist=payload=>{window.seed={...window.seed,...payload}; window.snapshot()}
-  },{role,complete,recover,finalized})
+  },{role,complete,recover,finalized,hierarchy})
   await page.addScriptTag({content:result.outputFiles[0].text})
   await expect(page.locator('#final-observations')).toBeVisible()
   return page
@@ -56,17 +64,36 @@ async function openPrompt(page,hardware=false) {
   await expect(page.getByRole('alertdialog')).toBeVisible()
 }
 try {
+  for (const role of ['admin','tehnician']) {
+    const hierarchy = await fixture({role,hierarchy:true})
+    await expect(hierarchy.getByRole('heading',{name:'Canat mobil',exact:true})).toBeVisible()
+    await expect(hierarchy.getByRole('checkbox')).toHaveCount(3)
+    await expect(hierarchy.getByText('Toate punctele sunt bifate.',{exact:true})).toHaveCount(0)
+    for(const checkbox of await hierarchy.getByRole('checkbox').all()) await checkbox.check()
+    await expect(hierarchy.getByText('Toate punctele sunt bifate.',{exact:true})).toBeVisible()
+    const child = hierarchy.getByRole('row').filter({hasText:'Verificare sticlă'}).getByRole('checkbox')
+    await child.uncheck()
+    await expect(hierarchy.getByText('Toate punctele sunt bifate.',{exact:true})).toHaveCount(0)
+    await child.check()
+    await hierarchy.getByRole('button',{name:'Salvează',exact:true}).click()
+    await expect.poll(()=>hierarchy.evaluate(()=>window.calls.writes.length + window.calls.commands.length)).toBeGreaterThan(0)
+    const saved = await hierarchy.evaluate(()=>window.calls.writes[0] || window.calls.commands[0])
+    assert.deepEqual(saved.sections.flatMap(s=>s.items.map(i=>i.id)),['integrity','glass','corners'])
+    assert.equal(saved.sections[0].title,'Canat mobil')
+    assert.equal(saved.sections[0].showTitle,true)
+    if(role==='admin') assert.equal(saved.overallState,'functional')
+    checks++; await hierarchy.close()
+  }
   const recovered = await fixture({recover:true})
-  await expect(recovered.getByText('Punct omis anterior', {exact:true})).toBeVisible()
+  await expect(recovered.getByText('Punct omis anterior', {exact:true})).toHaveCount(0)
   await recovered.locator('#final-observations').fill('Păstrează progresul')
   await openPrompt(recovered)
   await recovered.getByRole('button',{name:'Salvează și ieși'}).click()
   await expect.poll(()=>recovered.evaluate(()=>window.calls.routes.length)).toBe(1)
   const recoveredSave = await recovered.evaluate(()=>window.calls.writes[0])
-  assert.equal(recoveredSave.sections.length,2)
+  assert.equal(recoveredSave.sections.length,1)
   assert.equal(recoveredSave.sections[0].items[0].state,'functional')
   assert.equal(recoveredSave.sections[0].items[0].obs,'Observație păstrată')
-  assert.equal(recoveredSave.sections[1].items[0].state,undefined)
   checks++; await recovered.close()
 
   const frozen = await fixture({recover:true,finalized:true})

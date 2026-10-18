@@ -15,6 +15,7 @@ type RevisionSection = {
   id: string;
   title?: string;
   name?: string;
+  showTitle?: boolean;
   items?: RevisionItem[];
 };
 
@@ -54,6 +55,18 @@ type ChecklistLayout = {
   verW: number;
   obsW: number;
 };
+
+/** Only the immediate parent labels a group; historical root headings stay unchanged. */
+function sectionHeadingsForPdf(doc: jsPDF, section: RevisionSection, layout: ChecklistLayout) {
+  const title = normalizeTextForPdf(section.title || section.name || "Secțiune");
+  const hideTitle = !section.showTitle && (String(section.id).endsWith("__root") ||
+    normalizeComparableText(title) === normalizeComparableText("Puncte de control"));
+  if (hideTitle) return [];
+  try { doc.setFont("NotoSans", "bold"); } catch {}
+  doc.setFontSize(10);
+  const lines = doc.splitTextToSize(title, layout.totalW - 4);
+  return [{ indent: 0, lines, height: Math.max(layout.rowH, 4 + lines.length * 4) }];
+}
 
 function resolveHeaderLabel(rev: any, sections: RevisionSection[]): string {
   const candidates: (string | undefined)[] = [
@@ -633,40 +646,23 @@ export async function renderRevisionOperationsPDF(
     const sections = Array.isArray(rev.sections) ? rev.sections : [];
 
     for (const s of sections) {
-      const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune");
       const items = Array.isArray(s.items) ? s.items : [];
-
-      const isRootSection = String(s?.id || "").endsWith("__root");
-      const isGenericTitle =
-        normalizeComparableText(sectionTitle) ===
-        normalizeComparableText("Puncte de control");
-      const shouldRenderSectionHeader = !(isRootSection || isGenericTitle);
-
-      // Înălțimea totală a secțiunii (header opțional + toate item-urile)
-      const sectionHeaderH = shouldRenderSectionHeader ? layout.rowH : 0;
-      const sectionHeight =
-        sectionHeaderH +
-        items.reduce(
-          (sum: number, it: any) =>
-            sum + measureChecklistItemHeight(doc, it, layout),
-          0,
-        );
-      // Dacă nu încape întreaga secțiune pe pagină, mutăm pe pagina următoare
+      const headings = sectionHeadingsForPdf(doc, s, layout);
+      try { doc.setFont("NotoSans", "normal"); } catch {}
+      doc.setFontSize(9);
+      const sectionHeight = headings.reduce((sum, heading) => sum + heading.height, 0) +
+        items.reduce((sum: number, item: any) => sum + measureChecklistItemHeight(doc, item, layout), 0);
       checkBreak(sectionHeight);
-
-      if (shouldRenderSectionHeader) {
-        // Section row (category)
+      for (const heading of headings) {
+        checkBreak(heading.height);
         doc.setFillColor(240, 240, 240);
-        doc.rect(MARGIN, currentY, layout.totalW, layout.rowH, "F");
-        try {
-          doc.setFont("NotoSans", "bold");
-        } catch {}
+        doc.rect(MARGIN, currentY, layout.totalW, heading.height, "F");
+        try { doc.setFont("NotoSans", "bold"); } catch {}
         doc.setFontSize(10).setTextColor(0, 0, 0);
-        doc.text(sectionTitle, MARGIN + 2, currentY + 5);
-        currentY += layout.rowH;
+        doc.text(heading.lines, MARGIN + 2 + heading.indent, currentY + 5);
+        currentY += heading.height;
       }
 
-      // Items
       try {
         doc.setFont("NotoSans", "normal");
       } catch {}
@@ -851,36 +847,21 @@ export async function renderRevisionEquipmentPDF(
   const sections = Array.isArray(rev.sections) ? rev.sections : [];
 
   for (const s of sections) {
-    const sectionTitle = normalizeTextForPdf(s.title || s.name || "Secțiune");
     const items = Array.isArray(s.items) ? s.items : [];
-
-    const isRootSection = String(s?.id || "").endsWith("__root");
-    const isGenericTitle =
-      normalizeComparableText(sectionTitle) ===
-      normalizeComparableText("Puncte de control");
-    const shouldRenderSectionHeader = !(isRootSection || isGenericTitle);
-
-    // Înălțimea totală a secțiunii (header opțional + toate item-urile)
-    const sectionHeaderH = shouldRenderSectionHeader ? layout.rowH : 0;
-    const sectionHeight =
-      sectionHeaderH +
-      items.reduce(
-        (sum: number, it: any) =>
-          sum + measureChecklistItemHeight(js, it, layout),
-        0,
-      );
-    // Dacă nu încape întreaga secțiune pe pagină, mutăm pe pagina următoare
+    const headings = sectionHeadingsForPdf(js, s, layout);
+    try { js.setFont("NotoSans", "normal"); } catch {}
+    js.setFontSize(9);
+    const sectionHeight = headings.reduce((sum, heading) => sum + heading.height, 0) +
+      items.reduce((sum: number, item: any) => sum + measureChecklistItemHeight(js, item, layout), 0);
     checkBreak(sectionHeight);
-
-    if (shouldRenderSectionHeader) {
+    for (const heading of headings) {
+      checkBreak(heading.height);
       js.setFillColor(240, 240, 240);
-      js.rect(MARGIN, currentY, layout.totalW, layout.rowH, "F");
-      try {
-        js.setFont("NotoSans", "bold");
-      } catch {}
+      js.rect(MARGIN, currentY, layout.totalW, heading.height, "F");
+      try { js.setFont("NotoSans", "bold"); } catch {}
       js.setFontSize(10).setTextColor(0, 0, 0);
-      js.text(sectionTitle, MARGIN + 2, currentY + 5);
-      currentY += layout.rowH;
+      js.text(heading.lines, MARGIN + 2 + heading.indent, currentY + 5);
+      currentY += heading.height;
     }
 
     try {

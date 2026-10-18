@@ -12,6 +12,8 @@ export interface RevisionChecklistSection {
   id: string;
   title: string;
   name?: string;
+  /** New leaf groups show their immediate parent even when selected as the root. */
+  showTitle?: boolean;
   items: RevisionChecklistItem[];
 }
 

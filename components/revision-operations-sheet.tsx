@@ -1,6 +1,6 @@
 "use client"
 
-import { completeRevisionSections, romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
+import { revisionSectionsForSheet, revisionChecksVerified, romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 
 import { technicianCommand, technicianFile } from "@/lib/technician/client"
 import { subscribeRevisionChecklistFromRoot } from "@/lib/revisions/checklist"
@@ -49,7 +49,7 @@ type Props = {
 }
 
 type ItemState = "functional" | "nefunctional" | "na"
-const checklistIdentity = (sections: RevisionChecklistSection[]) => JSON.stringify(sections.map(s => ({id:s.id,title:s.title,items:s.items.map(i=>({id:i.id,label:i.label}))})))
+const checklistIdentity = (sections: RevisionChecklistSection[]) => JSON.stringify(sections.map(s => ({id:s.id,title:s.title,showTitle:s.showTitle || false,items:s.items.map(i=>({id:i.id,label:i.label}))})))
 
 export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef, onSaved }: Props) {
   const { userData } = useAuth()
@@ -114,7 +114,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       // Photos synchronize independently, even while checklist/observations have a local draft.
       if (existing !== undefined) setExistingPhotos(existing?.photos || [])
       if (!checklist || existing === undefined) return
-      const base = existing?.completedAt ? existing.sections : completeRevisionSections(existing?.sections, checklist.sections)
+      const base = revisionSectionsForSheet(existing?.sections, checklist.sections)
       const nextStructure = checklistIdentity(base)
       if (initialized && (editorDirty.current || saveLock.current)) {
         if (structure !== nextStructure && !saveLock.current) {
@@ -186,6 +186,9 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
     const allIds = sections.flatMap((s) => s.items.map((i) => i.id))
     return allIds.length > 0 && allIds.every((id) => values[id])
   }, [sections, values])
+  const allVerified = revisionChecksVerified(sections.map(section => ({
+    ...section, items: section.items.map(item => ({ ...item, state: values[item.id] })),
+  })))
   const hasChecklistItems = useMemo(() => sections.some((s) => (s.items?.length || 0) > 0), [sections])
   const checklistEmptyMessage = useMemo(() => {
     if (hasChecklistItems) return null
@@ -210,8 +213,8 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
 
   const overallState: ItemState | undefined = useMemo(() => {
     if (!allCompleted) return undefined
-    return Object.values(values).every((v) => v === "functional") ? "functional" : "nefunctional"
-  }, [allCompleted, values])
+    return sections.every(section => section.items.every(item => values[item.id] === "functional")) ? "functional" : "nefunctional"
+  }, [allCompleted, sections, values])
 
   // Set end time and duration when all items completed (first time)
   useEffect(() => {
@@ -602,7 +605,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   }
 
   return (
-    <Card className="border-0 sm:border">
+    <Card className={`border-0 sm:border ${verified && allVerified ? "bg-green-50 border-green-300" : ""}`}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Fișa de operațiuni – {equipmentName || "Echipament"}</CardTitle>
       </CardHeader>
@@ -713,13 +716,13 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
         
         {/* Mesaj de confirmare după scanare */}
         {verified && (
-          <Alert className="bg-green-50 border-green-300">
-            <div className="flex items-center gap-2 text-green-800">
+          <Alert className={allVerified ? "bg-green-50 border-green-300" : "bg-blue-50 border-blue-300"}>
+            <div className={`flex flex-wrap items-center gap-2 ${allVerified ? "text-green-800" : "text-blue-800"}`} role="status">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              <span className="font-semibold">Echipament verificat!</span>
-              <span className="text-sm text-green-700">Puteți completa fișa de operațiuni.</span>
+              <span className="font-semibold">{allVerified ? "Toate punctele sunt bifate." : "Echipament verificat prin QR."}</span>
+              <span className="text-sm">{allVerified ? "Salvați fișa pentru finalizare." : "Puteți completa fișa de operațiuni."}</span>
             </div>
           </Alert>
         )}
