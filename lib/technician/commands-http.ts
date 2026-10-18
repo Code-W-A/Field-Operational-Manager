@@ -4,6 +4,7 @@ import {
   assertCommand,
 } from "@/packages/fom-domain";
 import { dispatchEffect } from "./effects";
+import { sendInstallationCompletion } from "@/lib/installations/delivery.server";
 import { NextRequest, NextResponse } from "next/server";
 import { service, mobileAccess, headers, failure } from "./http";
 export function commandHandler(
@@ -30,7 +31,15 @@ export function commandHandler(
         );
       }
       const result = await service.command(a.uid, command, channel);
-      const delivery = await dispatchEffect(request, a.uid, command.mutationId);
+      const delivery =
+        command.action === "installation" &&
+        command.payload.action === "complete"
+          ? await sendInstallationCompletion(
+              request,
+              command.entityId,
+              result.document?.deliveryEffectId,
+            )
+          : await dispatchEffect(request, a.uid, command.mutationId);
       return NextResponse.json(
         {
           ...result,

@@ -137,27 +137,17 @@ export function checklistFromSettings(
         items: variables.map((s) => ({ id: s.id, label: s.name })),
       });
   };
-  for (const root of roots) {
-    const children = childrenOf(root.id);
-    add(
-      root,
-      children.filter((s) => s.type === "variable"),
-      true,
-    );
+  const visited = new Set<string>();
+  const visit = (node: RecordData, root = false) => {
+    if (visited.has(node.id)) return;
+    visited.add(node.id);
+    const children = childrenOf(node.id);
+    add(node, children.filter((s) => s.type === "variable"), root);
     for (const child of children.filter((s) => s.type !== "variable")) {
-      const grandchildren = childrenOf(child.id);
-      const direct = grandchildren.filter((s) => s.type === "variable");
-      // Match the existing web sheet: direct points take precedence over subcategories.
-      if (direct.length) add(child, direct);
-      else
-        for (const sub of grandchildren.filter((s) => s.type !== "variable")) {
-          add(
-            sub,
-            childrenOf(sub.id).filter((s) => s.type === "variable"),
-          );
-        }
+      visit(child);
     }
-  }
+  };
+  for (const root of roots) visit(root, true);
   return result;
 }
 export function assertCommand(value: unknown): asserts value is Command {

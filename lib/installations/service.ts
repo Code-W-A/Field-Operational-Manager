@@ -4,6 +4,7 @@ import {
   type Transaction,
 } from "firebase-admin/firestore";
 import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
+import { installationDeliveryId, installationDeliveryResult } from "./delivery";
 import { resolveDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot";
 import {
   isInstallationV1,
@@ -1028,6 +1029,16 @@ export function installationService(db: Firestore) {
         signedBy: actor.uid,
         createdAt: new Date().toISOString(),
         documentSnapshot: document,
+        deliveryEffectId: installationDeliveryId(root),
+      });
+      tx.create(db.collection("mobileEffects").doc(installationDeliveryId(root)), {
+        action: "installation.complete",
+        uid: actor.uid,
+        workId,
+        rootWorkId: root,
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       tx.update(workRef(workId), {
         "installation.closedReason": "completed",
@@ -1036,7 +1047,13 @@ export function installationService(db: Firestore) {
         updatedAt: FieldValue.serverTimestamp(),
       });
       audit(tx, workId, actor, "complete");
-      return { document: { id: "final", documentSnapshot: document } };
+      return {
+        document: {
+          id: "final",
+          documentSnapshot: document,
+          deliveryEffectId: installationDeliveryId(root),
+        },
+      };
     });
   }
 
@@ -1095,6 +1112,13 @@ export function installationService(db: Firestore) {
         }
       : null;
     const completion = await completionRef(work.installation.rootWorkId).get();
+    const completionData = completion.data() as (RecordData & {
+      id: string;
+      documentSnapshot: InstallationDocument;
+    }) | undefined;
+    const deliveryEffect = completionData?.deliveryEffectId
+      ? (await db.collection("mobileEffects").doc(completionData.deliveryEffectId).get()).data()
+      : undefined;
     let query = sheetsRef(workId)
       .orderBy("createdAt", "desc")
       .orderBy("__name__", "desc")
@@ -1140,7 +1164,14 @@ export function installationService(db: Firestore) {
       canStart: !inactive && actor.role === "tehnician" && assigned(work, user!),
       sheets,
       nextCursor: snapshots.length > 25 ? snapshots[24].id : null,
-      completion: completion.exists ? completion.data() : null,
+      completion: completionData
+        ? {
+            ...completionData,
+            ...(deliveryEffect
+              ? { delivery: installationDeliveryResult(deliveryEffect) }
+              : {}),
+          }
+        : null,
     };
   }
 

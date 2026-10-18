@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertCommand,
+  checklistFromSettings,
+  completeRevisionSections,
   emptyBundle,
   readBootstrap,
   FOM_CONTRACT_VERSION,
@@ -343,4 +345,49 @@ test("installation reads reject unknown schema versions and malformed sessions",
   assert.throws(() =>
     readInstallation({ ...value, currentSession: { role: "principal" } }),
   );
+});
+
+
+test("revision includes direct points and nested categories at every level", () => {
+  const settings = [
+    { id: "root", name: "Fișă" },
+    { id: "root-point", parentId: "root", type: "variable", name: "Rădăcină" },
+    { id: "category", parentId: "root", name: "Categorie" },
+    { id: "direct", parentId: "category", type: "variable", name: "Direct" },
+    { id: "sub", parentId: "category", name: "Subcategorie" },
+    { id: "nested", parentId: "sub", type: "variable", name: "Imbricat" },
+    { id: "deep", parentId: "sub", name: "Nivel suplimentar" },
+    { id: "deep-point", parentId: "deep", type: "variable", name: "Adânc" },
+    { id: "other", parentId: "unrelated", type: "variable", name: "Altă fișă" },
+  ];
+  const checklist = checklistFromSettings(settings, "root");
+  assert.deepEqual(checklist.map(s => s.id), ["root__root", "category", "sub", "deep"]);
+  assert.deepEqual(checklist.flatMap(s => s.items.map(i => i.id)), ["root-point", "direct", "nested", "deep-point"]);
+  assert.deepEqual(checklistFromSettings([{ id: "loop", parentId: "loop" }], "loop"), []);
+});
+
+test("unfinished revision recovery preserves answers and requires the missing points", () => {
+  const saved = [{ id: "category", title: "Original", items: [
+    { id: "a", label: "Original label", state: "nefunctional" as const, obs: "De reparat" },
+    { id: "manual-1", label: "Manual", state: "na" as const, obs: "Păstrat" },
+  ] }];
+  const before = JSON.stringify(saved);
+  const checklist = [
+    { id: "category", title: "Actual", items: [{ id: "a", label: "Actual" }, { id: "b", label: "Lipsă" }] },
+    { id: "sub", title: "Subcategorie", items: [{ id: "c", label: "Omisiune" }] },
+  ];
+  const recovered = completeRevisionSections(saved, checklist);
+  assert.equal(JSON.stringify(saved), before);
+  assert.deepEqual(recovered[0].items.slice(0, 2), saved[0].items);
+  assert.equal(recovered[0].title, "Original");
+  assert.deepEqual(recovered.map(s => s.items.length), [3, 1]);
+  assert.deepEqual(completeRevisionSections(recovered, checklist), recovered);
+  assert.throws(() => validateRevision(saved, recovered, { customItems: true }));
+  assert.throws(() => validateRevision(recovered, recovered, { customItems: true }));
+  assert.doesNotThrow(() => validateRevision(recovered, recovered, { customItems: true, draft: true }));
+  const answered = recovered.map(s => ({ ...s, items: s.items.map(i => ({ ...i, state: i.state || "functional" as const })) }));
+  assert.doesNotThrow(() => validateRevision(answered, recovered, { customItems: true }));
+  // Removing a manual point from a local draft must not restore it from the server base.
+  const draft = saved.map(s => ({ ...s, items: s.items.filter(i => !i.id.startsWith("manual-")) }));
+  assert.deepEqual(completeRevisionSections(draft, saved), draft);
 });

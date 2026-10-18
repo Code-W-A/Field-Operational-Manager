@@ -126,5 +126,21 @@ export type InstallationListResponse = {
   } | null;
   sheets: InstallationSheet[];
   nextCursor: string | null;
-  completion: { id: string; documentSnapshot: InstallationDocument } | null;
+  completion: {
+    id: string;
+    documentSnapshot: InstallationDocument;
+    delivery?: import("./wire").DeliveryResult;
+  } | null;
 };
+
+export function installationDeliveryMessage(
+  delivery?: import("./wire").DeliveryResult,
+) {
+  if (!delivery) return ""; // Historical documents were not automatically emailed.
+  if (delivery.status === "sent") return "Proces-verbal finalizat și trimis.";
+  if (delivery.status === "simulated")
+    return "Proces-verbal finalizat; trimiterea emailului a fost simulată în mediul de test.";
+  if (delivery.status === "pending" || delivery.status === "processing")
+    return "Proces-verbal finalizat; trimiterea emailului este în curs.";
+  return `Proces-verbal finalizat; emailul nu a fost confirmat.${delivery.error ? ` ${delivery.error}` : ""}`;
+}

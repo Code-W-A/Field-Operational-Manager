@@ -49,6 +49,17 @@ export async function listRevisionsForWork(workId: string): Promise<EquipmentRev
   return qs.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as EquipmentRevisionDoc))
 }
 
+/** One listener for all equipment sheets; document IDs identify the ticket cards. */
+export function subscribeRevisionsForWork(
+  workId: string,
+  callback: (revisions: Record<string, EquipmentRevisionDoc>) => void,
+  onError: (error: Error) => void,
+): () => void {
+  return onSnapshot(collection(db, "lucrari", workId, "revisions"), snapshot => {
+    callback(Object.fromEntries(snapshot.docs.map(sheet => [sheet.id, sheet.data() as EquipmentRevisionDoc])))
+  }, onError)
+}
+
 export async function upsertRevisionDoc(
   workId: string,
   equipmentId: string,

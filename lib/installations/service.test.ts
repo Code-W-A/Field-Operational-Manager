@@ -19,7 +19,7 @@ const manager = { uid: "dispatcher", role: "dispecer" };
 const tech = { uid: "tech1", role: "tehnician" };
 const tech2 = { uid: "tech2", role: "tehnician" };
 const png =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=";
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAKCAYAAACjd+4vAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAIElEQVR4nGMQsQj6PxCYYdRikVGLLUYtDhq1+D85FgMAZd7kDNae2IoAAAAASUVORK5CYII=";
 const signed = {
   beneficiaryName: "Beneficiar test",
   technicianSignature: png,
@@ -522,10 +522,17 @@ test("complete end-to-end across continuation retains all sheets and separate fi
   });
   const second = await start(continuation.workId, "e2");
   await close(continuation.workId, second.sheet, "completed");
-  const done = await service.complete(tech, continuation.workId, {
+  const [done, concurrent] = await Promise.all([service.complete(tech, continuation.workId, {
     signatures: signed,
     observations: "Predat beneficiarului",
-  });
+  }), service.complete(tech, continuation.workId, { signatures: signed })]);
+  assert.equal(concurrent.document?.deliveryEffectId, done.document?.deliveryEffectId);
+  const effects = await db.collection("mobileEffects").where("rootWorkId", "==", root.id).get();
+  assert.equal(effects.size, 1);
+  assert.equal(effects.docs[0].data().status, "pending");
+  assert.equal(effects.docs[0].data().workId, continuation.workId);
+  const listed = await service.list(tech, continuation.workId);
+  assert.equal(listed.completion?.delivery?.status, "pending");
   assert.equal(done.document?.documentSnapshot.equipment.length, 2);
   assert.equal(done.document?.documentSnapshot.sheetReferences.length, 2);
   assert.equal(
@@ -1066,4 +1073,44 @@ test('save with requestId replays the original result after lost response withou
  assert.deepEqual(replay,first);
  const stored=(await db.doc(`lucrari/${w.id}/installationSheets/${started.sheet.id}`).get()).data()!;assert.equal(stored.revision,first.sheet.revision);
  await assert.rejects(()=>service.save(tech,w.id,{...input,fields:{...content,operations:'Altă comandă'}}),/reutilizat/);
+});
+
+test("web and mobile PV delivery share one real PDF and one isolated email event", async () => {
+  const work = await create();
+  for (const equipmentId of ["e1", "e2"]) {
+    const started = await start(work.id, equipmentId);
+    await close(work.id, started.sheet, "completed");
+  }
+  const completed = await service.complete(tech, work.id, { signatures: signed });
+  const { NextRequest } = await import("next/server");
+  const keys = ["MAIL_TRANSPORT_MODE", "MAIL_SINK_ALLOWED_DOMAINS", "APP_DEPLOYMENT_ENV"] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  process.env.MAIL_TRANSPORT_MODE = "sink";
+  process.env.MAIL_SINK_ALLOWED_DOMAINS = "example.invalid";
+  process.env.APP_DEPLOYMENT_ENV = "staging";
+  try {
+    const { sendInstallationCompletion } = await import("./delivery.server");
+    const effectId = completed.document?.deliveryEffectId;
+    const results = await Promise.all([
+      sendInstallationCompletion(new NextRequest(`http://localhost/api/lucrari/${work.id}/installation`), work.id, effectId),
+      sendInstallationCompletion(new NextRequest("http://localhost/api/mobile/commands"), work.id, effectId),
+    ]);
+    assert(results.some(result => result?.status === "simulated"), JSON.stringify(results));
+    assert.equal((await service.list(tech, work.id)).completion?.delivery?.status, "simulated");
+    const events = await db.collection("emailEvents").where("lucrareId", "==", work.id).get();
+    assert.equal(events.size, 1);
+    const email = events.docs[0].data();
+    assert.equal(email.provider, "sink");
+    assert.equal(email.subject, "Proces-verbal de instalare — #000100");
+    assert.deepEqual(email.to, ["test@example.invalid"]);
+    assert.match(email.meta.pdfName, /^Proces_verbal_instalare_.*\.pdf$/);
+    assert(email.meta.pdfBytes > 1000);
+    await sendInstallationCompletion(new NextRequest("http://localhost/api/mobile/commands"), work.id, effectId);
+    assert.equal((await db.collection("emailEvents").where("lucrareId", "==", work.id).get()).size, 1);
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
 });

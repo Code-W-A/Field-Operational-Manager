@@ -51,3 +51,24 @@ export function revisionEquipmentVerified(
   const time = work.revisionEquipmentTimes?.[equipmentId];
   return !!(time?.verifiedAt || time?.startIso);
 }
+
+/** Extend an unfinished sheet without replacing saved answers or manual points.
+ * Completed sheets must keep their frozen structure at the call site.
+ */
+export function completeRevisionSections(
+  existing: RevisionSection[] | undefined,
+  checklist: RevisionSection[],
+): RevisionSection[] {
+  if (!existing?.length) return checklist;
+  const result = existing.map((section) => ({ ...section, items: [...section.items] }));
+  const itemIds = new Set(result.flatMap((section) => section.items.map((item) => item.id)));
+  for (const section of checklist) {
+    const missing = section.items.filter((item) => !item.id.startsWith("manual-") && !itemIds.has(item.id));
+    if (!missing.length) continue;
+    const target = result.find((value) => value.id === section.id);
+    if (target) target.items.push(...missing);
+    else result.push({ ...section, items: [...missing] });
+    for (const item of missing) itemIds.add(item.id);
+  }
+  return result;
+}

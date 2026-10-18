@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { installationDeliveryMessage } from "@/packages/fom-domain";
 import {
   Box,
   CheckCircle2,
@@ -482,6 +483,11 @@ export function InstallationDocuments({
               >
                 Semnat și disponibil
               </Badge>
+              {data.completion.delivery && (
+                <p role="status" className="text-sm">
+                  {installationDeliveryMessage(data.completion.delivery)}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 {data.completion.documentSnapshot.technicianName} ·{" "}
                 {data.completion.documentSnapshot.beneficiaryName}

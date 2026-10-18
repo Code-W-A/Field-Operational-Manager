@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { installationService } from "@/lib/installations/service";
 import { installationFailure } from "@/lib/installations/http";
 import { check } from "@/lib/installations/validation";
+import { sendInstallationCompletion } from "@/lib/installations/delivery.server";
 
 export const runtime = "nodejs";
 const service = installationService(adminDb);
@@ -56,8 +57,18 @@ export async function POST(request: NextRequest, context: Context) {
         return NextResponse.json(await service.sign(actor, id, body));
       case "continue":
         return NextResponse.json(await service.continueWork(actor, id));
-      case "complete":
-        return NextResponse.json(await service.complete(actor, id, body));
+      case "complete": {
+        const result = await service.complete(actor, id, body);
+        const delivery = await sendInstallationCompletion(
+          request,
+          id,
+          result.document?.deliveryEffectId,
+        );
+        return NextResponse.json({
+          ...result,
+          ...(delivery ? { delivery } : {}),
+        });
+      }
       default:
         return NextResponse.json(
           { error: "Acțiune necunoscută." },

@@ -14,7 +14,7 @@ const mocks = {
   '@/lib/firebase/firestore': `const work = {client:'Client',locatie:'Sediu',tipLucrare:'Revizie',revision:{equipment:[{equipmentId:'eq',equipmentName:'Ușă',revisionChecklistTemplateId:'root'}]}}; export const getLucrareById = async () => work; export const getClienti = async () => []; export const getClientById = async () => null; export const updateLucrare = async () => {};`,
   '@/firebase-functions/src/client-ticket-sync': `export const isContactSyncEligible = () => false; export const resolveTicketLocation = () => null;`,
   '@/lib/client-work-links': `export const createClientIndex = () => ({resolve:()=>null});`,
-  '@/lib/revisions/checklist': `export const subscribeRevisionChecklistFromRoot = (id,cb) => { cb({sections:window.seed.sections}); return ()=>{}; };`,
+  '@/lib/revisions/checklist': `export const subscribeRevisionChecklistFromRoot = (id,cb) => { cb({sections:window.checklist || window.seed.sections}); return ()=>{}; };`,
   '@/lib/technician/client': `export const technicianFile = async file => { window.calls.uploads.push(file.name); return {path:file.name,url:'data:image/png;base64,',fileName:file.name}; }; export const technicianCommand = async (action,id,payload) => { window.calls.commands.push(payload); await window.saveDelay(); if(window.fail) throw Error('Rețea indisponibilă'); window.persist(payload); };`,
   'firebase/firestore': `export const doc = (...args) => args.slice(1).join('/'); export const collection=doc; export const serverTimestamp=()=> 'now'; export const getDocs=async()=>({docs:[]}); const snap=()=>({id:'eq',exists:()=>true,data:()=>window.seed}); export const getDoc=async()=>snap(); export const onSnapshot=(ref,cb)=>{window.snapshot=()=>cb(snap()); window.snapshot(); return ()=>{};}; export const setDoc=async(ref,payload)=>{window.calls.writes.push(payload); await window.saveDelay(); if(window.fail) throw Error('Rețea indisponibilă'); window.persist(payload);}; export const updateDoc=setDoc; export const runTransaction=async(db,fn)=>{const writes=[];const result=await fn({get:async()=>snap(),set:(...args)=>writes.push(setDoc(...args))});await Promise.all(writes);return result;};`,
   'firebase/storage': `export const ref=(storage,path)=>path; export const uploadBytes=async(path,file)=>{window.calls.uploads.push(file.name);if(window.failPhoto===file.name) throw Error('Încărcare eșuată');}; export const getDownloadURL=async()=> 'data:image/png;base64,'; export const deleteObject=async()=>{}; export const listAll=async()=>({items:[]});`,
@@ -30,17 +30,22 @@ const result = await build({
 })
 const browser = await chromium.launch({headless:true,channel:'chrome'})
 let checks = 0
-async function fixture({role='admin', complete=true}={}) {
+async function fixture({role='admin', complete=true, recover=false, finalized=false}={}) {
   const page = await browser.newPage({viewport:{width:390,height:844}})
   await page.route('https://revision.test/**',route=>route.fulfill({contentType:'text/html',body:'<div id="root"></div>'}))
   await page.goto('https://revision.test/work')
-  await page.evaluate(({role,complete})=>{
+  await page.evaluate(({role,complete,recover,finalized})=>{
     window.role=role
     window.seed={qrVerified:true,sections:[{id:'s',title:'Control',items:[{id:'i',label:'Luft canat/toc',...(complete?{state:'functional'}:{})}]}],photos:[],finalObservations:''}
+    if (finalized) window.seed.completedAt = '2026-10-18T08:00:00Z'
+    if (recover) {
+      window.seed.sections[0].items[0].obs = 'Observație păstrată'
+      window.checklist = [...window.seed.sections, {id:'sub',title:'Subsecțiune recuperată',items:[{id:'nested',label:'Punct omis anterior'}]}]
+    }
     window.calls={writes:[],commands:[],routes:[],uploads:[],toasts:[]}
     window.saveDelay=()=>new Promise(resolve=>setTimeout(resolve,100))
     window.persist=payload=>{window.seed={...window.seed,...payload}; window.snapshot()}
-  },{role,complete})
+  },{role,complete,recover,finalized})
   await page.addScriptTag({content:result.outputFiles[0].text})
   await expect(page.locator('#final-observations')).toBeVisible()
   return page
@@ -51,6 +56,23 @@ async function openPrompt(page,hardware=false) {
   await expect(page.getByRole('alertdialog')).toBeVisible()
 }
 try {
+  const recovered = await fixture({recover:true})
+  await expect(recovered.getByText('Punct omis anterior', {exact:true})).toBeVisible()
+  await recovered.locator('#final-observations').fill('Păstrează progresul')
+  await openPrompt(recovered)
+  await recovered.getByRole('button',{name:'Salvează și ieși'}).click()
+  await expect.poll(()=>recovered.evaluate(()=>window.calls.routes.length)).toBe(1)
+  const recoveredSave = await recovered.evaluate(()=>window.calls.writes[0])
+  assert.equal(recoveredSave.sections.length,2)
+  assert.equal(recoveredSave.sections[0].items[0].state,'functional')
+  assert.equal(recoveredSave.sections[0].items[0].obs,'Observație păstrată')
+  assert.equal(recoveredSave.sections[1].items[0].state,undefined)
+  checks++; await recovered.close()
+
+  const frozen = await fixture({recover:true,finalized:true})
+  await expect(frozen.getByText('Punct omis anterior', {exact:true})).toHaveCount(0)
+  checks++; await frozen.close()
+
   for(const role of ['admin','tehnician']) {
     const page=await fixture({role})
     await page.locator('#final-observations').fill('  Ușa este încuiată  ')

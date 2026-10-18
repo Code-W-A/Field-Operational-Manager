@@ -108,6 +108,8 @@ import { getArchiveValidationDetails } from "@/lib/utils/archive-validation"
 import { useArchiveRulesSettings } from "@/hooks/use-archive-rules-settings"
 import { deleteField } from "firebase/firestore"
 import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
+import { useRevisionCardNotes } from "@/hooks/use-revision-card-notes"
+import { RevisionCardNotes } from "@/components/revision-card-notes"
 import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 
@@ -363,6 +365,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const [reinterventii, setReinterventii] = useState<Lucrare[]>([])
   const [loadingReinterventii, setLoadingReinterventii] = useState(false)
   const displayWork = lucrare?.id === paramsId ? lucrare : null
+  const revisionNotes = useRevisionCardNotes(paramsId, displayWork?.tipLucrare, role)
   const ticketClient = useTicketClient(displayWork, userData?.uid || "")
   // Existing document/equipment consumers retain the first client read for this ticket.
   const clientData = ticketClient.initialClient
@@ -2773,6 +2776,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       </div>
                     )}
 
+                    {revisionNotes.enabled && revisionNotes.loading && (
+                      <p role="status" className="mb-3 text-sm text-muted-foreground">Se încarcă observațiile fișelor…</p>
+                    )}
+                    {revisionNotes.enabled && revisionNotes.error && (
+                      <Alert variant="destructive" className="mb-3">
+                        <AlertTitle>Observațiile fișelor nu au putut fi încărcate.</AlertTitle>
+                        <AlertDescription>
+                          <Button variant="outline" size="sm" onClick={revisionNotes.retry}>Reîncearcă</Button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     {revizieEquipmentIds.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {revizieEquipmentIds.map((eid: string, index: number) => {
@@ -2915,6 +2929,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     </div>
                                   )}
                                 </div>
+
+                                {revisionNotes.enabled && <RevisionCardNotes sheet={revisionNotes.sheets[eid]} />}
 
                                 {/* Documentații pentru echipament (vizibile tehnicianului) */}
                                 {role === "tehnician" && (

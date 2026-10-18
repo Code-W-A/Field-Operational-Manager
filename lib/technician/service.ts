@@ -24,6 +24,7 @@ import {
   assertCommand,
   interventionPatch,
   checklistFromSettings,
+  completeRevisionSections,
   validateRevision,
   emptyBundle,
   revisionEquipmentIds,
@@ -490,8 +491,12 @@ export function technicianService(db: Firestore) {
               ref.collection("revisions").doc(eq.id),
             );
             const expectedSections =
-              (Array.isArray(existing.data()?.sections) && existing.data()!.sections.length ? existing.data()!.sections : undefined) ||
-              (eq.rootId ? checklistFromSettings(settings, eq.rootId) : []);
+              existing.data()?.completedAt
+                ? existing.data()!.sections || []
+                : completeRevisionSections(
+                    existing.data()?.sections,
+                    eq.rootId ? checklistFromSettings(settings, eq.rootId) : [],
+                  );
             const sections = validateRevision(
               c.payload.sections,
               expectedSections,

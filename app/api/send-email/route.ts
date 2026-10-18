@@ -10,6 +10,7 @@ import { loadCurrentTicketRecipients } from "@/lib/work-documents/current-ticket
 import { validateResendEmails } from "@/lib/work-documents/report-resend"
 import { loadResendReport } from "@/lib/work-documents/report-resend.server"
 import { sendReportSeparately } from "@/lib/work-documents/send-report-separately"
+import { installationCompletionEmail } from "@/lib/installations/email-content"
 
 export async function POST(request: NextRequest) {
   let emailEventId: string | null = null
@@ -21,8 +22,11 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     resendMode = formData.get("recipientMode") === "report-resend"
-    const session = resendMode
-      ? await requireVerifiedRole(["admin", "dispecer"], request)
+    const installationCompletion = formData.get("documentKind") === "installation-completion"
+    if (installationCompletion && formData.get("recipientMode") !== "current-ticket")
+      return NextResponse.json({ error: "Trimiterea procesului-verbal necesită tichetul asociat." }, { status: 400 })
+    const session = resendMode || installationCompletion
+      ? await requireVerifiedRole(resendMode ? ["admin", "dispecer"] : ["admin", "dispecer", "tehnician"], request)
       : await requireRole(["admin", "dispecer", "tehnician"], request)
     actorUid = session.uid
     if (!session.uid) {
@@ -75,6 +79,22 @@ export async function POST(request: NextRequest) {
       to = Array.from(new Set([...current.emails, ...manual.map(value => String(value).trim().toLowerCase())])).join(", ")
       subject = `Raport Interventie - ${current.clientName || "Client"} - ${String(current.work.dataInterventie || "Data").split(" ")[0]}`
       message = `Stimata/Stimate ${current.contactName || "Client"},\n\nVa transmitem atasat raportul de interventie pentru tichetul asociat interventiei efectuate in data de ${String(current.work.dataInterventie || "N/A").split(" ")[0]}.\n\nCu stima,\nFOM by NRG`
+      if (installationCompletion) {
+        const root = current.work.installation?.rootWorkId
+        if (!root) return NextResponse.json({ error: "Tichetul nu este o instalare." }, { status: 400 })
+        const completion = (await adminDb.collection("lucrari").doc(root).collection("installationCompletion").doc("final").get()).data()
+        if (!completion?.documentSnapshot || completion.terminalWorkId !== lucrareId)
+          return NextResponse.json({ error: "Procesul-verbal semnat nu este disponibil." }, { status: 409 })
+        if (session.role === "tehnician") {
+          const user = (await adminDb.collection("users").doc(session.uid).get()).data()
+          if (!user?.displayName || !current.work.tehnicieni?.includes(user.displayName))
+            return NextResponse.json({ error: "Nu sunteți atribuit acestui tichet." }, { status: 403 })
+        }
+        to = current.emails.join(", ")
+        const content = installationCompletionEmail(completion.documentSnapshot.workNumber)
+        subject = content.subject
+        message = content.message
+      }
     }
     errorTo = to || "unknown"
     errorSubject = subject || "unknown"
@@ -127,9 +147,9 @@ export async function POST(request: NextRequest) {
         <div style="text-align: center; margin-bottom: 20px;">
           <img src="cid:company-logo" alt="Logo companie" style="max-width: 200px; max-height: 80px;" />
         </div>
-        <h2 style="color: #0f56b3;">Raport de Interventie</h2>
+        <h2 style="color: #0f56b3;">${installationCompletion ? "Proces-verbal de instalare" : "Raport de Interventie"}</h2>
         <p>${message || "Va transmitem atasat raportul de interventie."}</p>
-        <p>Raportul este atasat in format PDF.</p>
+        <p>${installationCompletion ? "Procesul-verbal este atașat în format PDF." : "Raportul este atasat in format PDF."}</p>
         ${starsRow}
         <hr style="border: 1px solid #eee; margin: 20px 0;" />
         <p style="color: #666; font-size: 12px;">Acest email a fost generat automat. Va rugam sa nu raspundeti la acest email.</p>
@@ -198,7 +218,7 @@ export async function POST(request: NextRequest) {
           pdfName: (pdfFile as any)?.name || undefined,
           smtpTransportSource: resolved.source,
           actorUid: session.uid,
-          action: resendMode ? "report-resend" : "report-send",
+          action: installationCompletion ? "installation-complete" : resendMode ? "report-resend" : "report-send",
         },
       })
     } catch (error) {
@@ -264,7 +284,8 @@ export async function POST(request: NextRequest) {
           ...(resendMode ? { actorUid: session.uid, action: "report-resend", sent, failed } : {}),
         }
         const ref = adminDb.collection("lucrari").doc(String(lucrareId))
-        if (resendMode) await ref.update({ lastReportEmail })
+        if (installationCompletion) await ref.update({ lastInstallationCompletionEmail: lastReportEmail })
+        else if (resendMode) await ref.update({ lastReportEmail })
         else await ref.set({ lastReportEmail }, { merge: true })
       }
     } catch (error) {

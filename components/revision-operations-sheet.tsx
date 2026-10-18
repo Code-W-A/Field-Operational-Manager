@@ -1,6 +1,6 @@
 "use client"
 
-import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
+import { completeRevisionSections, romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 
 import { technicianCommand, technicianFile } from "@/lib/technician/client"
 import { subscribeRevisionChecklistFromRoot } from "@/lib/revisions/checklist"
@@ -114,7 +114,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       // Photos synchronize independently, even while checklist/observations have a local draft.
       if (existing !== undefined) setExistingPhotos(existing?.photos || [])
       if (!checklist || existing === undefined) return
-      const base = existing?.sections?.length ? existing.sections : checklist.sections
+      const base = existing?.completedAt ? existing.sections : completeRevisionSections(existing?.sections, checklist.sections)
       const nextStructure = checklistIdentity(base)
       if (initialized && (editorDirty.current || saveLock.current)) {
         if (structure !== nextStructure && !saveLock.current) {

@@ -90,6 +90,9 @@ export async function workDocument(
       sheetId,
       async (photo) =>
         new Uint8Array((await bucket().file(photo.path).download())[0]),
+      {
+        logoDataUrl: `data:image/png;base64,${(await readFile(path.join(process.cwd(), "public/nrglogo.png"))).toString("base64")}`,
+      },
     );
     return Buffer.from(doc.output("arraybuffer"));
   }
