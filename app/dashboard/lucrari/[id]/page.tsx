@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import {
   ChevronLeft,
   FileText,
@@ -2049,10 +2049,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const hasExternalConflict = equipmentActiveConflicts.some((conflict) => conflict.id !== lucrare.id)
   const onlyCurrentTicketConflict = equipmentActiveConflicts.length > 0 && !hasExternalConflict
   const conflictTitle = loadingEquipmentActiveConflicts
-    ? "Verificare tichete active"
+    ? "Se verifică tichetele active…"
     : onlyCurrentTicketConflict
       ? "Tichetul curent este deja activ"
-      : "Reintervenția este blocată de un tichet activ"
+      : `Reintervenție blocată · ${equipmentActiveConflicts.length} ${equipmentActiveConflicts.length === 1 ? "tichet activ" : "tichete active"}`
   const conflictDescription = loadingEquipmentActiveConflicts
     ? "Verificăm tichetele active pe acest echipament..."
     : onlyCurrentTicketConflict
@@ -2060,19 +2060,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       : `Există deja ${equipmentActiveConflicts.length} ${
           equipmentActiveConflicts.length === 1 ? "tichet activ" : "tichete active"
         } pe acest echipament.`
-  const conflictCardClass = loadingEquipmentActiveConflicts
-    ? "bg-amber-50 border-amber-200"
-    : onlyCurrentTicketConflict
-      ? "bg-blue-50 border-blue-200"
-      : "bg-amber-50 border-amber-200"
-  const conflictIconClass = loadingEquipmentActiveConflicts
-    ? "text-amber-600"
-    : onlyCurrentTicketConflict
-      ? "text-blue-600"
-      : "text-amber-600"
-  const conflictBadgeClass = onlyCurrentTicketConflict
-    ? "border-blue-300 bg-blue-100 text-blue-800"
-    : "border-amber-300 bg-amber-100 text-amber-900"
+  const conflictNoticeClass = !loadingEquipmentActiveConflicts && onlyCurrentTicketConflict
+    ? "text-blue-700"
+    : "text-amber-700"
 
   const editDialog = <TicketDialog
     mode="edit" open={isEditDialogOpen} setOpen={setIsEditDialogOpen}
@@ -2474,74 +2464,65 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           </div>
 
           {isAdminOrDispatcher && needsReintervention(lucrare) && (loadingEquipmentActiveConflicts || equipmentActiveConflicts.length > 0) && (
-            <Alert variant="default" className={conflictCardClass}>
-              <AlertCircle className={`h-4 w-4 ${conflictIconClass}`} />
-              <AlertDescription>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">{conflictTitle}</p>
-                    {!loadingEquipmentActiveConflicts && (
-                      <Badge variant="outline" className={`text-xs ${conflictBadgeClass}`}>
-                        {equipmentActiveConflicts.length}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm">{conflictDescription}</p>
-
-                  {!loadingEquipmentActiveConflicts && equipmentActiveConflicts.length > 0 && (
-                    <div className="space-y-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setShowConflictDetails((prev) => !prev)}
+            <Dialog open={showConflictDetails} onOpenChange={setShowConflictDetails}>
+              <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-sm ${conflictNoticeClass}`}>
+                <span role="status" className="flex min-w-0 items-center gap-2">
+                  <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  {conflictTitle}
+                </span>
+                {!loadingEquipmentActiveConflicts && equipmentActiveConflicts.length > 0 && (
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="link" size="sm" className="h-8 px-0 text-xs text-current underline-offset-4">
+                      Vezi tichetele active
+                    </Button>
+                  </DialogTrigger>
+                )}
+              </div>
+              <DialogContent
+                className="flex max-h-[85dvh] w-[calc(100%-2rem)] max-w-[640px] flex-col overflow-hidden rounded-lg"
+                onPointerDownOutside={() => setShowConflictDetails(false)}
+              >
+                <DialogHeader className="shrink-0 pr-6 text-left">
+                  <DialogTitle>Tichete active pe echipament</DialogTitle>
+                  <DialogDescription>{conflictDescription}</DialogDescription>
+                </DialogHeader>
+                <div className="min-h-0 space-y-2 overflow-y-auto overscroll-contain">
+                  {equipmentActiveConflicts.map((conflict) => {
+                    const displayNrRaw = String(conflict.nrDisplay || conflict.id || "").trim()
+                    const displayNr = displayNrRaw.startsWith("#") ? displayNrRaw : `#${displayNrRaw}`
+                    const isCurrentTicket = conflict.id === lucrare.id
+                    return (
+                      <div
+                        key={conflict.id}
+                        className="flex flex-col gap-2 rounded border border-border bg-background px-2 py-2 sm:flex-row sm:items-center sm:justify-between"
                       >
-                        {showConflictDetails ? "Ascunde tichetele active" : "Vezi tichetele active"}
-                      </Button>
-
-                      {showConflictDetails && (
-                        <div className="space-y-1">
-                          {equipmentActiveConflicts.map((conflict) => {
-                            const displayNrRaw = String(conflict.nrDisplay || conflict.id || "").trim()
-                            const displayNr = displayNrRaw.startsWith("#") ? displayNrRaw : `#${displayNrRaw}`
-                            const isCurrentTicket = conflict.id === lucrare.id
-                            return (
-                              <div
-                                key={conflict.id}
-                                className="flex flex-col gap-2 rounded border border-border bg-white/70 px-2 py-2 sm:flex-row sm:items-center sm:justify-between"
-                              >
-                                <div className="flex flex-wrap items-center gap-2 text-sm">
-                                  <span className="font-medium">{displayNr}</span>
-                                  <Badge variant="outline" className="text-xs">
-                                    {conflict.statusLucrare || "N/A"}
-                                  </Badge>
-                                  {isCurrentTicket && (
-                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-                                      acest tichet
-                                    </Badge>
-                                  )}
-                                </div>
-                                <Button
-                                  asChild
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-xs self-start sm:self-center"
-                                >
-                                  <Link href={relatedTicketUrl(conflict.id)}>
-                                    Deschide
-                                  </Link>
-                                </Button>
-                              </div>
-                            )
-                          })}
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="break-all font-medium">{displayNr}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {conflict.statusLucrare || "N/A"}
+                          </Badge>
+                          {isCurrentTicket && (
+                            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                              acest tichet
+                            </Badge>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs self-start sm:self-center"
+                        >
+                          <Link href={relatedTicketUrl(conflict.id)} onClick={() => setShowConflictDetails(false)}>
+                            Deschide
+                          </Link>
+                        </Button>
+                      </div>
+                    )
+                  })}
                 </div>
-              </AlertDescription>
-            </Alert>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </DashboardHeader>
