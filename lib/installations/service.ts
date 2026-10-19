@@ -2,6 +2,7 @@ import {
   FieldValue,
   type Firestore,
   type Transaction,
+  type DocumentReference,
 } from "firebase-admin/firestore";
 import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
 import { installationDeliveryId, installationDeliveryResult } from "./delivery";
@@ -67,6 +68,53 @@ export function installationService(db: Firestore) {
     db.collection("installationTechnicianSessions").doc(identifier(uid));
   const completionRef = (root: string) =>
     workRef(root).collection("installationCompletion").doc("final");
+
+  // A deleted Firestore parent can leave its sheets and session document behind.
+  // Reading ignores these stale locks; a successful start replaces them atomically.
+  async function activeSession(uid: string, tx?: Transaction) {
+    const read = (ref: DocumentReference) => (tx ? tx.get(ref) : ref.get());
+    const stored = (await read(sessionRef(uid))).data();
+    if (
+      !stored ||
+      ![stored.workId, stored.sheetId, stored.equipmentId].every(
+        (value) =>
+          typeof value === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(value),
+      )
+    )
+      return null;
+    const sourceWork = (await read(workRef(stored.workId))).data();
+    if (
+      !isInstallationV1(sourceWork) ||
+      sourceWork!.anulat ||
+      sourceWork!.archivedAt ||
+      sourceWork!.installation.closedReason ||
+      closedStatuses.includes(sourceWork!.statusLucrare)
+    )
+      return null;
+    const original = await read(sheetsRef(stored.workId).doc(stored.sheetId));
+    if (!original.exists) return null;
+    const sheet = { ...original.data(), id: original.id } as InstallationSheet;
+    const participant = sheetParticipants(sheet).find(
+      (p) => p.uid === uid && p.active,
+    );
+    if (
+      sheet.state !== "draft" ||
+      !participant ||
+      sheet.equipmentId !== stored.equipmentId ||
+      sourceWork!.installation.activeSheetByEquipment?.[stored.equipmentId] !==
+        stored.sheetId
+    )
+      return null;
+    return {
+      sheet,
+      session: {
+        workId: String(stored.workId),
+        sheetId: String(stored.sheetId),
+        equipmentId: String(stored.equipmentId),
+        role: participant.role,
+      },
+    };
+  }
 
   async function actorData(tx: Transaction, actor: InstallationActor) {
     const doc = await tx.get(db.collection("users").doc(identifier(actor.uid)));
@@ -441,22 +489,10 @@ export function installationService(db: Firestore) {
         "Echipamentul este deja finalizat.",
         409,
       );
-      const currentSession = (await tx.get(sessionRef(actor.uid))).data();
-      let source: InstallationSheet | undefined;
-      if (currentSession) {
-        const original = await tx.get(
-          sheetsRef(currentSession.workId).doc(currentSession.sheetId),
-        );
-        source = { ...original.data(), id: original.id } as InstallationSheet;
-        check(
-          original.exists &&
-            source.state === "draft" &&
-            sheetParticipants(source).some(
-              (p) => p.uid === actor.uid && p.active,
-            ),
-          "Sesiunea activă este inconsistentă.",
-          409,
-        );
+      const current = await activeSession(actor.uid, tx);
+      const currentSession = current?.session;
+      const source = current?.sheet;
+      if (currentSession && source) {
         if (
           currentSession.workId === workId &&
           currentSession.equipmentId === equipmentId
@@ -536,11 +572,11 @@ export function installationService(db: Firestore) {
             continue;
           }
           const candidate = technicians[0];
-          const session = await tx.get(sessionRef(candidate.id));
-          if (session.exists) {
+          const active = await activeSession(candidate.id, tx);
+          if (active) {
             if (
-              session.data()?.workId !== workId ||
-              session.data()?.sheetId !== targetId
+              active.session.workId !== workId ||
+              active.session.sheetId !== targetId
             )
               warnings.push(
                 `${name} lucrează deja pe altă fișă și nu a fost mutat.`,
@@ -638,10 +674,19 @@ export function installationService(db: Firestore) {
     const content = fields(input.fields, mode !== "save");
     return db.runTransaction(async (tx) => {
       const user = await actorData(tx, actor);
-      const receipt = input.requestId ? db.collection("installationCommands").doc(`${actor.uid}_${identifier(input.requestId)}`) : null;
+      const receipt = input.requestId
+        ? db
+            .collection("installationCommands")
+            .doc(`${actor.uid}_${identifier(input.requestId)}`)
+        : null;
       const previous = receipt ? await tx.get(receipt) : null;
       if (previous?.exists) {
-        check(previous.data()?.fingerprint === JSON.stringify({workId,input,mode}), "Identificator reutilizat.", 409);
+        check(
+          previous.data()?.fingerprint ===
+            JSON.stringify({ workId, input, mode }),
+          "Identificator reutilizat.",
+          409,
+        );
         return previous.data()!.result;
       }
       const ref = workRef(workId);
@@ -750,8 +795,15 @@ export function installationService(db: Firestore) {
         });
       }
       audit(tx, workId, actor, mode, { sheetId, releasedUids: release });
-      const result = {sheet: visibleSheet({ ...sheet, ...update, id: sheetId }, actor.uid)};
-      if (receipt) tx.set(receipt, {fingerprint: JSON.stringify({workId,input,mode}), result, createdAt: FieldValue.serverTimestamp()});
+      const result = {
+        sheet: visibleSheet({ ...sheet, ...update, id: sheetId }, actor.uid),
+      };
+      if (receipt)
+        tx.set(receipt, {
+          fingerprint: JSON.stringify({ workId, input, mode }),
+          result,
+          createdAt: FieldValue.serverTimestamp(),
+        });
       return result;
     });
   }
@@ -1031,15 +1083,18 @@ export function installationService(db: Firestore) {
         documentSnapshot: document,
         deliveryEffectId: installationDeliveryId(root),
       });
-      tx.create(db.collection("mobileEffects").doc(installationDeliveryId(root)), {
-        action: "installation.complete",
-        uid: actor.uid,
-        workId,
-        rootWorkId: root,
-        status: "pending",
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      tx.create(
+        db.collection("mobileEffects").doc(installationDeliveryId(root)),
+        {
+          action: "installation.complete",
+          uid: actor.uid,
+          workId,
+          rootWorkId: root,
+          status: "pending",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+      );
       tx.update(workRef(workId), {
         "installation.closedReason": "completed",
         "installation.completionDocumentId": "final",
@@ -1073,7 +1128,12 @@ export function installationService(db: Firestore) {
     );
     const work = (await workRef(workId).get()).data();
     assertWork(work);
-    const inactive = Boolean(work.anulat || work.archivedAt || work.installation.closedReason || closedStatuses.includes(work.statusLucrare));
+    const inactive = Boolean(
+      work.anulat ||
+      work.archivedAt ||
+      work.installation.closedReason ||
+      closedStatuses.includes(work.statusLucrare),
+    );
     const manager = managers.includes(actor.role);
     // Technicians can read public signed history across a continuation chain; internal notes remain private.
     let allowed = manager || assigned(work, user!);
@@ -1103,21 +1163,24 @@ export function installationService(db: Firestore) {
       }
     }
     check(allowed, "Nu aveți acces la această instalare.", 403);
-    const currentSessionDoc =
-      actor.role === "tehnician" ? await sessionRef(actor.uid).get() : null;
-    const currentSession = currentSessionDoc?.exists
-      ? {
-          ...currentSessionDoc.data(),
-          role: currentSessionDoc.data()?.role || "principal",
-        }
-      : null;
+    const currentSession =
+      actor.role === "tehnician"
+        ? (await activeSession(actor.uid))?.session || null
+        : null;
     const completion = await completionRef(work.installation.rootWorkId).get();
-    const completionData = completion.data() as (RecordData & {
-      id: string;
-      documentSnapshot: InstallationDocument;
-    }) | undefined;
+    const completionData = completion.data() as
+      | (RecordData & {
+          id: string;
+          documentSnapshot: InstallationDocument;
+        })
+      | undefined;
     const deliveryEffect = completionData?.deliveryEffectId
-      ? (await db.collection("mobileEffects").doc(completionData.deliveryEffectId).get()).data()
+      ? (
+          await db
+            .collection("mobileEffects")
+            .doc(completionData.deliveryEffectId)
+            .get()
+        ).data()
       : undefined;
     let query = sheetsRef(workId)
       .orderBy("createdAt", "desc")
@@ -1161,7 +1224,8 @@ export function installationService(db: Firestore) {
         dataInterventie: work.dataInterventie || "",
       },
       currentSession,
-      canStart: !inactive && actor.role === "tehnician" && assigned(work, user!),
+      canStart:
+        !inactive && actor.role === "tehnician" && assigned(work, user!),
       sheets,
       nextCursor: snapshots.length > 25 ? snapshots[24].id : null,
       completion: completionData
@@ -1176,10 +1240,22 @@ export function installationService(db: Firestore) {
   }
 
   /** Release only sessions owned by this work, including legacy/stale sessions. */
-  async function terminate(actor: InstallationActor, workId: string, mode: "cancel" | "delete", reason?: unknown) {
-    check(mode === "delete" ? actor.role === "admin" : managers.includes(actor.role), "Nu aveți dreptul să efectuați această acțiune.", 403);
+  async function terminate(
+    actor: InstallationActor,
+    workId: string,
+    mode: "cancel" | "delete",
+    reason?: unknown,
+  ) {
+    check(
+      mode === "delete"
+        ? actor.role === "admin"
+        : managers.includes(actor.role),
+      "Nu aveți dreptul să efectuați această acțiune.",
+      403,
+    );
     const cancelReason = mode === "cancel" ? text(reason, 10000) : "";
-    if (mode === "cancel") check(cancelReason.length > 0, "Motivul anulării este obligatoriu.");
+    if (mode === "cancel")
+      check(cancelReason.length > 0, "Motivul anulării este obligatoriu.");
     return db.runTransaction(async (tx) => {
       const user = await actorData(tx, actor);
       const ref = workRef(workId);
@@ -1187,15 +1263,25 @@ export function installationService(db: Firestore) {
       if (!snapshot.exists && mode === "delete") return { id: workId };
       const work = snapshot.data();
       assertWork(work);
-      if (mode === "cancel" && (work.anulat || work.statusLucrare === "Anulat")) return { id: workId };
-      const sessions = await tx.get(db.collection("installationTechnicianSessions").where("workId", "==", workId));
-      const drafts = await tx.get(sheetsRef(workId).where("state", "==", "draft"));
+      if (mode === "cancel" && (work.anulat || work.statusLucrare === "Anulat"))
+        return { id: workId };
+      const sessions = await tx.get(
+        db
+          .collection("installationTechnicianSessions")
+          .where("workId", "==", workId),
+      );
+      const drafts = await tx.get(
+        sheetsRef(workId).where("state", "==", "draft"),
+      );
       const now = new Date().toISOString();
       const actorName = user.displayName || user.email || "Dispecer";
       for (const sheet of drafts.docs) {
         const data = sheet.data() as InstallationSheet;
         tx.update(sheet.ref, {
-          participants: sheetParticipants(data).map(member => ({ ...member, active: false })),
+          participants: sheetParticipants(data).map((member) => ({
+            ...member,
+            active: false,
+          })),
           stoppedAt: data.stoppedAt || now,
           updatedAt: now,
           revision: data.revision + 1,
@@ -1219,7 +1305,10 @@ export function installationService(db: Firestore) {
       };
       if (mode === "cancel") tx.update(ref, update);
       else tx.delete(ref);
-      audit(tx, workId, actor, mode, { releasedUids: sessions.docs.map(doc => doc.id), ...(mode === "cancel" ? { reason: cancelReason } : {}) });
+      audit(tx, workId, actor, mode, {
+        releasedUids: sessions.docs.map((doc) => doc.id),
+        ...(mode === "cancel" ? { reason: cancelReason } : {}),
+      });
       tx.set(db.collection("logs").doc(), {
         timestamp: FieldValue.serverTimestamp(),
         utilizator: actorName,
@@ -1235,8 +1324,23 @@ export function installationService(db: Firestore) {
         entityType: "Lucrare",
         entityId: workId,
         actionOutcome: "success",
-        before: copyKeys(work, ["tipLucrare", "statusLucrare", "statusFacturare", "client", "locatie", "tehnicieni"]),
-        ...(mode === "cancel" ? { after: { statusLucrare: "Arhivată", anulat: true, motivAnulare: cancelReason } } : {}),
+        before: copyKeys(work, [
+          "tipLucrare",
+          "statusLucrare",
+          "statusFacturare",
+          "client",
+          "locatie",
+          "tehnicieni",
+        ]),
+        ...(mode === "cancel"
+          ? {
+              after: {
+                statusLucrare: "Arhivată",
+                anulat: true,
+                motivAnulare: cancelReason,
+              },
+            }
+          : {}),
       });
       return { id: workId };
     });
@@ -1258,10 +1362,15 @@ export function installationService(db: Firestore) {
       const ref = sheetsRef(workId).doc(identifier(sheetId));
       const sheet = (await tx.get(ref)).data() as InstallationSheet | undefined;
       assertPrincipal(sheet, actor.uid);
-      if(remove && !sheet.photos.some(p=>p.id===photo.id)) return {sheet};
-      if (!remove && sheet.photos.some(p => p.id === photo.id)) {
-        check(sheet.photos.some(p => p.id === photo.id && p.path === photo.path), "Identificator de fotografie reutilizat.", 409);
-        return {sheet};
+      if (remove && !sheet.photos.some((p) => p.id === photo.id))
+        return { sheet };
+      if (!remove && sheet.photos.some((p) => p.id === photo.id)) {
+        check(
+          sheet.photos.some((p) => p.id === photo.id && p.path === photo.path),
+          "Identificator de fotografie reutilizat.",
+          409,
+        );
+        return { sheet };
       }
       const photos = remove
         ? sheet.photos.filter((p) => p.id !== photo.id)
@@ -1285,8 +1394,10 @@ export function installationService(db: Firestore) {
     continueWork,
     complete,
     list,
-    cancel: (actor: InstallationActor, workId: string, reason: unknown) => terminate(actor, workId, "cancel", reason),
-    delete: (actor: InstallationActor, workId: string) => terminate(actor, workId, "delete"),
+    cancel: (actor: InstallationActor, workId: string, reason: unknown) =>
+      terminate(actor, workId, "cancel", reason),
+    delete: (actor: InstallationActor, workId: string) =>
+      terminate(actor, workId, "delete"),
     attachPhoto,
   };
 }

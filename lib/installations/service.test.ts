@@ -1114,3 +1114,32 @@ test("web and mobile PV delivery share one real PDF and one isolated email event
     }
   }
 });
+
+test("orphan principal session from a deleted ticket does not block listing or starting another installation", async () => {
+  const previous = await create();
+  const old = await start(previous.id);
+  await db.doc(`lucrari/${previous.id}`).delete(); // Firestore preserves subcollections.
+  assert.equal((await db.doc(`lucrari/${previous.id}/installationSheets/${old.sheet.id}`).get()).exists, true);
+  const next = await create();
+  assert.equal((await service.list(tech, next.id)).currentSession, null);
+  // Listing is read-only; repair happens only in the successful start transaction.
+  assert.equal((await db.doc(`installationTechnicianSessions/${tech.uid}`).get()).data()!.workId, previous.id);
+  const result = await start(next.id);
+  assert.equal(result.sheet.principalUid, tech.uid);
+  assert.equal((await db.doc(`installationTechnicianSessions/${tech.uid}`).get()).data()!.workId, next.id);
+  assert.equal((await db.doc(`installationTechnicianSessions/${tech2.uid}`).get()).data()!.workId, next.id);
+  assert.equal((await service.list(tech, next.id)).currentSession?.sheetId, result.sheet.id);
+});
+
+test("terminal or missing source sheets no longer lock a technician, while valid principal sessions stay protected", async () => {
+  const previous = await create();
+  const old = await start(previous.id);
+  const next = await create();
+  assert.equal((await service.list(tech, next.id)).currentSession?.sheetId, old.sheet.id);
+  await assert.rejects(() => start(next.id), /fișă activă ca principal/);
+  await db.doc(`lucrari/${previous.id}/installationSheets/${old.sheet.id}`).update({state:"awaiting_signature"});
+  assert.equal((await service.list(tech, next.id)).currentSession, null);
+  await db.doc(`lucrari/${previous.id}/installationSheets/${old.sheet.id}`).delete();
+  assert.equal((await service.list(tech, next.id)).currentSession, null);
+  await start(next.id);
+});

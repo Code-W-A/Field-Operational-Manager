@@ -81,6 +81,7 @@ export function InstallationWorkspace({
   const [history, setHistory] = useState<InstallationSheet[]>([]);
   const [selected, setSelected] = useState<InstallationSheet | null>(null);
   const [error, setError] = useState("");
+  const startErrorRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [confirmation, setConfirmation] = useState<"cancel" | "delete" | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -163,6 +164,7 @@ export function InstallationWorkspace({
       setError(
         "Ai o fișă în lucru ca principal. Oprește lucrul pe aceasta înainte de a începe alta.",
       );
+      requestAnimationFrame(() => startErrorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
       return;
     }
     scanRequest.current = null;
@@ -251,7 +253,7 @@ export function InstallationWorkspace({
       <DashboardHeader
         heading={
           <span className="flex flex-wrap items-center gap-3">
-            <span>Instalare {data?.work.nrLucraree || ""}</span>
+            <span>Instalare {data?.work.nrLucrare || ""}</span>
             {data && <StatusBadge status={canceled ? "Anulat" : data.work.statusLucrare} />}
           </span>
         }
@@ -347,10 +349,16 @@ export function InstallationWorkspace({
       )}
       {error && (
         <div
+          ref={startErrorRef}
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
         >
           {error}
+          {data?.currentSession?.role === "principal" && (
+            <Button variant="outline" className="mt-3 block" onClick={() => router.push(`${pageUrl(data.currentSession!.workId)}?tab=sheets&sheetId=${encodeURIComponent(data.currentSession!.sheetId)}`)}>
+              Deschide fișa în lucru
+            </Button>
+          )}
         </div>
       )}
       {!data ? (
