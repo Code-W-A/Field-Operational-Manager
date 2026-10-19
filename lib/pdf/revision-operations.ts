@@ -58,7 +58,7 @@ export async function generateRevisionOperationsPDF(
 export async function generateRevisionEquipmentPDF(
   lucrareId: string,
   equipmentId: string,
-  opts?: { headerLabelOverride?: string; sheetNumberLabel?: string },
+  opts?: { headerLabelOverride?: string; sheetNumberLabel?: string; hideEquipmentIdentity?: boolean },
 ): Promise<Blob> {
   const work = (await getDoc(doc(db, "lucrari", lucrareId))).data(),
     snap = await getDoc(

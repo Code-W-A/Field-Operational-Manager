@@ -53,6 +53,9 @@ const checklistIdentity = (sections: RevisionChecklistSection[]) => JSON.stringi
 
 export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef, onSaved }: Props) {
   const { userData } = useAuth()
+  // Equipment names can contain the QR code (e.g. ADMIN-UP1).
+  // Keep the real name for persistence, but never expose it to technicians.
+  const displayEquipmentName = !userData?.role || userData.role === "tehnician" ? "Echipament" : equipmentName || "Echipament"
   const { toast } = useToast()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -491,7 +494,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
       // Success toast
       toast({
         title: "✅ Revizie salvată cu succes!",
-        description: `Fișa de operațiuni pentru ${equipmentName || "echipament"} a fost completată.`,
+        description: `Fișa de operațiuni pentru ${displayEquipmentName} a fost completată.`,
       })
       
       if (onSaved) onSaved()
@@ -607,7 +610,7 @@ export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, ch
   return (
     <Card className={`border-0 sm:border ${verified && allVerified ? "bg-green-50 border-green-300" : ""}`}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Fișa de operațiuni – {equipmentName || "Echipament"}</CardTitle>
+        <CardTitle className="text-lg">Fișa de operațiuni – {displayEquipmentName}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 px-2 pb-3 sm:px-3">
         <fieldset disabled={saving} className="min-w-0 space-y-3 border-0 p-0">

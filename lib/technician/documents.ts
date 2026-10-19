@@ -97,7 +97,7 @@ export async function workDocument(
     return Buffer.from(doc.output("arraybuffer"));
   }
   if (revision && w.tipLucrare === "Revizie")
-    return revisionPdf(db, w, revision === "all" ? undefined : revision);
+    return revisionPdf(db, w, revision === "all" ? undefined : revision, a.role === "tehnician");
   if (!w.raportGenerat)
     throw new TechnicianError("Raportul nu este încă generat.", 409);
   return servicePdf(db, w);
@@ -107,6 +107,7 @@ export async function revisionPdf(
   db: Firestore,
   work: any,
   equipmentId?: string,
+  hideEquipmentIdentity = false,
 ) {
   const frozen = withDocumentClientSnapshot(
     { ...work, ...work.raportSnapshot },
@@ -127,7 +128,8 @@ export async function revisionPdf(
         revisions.find((r: any) => r.id === equipmentId),
         null,
         logo,
+        { hideEquipmentIdentity },
       )
-    : await renderRevisionOperationsPDF(work.id, frozen, revisions, null, logo);
+    : await renderRevisionOperationsPDF(work.id, frozen, revisions, null, logo, { hideEquipmentIdentity });
   return Buffer.from(await blob.arrayBuffer());
 }

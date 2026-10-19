@@ -52,3 +52,40 @@ test("both revision PDFs show only the immediate parent with terminal checks and
     await writeFile(`tmp/pdfs/revision-hierarchy-${variant}.pdf`, Buffer.from(await blob.arrayBuffer()));
   }
 });
+
+test("technician revision PDFs hide codes in names, headers and context, including empty sheets", async () => {
+  const work = { id: "work", client: "Client test", locatie: "Sediu", nrLucrare: "TEST", tipLucrare: "Revizie",
+    revision: { equipment: [{ equipmentId: "eq", equipmentName: "ADMIN-UP1", equipmentCode: "ADMIN-UP1", model: "Ușă pietonală" }] } };
+  const revision = { id: "eq", equipmentId: "eq", equipmentName: "ADMIN-UP1", equipmentCode: "ADMIN-UP1",
+    sections: [{ id: "s", title: "Canat mobil", items: [{ id: "i", label: "Verificare integritate", state: "functional" as const }] }] };
+  for (const variant of ["equipment", "operations", "empty"] as const) {
+    for (const hidden of [true, false]) {
+      const texts: string[] = [];
+      const event = ["initialized", function (this: jsPDF) {
+        const original = this.text;
+        this.text = function (this: jsPDF, ...args: any[]) {
+          texts.push(Array.isArray(args[0]) ? args[0].join(" ") : String(args[0]));
+          return (original as any).apply(this, args);
+        } as typeof original;
+      }];
+      (jsPDF.API.events as any).push(event);
+      let blob: Blob;
+      try {
+        blob = variant === "operations"
+          ? await renderRevisionOperationsPDF("work", work, [revision], null, null, { hideEquipmentIdentity: hidden })
+          : await renderRevisionEquipmentPDF("work", "eq", work, variant === "empty" ? null : revision, null, null, { hideEquipmentIdentity: hidden });
+      } finally {
+        const events = jsPDF.API.events as any;
+        events.splice(events.indexOf(event), 1);
+      }
+      assert.equal(texts.some(text => text.includes("ADMIN-UP1")), !hidden, `${variant}: raw equipment name/code visibility`);
+      assert.equal(texts.some(text => text.includes("Cod unic:")), !hidden, `${variant}: code field visibility`);
+      assert(texts.some(text => text.includes("Client test")));
+      assert(texts.some(text => text.includes("Sediu")));
+      if (hidden && variant === "equipment") {
+        await mkdir("tmp/pdfs", { recursive: true });
+        await writeFile("tmp/pdfs/revision-technician-no-code.pdf", Buffer.from(await blob.arrayBuffer()));
+      }
+    }
+  }
+});

@@ -412,6 +412,7 @@ function drawRevisionContextBlock(
   pdf: jsPDF,
   startY: number,
   context: RevisionSheetContext,
+  hideEquipmentIdentity = false,
 ): number {
   const cols = [
     { label: "Client" },
@@ -429,14 +430,14 @@ function drawRevisionContextBlock(
   const equipmentLines = [
     ...splitTextToSizeClamped(
       pdf,
-      `Nume echipament: ${context.equipment.name}`,
+      `Nume echipament: ${hideEquipmentIdentity ? "Echipament" : context.equipment.name}`,
       usableWidth,
     ),
-    ...splitTextToSizeClamped(
+    ...(hideEquipmentIdentity ? [] : splitTextToSizeClamped(
       pdf,
       `Cod unic: ${context.equipment.code}`,
       usableWidth,
-    ),
+    )),
     ...splitTextToSizeClamped(
       pdf,
       `Model: ${context.equipment.model}`,
@@ -586,6 +587,7 @@ export async function renderRevisionOperationsPDF(
   revisions: RevisionDoc[],
   liveClientData: any,
   logoDataUrl: string | null,
+  opts?: { hideEquipmentIdentity?: boolean },
 ): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let currentY = MARGIN;
@@ -608,7 +610,7 @@ export async function renderRevisionOperationsPDF(
 
     // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
     const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : [];
-    const level2Label = resolveHeaderLabel(rev, sectionsForHeader);
+    const level2Label = opts?.hideEquipmentIdentity ? "Echipament" : resolveHeaderLabel(rev, sectionsForHeader);
     const sheetNumberLabel = `${workNumberBase} - ${idx + 1}`;
     const headerTitle = buildEquipmentSheetHeaderTitle(
       level2Label,
@@ -623,7 +625,7 @@ export async function renderRevisionOperationsPDF(
 
     const drawPageStart = () => {
       currentY = drawSimpleHeader(doc, { title: headerTitle, logoDataUrl });
-      currentY = drawRevisionContextBlock(doc, currentY, context);
+      currentY = drawRevisionContextBlock(doc, currentY, context, opts?.hideEquipmentIdentity);
       currentY = drawChecklistTableHeader(doc, currentY, layout);
     };
     drawPageStart();
@@ -757,7 +759,7 @@ export async function renderRevisionEquipmentPDF(
   revision: any,
   liveClientData: any,
   logoDataUrl: string | null,
-  opts?: { headerLabelOverride?: string; sheetNumberLabel?: string },
+  opts?: { headerLabelOverride?: string; sheetNumberLabel?: string; hideEquipmentIdentity?: boolean },
 ): Promise<Blob> {
   const js = new jsPDF({ unit: "mm", format: "a4" });
   let currentY = MARGIN;
@@ -789,7 +791,7 @@ export async function renderRevisionEquipmentPDF(
       title: missingHeaderTitle,
       logoDataUrl: emptyLogo,
     });
-    currentY = drawRevisionContextBlock(js, currentY, context);
+    currentY = drawRevisionContextBlock(js, currentY, context, opts?.hideEquipmentIdentity);
     try {
       js.setFont("NotoSans", "normal");
     } catch {}
@@ -808,7 +810,7 @@ export async function renderRevisionEquipmentPDF(
 
   // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
   const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : [];
-  const level2Label = resolveHeaderLabel(
+  const level2Label = opts?.hideEquipmentIdentity ? "Echipament" : resolveHeaderLabel(
     { ...rev, headerOverride: opts?.headerLabelOverride },
     sectionsForHeader,
   );
@@ -825,7 +827,7 @@ export async function renderRevisionEquipmentPDF(
 
   const drawPageStart = () => {
     currentY = drawSimpleHeader(js, { title, logoDataUrl });
-    currentY = drawRevisionContextBlock(js, currentY, context);
+    currentY = drawRevisionContextBlock(js, currentY, context, opts?.hideEquipmentIdentity);
     currentY = drawChecklistTableHeader(js, currentY, layout);
   };
   drawPageStart();

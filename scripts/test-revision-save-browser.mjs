@@ -11,7 +11,7 @@ const mocks = {
   '@/components/qr-code-scanner': `export const QRCodeScanner = () => null;`,
   '@/hooks/use-toast': `const toast = value => window.calls.toasts.push(value); export const useToast = () => ({toast});`,
   '@/lib/firebase/config': `export const db = {}; export const storage = {}; export const auth = {currentUser:{getIdToken:async()=> 'test-token'}};`,
-  '@/lib/firebase/firestore': `const work = {client:'Client',locatie:'Sediu',tipLucrare:'Revizie',revision:{equipment:[{equipmentId:'eq',equipmentName:'Ușă',revisionChecklistTemplateId:'root'}]}}; export const getLucrareById = async () => work; export const getClienti = async () => []; export const getClientById = async () => null; export const updateLucrare = async () => {};`,
+  '@/lib/firebase/firestore': `const work = {client:'Client',locatie:'Sediu',tipLucrare:'Revizie',revision:{equipment:[{equipmentId:'eq',equipmentName:'ADMIN-UP1',revisionChecklistTemplateId:'root'}]}}; export const getLucrareById = async () => work; export const getClienti = async () => []; export const getClientById = async () => null; export const updateLucrare = async () => {};`,
   '@/firebase-functions/src/client-ticket-sync': `export const isContactSyncEligible = () => false; export const resolveTicketLocation = () => null;`,
   '@/lib/client-work-links': `export const createClientIndex = () => ({resolve:()=>null});`,
   '@/lib/revisions/checklist': `export const subscribeRevisionChecklistFromRoot = (id,cb) => { cb({sections:window.checklist || window.seed.sections}); return ()=>{}; };`,
@@ -66,6 +66,8 @@ async function openPrompt(page,hardware=false) {
 try {
   for (const role of ['admin','tehnician']) {
     const hierarchy = await fixture({role,hierarchy:true})
+    await expect(hierarchy.getByText(`Fișa de operațiuni – ${role === 'tehnician' ? 'Echipament' : 'ADMIN-UP1'}`, {exact:true})).toBeVisible()
+    if(role === 'tehnician') assert(!await hierarchy.locator('body').innerText().then(text=>text.includes('ADMIN-UP1')))
     await expect(hierarchy.getByRole('heading',{name:'Canat mobil',exact:true})).toBeVisible()
     await expect(hierarchy.getByRole('checkbox')).toHaveCount(3)
     await expect(hierarchy.getByText('Toate punctele sunt bifate.',{exact:true})).toHaveCount(0)

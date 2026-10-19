@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Send, ArrowLeft, Download, Lock, FileDown, Loader2, Save, Calendar, Clock, AlertTriangle, Edit } from "lucide-react"
+import { Send, ArrowLeft, Download, FileDown, Loader2, Save, Calendar, Clock, AlertTriangle, Edit } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
 import { assigned } from "@/packages/fom-domain"
 import { technicianCommand } from "@/lib/technician/client"
@@ -598,7 +598,17 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
   // Use useStableCallback to ensure we have access to the latest state values
   // without causing unnecessary re-renders
   const handleSubmit = useStableCallback(async () => {
-    if (reportActionLock.current || isSubmitting || isFinalizingLater || !validatePaid()) return
+    if (reportActionLock.current || isSubmitting || isFinalizingLater) return
+    // The server may have finalized the report before a PDF request failed.
+    // Retry document retrieval without submitting another finalization command.
+    if (tichet?.raportGenerat || tichet?.raportDataLocked) {
+      if (reportGeneratorRef.current) {
+        setIsSubmitting(true)
+        reportGeneratorRef.current.click()
+      }
+      return
+    }
+    if (!validatePaid()) return
     const failureCauseLabel = resolveFailureCauseLabel(
       failureCauseOptions,
       cauzaPrincipalaDefectId,
@@ -1893,7 +1903,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             <div className="hidden">
               <ReportGenerator
                 ref={reportGeneratorRef}
-                lucrare={lucrare}
+                lucrare={tichet}
+                onError={() => setIsSubmitting(false)}
                 onGenerate={(blob) => {
                   // Automatically download the PDF
                   const url = URL.createObjectURL(blob)
@@ -2120,7 +2131,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                       setCauzaPrincipalaDefectId(value)
                       setCauzaPrincipalaDefect(resolveFailureCauseLabel(failureCauseOptions, value))
                     }}
-                    disabled={isSubmitting || lucrare?.raportDataLocked}
+                    disabled={isSubmitting || tichet?.raportDataLocked}
                   >
                     <SelectTrigger id="cauzaPrincipalaDefect">
                       <SelectValue placeholder="Selectați cauza principală" />
@@ -2140,7 +2151,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                 <ProductTableForm 
                   products={products} 
                   onProductsChange={setProducts}
-                  disabled={lucrare?.raportDataLocked}
+                  disabled={tichet?.raportDataLocked}
                   showTitle={false}
                 />
                 {/* Sumar totaluri pentru raport (21% TVA) */}
@@ -2170,7 +2181,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                         <Select
                           value={numeTehnician}
                           onValueChange={(value) => setNumeTehnician(value)}
-                          disabled={isSubmitting || lucrare?.raportDataLocked}
+                          disabled={isSubmitting || tichet?.raportDataLocked}
                         >
                           <SelectTrigger id="numeTehnician">
                             <SelectValue placeholder="Selectează tehnicianul care semnează" />
@@ -2190,7 +2201,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                           placeholder="Numele complet al tehnicianului"
                           value={numeTehnician}
                           onChange={(e) => setNumeTehnician(e.target.value)}
-                          disabled={isSubmitting || lucrare?.raportDataLocked}
+                          disabled={isSubmitting || tichet?.raportDataLocked}
                         />
                       )}
                     </div>
@@ -2207,7 +2218,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                       />
                     </div>
                     <div className="flex justify-end">
-                      <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting || lucrare?.raportDataLocked}>
+                      <Button variant="outline" size="sm" onClick={clearTechSignature} disabled={isSubmitting || tichet?.raportDataLocked}>
                         Șterge
                       </Button>
                     </div>
@@ -2225,7 +2236,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                         placeholder="Numele complet al beneficiarului"
                         value={numeBeneficiar}
                         onChange={(e) => setNumeBeneficiar(e.target.value)}
-                        disabled={isSubmitting || lucrare?.raportDataLocked}
+                        disabled={isSubmitting || tichet?.raportDataLocked}
                       />
                     </div>
                     <div className="rounded-md border border-gray-300 bg-white p-2">
@@ -2241,7 +2252,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                       />
                     </div>
                     <div className="flex justify-end">
-                      <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting || lucrare?.raportDataLocked}>
+                      <Button variant="outline" size="sm" onClick={clearClientSignature} disabled={isSubmitting || tichet?.raportDataLocked}>
                         Șterge
                       </Button>
                     </div>
@@ -2280,7 +2291,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                 <div className="hidden">
                   <ReportGenerator
                     ref={reportGeneratorRef}
-                    lucrare={lucrare}
+                    lucrare={tichet}
+                    onError={() => setIsSubmitting(false)}
                     onGenerate={(blob) => {
                       console.log(`[RAPORT_FLOW ${paramsId}] ReportGenerator.onGenerate()`, {
                         lucrareId: (updatedLucrare?.id || lucrare?.id || paramsId),
@@ -2330,6 +2342,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                           }
                           router.push("/dashboard/lucrari")
                         })
+                        .finally(() => setIsSubmitting(false))
                     }}
                   />
                 </div>
@@ -2357,7 +2370,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                 <Button
                   type="button"
                   onClick={handleFinalizeLater}
-                  disabled={savingIntervention || isFinalizingLater || isSubmitting || lucrare?.raportDataLocked}
+                  disabled={savingIntervention || isFinalizingLater || isSubmitting || tichet?.raportDataLocked}
                   className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
                 >
                   {isFinalizingLater ? (
@@ -2383,14 +2396,10 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
               >
                 {isSubmitting ? (
                   <>Se procesează...</>
-                ) : lucrare?.raportDataLocked ? (
-                  <div className="text-center text-gray-600 p-8">
-                    <Lock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-lg font-medium">Raportul a fost finalizat și datele sunt blocate</p>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Nu se mai pot face modificări. Pentru modificări, contactați administratorul.
-                    </p>
-                  </div>
+                ) : tichet?.raportGenerat || tichet?.raportDataLocked ? (
+                  <>
+                    <FileDown className="h-4 w-4" /> Reîncearcă procesarea raportului
+                  </>
                 ) : (
                   <>
                     <Send className="h-4 w-4" /> Finalizează și Trimite Raport

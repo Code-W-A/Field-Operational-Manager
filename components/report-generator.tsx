@@ -214,7 +214,7 @@ export const ReportGenerator = forwardRef<HTMLButtonElement, ReportGeneratorProp
     setHasGenerated(true)
     try {
       if (userData?.role === "tehnician" && lucrare.id) {
-        if (!readOnly && !lucrare.raportGenerat) {
+        if (!readOnly && !lucrare.raportGenerat && !lucrare.raportDataLocked) {
           const result = await technicianCommand("report.finalize", lucrare.id, {
             products: lucrare.products || products,
             semnaturaTehnician: lucrare.semnaturaTehnician || "", semnaturaBeneficiar: lucrare.semnaturaBeneficiar || "",

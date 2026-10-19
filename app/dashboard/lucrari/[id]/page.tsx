@@ -2896,11 +2896,11 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               {/* Informații echipament - stack vertical pentru mobile */}
                               <div className="p-4">
                                 <h4 className="text-xl font-bold mb-2 text-gray-900 leading-tight">
-                                  {eq?.nume || revItem?.equipmentName || "Echipament necunoscut"}
+                                  {role === "tehnician" ? `Echipament ${index + 1}` : eq?.nume || revItem?.equipmentName || "Echipament necunoscut"}
                                 </h4>
                                 
                                 <div className="space-y-2 mb-4 text-base">
-                                  {eq?.cod && (
+                                  {role !== "tehnician" && eq?.cod && (
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm text-gray-500 font-medium min-w-[70px]">Cod:</span>
                                       <span className="font-mono text-base bg-slate-100 px-2.5 py-1 rounded font-semibold text-slate-700">
@@ -2974,12 +2974,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                         const blob = await generateRevisionEquipmentPDF(String(lucrare.id), String(eid), {
                                           headerLabelOverride: headerOverride,
                                           sheetNumberLabel,
+                                          hideEquipmentIdentity: role === "tehnician",
                                         })
                                         const url = URL.createObjectURL(blob)
                                         const a = document.createElement("a")
                                         a.href = url
                                         // Construim numele fișierului pe baza selecției (headerOverride) sau fallback
-                                        const fileLabel = headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
+                                        const fileLabel = role === "tehnician" ? `Echipament_${index + 1}` : headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
                                         const safeLabel = String(fileLabel).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                                         const safeSheetNumber = sheetNumberLabel.replace(/[\\/:*?"<>|]+/g, "").trim()
                                         a.download = `Fisa_Operatiuni_${safeLabel}_${safeSheetNumber}.pdf`
