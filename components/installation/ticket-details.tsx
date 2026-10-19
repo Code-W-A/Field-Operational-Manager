@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ export function InstallationTicketDetails({
   role,
   unavailable,
   syncIssues,
+  commercialControls,
 }: {
   work: Lucrare;
   display: ReturnType<typeof resolveTicketLiveDisplay>;
@@ -30,6 +32,7 @@ export function InstallationTicketDetails({
   role: string;
   unavailable: boolean;
   syncIssues: string[];
+  commercialControls?: ReactNode;
 }) {
   const manager = role === "admin" || role === "dispecer";
   const offer =
@@ -37,7 +40,7 @@ export function InstallationTicketDetails({
       ? "Da (acceptată)"
       : work.offerResponse?.status === "reject"
         ? "Da (refuzată)"
-        : work.statusOferta || "N/A";
+        : work.statusOferta || (work.necesitaOferta ? "De pregătit" : "Nu necesită ofertă");
   return (
     <div className="grid min-w-0 gap-5 xl:grid-cols-2">
       <Card className="min-w-0">
@@ -203,6 +206,12 @@ export function InstallationTicketDetails({
                   ))}
                 </dl>
               </div>
+            </>
+          )}
+          {manager && commercialControls && (
+            <>
+              <Separator />
+              {commercialControls}
             </>
           )}
         </CardContent>

@@ -2078,19 +2078,24 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
   if (isInstallationV1(lucrare)) return (
     <DashboardShell>
-      <InstallationWorkspace key={`${paramsId}-${installationRefresh}`} workId={paramsId} compact onEdit={handleEdit} ticketDetails={
-        <>
-          <InstallationTicketDetails
-            work={lucrare}
-            display={clientDisplay}
-            clientId={lucrare.clientId || clientData?.id}
-            role={role || ""}
-            unavailable={ticketClient.unavailable}
-            syncIssues={contactSyncIssues}
-          />
-          <InstallationManagement work={lucrare} onUpdate={setLucrare} />
-        </>
-      } />
+      <InstallationManagement key={`${paramsId}-${installationRefresh}`} work={lucrare} onUpdate={setLucrare}>
+        {({ headerAction, clientControls, documents }) => (
+          <InstallationWorkspace workId={paramsId} compact onEdit={handleEdit} headerActions={headerAction} ticketDetails={
+            <>
+              <InstallationTicketDetails
+                work={lucrare}
+                display={clientDisplay}
+                clientId={lucrare.clientId || clientData?.id}
+                role={role || ""}
+                unavailable={ticketClient.unavailable}
+                syncIssues={contactSyncIssues}
+                commercialControls={clientControls}
+              />
+              {documents}
+            </>
+          } />
+        )}
+      </InstallationManagement>
       {editDialog}
     </DashboardShell>
   )

@@ -57,6 +57,7 @@ export function InstallationWorkspace({
   compact = false,
   complete = false,
   ticketDetails,
+  headerActions,
   onEdit,
 }: {
   workId: string;
@@ -65,6 +66,7 @@ export function InstallationWorkspace({
   compact?: boolean;
   complete?: boolean;
   ticketDetails?: ReactNode;
+  headerActions?: ReactNode;
   onEdit?: () => void;
 }) {
   const { userData } = useAuth();
@@ -296,6 +298,11 @@ export function InstallationWorkspace({
           <Button variant="destructive" disabled={busy || terminating} onClick={() => { setActionError(""); setConfirmation("delete"); }}>
             <Trash2 className="mr-2 h-4 w-4" /> Șterge tichetul
           </Button>
+        )}
+        {headerActions && (
+          <fieldset disabled={busy || terminating} className="contents">
+            {headerActions}
+          </fieldset>
         )}
         <Button
           variant="outline"
