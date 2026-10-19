@@ -1,6 +1,6 @@
 "use client"
 
-import { arrayUnion } from "firebase/firestore"
+import { workArrayUnion as arrayUnion } from "@/lib/installations/management-client"
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"

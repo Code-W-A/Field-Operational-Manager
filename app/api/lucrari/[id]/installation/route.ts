@@ -39,6 +39,8 @@ export async function POST(request: NextRequest, context: Context) {
     const body = await request.json();
     check(JSON.stringify(body).length < 700000, "Datele fișei sunt prea mari.");
     switch (body.action) {
+      case "manage":
+        return NextResponse.json(await service.manage(actor, id, body));
       case "cancel":
         return NextResponse.json(await service.cancel(actor, id, body.reason));
       case "delete":

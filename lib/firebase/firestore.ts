@@ -31,6 +31,7 @@ import { resolveDuplicateContractAssignmentConflict } from "@/lib/utils/contract
 import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts/contract-status"
 import type { OfferResponseCertifiedPdf } from "@/lib/offer/evidence-types"
 import { stableWorkLocation, writesWorkAssociation } from "@/firebase-functions/src/work-location-association"
+import { isInstallationManagementPatch } from "@/lib/installations/management"
 
 async function validateLocationBeforeWrite(work: Record<string, any>): Promise<string | undefined> {
   const locationId = work.locationId || work.clientInfo?.locationId || work.clientInfo?.locatieId
@@ -904,6 +905,11 @@ export const updateLucrare = async (
     // Incidental notification/read tracking remains compatible with existing clients.
     if (silent && Object.keys(lucrare).every(key => ["notificationRead", "notificationReadBy"].includes(key))) {
       await updateDoc(lucrareDoc, lucrare as any)
+      return
+    }
+    if (isInstallationManagementPatch(lucrare)) {
+      const { installationManagementInput } = await import("@/lib/installations/management-client")
+      await installationRequest(installationApi(id), { action: "manage", ...installationManagementInput(lucrare) })
       return
     }
     await installationRequest(installationApi(id), { action: "edit", work: lucrare })

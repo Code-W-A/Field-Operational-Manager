@@ -1,4 +1,5 @@
 "use client"
+import { hasTicketCompletionDocument } from "@/lib/utils/work-completion"
 
 import { isOverdueWork } from "@/packages/fom-domain/ticket-dashboard"
 import { useMemo, useEffect, useState } from "react"
@@ -410,7 +411,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
       // Nepreluate (raport generat, nepreluat) - sortate după data generării raportului
       if (cfg.nepreluateEnabled) {
-        const reportOk = cfg.nepreluateRequireReportGenerated ? Boolean(l.raportGenerat) : true
+        const reportOk = cfg.nepreluateRequireReportGenerated ? hasTicketCompletionDocument(l) : true
         const notPickedOk = cfg.nepreluateRequireNotPickedUp ? !(l as any).preluatDispecer : true
         if (reportOk && notPickedOk && !eqInsensitive(status, WORK_STATUS.ARCHIVED)) {
         res.nepreluate.push(buildBubble(l, undefined, toDate(l.createdAt) || undefined))
@@ -520,7 +521,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
           
           // Aplicăm aceleași reguli ca pentru vizualizarea tehnicianului pe telefon
           const isFinalized = l.statusLucrare === "Finalizat"
-          const hasReportGenerated = l.raportGenerat === true
+          const hasReportGenerated = hasTicketCompletionDocument(l)
           const isPickedUpByDispatcher = (l as any).preluatDispecer === true
           const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
           

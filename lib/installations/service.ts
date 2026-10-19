@@ -7,6 +7,7 @@ import {
 import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
 import { installationDeliveryId, installationDeliveryResult } from "./delivery";
 import { resolveDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot";
+import { installationManagementKeys, type InstallationManagementInput } from "./management";
 import {
   isInstallationV1,
   type InstallationEquipment,
@@ -293,6 +294,7 @@ export function installationService(db: Firestore) {
         tehnicieni: Array.isArray(input.tehnicieni) ? input.tehnicieni : [],
         statusLucrare: input.tehnicieni?.length ? "Atribuită" : "Listată",
         statusFacturare: input.statusFacturare || "Nefacturat",
+        preluatDispecer: false,
         installation: {
           schemaVersion: 1,
           rootWorkId: ref.id,
@@ -418,6 +420,70 @@ export function installationService(db: Firestore) {
       tx.update(ref, update);
       audit(tx, workId, actor, "edit");
       return { id: workId, ...work, ...update };
+    });
+  }
+
+  async function manage(actor: InstallationActor, workId: string, input: InstallationManagementInput) {
+    check(managers.includes(actor.role), "Doar dispecerul/adminul poate gestiona ofertarea și facturarea.", 403);
+    check(input.work && typeof input.work === "object" && !Array.isArray(input.work), "Actualizare invalidă.");
+    const remove = input.remove ?? [];
+    const serverTime = input.serverTime ?? [];
+    const append = input.append ?? {};
+    check(Array.isArray(remove) && Array.isArray(serverTime) && append && typeof append === "object" && !Array.isArray(append), "Actualizare invalidă.");
+    const keys = [...Object.keys(input.work), ...remove, ...serverTime, ...Object.keys(append)];
+    check(keys.length > 0 && keys.every(key => (installationManagementKeys as readonly string[]).includes(key)), "Câmp administrativ nepermis.");
+    check(new Set(keys).size === keys.length, "Câmp administrativ repetat.");
+    check(remove.every(key => ["facturaDocument", "ofertaDocument", "statusOferta"].includes(key)), "Câmpul nu poate fi șters.");
+    check(serverTime.every(key => ["offerPreparedAt", "devizPreparedAt"].includes(key)), "Dată administrativă invalidă.");
+    check(Object.entries(append).every(([key, values]) => ["offerVersions", "devizVersions"].includes(key) && Array.isArray(values) && values.length > 0 && values.length <= 20), "Versiuni comerciale invalide.");
+    check(!("offerVersions" in input.work) && !("devizVersions" in input.work), "Istoricul comercial poate fi doar completat.");
+    return db.runTransaction(async tx => {
+      const user = await actorData(tx, actor);
+      check(user.disabled !== true, "Acces neautorizat.", 403);
+      const ref = workRef(workId);
+      const work = (await tx.get(ref)).data();
+      assertWork(work);
+      check(!work.anulat && !work.archivedAt && !["Arhivată", "Anulat", "Anulată"].includes(work.statusLucrare) && work.installation.closedReason !== "cancelled", "Tichetul este arhivat sau anulat.", 409);
+      const patch: RecordData = { ...input.work };
+      for (const key of remove) patch[key] = FieldValue.delete();
+      for (const key of serverTime) patch[key] = FieldValue.serverTimestamp();
+      for (const [key, values] of Object.entries(append)) patch[key] = FieldValue.arrayUnion(...values);
+      if ("preluatDispecer" in patch || "preluatDe" in patch) {
+        check(patch.preluatDispecer === true, "Preluarea nu poate fi retrasă.");
+        check(work.statusLucrare === "Finalizat" && work.installation.closedReason === "completed", "Finalizează instalarea înainte de preluarea de către dispecer.", 409);
+        const completion = await tx.get(completionRef(work.installation.rootWorkId));
+        check(completion.exists, "Procesul-verbal de terminare nu este disponibil.", 409);
+        if (work.preluatDispecer) {
+          patch.preluatDispecer = true;
+          patch.preluatDe = work.preluatDe || String(user.displayName || user.email || "Dispecer");
+        } else {
+          patch.preluatDe = String(user.displayName || user.email || "Dispecer");
+        }
+      }
+      const pickedUp = work.preluatDispecer === true || patch.preluatDispecer === true;
+      const invoiceKeys = ["facturaDocument", "statusFacturare", "motivNefacturare"];
+      if (keys.some(key => invoiceKeys.includes(key))) {
+        check(pickedUp, "Preia tichetul înainte de facturare.", 409);
+        const status = input.work.statusFacturare ?? work.statusFacturare;
+        check(["Nefacturat", "Facturat", "Nu se facturează"].includes(status), "Status de facturare invalid.");
+        const invoice = remove.includes("facturaDocument") ? null : input.work.facturaDocument ?? work.facturaDocument;
+        if (status === "Facturat") check(invoice?.url, "Încarcă factura înainte de marcarea ca facturat.");
+        if (status === "Nu se facturează") check(String(input.work.motivNefacturare ?? work.motivNefacturare ?? "").trim(), "Completează motivul pentru care nu se facturează.");
+      }
+      if ("necesitaOferta" in patch) {
+        check(typeof patch.necesitaOferta === "boolean", "Setare de ofertare invalidă.");
+        check(patch.necesitaOferta || !(Number(work.offerSendCount) > 0), "Oferta a fost deja transmisă și nu poate fi dezactivată.", 409);
+      }
+      if (keys.some(key => key.startsWith("deviz"))) check(pickedUp, "Preia tichetul înainte de pregătirea devizului.", 409);
+      for (const key of ["facturaDocument", "ofertaDocument"]) {
+        if (key in input.work) {
+          const document = input.work[key] as RecordData;
+          check(document && typeof document.url === "string" && /^https:\/\//.test(document.url) && typeof document.fileName === "string", "Document comercial invalid.");
+        }
+      }
+      tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp(), notificationRead: false, notificationReadBy: [] });
+      audit(tx, workId, actor, "manage", { fields: keys });
+      return { id: workId };
     });
   }
 
@@ -1387,6 +1453,7 @@ export function installationService(db: Firestore) {
   return {
     create,
     edit,
+    manage,
     start,
     save,
     stop,

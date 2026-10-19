@@ -7,6 +7,8 @@ import { TicketDialog } from "@/components/ticket-dialog"
 import { ticketEditDraft } from "@/lib/work-documents/ticket-edit-draft"
 import { InstallationWorkspace } from "@/components/installation-workspace"
 import { InstallationTicketDetails } from "@/components/installation/ticket-details"
+import { InstallationManagement } from "@/components/installation/management"
+import { installationManagementKeys } from "@/lib/installations/management"
 import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
 import { resolveTicketLocation, resolveTicketContact } from "@/firebase-functions/src/client-ticket-sync"
 import { TicketClientInformation, TicketClientReadStatus } from "@/components/ticket-client-information"
@@ -383,6 +385,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       if (!active || !snapshot.exists()) return
       const data = snapshot.data()
       const fields = ["client", "locatie", "locationName", "clientId", "locationId", "contactId", "persoanaContact", "telefon", "persoanaContactEmail", "clientInfo", "persoaneContact", "contactSync", "statusLucrare", "archivedAt", "archived", "anulat", "anulatAt"]
+      if (isInstallationV1(data)) fields.push(...installationManagementKeys, "installation", "offerSendCount", "lastOfferEmail", "offerResponse", "offerResponsesHistory")
       const contactData = Object.fromEntries(fields.filter(key => data[key] !== undefined).map(key => [key, data[key]]))
       const next = JSON.stringify(contactData)
       if (next === signature) return
@@ -2086,14 +2089,17 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   if (isInstallationV1(lucrare)) return (
     <DashboardShell>
       <InstallationWorkspace key={`${paramsId}-${installationRefresh}`} workId={paramsId} compact onEdit={handleEdit} ticketDetails={
-        <InstallationTicketDetails
-          work={lucrare}
-          display={clientDisplay}
-          clientId={lucrare.clientId || clientData?.id}
-          role={role || ""}
-          unavailable={ticketClient.unavailable}
-          syncIssues={contactSyncIssues}
-        />
+        <>
+          <InstallationTicketDetails
+            work={lucrare}
+            display={clientDisplay}
+            clientId={lucrare.clientId || clientData?.id}
+            role={role || ""}
+            unavailable={ticketClient.unavailable}
+            syncIssues={contactSyncIssues}
+          />
+          <InstallationManagement work={lucrare} onUpdate={setLucrare} />
+        </>
       } />
       {editDialog}
     </DashboardShell>

@@ -1,4 +1,5 @@
 "use client"
+import { hasTicketCompletionDocument } from "@/lib/utils/work-completion"
 import { attendanceHrError } from "@/packages/fom-domain/attendance-hr"
 import { prepareReinterventionContact } from "@/lib/work-documents/live-ticket-contact"
 import { ContactAssociationError } from "@/firebase-functions/src/client-ticket-sync"
@@ -446,7 +447,7 @@ export default function Lucrari() {
           lucrare.tehnicieni && Array.isArray(lucrare.tehnicieni) && lucrare.tehnicieni.includes(userData.displayName)
 
         const isFinalized = isFinalizatByReport(lucrare)
-        const hasReportGenerated = lucrare.raportGenerat === true
+        const hasReportGenerated = hasTicketCompletionDocument(lucrare)
         const isPickedUpByDispatcher = lucrare.preluatDispecer === true
         const isCompletedWithReportAndPickedUp = isFinalized && hasReportGenerated && isPickedUpByDispatcher
 
@@ -599,7 +600,7 @@ export default function Lucrari() {
 
   // Helper function to check if a work order is completed with report but not picked up
   const isCompletedWithReportNotPickedUp = useCallback(
-    (lucrare) => isFinalizatByReport(lucrare) && lucrare.raportGenerat === true && lucrare.preluatDispecer === false,
+    (lucrare: Lucrare) => isFinalizatByReport(lucrare) && hasTicketCompletionDocument(lucrare) && lucrare.preluatDispecer !== true,
     [isFinalizatByReport],
   )
 
@@ -867,13 +868,12 @@ export default function Lucrari() {
                 if (val === "preluat") return item.preluatDispecer === true
                 if (val === "nepreluat")
                   return (
-                    item.preluatDispecer === false && isFinalizatByReport(item) && item.raportGenerat === true
+                    item.preluatDispecer !== true && isFinalizatByReport(item) && hasTicketCompletionDocument(item)
                   )
                 if (val === "nedefinit")
                   return (
-                    item.preluatDispecer === undefined ||
                     !isFinalizatByReport(item) ||
-                    item.raportGenerat !== true
+                    !hasTicketCompletionDocument(item)
                   )
                 return false
               })
@@ -2677,7 +2677,7 @@ export default function Lucrari() {
       enableFiltering: true,
       cell: ({ row }) => {
         const isFinalized = isFinalizatByReport(row.original)
-        const hasReportGenerated = row.original.raportGenerat === true
+        const hasReportGenerated = hasTicketCompletionDocument(row.original)
         const isPickedUp = row.original.preluatDispecer === true
 
         if (isFinalized && hasReportGenerated) {

@@ -133,6 +133,77 @@ after(async () => {
   await deleteApp(app);
 });
 
+async function commercialReady() {
+  const work = await create();
+  const ref = db.collection("lucrari").doc(work.id);
+  await ref.update({ statusLucrare: "Finalizat", "installation.closedReason": "completed", "installation.completionDocumentId": "final" });
+  await ref.collection("installationCompletion").doc("final").set({ documentSnapshot: { signed: true, equipment: ["e1", "e2"] } });
+  return { work, ref };
+}
+
+test("completed installation supports dispatcher pickup and invoice without changing signed documents", async () => {
+  const { work, ref } = await commercialReady();
+  const before = (await ref.get()).data()!;
+  const signedBefore = (await ref.collection("installationCompletion").doc("final").get()).data();
+  await service.manage(manager, work.id, { work: { preluatDispecer: true, preluatDe: "Untrusted client name" } });
+  assert.equal((await ref.get()).data()!.preluatDe, "Dispecer test");
+  await service.manage(manager, work.id, { work: { facturaDocument: { url: "https://example.invalid/factura.pdf", fileName: "factura.pdf" }, statusFacturare: "Facturat" } });
+  const after = (await ref.get()).data()!;
+  assert.equal(after.statusFacturare, "Facturat");
+  assert.equal(after.preluatDispecer, true);
+  assert.equal(after.statusLucrare, "Finalizat");
+  assert.deepEqual(after.installation, before.installation);
+  assert.deepEqual((await ref.collection("installationCompletion").doc("final").get()).data(), signedBefore);
+  assert.equal(after.raportGenerat, undefined, "No legacy intervention report is created");
+  const audit = await ref.collection("installationAudit").where("action", "==", "manage").get();
+  assert.equal(audit.size, 2);
+});
+
+test("installation commercial transitions reject technicians, forged roles and unfinished pickup", async () => {
+  const work = await create();
+  await assert.rejects(service.manage(tech, work.id, { work: { necesitaOferta: true } }), /Doar dispecerul/);
+  await assert.rejects(service.manage({ uid: tech.uid, role: "dispecer" }, work.id, { work: { necesitaOferta: true } }), /neautorizat/);
+  await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true } }), /Finalizează instalarea/);
+  await assert.rejects(service.manage(manager, work.id, { work: { statusFacturare: "Facturat" } }), /Preia tichetul/);
+  await assert.rejects(service.manage(manager, work.id, { work: { devizProducts: [] } }), /Preia tichetul/);
+  await assert.rejects(service.manage(manager, work.id, { work: { statusLucrare: "Finalizat" } }), /nepermis/);
+  await assert.rejects(service.manage(manager, work.id, { work: { installation: {} } }), /nepermis/);
+  await db.collection("lucrari").doc(work.id).update({ statusLucrare: "Finalizat", "installation.closedReason": "completed" });
+  await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true } }), /Procesul-verbal/);
+});
+
+test("offer versions append atomically before pickup; sent offers cannot be disabled", async () => {
+  const work = await create();
+  const ref = db.collection("lucrari").doc(work.id);
+  await service.manage(manager, work.id, { work: { necesitaOferta: true, comentariiOferta: "Montaj suplimentar" } });
+  await Promise.all([1, 2].map(number => service.manage(manager, work.id, {
+    work: {}, append: { offerVersions: [{ savedAt: `version-${number}`, products: [], total: number }] },
+  })));
+  assert.equal((await ref.get()).data()!.offerVersions.length, 2);
+  await service.manage(manager, work.id, { work: {}, append: { offerVersions: [{ savedAt: "version-1", products: [], total: 1 }] } });
+  assert.equal((await ref.get()).data()!.offerVersions.length, 2, "Retry does not duplicate a version");
+  await ref.update({ offerSendCount: 1 });
+  await assert.rejects(service.manage(manager, work.id, { work: { necesitaOferta: false } }), /nu poate fi dezactivată/);
+  await assert.rejects(service.manage(manager, work.id, { work: { offerVersions: [] } }), /doar completat/);
+  await assert.rejects(service.manage(manager, work.id, { work: {}, append: { installation: [] } }), /nepermis/);
+});
+
+test("invoice and no-invoice transitions validate documents and support removal", async () => {
+  const { work, ref } = await commercialReady();
+  await service.manage(manager, work.id, { work: { preluatDispecer: true } });
+  await assert.rejects(service.manage(manager, work.id, { work: { statusFacturare: "Nu se facturează", motivNefacturare: "  " } }), /Completează motivul/);
+  await assert.rejects(service.manage(manager, work.id, { work: { statusFacturare: "Facturat" } }), /Încarcă factura/);
+  await service.manage(manager, work.id, { work: { statusFacturare: "Nu se facturează", motivNefacturare: "Inclus în contract" } });
+  await service.manage(manager, work.id, { work: { facturaDocument: { url: "https://example.invalid/invoice", fileName: "invoice" }, statusFacturare: "Facturat" } });
+  await service.manage(manager, work.id, { work: { statusFacturare: "Nu se facturează" }, remove: ["facturaDocument"] });
+  assert.equal((await ref.get()).data()!.facturaDocument, undefined);
+  assert.equal((await ref.get()).data()!.statusFacturare, "Nu se facturează");
+  await service.manage(manager, work.id, { work: { devizTotal: 100 }, append: { devizVersions: [{ total: 100 }] } });
+  assert.equal((await ref.get()).data()!.devizVersions.length, 1);
+  await ref.update({ statusLucrare: "Arhivată" });
+  await assert.rejects(service.manage(manager, work.id, { work: { necesitaOferta: true } }), /arhivat sau anulat/);
+});
+
 const admin = { uid: "admin", role: "admin" };
 async function seedAdmin() {
   await db.doc("users/admin").set({ role: "admin", displayName: "Admin test" });

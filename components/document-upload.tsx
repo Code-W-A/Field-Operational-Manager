@@ -21,9 +21,10 @@ interface DocumentUploadProps {
   lucrare: any // Tipul complet al lucrării
   onLucrareUpdate: (updatedLucrare: any) => void
   hideOfertaUpload?: boolean
+  hideReportActions?: boolean
 }
 
-export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOfertaUpload = false }: DocumentUploadProps) {
+export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOfertaUpload = false, hideReportActions = false }: DocumentUploadProps) {
   const { userData } = useAuth()
   const [isUploading, setIsUploading] = useState<{ factura: boolean; oferta: boolean }>({
     factura: false,
@@ -266,11 +267,11 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </CardHeader>
         <CardContent>
           {/* Generator ascuns pentru raport – permite descărcare directă fără navigare */}
-          <div className="hidden">
+          {!hideReportActions && <div className="hidden">
             <ReportGenerator lucrare={lucrare as any} onGenerate={handleReportGenerate} ref={reportGeneratorRef} />
-          </div>
+          </div>}
           <div className="grid gap-3">
-            {lucrare.raportGenerat && (
+            {!hideReportActions && lucrare.raportGenerat && (
               <a
                 className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
                 href="#"
@@ -345,9 +346,9 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Generator ascuns pentru raport – permite descărcare directă fără navigare */}
-        <div className="hidden">
+        {!hideReportActions && <div className="hidden">
           <ReportGenerator lucrare={lucrare as any} onGenerate={handleReportGenerate} ref={reportGeneratorRef} />
-        </div>
+        </div>}
         {/* Verificăm dacă tichetul a fost preluat */}
         {!isWorkPickedUp && (
           <Alert>
@@ -574,7 +575,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
         </div> */}
 
         {/* Acțiuni descărcare documente generate (context: Documente PDF) */}
-        <div className="flex flex-wrap gap-2">
+        {!hideReportActions && <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -591,7 +592,7 @@ export function DocumentUpload({ lucrareId, lucrare, onLucrareUpdate, hideOferta
           </Button>
 
        
-        </div>
+        </div>}
 
         {/* Dialog pentru motivul nefăcturării */}
         <Dialog open={isMotivDialogOpen} onOpenChange={setIsMotivDialogOpen}>
