@@ -11,6 +11,7 @@ import {
 } from "./scheduled-works-auth"
 import { mayUseExternalSmtp } from "./mail-transport-policy"
 import { selectRevisionEquipmentIdsForLocation } from "./revision-equipment-selection"
+import { scheduledWorkLocation } from "./work-location-association"
 export { auditNestedDocumentWritten, auditTopLevelDocumentWritten } from "./audit-log"
 export { onClientContactDetailsChanged, processClientContactSyncPage } from "./client-ticket-sync-worker"
 
@@ -1762,7 +1763,7 @@ async function fetchClient(clientId?: string): Promise<{ name?: string; data?: C
   try {
     const snap = await db.collection("clienti").doc(clientId).get()
     if (snap.exists) {
-      const data = snap.data() as Client
+      const data = { ...snap.data(), id: snap.id } as Client
       return { name: data?.nume, data }
     }
   } catch (e) {
@@ -1771,22 +1772,22 @@ async function fetchClient(clientId?: string): Promise<{ name?: string; data?: C
   return {}
 }
 
-async function workExists(contractId: string, locationId: string | undefined, scheduledIso: string) {
+async function workExists(contractId: string, locationId: string | undefined, scheduledIso: string, legacyLocationId?: string) {
   // Avem date istorice cu câmpuri diferite (ex: `contract` = număr contract, sau `contractId` separat).
   // Pentru a evita duplicate, verificăm întâi pe `contractId`, apoi fallback pe `contract` (id-ul contractului).
   const probes: Array<"contractId" | "contract"> = ["contractId", "contract"]
+  const locationIds: Array<string | undefined> = locationId
+    ? Array.from(new Set([locationId, legacyLocationId].filter((id): id is string => Boolean(id))))
+    : [undefined]
 
   for (const field of probes) {
-  let q = db.collection("lucrari")
-      .where(field, "==", contractId)
-    .where("dataInterventie", "==", scheduledIso)
-
-  if (locationId) {
-    q = q.where("locationId", "==", locationId)
-  }
-
-  const snap = await q.limit(1).get()
-    if (!snap.empty) return true
+    for (const candidateId of locationIds) {
+      let q = db.collection("lucrari")
+        .where(field, "==", contractId)
+        .where("dataInterventie", "==", scheduledIso)
+      if (candidateId) q = q.where("locationId", "==", candidateId)
+      if (!(await q.limit(1).get()).empty) return true
+    }
   }
 
   return false
@@ -2062,7 +2063,7 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
                 .filter((eq: any) => eq.id || eq.cod)
             : []
           if (eqList.length) {
-            locationEquipments.set(locName, eqList)
+            if (loc.id) locationEquipments.set(String(loc.id), eqList)
           }
         }
       }
@@ -2100,12 +2101,25 @@ async function generateRevisionWorks(params: { now: Date; contractId?: string })
       // 3) Nu creăm revizii pentru date de execuție deja trecute (fără backfill implicit)
       if (entry.scheduledAt <= now) continue
 
+        // Legacy contract calendars used the location name in locationId. Resolve
+        // it uniquely before creating a ticket, without rewriting the contract.
+        let stableLocation: Record<string, any>
+        try {
+          if (!clientPayload.data) throw new Error("Clientul contractului lipsește.")
+          stableLocation = scheduledWorkLocation(clientPayload.data, entry)
+        } catch (error) {
+          console.warn("generateRevisionWorks: invalid location", { contractId: contract.id, locationId: entry.locationId, error: String(error) })
+          continue
+        }
         const scheduledIso = toIsoDate(entry.scheduledAt)
-        const exists = await workExists(contract.id, entry.locationId, scheduledIso)
+        // Probe both representations so old and repaired tickets are not duplicated.
+        const exists = await workExists(contract.id, stableLocation.id, scheduledIso, stableLocation.nume)
         if (exists) continue
+        entry.locationId = stableLocation.id
+        entry.locationName = stableLocation.nume
 
         const nrLucrare = await getNextReportNumberAdmin()
-        const locEqList = locationEquipments.get(entry.locationName || "") || []
+        const locEqList = locationEquipments.get(entry.locationId || "") || []
         const equipmentIdsForWork = selectRevisionEquipmentIdsForLocation({
           contractEquipmentIds,
           locationEquipments: locEqList,

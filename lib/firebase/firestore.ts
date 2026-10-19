@@ -5,6 +5,7 @@ import type { Timestamp, DocumentData } from "firebase/firestore"
 import {
   collection,
   getDocs,
+  getDocsFromServer,
   getDoc,
   getDocFromServer,
   doc,
@@ -29,6 +30,24 @@ import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-val
 import { resolveDuplicateContractAssignmentConflict } from "@/lib/utils/contract-assignment-validation"
 import { isContractSuspended, SUSPENDED_CONTRACT_MESSAGE } from "@/lib/contracts/contract-status"
 import type { OfferResponseCertifiedPdf } from "@/lib/offer/evidence-types"
+import { stableWorkLocation, writesWorkAssociation } from "@/firebase-functions/src/work-location-association"
+
+async function validateLocationBeforeWrite(work: Record<string, any>): Promise<string | undefined> {
+  const locationId = work.locationId || work.clientInfo?.locationId || work.clientInfo?.locatieId
+  const locationName = work.locatie || work.locationName || work.clientInfo?.locationName
+  if (!locationId && !locationName) return undefined
+  const clientId = String(work.clientId || work.clientInfo?.id || "").trim()
+  let client: Record<string, any> | undefined
+  if (clientId) {
+    const snapshot = await getDocFromServer(doc(db, "clienti", clientId))
+    if (snapshot.exists()) client = { ...snapshot.data(), id: snapshot.id }
+  } else if (work.client) {
+    const matches = await getDocsFromServer(query(collection(db, "clienti"), where("nume", "==", work.client), limit(2)))
+    if (matches.size === 1) client = { ...matches.docs[0].data(), id: matches.docs[0].id }
+  }
+  if (!client) throw new Error("Clientul nu poate fi identificat sigur. Selectați din nou clientul și locația.")
+  return String(stableWorkLocation(client, work).id)
+}
 
 export type PersoanaContact = CanonicalPersoanaContact;
 
@@ -823,6 +842,8 @@ export const addLucrare = async (lucrare: Lucrare) => {
   } catch {
     // non-blocking
   }
+  const stableLocationId = await validateLocationBeforeWrite(lucrare)
+  if (stableLocationId) lucrare.locationId = stableLocationId
   lucrare.createdAt = serverTimestamp() as Timestamp
   lucrare.updatedAt = serverTimestamp() as Timestamp
   const docRef = await addDoc(lucrariCollection, lucrare)
@@ -887,6 +908,14 @@ export const updateLucrare = async (
     }
     await installationRequest(installationApi(id), { action: "edit", work: lucrare })
     return
+  }
+
+  if (writesWorkAssociation(lucrare)) {
+    // Association validation must use current server data, not an optional audit snapshot.
+    const fresh = await getDocFromServer(lucrareDoc)
+    if (!fresh.exists()) throw new Error("Tichetul nu mai există.")
+    const stableLocationId = await validateLocationBeforeWrite({ ...fresh.data(), ...lucrare })
+    if (stableLocationId) lucrare.locationId = stableLocationId
   }
   
   // Pentru actualizări silentioase (ex: marcare ca citită), nu actualizăm updatedAt și nu resetăm notificările
