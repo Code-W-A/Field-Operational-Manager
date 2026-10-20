@@ -53,7 +53,7 @@ test("both revision PDFs show only the immediate parent with terminal checks and
   }
 });
 
-test("technician revision PDFs hide codes in names, headers and context, including empty sheets", async () => {
+test("technician revision PDFs show the equipment name even when equal to its code, but hide the code field", async () => {
   const work = { id: "work", client: "Client test", locatie: "Sediu", nrLucrare: "TEST", tipLucrare: "Revizie",
     revision: { equipment: [{ equipmentId: "eq", equipmentName: "ADMIN-UP1", equipmentCode: "ADMIN-UP1", model: "Ușă pietonală" }] } };
   const revision = { id: "eq", equipmentId: "eq", equipmentName: "ADMIN-UP1", equipmentCode: "ADMIN-UP1",
@@ -78,7 +78,7 @@ test("technician revision PDFs hide codes in names, headers and context, includi
         const events = jsPDF.API.events as any;
         events.splice(events.indexOf(event), 1);
       }
-      assert.equal(texts.some(text => text.includes("ADMIN-UP1")), !hidden, `${variant}: raw equipment name/code visibility`);
+      assert.equal(texts.some(text => text.includes("ADMIN-UP1")), true, `${variant}: raw equipment name/code visibility`);
       assert.equal(texts.some(text => text.includes("Cod unic:")), !hidden, `${variant}: code field visibility`);
       assert(texts.some(text => text.includes("Client test")));
       assert(texts.some(text => text.includes("Sediu")));

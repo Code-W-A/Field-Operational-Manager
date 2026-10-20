@@ -431,7 +431,7 @@ export function TehnicianInterventionForm({
       console.error("Eroare la salvarea datelor:", error)
       toast({
         title: "Eroare",
-        description: "A apărut o eroare la salvarea datelor. Vă rugăm să încercați din nou.",
+        description: error instanceof Error ? error.message : "A apărut o eroare la salvarea datelor. Vă rugăm să încercați din nou.",
         variant: "destructive",
       })
     } finally {

@@ -2080,7 +2080,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     <DashboardShell>
       <InstallationManagement key={`${paramsId}-${installationRefresh}`} work={lucrare} onUpdate={setLucrare}>
         {({ headerAction, clientControls, documents }) => (
-          <InstallationWorkspace workId={paramsId} compact onEdit={handleEdit} headerActions={headerAction} ticketDetails={
+          <InstallationWorkspace workId={paramsId} compact onEdit={handleEdit} headerActions={headerAction}
+            managementDocuments={role === "admin" || role === "dispecer" ? documents : undefined}
+            ticketDetails={
             <>
               <InstallationTicketDetails
                 work={lucrare}
@@ -2091,7 +2093,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 syncIssues={contactSyncIssues}
                 commercialControls={clientControls}
               />
-              {documents}
+              {role !== "admin" && role !== "dispecer" && documents}
             </>
           } />
         )}
@@ -2888,7 +2890,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                               {/* Informații echipament - stack vertical pentru mobile */}
                               <div className="p-4">
                                 <h4 className="text-xl font-bold mb-2 text-gray-900 leading-tight">
-                                  {role === "tehnician" ? `Echipament ${index + 1}` : eq?.nume || revItem?.equipmentName || "Echipament necunoscut"}
+                                  {eq?.denumire || eq?.nume || eq?.name || revItem?.equipmentName || "Denumire echipament lipsă"}
                                 </h4>
                                 
                                 <div className="space-y-2 mb-4 text-base">
@@ -2972,7 +2974,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                         const a = document.createElement("a")
                                         a.href = url
                                         // Construim numele fișierului pe baza selecției (headerOverride) sau fallback
-                                        const fileLabel = role === "tehnician" ? `Echipament_${index + 1}` : headerOverride || eq?.nume || eq?.name || eq?.model || eid || "Echipament"
+                                        const fileLabel = eq?.denumire || eq?.nume || eq?.name || revItem?.equipmentName || "Fisa_revizie"
                                         const safeLabel = String(fileLabel).replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "_")
                                         const safeSheetNumber = sheetNumberLabel.replace(/[\\/:*?"<>|]+/g, "").trim()
                                         a.download = `Fisa_Operatiuni_${safeLabel}_${safeSheetNumber}.pdf`
@@ -4679,7 +4681,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                   cauzaPrincipalaDefectId: (lucrare as any).cauzaPrincipalaDefectId,
                   cauzaPrincipalaDefect: (lucrare as any).cauzaPrincipalaDefect,
                   // Adăugăm câmpurile pentru garanție
-                  tipLucrareee: lucrare.tipLucrare,
+                  tipLucrare: lucrare.tipLucrare,
                   echipamentCod: lucrare.echipamentCod,
                   // Pentru echipamentData, trebuie să găsim echipamentul în datele clientului
                   echipamentData: clientData?.locatii

@@ -11,13 +11,14 @@ import loadConfig from "tailwindcss/loadConfig.js";
 
 const mocks = {
   "next/link": `import React from 'react';export default React.forwardRef(({href,children,...props},ref)=><a ref={ref} href={href} {...props}>{children}</a>);`,
-  "next/navigation": `const router={push(){},replace(){}};export const useRouter=()=>router;export const usePathname=()=>'/dashboard/lucrari/installation';export const useSearchParams=()=>new URLSearchParams();`,
+  "next/navigation": `import{useSyncExternalStore}from'react';let query='';const listeners=new Set();const router={push(){},replace(url){query=url.split('?')[1]||'';listeners.forEach(fn=>fn());}};export const useRouter=()=>router;export const usePathname=()=>'/dashboard/lucrari/installation';export const useSearchParams=()=>new URLSearchParams(useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>query));`,
   "@/components/dashboard-shell": `export const DashboardShell=({children})=><main>{children}</main>;`,
+  "@/components/equipment-qr-code": `export const EquipmentQRCode=()=>null;`,
   "@/components/qr-code-scanner": `export const QRCodeScanner=()=>null;`,
   "@/lib/installations/client": `export const installationApi=id=>'/installation/'+id;export const installationRequest=async()=>({work:structuredClone(window.work),sheets:[],canStart:false,currentSession:null,completion:null});`,
-  "@/components/installation/overview": `export const InstallationSummary=()=>null;export const InstallationContext=()=>null;export const InstallationEquipmentList=()=> <p>Lista echipamentelor</p>;export const InstallationHistory=()=>null;export const InstallationDocuments=()=>null;`,
+  "@/components/installation/overview": `export {InstallationSummary} from ${JSON.stringify(path.resolve("components/installation/overview.tsx"))};export const InstallationContext=()=>null;export const InstallationEquipmentList=()=> <p>Lista echipamentelor</p>;export const InstallationHistory=()=>null;export const InstallationDocuments=()=>null;`,
   "@/components/installation/forms": `export const InstallationSheetForm=()=>null;export const InstallationCompletionForm=()=>null;`,
-  "@/components/installation/team": `export const InstallationTeam=()=>null;`,
+  "@/components/installation/team": `export const InstallationTeam=()=>null;export const sheetStateLabel=state=>state;`,
   "@/contexts/AuthContext": `export const useAuth=()=>({userData:{uid:'dispatcher',role:window.role,displayName:'Dispecer test'}});`,
   "@/lib/firebase/firestore": `export const getLucrareById=async()=>structuredClone(window.work); export const updateLucrare=async(id,patch)=>{window.calls.writes.push(patch); await new Promise(r=>setTimeout(r,window.saveDelay||30)); if(window.failSave) throw new Error('Salvare indisponibilă'); window.work={...window.work,...patch,...(patch.preluatDispecer?{preluatDe:'Dispecer test'}:{})};};`,
   "@/lib/firebase/storage": `export const uploadFile=async(file,path)=>{window.calls.uploads.push({name:file.name,path}); return {url:'https://storage.test/invoice.pdf',fileName:file.name};}; export const deleteFile=async()=>{};`,
@@ -29,7 +30,7 @@ const mocks = {
 };
 const result = await build({
   stdin: {
-    contents: `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {InstallationManagement} from '@/components/installation/management';import {InstallationTicketDetails} from '@/components/installation/ticket-details';import {InstallationWorkspace} from '@/components/installation-workspace';function Fixture(){const [work,setWork]=useState(window.work);window.replaceWork=patch=>{window.work={...window.work,...patch};setWork(window.work)};return <div className="mx-auto max-w-7xl p-4"><InstallationManagement work={work} onUpdate={setWork}>{({headerAction,clientControls,documents})=><InstallationWorkspace workId={work.id} compact headerActions={headerAction} onEdit={()=>{}} ticketDetails={<><InstallationTicketDetails work={work} role={window.role} display={{identity:{name:work.client},contact:{location:work.locatie,name:'Contact test',address:'Adresă test'},issues:[]}} syncIssues={[]} commercialControls={clientControls}/>{documents}</>}/>}</InstallationManagement></div>};createRoot(document.getElementById('root')).render(<Fixture/>);`,
+    contents: `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {InstallationManagement} from '@/components/installation/management';import {InstallationTicketDetails} from '@/components/installation/ticket-details';import {InstallationWorkspace} from '@/components/installation-workspace';function Fixture(){const [work,setWork]=useState(window.work);window.replaceWork=patch=>{window.work={...window.work,...patch};setWork(window.work)};return <div className="mx-auto max-w-7xl p-4"><InstallationManagement work={work} onUpdate={setWork}>{({headerAction,clientControls,documents})=><InstallationWorkspace workId={work.id} compact headerActions={headerAction} onEdit={()=>{}} managementDocuments={window.role==='admin'||window.role==='dispecer'?documents:undefined} ticketDetails={<><InstallationTicketDetails work={work} role={window.role} display={{identity:{name:work.client},contact:{location:work.locatie,name:'Contact test',address:'Adresă test'},issues:[]}} syncIssues={[]} commercialControls={clientControls}/>{window.role!=='admin'&&window.role!=='dispecer'&&documents}</>}/>}</InstallationManagement></div>};createRoot(document.getElementById('root')).render(<Fixture/>);`,
     resolveDir: process.cwd(),
     loader: "tsx",
   },
@@ -72,7 +73,7 @@ const css = (
       content: [
         "./components/installation-workspace.tsx",
         "./components/dashboard-header.tsx",
-        "./components/installation/{management,ticket-details}.tsx",
+        "./components/installation/{management,ticket-details,overview}.tsx",
         "./components/ui/*.tsx",
         "./components/document-upload.tsx",
         "./components/ticket-client-information.tsx",
@@ -333,6 +334,34 @@ try {
     await expect(
       page.getByRole("tab", { name: "Documente", exact: true }),
     ).toBeVisible();
+    const details = await page.getByRole("heading", { name: "Detalii instalare", exact: true }).boundingBox();
+    const client = await clientCard.boundingBox();
+    const totals = page.getByText("Echipamente totale", { exact: true });
+    const stats = await totals.locator('xpath=ancestor::div[contains(@class,"grid-cols-2")][1]').boundingBox();
+    const invoice = await page.getByRole("button", { name: "Încarcă factură", exact: true }).boundingBox();
+    const tabs = await page.getByRole("tablist").boundingBox();
+    assert(details && client && stats && invoice && tabs);
+    await expect(totals).toHaveCount(1);
+    await expect(page.getByRole("button", {name: "Încarcă factură", exact: true})).toHaveCount(1);
+    assert(stats.y > details.y && invoice.y > client.y, "Summary and invoice follow ticket details");
+    if (width >= 1280) {
+      assert(Math.abs(details.y - client.y - 24) < 45, "Top cards share the same row");
+      assert(client.x > details.x, "Client occupies the right column");
+      assert(invoice.x > stats.x + stats.width, "Invoice occupies the right column beside summary");
+      assert(Math.abs(client.x - invoice.x + 24) < 50, "Invoice aligns with the client column");
+    } else {
+      assert(client.y > details.y && invoice.y > stats.y + stats.height, "Mobile sections stack vertically");
+    }
+    const finalStat = await page.getByText("Finalizate", {exact:true}).boundingBox();
+    const remainingStat = await page.getByText("Rămase", {exact:true}).boundingBox();
+    const totalStat = await totals.boundingBox();
+    assert(Math.abs(finalStat.y - totalStat.y) < 2 && remainingStat.y > totalStat.y, "Statistics use a 2 by 2 grid");
+    assert(tabs.y > stats.y + stats.height && tabs.y > invoice.y, "Tabs follow the summary and invoice row");
+    for (const name of ["Fișe zilnice", "Documente", "Echipamente"]) {
+      const tab = page.getByRole("tab", {name, exact:true});
+      await tab.click();
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+    }
     await page.screenshot({
       path: `/private/tmp/fom-installation-layout-${width}.png`,
       fullPage: true,

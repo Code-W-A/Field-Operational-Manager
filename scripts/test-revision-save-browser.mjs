@@ -66,8 +66,7 @@ async function openPrompt(page,hardware=false) {
 try {
   for (const role of ['admin','tehnician']) {
     const hierarchy = await fixture({role,hierarchy:true})
-    await expect(hierarchy.getByText(`Fișa de operațiuni – ${role === 'tehnician' ? 'Echipament' : 'ADMIN-UP1'}`, {exact:true})).toBeVisible()
-    if(role === 'tehnician') assert(!await hierarchy.locator('body').innerText().then(text=>text.includes('ADMIN-UP1')))
+    await expect(hierarchy.getByText(`Fișa de operațiuni – ADMIN-UP1`, {exact:true})).toBeVisible()
     await expect(hierarchy.getByRole('heading',{name:'Canat mobil',exact:true})).toBeVisible()
     await expect(hierarchy.getByRole('checkbox')).toHaveCount(3)
     await expect(hierarchy.getByText('Toate punctele sunt bifate.',{exact:true})).toHaveCount(0)

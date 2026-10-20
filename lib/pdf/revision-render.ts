@@ -314,6 +314,7 @@ function resolveRevisionContext(
 
   const equipmentNameRaw =
     firstNonEmpty([
+      resolvedClientEquipment?.denumire,
       resolvedClientEquipment?.nume,
       resolvedClientEquipment?.name,
       rev?.equipmentName,
@@ -430,7 +431,7 @@ function drawRevisionContextBlock(
   const equipmentLines = [
     ...splitTextToSizeClamped(
       pdf,
-      `Nume echipament: ${hideEquipmentIdentity ? "Echipament" : context.equipment.name}`,
+      `Nume echipament: ${context.equipment.name}`,
       usableWidth,
     ),
     ...(hideEquipmentIdentity ? [] : splitTextToSizeClamped(
@@ -610,7 +611,7 @@ export async function renderRevisionOperationsPDF(
 
     // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
     const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : [];
-    const level2Label = opts?.hideEquipmentIdentity ? "Echipament" : resolveHeaderLabel(rev, sectionsForHeader);
+    const level2Label = resolveHeaderLabel(rev, sectionsForHeader);
     const sheetNumberLabel = `${workNumberBase} - ${idx + 1}`;
     const headerTitle = buildEquipmentSheetHeaderTitle(
       level2Label,
@@ -810,7 +811,7 @@ export async function renderRevisionEquipmentPDF(
 
   // Header: Lista operațiuni – {Nivel 2} (categorie sau primul puncte de control când nu există categorii)
   const sectionsForHeader = Array.isArray(rev.sections) ? rev.sections : [];
-  const level2Label = opts?.hideEquipmentIdentity ? "Echipament" : resolveHeaderLabel(
+  const level2Label = resolveHeaderLabel(
     { ...rev, headerOverride: opts?.headerLabelOverride },
     sectionsForHeader,
   );

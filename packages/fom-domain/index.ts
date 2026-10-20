@@ -1,4 +1,6 @@
 import { assertPayload } from "./payload-validation";
+import { hasTicketCompletionDocument } from "./work-completion";
+export * from "./work-completion";
 /** Serializable mobile/web contract. Canonical Firestore field names are preserved. */
 import { DomainError } from "./errors";
 import { COMMAND_ACTIONS, supportedContract } from "./commands";
@@ -94,7 +96,7 @@ export function visibleWork(work: RecordData, actor: Actor) {
     !["Anulată", "Anulat", "Arhivată"].includes(work.statusLucrare) &&
     !(
       work.preluatDispecer &&
-      (work.raportGenerat || work.statusLucrare === "Amânată")
+      (hasTicketCompletionDocument(work) || work.statusLucrare === "Amânată")
     )
   );
 }

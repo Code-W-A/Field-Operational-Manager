@@ -57,6 +57,7 @@ export function InstallationWorkspace({
   compact = false,
   complete = false,
   ticketDetails,
+  managementDocuments,
   headerActions,
   onEdit,
 }: {
@@ -66,6 +67,7 @@ export function InstallationWorkspace({
   compact?: boolean;
   complete?: boolean;
   ticketDetails?: ReactNode;
+  managementDocuments?: ReactNode;
   headerActions?: ReactNode;
   onEdit?: () => void;
 }) {
@@ -452,7 +454,14 @@ export function InstallationWorkspace({
           ) : (
             <>
               {ticketDetails}
-              <InstallationSummary data={data} hideStats={technician} />
+              {manager && managementDocuments ? (
+                <div className="grid min-w-0 items-start gap-5 xl:grid-cols-2">
+                  <InstallationSummary data={data} statsColumns={2} />
+                  <div className="min-w-0">{managementDocuments}</div>
+                </div>
+              ) : (
+                <InstallationSummary data={data} hideStats={technician} />
+              )}
               {!ticketDetails && <InstallationContext data={data} />}
               <Tabs value={tab} onValueChange={chooseTab} className="space-y-5">
                 <TabsList className="grid h-auto w-full grid-cols-3 p-1 sm:w-fit">

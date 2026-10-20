@@ -53,9 +53,8 @@ const checklistIdentity = (sections: RevisionChecklistSection[]) => JSON.stringi
 
 export function RevisionOperationsSheet({ workId, equipmentId, equipmentName, checklistRootId, onUnsavedChanges, onSaveDraftRef, onSaved }: Props) {
   const { userData } = useAuth()
-  // Equipment names can contain the QR code (e.g. ADMIN-UP1).
-  // Keep the real name for persistence, but never expose it to technicians.
-  const displayEquipmentName = !userData?.role || userData.role === "tehnician" ? "Echipament" : equipmentName || "Echipament"
+  // Show the saved name even when it happens to equal the internal QR code.
+  const displayEquipmentName = equipmentName?.trim() || "Denumire echipament lipsă"
   const { toast } = useToast()
   const router = useRouter()
   const [loading, setLoading] = useState(true)

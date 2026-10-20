@@ -54,9 +54,11 @@ type Run = (action: () => Promise<void>) => Promise<void>;
 export function InstallationSummary({
   data,
   hideStats = false,
+  statsColumns = 4,
 }: {
   data: InstallationListResponse;
   hideStats?: boolean;
+  statsColumns?: 2 | 4;
 }) {
   const { work } = data;
   const meta = work.installation;
@@ -75,9 +77,9 @@ export function InstallationSummary({
     },
   ];
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {!hideStats && (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className={statsColumns === 2 ? "grid grid-cols-2 gap-3" : "grid grid-cols-2 gap-3 lg:grid-cols-4"}>
           {stats.map(({ title, value, icon: Icon }) => (
             <Card key={title}>
               <CardContent className="flex items-start justify-between gap-2 p-4 sm:p-5">

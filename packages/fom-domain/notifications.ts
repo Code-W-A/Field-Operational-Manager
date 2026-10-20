@@ -3,6 +3,7 @@ import {
   isOverdueWork,
   type OverdueConfig,
 } from "./ticket-dashboard";
+import { hasTicketCompletionDocument } from "./work-completion";
 
 export const NOTIFICATION_COLLECTIONS = {
   devices: "mobilePushDevices",
@@ -73,7 +74,7 @@ export function activeNotificationWork(work: NotificationWork) {
     ) &&
     !(
       work.preluatDispecer &&
-      (work.raportGenerat || work.statusLucrare === "Amânată")
+      (hasTicketCompletionDocument(work) || work.statusLucrare === "Amânată")
     )
   );
 }
