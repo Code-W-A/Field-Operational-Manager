@@ -4668,8 +4668,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               </Card>
             ) : (
               <TehnicianInterventionForm
+                key={lucrare.id}
                 lucrareId={lucrare.id!}
                 initialData={{
+                  mobileVersion: (lucrare as any).mobileVersion,
                   updatedAt: lucrare.updatedAt,
                   descriereInterventie: lucrare.descriereInterventie,
                   constatareLaLocatie: lucrare.constatareLaLocatie,

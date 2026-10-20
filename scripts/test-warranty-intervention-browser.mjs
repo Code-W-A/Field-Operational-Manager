@@ -1,4 +1,4 @@
-// Real page-to-form props and real form/UI/domain; persistence is isolated from production.
+// Real page props, form/UI/domain and command client; isolated HTTP/Firestore boundaries.
 import { readFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import ts from 'typescript'
@@ -27,24 +27,56 @@ const mocks = {
   '@/lib/utils/logging-service': `export const logInfo = () => {};`,
   '@/lib/firebase/firestore': `export const getLucrareById = async () => window.seed; export const updateLucrare = async () => {throw Error('Unexpected direct write');};`,
   '@/lib/firebase/storage': `export const uploadFile = async () => {throw Error('Unexpected upload');}; export const deleteFile = async () => {};`,
-  '@/lib/technician/client': `import {interventionPatch} from '@/packages/fom-domain';
-    export const technicianFile = async () => {throw Error('Unexpected upload');};
-    export const technicianCommand = async (action,id,payload) => {
-      window.calls.attempts++;
-      if(window.failure === 'server') throw Error('Conflict: tichetul a fost modificat. Reîncarcă datele.');
-      if(window.failure === 'unknown') throw null;
-      const patch = interventionPatch({...window.seed,...payload},window.seed);
-      window.calls.commands.push({action,id,payload:patch});
-      window.seed={...window.seed,...patch};
-      localStorage.setItem('work',JSON.stringify(window.seed));
-    };`,
+  '@/lib/firebase/config': `export const auth={app:{options:{projectId:'demo-warranty'}},currentUser:{uid:'tech',getIdToken:async()=>'isolated-token'}}; export const db={};`,
+  'firebase/firestore': `export const doc=()=>{}; export const getDoc=async()=>{throw Error('Unexpected implicit version refresh');};`,
 }
 const bundle = await build({
   stdin:{contents:`import React from 'react'; import {createRoot} from 'react-dom/client';
     import {TehnicianInterventionForm} from './components/tehnician-intervention-form';
-    function Fixture(){const lucrare=window.seed; const clientData=null;
-      return <TehnicianInterventionForm lucrareId={lucrare.id} initialData={${initializers[0]}} onUpdate={()=>{}}/>;}
-    createRoot(document.getElementById('root')).render(<Fixture/>);`, resolveDir:process.cwd(),loader:'tsx'},
+    import {technicianCommand} from './lib/technician/client';
+    import {interventionPatch,versionOf,assertCommand} from './packages/fom-domain';
+    const serverWork={...window.seed}; window.serverWork=serverWork;
+    const receipts=new Map();
+    window.fetch=async (url,init)=>{
+      if(url!=='/api/technician/commands') throw Error('Unexpected network request: '+url);
+      if(init.headers.get('Authorization')!=='Bearer isolated-token') throw Error('Missing authentication');
+      const command=JSON.parse(init.body); assertCommand(command);
+      window.calls.attempts++;
+      if(window.failure==='unknown') throw null;
+      const respond=(data,status=200)=>new Response(JSON.stringify(data),{status});
+      if(window.failure==='server') return respond({error:'Conflict: tichetul a fost modificat. Reîncarcă datele.',kind:'conflict'},409);
+      if(receipts.has(command.mutationId)) return respond(receipts.get(command.mutationId));
+      if(command.baseVersion!==versionOf(serverWork)) {
+        window.calls.conflicts++;
+        return respond({error:'Tichetul a fost modificat. Ciorna este păstrată.',kind:'conflict'},409);
+      }
+      const patch=command.action==='verify'
+        ? {equipmentVerified:true}
+        : interventionPatch({...serverWork,...command.payload},serverWork);
+      Object.assign(serverWork,patch,{updatedAt:{seconds:1792490000,nanoseconds:serverWork.updatedAt.nanoseconds+1000000}});
+      const version=versionOf(serverWork);
+      const result={id:serverWork.id,version,work:{...serverWork,
+        updatedAt:new Date(serverWork.updatedAt.seconds*1000+Math.floor(serverWork.updatedAt.nanoseconds/1e6)).toISOString(),
+        mobileVersion:version}};
+      receipts.set(command.mutationId,result);
+      if(command.action==='verify') window.calls.verifications++;
+      else window.calls.commands.push(command);
+      localStorage.setItem('work',JSON.stringify(serverWork));
+      if(window.failure==='lost-response') {window.failure='';throw Error('Răspuns pierdut');}
+      return respond(result);
+    };
+    function Fixture(){const [lucrare,setLucrare]=React.useState(window.seed); const clientData=null;
+      window.refreshParent=()=>setLucrare({...serverWork});
+      return <TehnicianInterventionForm key={lucrare.id} lucrareId={lucrare.id} initialData={${initializers[0]}} onUpdate={()=>{}}/>;}
+    async function start(){
+      if(!window.seed.equipmentVerified) {
+        const result=await technicianCommand('verify',serverWork.id,{code:'QR-test'},{work:serverWork});
+        window.seed=result.work;
+      }
+      window.calls.attempts=0;
+      createRoot(document.getElementById('root')).render(<Fixture/>);
+    }
+    start().catch(error=>{window.bootError=String(error)});`, resolveDir:process.cwd(),loader:'tsx'},
   bundle:true,write:false,format:'iife',platform:'browser',jsx:'automatic',
   define:{'process.env.NODE_ENV':'"test"'},
   plugins:[{name:'isolated-services',setup(b){
@@ -58,7 +90,7 @@ let checks=0
 async function mount(page, seed) {
   await page.evaluate(seed=>{
     window.seed=seed || JSON.parse(localStorage.getItem('work'))
-    window.calls={commands:[],routes:[],toasts:[],attempts:0}
+    window.calls={commands:[],routes:[],toasts:[],attempts:0,verifications:0,conflicts:0}
     window.failure=''
   },seed)
   await page.addScriptTag({content:bundle.outputFiles[0].text})
@@ -69,6 +101,7 @@ async function fixture(extra={}) {
   await page.route('https://warranty.test/**',route=>route.fulfill({contentType:'text/html',body:'<div id="root"></div>'}))
   await page.goto('https://warranty.test/work')
   await mount(page,{id:'warranty-work',tipLucrare:'Intervenție în garanție',statusLucrare:'În lucru',
+    updatedAt:{seconds:1792490000,nanoseconds:123456789},
     descriereInterventie:'Intervenție efectuată',cauzaPrincipalaDefectId:'cause',cauzaPrincipalaDefect:'Uzură',...extra})
   return page
 }
@@ -93,15 +126,21 @@ try {
     await expect.poll(()=>page.evaluate(()=>window.calls.commands.length)).toBe(1)
     const saved=await page.evaluate(()=>window.calls.commands[0])
     assert.equal(saved.action,'intervention.save')
+    assert.equal(saved.baseVersion,'ts:1792490000:124456789','Use exact QR version, not the serialized ISO timestamp')
     assert.equal(saved.payload.tehnicianGarantieDecizie,decision)
     assert.equal(saved.payload.tehnicianConfirmaGarantie,decision==='confirma')
     assert.equal(saved.payload.tehnicianGarantieNuIntraMotiv,decision==='nu_intra'?'Uzură mecanică':'')
+    await page.locator('#descriereInterventie').fill('Actualizare după prima salvare')
+    await report(page)
+    await expect.poll(()=>page.evaluate(()=>window.calls.commands.length)).toBe(2)
+    assert.equal(await page.evaluate(()=>window.calls.commands[1].baseVersion),'ts:1792490000:125456789')
+    await expect.poll(()=>page.evaluate(()=>window.calls.routes.length)).toBe(1)
     await page.reload()
     await mount(page)
     await expect(page.locator('#tehnician-garantie-decizie')).toContainText(label)
     if(decision==='nu_intra') await expect(page.locator('#tehnician-garantie-motiv')).toHaveValue('Uzură mecanică')
     await report(page)
-    await expect.poll(()=>page.evaluate(()=>window.calls.routes)).toEqual(['/raport/warranty-work'])
+    await expect.poll(()=>page.evaluate(()=>({routes:window.calls.routes,toasts:window.calls.toasts.filter(t=>t.variant==='destructive')}))).toEqual({routes:['/raport/warranty-work'],toasts:[]})
     checks++; await page.close()
   }
 
@@ -138,6 +177,31 @@ try {
   assert.equal(await ordinary.evaluate(()=>window.calls.commands[0].payload.tehnicianGarantieDecizie),undefined)
   checks++; await ordinary.close()
 
+  const conflict=await fixture({tehnicianGarantieDecizie:'confirma'})
+  await conflict.locator('#descriereInterventie').fill('Ciornă locală păstrată')
+  await conflict.evaluate(()=>{
+    window.serverWork.updatedAt={seconds:1792490000,nanoseconds:900000000}
+    window.serverWork.descriereInterventie='Modificare făcută de alt utilizator'
+    window.refreshParent()
+  })
+  await report(conflict)
+  await expect.poll(()=>conflict.evaluate(()=>window.calls.toasts.at(-1)?.description)).toBe('Tichetul a fost modificat. Ciorna este păstrată.')
+  assert.equal(await conflict.evaluate(()=>window.calls.conflicts),1)
+  assert.equal(await conflict.evaluate(()=>window.calls.commands.length),0)
+  await expect(conflict.locator('#descriereInterventie')).toHaveValue('Ciornă locală păstrată')
+  assert.equal(await conflict.evaluate(()=>window.serverWork.descriereInterventie),'Modificare făcută de alt utilizator')
+  checks++; await conflict.close()
+
+  const retry=await fixture({tehnicianGarantieDecizie:'confirma'})
+  await retry.evaluate(()=>{window.failure='lost-response'})
+  await report(retry)
+  await expect.poll(()=>retry.evaluate(()=>window.calls.toasts.at(-1)?.description)).toBe('Răspuns pierdut')
+  await report(retry)
+  await expect.poll(()=>retry.evaluate(()=>window.calls.routes.length)).toBe(1)
+  assert.equal(await retry.evaluate(()=>window.calls.commands.length),1,'Retry must reuse the original command receipt')
+  assert.equal(await retry.evaluate(()=>window.calls.conflicts),0)
+  checks++; await retry.close()
+
   const errors=await fixture({tehnicianGarantieDecizie:'confirma'})
   for(const [failure,message] of [
     ['server','Conflict: tichetul a fost modificat. Reîncarcă datele.'],
@@ -150,7 +214,7 @@ try {
     await expect(errors.locator('#descriereInterventie')).toHaveValue('Intervenție efectuată')
   }
   checks++; await errors.close()
-  console.log(`PASS: ${checks} warranty scenarios at 390×844; real page props, form, UI and domain; isolated persistence.`)
+  console.log(`PASS: ${checks} scenarios at 390×844; real page props, form, UI, domain and command client; isolated HTTP/Firestore.`)
 } finally {
   await browser.close()
 }

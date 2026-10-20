@@ -2,7 +2,7 @@
 
 import { interventionPatch } from "@/packages/fom-domain";
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,6 +37,7 @@ import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib
 interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
+    mobileVersion?: string
     updatedAt?: unknown
     descriereInterventie?: string
     constatareLaLocatie?: string
@@ -80,6 +81,9 @@ export function TehnicianInterventionForm({
 }: TehnicianInterventionFormProps) {
   const router = useRouter()
   const { userData } = useAuth()
+  // The draft belongs to this version. Only our confirmed writes may advance it;
+  // a parent refresh must not silently rebase unsaved changes over another writer.
+  const commandWork = useRef(initialData)
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     constatareLaLocatie: initialData.constatareLaLocatie || "",
@@ -240,6 +244,20 @@ export function TehnicianInterventionForm({
     setFormData((prev) => ({ ...prev, statusLucrare: value }))
   }
 
+  const persistIntervention = async (data: Record<string, unknown>) => {
+    const patch = interventionPatch(data, initialData)
+    if (userData?.role === "tehnician") {
+      const result = await technicianCommand("intervention.save", lucrareId, patch, { work: commandWork.current })
+      commandWork.current = {
+        ...commandWork.current,
+        ...result.work,
+        ...(typeof result.version === "string" ? { mobileVersion: result.version } : {}),
+      }
+    } else {
+      await updateLucrare(lucrareId, patch)
+    }
+  }
+
   const handleSave = async () => {
     try {
       const wErr = validateWarrantyOnSite()
@@ -282,11 +300,7 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      if (userData?.role === "tehnician") {
-        await technicianCommand("intervention.save", lucrareId, interventionPatch(updateData, initialData), { work: initialData })
-      } else {
-        await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
-      }
+      await persistIntervention(updateData)
       setImagesToDelete([])
       setUploadedDefectImages(allImages)
 
@@ -384,11 +398,7 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      if (userData?.role === "tehnician") {
-        await technicianCommand("intervention.save", lucrareId, interventionPatch(updateData, initialData), { work: initialData })
-      } else {
-        await updateLucrare(lucrareId, interventionPatch(updateData, initialData))
-      }
+      await persistIntervention(updateData)
       setImagesToDelete([])
       setUploadedDefectImages(allImages)
 
@@ -818,7 +828,7 @@ export function TehnicianInterventionForm({
                 <Button
                   type="button"
                   onClick={handleSave}
-                  disabled={isSaving || formDisabled}
+                  disabled={isSaving || isGeneratingReport || formDisabled}
                   className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
                 >
                   {isSaving ? (
@@ -837,7 +847,7 @@ export function TehnicianInterventionForm({
                 <Button
                   type="button"
                   onClick={handleGenerateReport}
-                  disabled={isGeneratingReport || formDisabled || !descriereInterventie || !cauzaPrincipalaDefectId}
+                  disabled={isSaving || isGeneratingReport || formDisabled || !descriereInterventie || !cauzaPrincipalaDefectId}
                   className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                 >
                   {isGeneratingReport ? (
