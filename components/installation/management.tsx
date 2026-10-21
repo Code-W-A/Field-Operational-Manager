@@ -17,6 +17,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { InstallationHeaderAction } from "./header-action";
+import { installationPickupReason } from "@/lib/installations/pickup";
+import { installationApi, installationRequest } from "@/lib/installations/client";
+import type { InstallationListResponse } from "@/types/installation";
 
 function editorProducts(
   products: (ProductItem & { id?: string; total?: number })[] = [],
@@ -29,7 +33,9 @@ function editorProducts(
 }
 
 type InstallationManagementSlots = {
-  headerAction: ReactNode;
+  pickupAction?: (blockedReason?: string, currentWork?: InstallationListResponse["work"]) => ReactNode;
+  busy: boolean;
+  version: number;
   clientControls: ReactNode;
   documents: ReactNode;
 };
@@ -45,6 +51,7 @@ export function InstallationManagement({
 }) {
   const { userData } = useAuth();
   const [busy, setBusy] = useState("");
+  const [version, setVersion] = useState(0);
   const pending = useRef(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [devizOpen, setDevizOpen] = useState(false);
@@ -53,16 +60,14 @@ export function InstallationManagement({
     return (
       <>
         {children({
-          headerAction: null,
+          busy: false,
+          version: 0,
           clientControls: null,
           documents: null,
         })}
       </>
     );
 
-  const completed =
-    work.statusLucrare === "Finalizat" &&
-    work.installation?.closedReason === "completed";
   const inactive = Boolean(
     work.anulat ||
     work.archivedAt ||
@@ -74,13 +79,20 @@ export function InstallationManagement({
     const fresh = await getLucrareById(work.id!, { serverOnly: true });
     if (!fresh) throw new Error("Tichetul nu mai este disponibil.");
     onUpdate(fresh);
+    setVersion((value) => value + 1);
   }
-  async function save(action: string, patch: Partial<Lucrare>) {
+  async function save(action: string, patch: Partial<Lucrare>, expectedAssignmentVersion?: number) {
     if (pending.current) return;
     pending.current = true;
     setBusy(action);
     try {
-      await updateLucrare(work.id!, patch);
+      if (action === "pickup") {
+        await installationRequest(installationApi(work.id!), {
+          action: "manage", work: patch, expectedAssignmentVersion,
+        });
+      } else {
+        await updateLucrare(work.id!, patch);
+      }
       await refresh();
     } catch (error) {
       toast({
@@ -108,26 +120,30 @@ export function InstallationManagement({
     }
   }
 
-  const headerAction =
-    !work.preluatDispecer && !inactive ? (
-      <Button
-        className="bg-blue-600 text-white hover:bg-blue-700"
-        disabled={!completed || Boolean(busy)}
-        title={
-          !completed
-            ? "Preluarea devine disponibilă după semnarea procesului-verbal de terminare a instalării."
-            : undefined
-        }
-        onClick={() => void save("pickup", { preluatDispecer: true })}
-      >
-        {busy === "pickup" ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <CheckCircle className="mr-2 h-4 w-4" />
-        )}
-        Preia tichetul
-      </Button>
+  const pickupAction = (blockedReason?: string, currentWork: InstallationListResponse["work"] | Lucrare = work) => {
+    const reason =
+      blockedReason ||
+      (busy
+        ? "O operație este în curs. Așteaptă finalizarea."
+        : installationPickupReason(currentWork));
+    const showPickup = !work.preluatDispecer || Boolean(currentWork.tehnicieni?.length);
+    return showPickup && !inactive ? (
+      <InstallationHeaderAction label="Preia tichetul" reason={reason}>
+        <Button
+          className="bg-blue-600 text-white hover:bg-blue-700"
+          disabled={Boolean(reason)}
+          onClick={() => void save("pickup", { preluatDispecer: true }, currentWork.installation?.assignmentVersion || 0)}
+        >
+          {busy === "pickup" ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle className="mr-2 h-4 w-4" />
+          )}
+          Preia tichetul
+        </Button>
+      </InstallationHeaderAction>
     ) : null;
+  };
 
   const clientControls = !inactive ? (
     <section className="min-w-0 space-y-4" aria-label="Ofertare și deviz">
@@ -206,7 +222,9 @@ export function InstallationManagement({
   return (
     <>
       {children({
-        headerAction,
+        pickupAction,
+        busy: Boolean(busy),
+        version,
         clientControls,
         documents: (
           <DocumentUpload

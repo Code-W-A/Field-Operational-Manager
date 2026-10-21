@@ -11,11 +11,12 @@ import loadConfig from "tailwindcss/loadConfig.js";
 
 const mocks = {
   "next/link": `import React from 'react';export default React.forwardRef(({href,children,...props},ref)=><a ref={ref} href={href} {...props}>{children}</a>);`,
-  "next/navigation": `import{useSyncExternalStore}from'react';let query='';const listeners=new Set();const router={push(){},replace(url){query=url.split('?')[1]||'';listeners.forEach(fn=>fn());}};export const useRouter=()=>router;export const usePathname=()=>'/dashboard/lucrari/installation';export const useSearchParams=()=>new URLSearchParams(useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>query));`,
+  "next/navigation": `import{useSyncExternalStore}from'react';let query='';const listeners=new Set();const router={push(url){window.destination=url},replace(url){query=url.split('?')[1]||'';listeners.forEach(fn=>fn());}};export const useRouter=()=>router;export const usePathname=()=>'/dashboard/lucrari/installation';export const useSearchParams=()=>new URLSearchParams(useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>query));`,
   "@/components/dashboard-shell": `export const DashboardShell=({children})=><main>{children}</main>;`,
   "@/components/equipment-qr-code": `export const EquipmentQRCode=()=>null;`,
   "@/components/qr-code-scanner": `export const QRCodeScanner=()=>null;`,
-  "@/lib/installations/client": `export const installationApi=id=>'/installation/'+id;export const installationRequest=async()=>({work:structuredClone(window.work),sheets:[],canStart:false,currentSession:null,completion:null});`,
+  "@/lib/installations/client": `import{installationArchiveReasons}from'@/lib/installations/archive';export const installationApi=id=>'/installation/'+id;export const installationRequest=async(url,body)=>{if(body){window.calls.requests.push(body);if(body.action==='manage'&&body.work?.preluatDispecer){window.calls.writes.push(body.work);await new Promise(r=>setTimeout(r,window.saveDelay||30));if(window.failSave)throw Error('Salvare indisponibilă');if(body.expectedAssignmentVersion!==(window.work.installation.assignmentVersion||0))throw Error('Echipa a fost modificată');window.work={...window.work,...body.work,preluatDe:'Dispecer test',tehnicieni:[],statusLucrare:window.work.installation.closedReason==='completed'?'Finalizat':'Listată',installation:{...window.work.installation,assignmentVersion:body.expectedAssignmentVersion+1,lastPickupVersion:body.expectedAssignmentVersion}};return{}}if(window.failArchive)throw Error('La verificarea serverului: lipsește factura.');return{}}const work=structuredClone(window.work);const completed=!!work.installation.completionDocumentId;return{work,sheets:[],canStart:false,currentSession:null,completion:completed?{id:'final',documentSnapshot:{technicianName:'Tehnician',beneficiaryName:'Beneficiar'}}:null,managementActions:{archiveReasons:installationArchiveReasons(work,{completionExists:completed,openSheets:false,sessions:false})}}};`,
+  "@/lib/pdf/installation": `export const downloadInstallationPdf=async(snapshot,id)=>{window.calls.downloads.push({snapshot,id})};`,
   "@/components/installation/overview": `export {InstallationSummary} from ${JSON.stringify(path.resolve("components/installation/overview.tsx"))};export const InstallationContext=()=>null;export const InstallationEquipmentList=()=> <p>Lista echipamentelor</p>;export const InstallationHistory=()=>null;export const InstallationDocuments=()=>null;`,
   "@/components/installation/forms": `export const InstallationSheetForm=()=>null;export const InstallationCompletionForm=()=>null;`,
   "@/components/installation/team": `export const InstallationTeam=()=>null;export const sheetStateLabel=state=>state;`,
@@ -30,7 +31,7 @@ const mocks = {
 };
 const result = await build({
   stdin: {
-    contents: `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {InstallationManagement} from '@/components/installation/management';import {InstallationTicketDetails} from '@/components/installation/ticket-details';import {InstallationWorkspace} from '@/components/installation-workspace';function Fixture(){const [work,setWork]=useState(window.work);window.replaceWork=patch=>{window.work={...window.work,...patch};setWork(window.work)};return <div className="mx-auto max-w-7xl p-4"><InstallationManagement work={work} onUpdate={setWork}>{({headerAction,clientControls,documents})=><InstallationWorkspace workId={work.id} compact headerActions={headerAction} onEdit={()=>{}} managementDocuments={window.role==='admin'||window.role==='dispecer'?documents:undefined} ticketDetails={<><InstallationTicketDetails work={work} role={window.role} display={{identity:{name:work.client},contact:{location:work.locatie,name:'Contact test',address:'Adresă test'},issues:[]}} syncIssues={[]} commercialControls={clientControls}/>{window.role!=='admin'&&window.role!=='dispecer'&&documents}</>}/>}</InstallationManagement></div>};createRoot(document.getElementById('root')).render(<Fixture/>);`,
+    contents: `import React,{useState} from 'react'; import {createRoot} from 'react-dom/client'; import {InstallationManagement} from '@/components/installation/management';import {InstallationTicketDetails} from '@/components/installation/ticket-details';import {InstallationWorkspace} from '@/components/installation-workspace';function Fixture(){const [work,setWork]=useState(window.work);const[externalVersion,setExternalVersion]=useState(0);window.replaceWork=patch=>{window.work={...window.work,...patch};setWork(window.work);setExternalVersion(v=>v+1)};return <div className="mx-auto max-w-7xl p-4"><InstallationManagement work={work} onUpdate={setWork}>{({pickupAction,busy,version,clientControls,documents})=><InstallationWorkspace workId={work.id} compact pickupAction={pickupAction} managementBusy={busy} managementVersion={version+externalVersion} onEdit={()=>{}} managementDocuments={window.role==='admin'||window.role==='dispecer'?documents:undefined} ticketDetails={<><InstallationTicketDetails work={work} role={window.role} display={{identity:{name:work.client},contact:{location:work.locatie,name:'Contact test',address:'Adresă test'},issues:[]}} syncIssues={[]} commercialControls={clientControls}/>{window.role!=='admin'&&window.role!=='dispecer'&&documents}</>}/>}</InstallationManagement></div>};createRoot(document.getElementById('root')).render(<Fixture/>);`,
     resolveDir: process.cwd(),
     loader: "tsx",
   },
@@ -73,7 +74,7 @@ const css = (
       content: [
         "./components/installation-workspace.tsx",
         "./components/dashboard-header.tsx",
-        "./components/installation/{management,ticket-details,overview}.tsx",
+        "./components/installation/{management,header-action,ticket-details,overview}.tsx",
         "./components/ui/*.tsx",
         "./components/document-upload.tsx",
         "./components/ticket-client-information.tsx",
@@ -123,12 +124,21 @@ async function fixture(
         },
         ...overrides,
       };
-      window.calls = { writes: [], uploads: [], toasts: [] };
+      window.calls = {
+        writes: [],
+        uploads: [],
+        toasts: [],
+        requests: [],
+        downloads: [],
+      };
       window.failSave = false;
     },
     { role, completed, picked, overrides },
   );
-  await page.addStyleTag({ content: css + "\nhtml,body{height:auto!important;overflow:visible!important}" });
+  await page.addStyleTag({
+    content:
+      css + "\nhtml,body{height:auto!important;overflow:visible!important}",
+  });
   await page.addScriptTag({ content: result.outputFiles[0].text });
   return page;
 }
@@ -249,6 +259,47 @@ try {
   checks++;
   await pickup.close();
 
+  // Same-ticket handover must remain repeatable after commercial pickup.
+  const handover = await fixture("dispecer", false, false, 390, {
+    tehnicieni: ["Echipa inițială"], equipmentIds: ["e1", "e2"],
+    installation: { schemaVersion: 1, rootWorkId: "installation", equipment: [],
+      equipmentStatus: { e1: "in_progress", e2: "blocked" }, startedEquipmentIds: ["e1", "e2"],
+      activeSheetByEquipment: {}, awaitingSheetByEquipment: {} },
+  });
+  const handoverButton = handover.getByRole("button", { name: "Preia tichetul", exact: true });
+  await expect(handoverButton).toBeEnabled();
+  await handoverButton.click();
+  await expect.poll(() => handover.evaluate(() => window.work.statusLucrare)).toBe("Listată");
+  await expect(handoverButton).toHaveCount(0);
+  await expect(handover.getByRole("button", { name: "Editor deviz", exact: true })).toBeEnabled();
+  assert.deepEqual(await handover.evaluate(() => window.work.tehnicieni), []);
+  await handover.evaluate(() => window.replaceWork({ statusLucrare: "Atribuită", tehnicieni: ["Echipa nouă"],
+    installation: {...window.work.installation, assignmentVersion: 2} }));
+  await expect(handoverButton).toBeEnabled();
+  await expect(handover.getByRole("button", { name: "Încarcă factură", exact: true })).toBeEnabled();
+  await handover.evaluate(() => window.replaceWork({ installation: {...window.work.installation, activeSheetByEquipment: {e1: "active"}} }));
+  await expect(handoverButton).toBeDisabled();
+  await handover.evaluate(() => window.replaceWork({ installation: {...window.work.installation, activeSheetByEquipment: {}, awaitingSheetByEquipment: {e2: "unsigned"}} }));
+  await expect(handoverButton).toBeDisabled();
+  await handover.evaluate(() => window.replaceWork({ installation: {...window.work.installation, awaitingSheetByEquipment: {}} }));
+  await expect(handoverButton).toBeEnabled();
+  await handoverButton.click();
+  await expect(handoverButton).toHaveCount(0);
+  assert.equal(await handover.evaluate(() => window.calls.writes.filter(patch=>patch.preluatDispecer).length), 2);
+  assert.equal(await handover.evaluate(() => window.work.installation.assignmentVersion), 3);
+  checks++;
+  await handover.close();
+
+  const finalTeam = await fixture("dispecer", true, true, 390, { tehnicieni: ["Ultima echipă"] });
+  const finalPickup = finalTeam.getByRole("button", { name: "Preia tichetul", exact: true });
+  await expect(finalPickup).toBeEnabled();
+  await finalPickup.click();
+  await expect(finalPickup).toHaveCount(0);
+  assert.equal(await finalTeam.evaluate(() => window.work.statusLucrare), "Finalizat");
+  assert.deepEqual(await finalTeam.evaluate(() => window.work.tehnicieni), []);
+  checks++;
+  await finalTeam.close();
+
   const retry = await fixture("admin", true);
   await retry.evaluate(() => (window.failSave = true));
   await retry
@@ -334,31 +385,64 @@ try {
     await expect(
       page.getByRole("tab", { name: "Documente", exact: true }),
     ).toBeVisible();
-    const details = await page.getByRole("heading", { name: "Detalii instalare", exact: true }).boundingBox();
+    const details = await page
+      .getByRole("heading", { name: "Detalii instalare", exact: true })
+      .boundingBox();
     const client = await clientCard.boundingBox();
     const totals = page.getByText("Echipamente totale", { exact: true });
-    const stats = await totals.locator('xpath=ancestor::div[contains(@class,"grid-cols-2")][1]').boundingBox();
-    const invoice = await page.getByRole("button", { name: "Încarcă factură", exact: true }).boundingBox();
+    const stats = await totals
+      .locator('xpath=ancestor::div[contains(@class,"grid-cols-2")][1]')
+      .boundingBox();
+    const invoice = await page
+      .getByRole("button", { name: "Încarcă factură", exact: true })
+      .boundingBox();
     const tabs = await page.getByRole("tablist").boundingBox();
     assert(details && client && stats && invoice && tabs);
     await expect(totals).toHaveCount(1);
-    await expect(page.getByRole("button", {name: "Încarcă factură", exact: true})).toHaveCount(1);
-    assert(stats.y > details.y && invoice.y > client.y, "Summary and invoice follow ticket details");
+    await expect(
+      page.getByRole("button", { name: "Încarcă factură", exact: true }),
+    ).toHaveCount(1);
+    assert(
+      stats.y > details.y && invoice.y > client.y,
+      "Summary and invoice follow ticket details",
+    );
     if (width >= 1280) {
-      assert(Math.abs(details.y - client.y - 24) < 45, "Top cards share the same row");
+      assert(
+        Math.abs(details.y - client.y - 24) < 45,
+        "Top cards share the same row",
+      );
       assert(client.x > details.x, "Client occupies the right column");
-      assert(invoice.x > stats.x + stats.width, "Invoice occupies the right column beside summary");
-      assert(Math.abs(client.x - invoice.x + 24) < 50, "Invoice aligns with the client column");
+      assert(
+        invoice.x > stats.x + stats.width,
+        "Invoice occupies the right column beside summary",
+      );
+      assert(
+        Math.abs(client.x - invoice.x + 24) < 50,
+        "Invoice aligns with the client column",
+      );
     } else {
-      assert(client.y > details.y && invoice.y > stats.y + stats.height, "Mobile sections stack vertically");
+      assert(
+        client.y > details.y && invoice.y > stats.y + stats.height,
+        "Mobile sections stack vertically",
+      );
     }
-    const finalStat = await page.getByText("Finalizate", {exact:true}).boundingBox();
-    const remainingStat = await page.getByText("Rămase", {exact:true}).boundingBox();
+    const finalStat = await page
+      .getByText("Finalizate", { exact: true })
+      .boundingBox();
+    const remainingStat = await page
+      .getByText("Rămase", { exact: true })
+      .boundingBox();
     const totalStat = await totals.boundingBox();
-    assert(Math.abs(finalStat.y - totalStat.y) < 2 && remainingStat.y > totalStat.y, "Statistics use a 2 by 2 grid");
-    assert(tabs.y > stats.y + stats.height && tabs.y > invoice.y, "Tabs follow the summary and invoice row");
+    assert(
+      Math.abs(finalStat.y - totalStat.y) < 2 && remainingStat.y > totalStat.y,
+      "Statistics use a 2 by 2 grid",
+    );
+    assert(
+      tabs.y > stats.y + stats.height && tabs.y > invoice.y,
+      "Tabs follow the summary and invoice row",
+    );
     for (const name of ["Fișe zilnice", "Documente", "Echipamente"]) {
-      const tab = page.getByRole("tab", {name, exact:true});
+      const tab = page.getByRole("tab", { name, exact: true });
       await tab.click();
       await expect(tab).toHaveAttribute("aria-selected", "true");
     }
@@ -369,6 +453,147 @@ try {
     checks++;
     await page.close();
   }
+  for (const role of ["admin", "dispecer"])
+    for (const width of [360, 1440]) {
+      const page = await fixture(role, false, false, width);
+      const header = page
+        .getByRole("heading", { name: /Instalare/ })
+        .locator('xpath=ancestor::div[contains(@class,"md:flex-row")][1]');
+      await expect(
+        header.getByRole("button", { name: "Arhivează", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        header.getByRole("button", {
+          name: "De ce este indisponibil: Anulează",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      const names = await header
+        .locator("button,a")
+        .evaluateAll((elements) =>
+          elements
+            .filter((e) => !e.getAttribute("aria-label")?.startsWith("De ce"))
+            .map((e) => e.getAttribute("aria-label") || e.textContent.trim()),
+        );
+      assert.deepEqual(names, [
+        "Înapoi la tichete",
+        "Anulează",
+        "Descarcă PV",
+        "Arhivează",
+        "Preia tichetul",
+        "Editează",
+        ...(role === "admin" ? ["Șterge tichetul"] : []),
+        "Reîncarcă datele",
+      ]);
+      const info = header.getByRole("button", {
+        name: "De ce este indisponibil: Descarcă PV",
+        exact: true,
+      });
+      await info.focus();
+      await page.keyboard.press("Enter");
+      await expect(
+        page.getByText("PV-ul final nu este încă semnat.", { exact: true }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(info).toBeFocused();
+      await header
+        .getByRole("button", {
+          name: "De ce este indisponibil: Arhivează",
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByText("Preia tichetul înainte de arhivare.", { exact: true }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(
+        page.locator("[data-radix-popper-content-wrapper]"),
+      ).toHaveCount(0);
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await page.screenshot({
+        path: `/private/tmp/fom-installation-header-${role}-${width}.png`,
+        fullPage: true,
+      });
+      await page.close();
+      checks++;
+    }
+  const ready = await fixture("admin", true, true, 1440, {
+    statusFacturare: "Nu se facturează",
+    motivNefacturare: "Contract",
+  });
+  await expect(
+    ready.getByRole("button", { name: "Arhivează", exact: true }),
+  ).toBeEnabled();
+  await ready.getByRole("button", { name: "Descarcă PV", exact: true }).click();
+  await expect
+    .poll(() => ready.evaluate(() => window.calls.downloads.length))
+    .toBe(1);
+  assert.equal(
+    await ready.evaluate(() => window.calls.downloads[0].id),
+    "installation",
+  );
+  await expect(
+    ready.getByRole("button", { name: "Editează", exact: true }),
+  ).toBeDisabled();
+  await ready
+    .getByRole("button", {
+      name: "De ce este indisponibil: Editează",
+      exact: true,
+    })
+    .click();
+  await expect(
+    ready.getByText("Instalarea este închisă; editarea este blocată.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await ready.keyboard.press("Escape");
+  await ready.evaluate(() => (window.failArchive = true));
+  await ready.getByRole("button", { name: "Arhivează", exact: true }).click();
+  await expect(ready.getByRole("alertdialog")).toBeVisible();
+  await ready
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Arhivează", exact: true })
+    .click();
+  await expect(ready.getByRole("alert")).toHaveText(
+    "La verificarea serverului: lipsește factura.",
+  );
+  assert.equal(await ready.evaluate(() => window.destination), undefined);
+  await ready.evaluate(() => (window.failArchive = false));
+  await ready
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Arhivează", exact: true })
+    .click();
+  await expect
+    .poll(() => ready.evaluate(() => window.destination))
+    .toBe("/dashboard/arhivate/installation");
+  assert.equal(
+    await ready.evaluate(() => window.calls.requests.at(-1).action),
+    "archive",
+  );
+  await ready.close();
+  checks++;
+  const archived = await fixture("admin", true, true, 390, {
+    statusLucrare: "Arhivată",
+    archivedAt: "2026-10-21",
+  });
+  await expect(
+    archived.getByRole("button", { name: "Arhivează", exact: true }),
+  ).toBeDisabled();
+  await archived
+    .getByRole("button", {
+      name: "De ce este indisponibil: Arhivează",
+      exact: true,
+    })
+    .click();
+  await expect(
+    archived.getByText("Tichetul este deja arhivat.", { exact: true }),
+  ).toBeVisible();
+  await archived.close();
+  checks++;
   const canceled = await fixture("admin", true, false, 390, {
     statusLucrare: "Anulat",
     anulat: true,

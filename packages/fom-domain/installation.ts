@@ -97,6 +97,9 @@ export type InstallationMeta = {
   continuationWorkId?: string;
   closedReason?: "continuation" | "completed";
   completionDocumentId?: string;
+  /** Changes on team reassignment and pickup; absent on older tickets means zero. */
+  assignmentVersion?: number;
+  lastPickupVersion?: number;
 };
 export const isInstallationV1 = (work: any): boolean =>
   work?.tipLucrare === "Instalare" && work?.installation?.schemaVersion === 1;

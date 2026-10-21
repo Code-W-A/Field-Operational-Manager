@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,12 +37,14 @@ export function InstallationSheetForm({
   sheet,
   onSheet,
   onRefresh,
+  onStopped,
   readOnly = false,
 }: {
   workId: string;
   sheet: InstallationSheet;
   onSheet: (s: InstallationSheet) => void;
   onRefresh: () => Promise<void>;
+  onStopped: () => void;
   readOnly?: boolean;
 }) {
   const { userData } = useAuth();
@@ -56,6 +59,10 @@ export function InstallationSheetForm({
   const [beneficiarySignature, setBeneficiarySignature] = useState("");
   const [beneficiaryName, setBeneficiaryName] = useState("");
   const [busy, setBusy] = useState(false);
+  const commandPending = useRef(false);
+  const [savingAction, setSavingAction] = useState<
+    "save" | "stop" | "close" | null
+  >(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -100,8 +107,12 @@ export function InstallationSheetForm({
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [dirty]);
   const editable =
-    !readOnly && sheet.state === "draft" && sheet.principalUid === userData?.uid;
+    !readOnly &&
+    sheet.state === "draft" &&
+    sheet.principalUid === userData?.uid;
   async function run(fn: () => Promise<void>) {
+    if (commandPending.current) return;
+    commandPending.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -110,11 +121,14 @@ export function InstallationSheetForm({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Operația a eșuat.");
     } finally {
+      commandPending.current = false;
+      setSavingAction(null);
       setBusy(false);
     }
   }
   async function save(close: boolean, deferred = false) {
     await run(async () => {
+      setSavingAction(deferred ? "stop" : close ? "close" : "save");
       const result = await installationRequest(installationApi(workId), {
         action: deferred ? "stop" : close ? "close" : "save",
         sheetId: sheet.id,
@@ -128,14 +142,16 @@ export function InstallationSheetForm({
       });
       onSheet(result.sheet);
       setDirty(false);
+      if (deferred) {
+        onStopped();
+        return;
+      }
       setNotice(
-        deferred
-          ? "Lucrul a fost oprit. Echipa este liberă, iar fișa așteaptă semnăturile."
-          : close
-            ? "Fișa zilei a fost închisă și semnată."
-            : "Ciorna a fost salvată.",
+        close
+          ? "Fișa zilei a fost închisă și semnată."
+          : "Ciorna a fost salvată.",
       );
-      if (close || deferred) await onRefresh();
+      if (close) await onRefresh();
     });
   }
   const change = (key: keyof InstallationFields, value: string) => {
@@ -474,10 +490,17 @@ export function InstallationSheetForm({
                 Salvează ciorna
               </Button>
               <Button
-                variant="outline"
+                className="h-auto min-h-10 whitespace-normal bg-[#E8623D] text-white hover:bg-[#E8623D]/90"
                 disabled={busy}
+                aria-busy={savingAction === "stop"}
                 onClick={() => void save(false, true)}
               >
+                {savingAction === "stop" && (
+                  <Loader2
+                    aria-hidden="true"
+                    className="h-4 w-4 animate-spin"
+                  />
+                )}
                 Oprește lucrul și semnează ulterior
               </Button>
               <Button

@@ -1312,6 +1312,8 @@ async function main() {
         exact: true,
       })
       .click();
+    await expect(teamPage).toHaveURL(/\/instalare\?tab=sheets$/);
+    await teamPage.goto(`${origin}/dashboard/lucrari/${teamWork.id}/instalare?sheetId=${secondTeamSheet.id}`);
     await expect(
       teamPage.getByText("Semnare ulterioară", { exact: true }),
     ).toBeVisible();
@@ -1350,6 +1352,8 @@ async function main() {
         exact: true,
       })
       .click();
+    await expect(page).toHaveURL(/\/instalare\?tab=sheets$/);
+    await page.goto(`${origin}/dashboard/lucrari/${teamWork.id}/instalare?sheetId=${teamFirst.sheet.id}`);
     await expect(
       page.getByText("Semnare ulterioară", { exact: true }),
     ).toBeVisible();

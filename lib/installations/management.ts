@@ -10,6 +10,7 @@ export const installationManagementKeys = [
 
 export type InstallationManagementInput = {
   work: Record<string, unknown>;
+  expectedAssignmentVersion?: number;
   append?: Record<string, unknown[]>;
   remove?: string[];
   serverTime?: string[];

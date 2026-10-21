@@ -9,7 +9,9 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { QRCodeScanner } from "@/components/qr-code-scanner";
-import { ArrowLeft, RefreshCw, Trash2, X } from "lucide-react";
+import { Archive, ArrowLeft, FileText, Lock, Pencil, RefreshCw, Trash2, X } from "lucide-react";
+import { InstallationHeaderAction } from "./installation/header-action";
+import type { InstallationWorkspaceResponse } from "@/lib/installations/archive";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Button } from "@/components/ui/button";
@@ -48,7 +50,7 @@ import {
 } from "./installation/forms";
 import { InstallationTeam } from "./installation/team";
 import { sheetParticipants } from "@/lib/installations/team";
-import { pageUrl, StatusBadge, dateLabel } from "./installation/shared";
+import { pageUrl, StatusBadge, dateLabel, pdf } from "./installation/shared";
 
 export function InstallationWorkspace({
   workId,
@@ -58,7 +60,9 @@ export function InstallationWorkspace({
   complete = false,
   ticketDetails,
   managementDocuments,
-  headerActions,
+  pickupAction,
+  managementBusy = false,
+  managementVersion = 0,
   onEdit,
 }: {
   workId: string;
@@ -68,7 +72,9 @@ export function InstallationWorkspace({
   complete?: boolean;
   ticketDetails?: ReactNode;
   managementDocuments?: ReactNode;
-  headerActions?: ReactNode;
+  pickupAction?: (blockedReason?: string, currentWork?: InstallationListResponse["work"]) => ReactNode;
+  managementBusy?: boolean;
+  managementVersion?: number;
   onEdit?: () => void;
 }) {
   const { userData } = useAuth();
@@ -81,13 +87,13 @@ export function InstallationWorkspace({
     : ["equipment", "sheets", "documents"].includes(requestedTab || "")
       ? requestedTab!
       : "equipment";
-  const [data, setData] = useState<InstallationListResponse | null>(null);
+  const [data, setData] = useState<InstallationWorkspaceResponse | null>(null);
   const [history, setHistory] = useState<InstallationSheet[]>([]);
   const [selected, setSelected] = useState<InstallationSheet | null>(null);
   const [error, setError] = useState("");
   const startErrorRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmation, setConfirmation] = useState<"cancel" | "delete" | null>(null);
+  const [confirmation, setConfirmation] = useState<"cancel" | "delete" | "archive" | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [actionError, setActionError] = useState("");
   const [terminating, setTerminating] = useState(false);
@@ -98,7 +104,7 @@ export function InstallationWorkspace({
   const scanRequest = useRef<string | null>(null);
   const scanningRequest = useRef(false);
   const load = useCallback(async () => {
-    const result: InstallationListResponse = await installationRequest(
+    const result: InstallationWorkspaceResponse = await installationRequest(
       installationApi(workId),
     );
     setHistory(result.sheets);
@@ -135,7 +141,7 @@ export function InstallationWorkspace({
     scanRequest.current = null;
     autoScanOpened.current = "";
     void load().catch((e) => setError(e.message));
-  }, [load]);
+  }, [load, managementVersion]);
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -227,9 +233,9 @@ export function InstallationWorkspace({
         action: confirmation,
         ...(confirmation === "cancel" ? { reason: cancelReason.trim() } : {}),
       });
-      toast({ title: confirmation === "cancel" ? "Tichet anulat" : "Tichet șters", description: confirmation === "cancel" ? "Tichetul a fost anulat și arhivat." : "Tichetul a fost șters cu succes." });
+      toast({ title: confirmation === "archive" ? "Tichet arhivat" : confirmation === "cancel" ? "Tichet anulat" : "Tichet șters", description: confirmation === "archive" ? "Tichetul a fost mutat în Arhivate." : confirmation === "cancel" ? "Tichetul a fost anulat și arhivat." : "Tichetul a fost șters cu succes." });
       setConfirmation(null);
-      router.push(confirmation === "cancel" ? `/dashboard/arhivate/${workId}` : "/dashboard/lucrari");
+      router.push(confirmation !== "delete" ? `/dashboard/arhivate/${workId}` : "/dashboard/lucrari");
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Operația a eșuat.");
     } finally {
@@ -252,6 +258,12 @@ export function InstallationWorkspace({
     !Object.keys(meta?.awaitingSheetByEquipment || {}).length &&
     !meta?.closedReason &&
     !data?.completion;
+  const pendingReason = busy || terminating || managementBusy ? "O operație este în curs. Așteaptă finalizarea." : "";
+  const pvReason = pendingReason || (!data?.completion ? "PV-ul final nu este încă semnat." : "");
+  const cancelUnavailableReason = pendingReason || (data?.work.statusLucrare === "Arhivată" ? "Tichetul este deja arhivat." : "");
+  const archiveReasons = pendingReason ? [pendingReason] : data?.managementActions?.archiveReasons || ["Se verifică regulile de arhivare. Reîncarcă datele."];
+  const editReason = pendingReason || (inactive ? "Instalarea este închisă; editarea este blocată." : "");
+  const refreshReason = pendingReason || (!inactive && selected?.state === "draft" ? "Închide fișa deschisă înainte de reîncărcare, pentru a păstra datele introduse." : "");
   const content = (
     <div className="space-y-5 pb-6">
       <DashboardHeader
@@ -277,51 +289,56 @@ export function InstallationWorkspace({
             {compact ? "Înapoi la tichete" : "Înapoi la tichet"}
           </Link>
         </Button>
-        {manager &&
-          data &&
-          !inactive &&
-          (onEdit ? (
-            <Button variant="outline" onClick={onEdit} disabled={busy || terminating}>
-              Editează tichetul / echipamentele
-            </Button>
-          ) : (
-            <Button asChild variant="outline">
-              <Link href={`/dashboard/lucrari/${workId}?edit=1`}>
-                Editează tichetul / echipamentele
-              </Link>
-            </Button>
-          ))}
         {manager && data && !canceled && (
-          <Button variant="destructive" disabled={busy || terminating} onClick={() => { setActionError(""); setConfirmation("cancel"); }}>
-            <X className="mr-2 h-4 w-4" /> Anulează
-          </Button>
+          <InstallationHeaderAction label="Anulează" reason={cancelUnavailableReason}>
+            <Button variant="destructive" disabled={Boolean(cancelUnavailableReason)} onClick={() => { setActionError(""); setConfirmation("cancel"); }}>
+              <X className="mr-2 h-4 w-4" /> Anulează
+            </Button>
+          </InstallationHeaderAction>
+        )}
+        {manager && data && (
+          <>
+            <InstallationHeaderAction label="Descarcă PV" reason={pvReason}>
+              <Button disabled={Boolean(pvReason)} onClick={() => void run(async () => { if (data.completion) await pdf(data.completion.documentSnapshot, workId); })}>
+                <FileText className="mr-2 h-4 w-4" /> Descarcă PV
+              </Button>
+            </InstallationHeaderAction>
+            <InstallationHeaderAction label="Arhivează" reason={archiveReasons}>
+              <Button variant="outline" disabled={archiveReasons.length > 0} onClick={() => { setActionError(""); setConfirmation("archive"); }}>
+                <Archive className="mr-2 h-4 w-4" /> Arhivează
+              </Button>
+            </InstallationHeaderAction>
+            {pickupAction?.(pendingReason, data.work)}
+            <InstallationHeaderAction label="Editează" reason={editReason}>
+              {editReason ? (
+                <Button variant="outline" size="icon" aria-label="Editează" disabled><Lock className="h-4 w-4" /></Button>
+              ) : onEdit ? (
+                <Button variant="outline" size="icon" aria-label="Editează" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
+              ) : (
+                <Button asChild variant="outline" size="icon" aria-label="Editează"><Link href={`/dashboard/lucrari/${workId}?edit=1`}><Pencil className="h-4 w-4" /></Link></Button>
+              )}
+            </InstallationHeaderAction>
+          </>
         )}
         {userData?.role === "admin" && data && (
-          <Button variant="destructive" disabled={busy || terminating} onClick={() => { setActionError(""); setConfirmation("delete"); }}>
-            <Trash2 className="mr-2 h-4 w-4" /> Șterge tichetul
+          <InstallationHeaderAction label="Șterge tichetul" reason={pendingReason}>
+            <Button variant="destructive" size="icon" aria-label="Șterge tichetul" disabled={Boolean(pendingReason)} onClick={() => { setActionError(""); setConfirmation("delete"); }}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </InstallationHeaderAction>
+        )}
+        <InstallationHeaderAction label="Reîncarcă datele" reason={refreshReason}>
+          <Button variant="outline" size="icon" aria-label="Reîncarcă datele" disabled={Boolean(refreshReason)} onClick={() => void run(load)}>
+            <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
           </Button>
-        )}
-        {headerActions && (
-          <fieldset disabled={busy || terminating} className="contents">
-            {headerActions}
-          </fieldset>
-        )}
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Reîncarcă datele"
-          disabled={busy || terminating || (!inactive && selected?.state === "draft")}
-          onClick={() => void run(load)}
-        >
-          <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
-        </Button>
+        </InstallationHeaderAction>
       </DashboardHeader>
       <AlertDialog open={confirmation !== null} onOpenChange={(open) => { if (!open && !terminationPending.current) { setConfirmation(null); setActionError(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmation === "cancel" ? "Anulează tichetul" : "Șterge tichetul"}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmation === "archive" ? "Arhivează tichetul" : confirmation === "cancel" ? "Anulează tichetul" : "Șterge tichetul"}</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmation === "cancel" ? "Introduceți motivul anulării. Tichetul va fi anulat și arhivat, iar sesiunile active vor fi oprite." : "Sigur doriți să ștergeți acest tichet? Sesiunile active vor fi eliberate. Fișele și fișierele asociate rămân păstrate."}
+              {confirmation === "archive" ? "Tichetul va fi mutat în Arhivate. Fișele și documentele semnate rămân păstrate." : confirmation === "cancel" ? "Introduceți motivul anulării. Tichetul va fi anulat și arhivat, iar sesiunile active vor fi oprite." : "Sigur doriți să ștergeți acest tichet? Sesiunile active vor fi eliberate. Fișele și fișierele asociate rămân păstrate."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {confirmation === "cancel" && <div className="space-y-2">
@@ -331,8 +348,8 @@ export function InstallationWorkspace({
           {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={terminating}>Renunță</AlertDialogCancel>
-            <Button variant="destructive" disabled={terminating || (confirmation === "cancel" && !cancelReason.trim())} onClick={() => void terminate()}>
-              {terminating ? (confirmation === "cancel" ? "Se anulează..." : "Se șterge...") : (confirmation === "cancel" ? "Anulează" : "Șterge")}
+            <Button variant={confirmation === "archive" ? "default" : "destructive"} disabled={terminating || (confirmation === "cancel" && !cancelReason.trim())} onClick={() => void terminate()}>
+              {terminating ? "Se procesează..." : confirmation === "archive" ? "Arhivează" : confirmation === "cancel" ? "Anulează" : "Șterge"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -434,6 +451,9 @@ export function InstallationWorkspace({
                 sheet={selected}
                 readOnly={inactive}
                 onSheet={setSelected}
+                onStopped={() => {
+                  router.replace(pageUrl(workId) + "?tab=sheets");
+                }}
                 onRefresh={async () => {
                   const refreshed: InstallationListResponse =
                     await installationRequest(installationApi(workId));

@@ -2079,8 +2079,8 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   if (isInstallationV1(lucrare)) return (
     <DashboardShell>
       <InstallationManagement key={`${paramsId}-${installationRefresh}`} work={lucrare} onUpdate={setLucrare}>
-        {({ headerAction, clientControls, documents }) => (
-          <InstallationWorkspace workId={paramsId} compact onEdit={handleEdit} headerActions={headerAction}
+        {({ pickupAction, busy, version, clientControls, documents }) => (
+          <InstallationWorkspace workId={paramsId} compact onEdit={handleEdit} pickupAction={pickupAction} managementBusy={busy} managementVersion={version}
             managementDocuments={role === "admin" || role === "dispecer" ? documents : undefined}
             ticketDetails={
             <>

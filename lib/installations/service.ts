@@ -8,6 +8,9 @@ import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sy
 import { installationDeliveryId, installationDeliveryResult } from "./delivery";
 import { resolveDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot";
 import { installationManagementKeys, type InstallationManagementInput } from "./management";
+import { installationArchiveReasons, installationArchiveSettings } from "./archive";
+import { installationPickupReason } from "./pickup";
+import type { ArchiveRulesConfig } from "@/lib/utils/archive-validation";
 import {
   isInstallationV1,
   type InstallationEquipment,
@@ -69,6 +72,52 @@ export function installationService(db: Firestore) {
     db.collection("installationTechnicianSessions").doc(identifier(uid));
   const completionRef = (root: string) =>
     workRef(root).collection("installationCompletion").doc("final");
+
+  async function archiveReasons(workId: string, work: RecordData, tx?: Transaction) {
+    const settingKeys = Object.keys(installationArchiveSettings) as (keyof ArchiveRulesConfig)[];
+    const refs = settingKeys.map(key => db.collection("predefinedSettings").doc(installationArchiveSettings[key]));
+    const openQuery = sheetsRef(workId).where("state", "in", ["draft", "awaiting_signature"]).limit(1);
+    const sessionQuery = db.collection("installationTechnicianSessions").where("workId", "==", workId).limit(1);
+    const completion = completionRef(work.installation.rootWorkId);
+    const [settings, document, sheets, sessions] = await Promise.all([
+      tx ? tx.getAll(...refs) : db.getAll(...refs),
+      tx ? tx.get(completion) : completion.get(),
+      tx ? tx.get(openQuery) : openQuery.get(),
+      tx ? tx.get(sessionQuery) : sessionQuery.get(),
+    ]);
+    const config: Partial<ArchiveRulesConfig> = {};
+    settings.forEach((setting, index) => {
+      const value = setting.data()?.value;
+      config[settingKeys[index]] = typeof value === "boolean" ? value : true;
+    });
+    return installationArchiveReasons(work, {
+      completionExists: document.exists && Boolean(document.data()?.documentSnapshot),
+      openSheets: !sheets.empty,
+      sessions: !sessions.empty,
+    }, config);
+  }
+
+  async function archive(actor: InstallationActor, workId: string) {
+    check(managers.includes(actor.role), "Doar dispecerul/adminul poate arhiva tichetul.", 403);
+    return db.runTransaction(async tx => {
+      const user = await actorData(tx, actor);
+      check(user.disabled !== true, "Acces neautorizat.", 403);
+      const ref = workRef(workId);
+      const work = (await tx.get(ref)).data();
+      assertWork(work);
+      if (!work.anulat && work.statusLucrare === "Arhivată" && work.archivedAt) return { id: workId };
+      const reasons = await archiveReasons(workId, work, tx);
+      check(reasons.length === 0, reasons.join(" "), 409);
+      tx.update(ref, {
+        statusLucrare: "Arhivată",
+        archivedAt: FieldValue.serverTimestamp(),
+        archivedBy: String(user.displayName || user.email || "Dispecer"),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      audit(tx, workId, actor, "archive");
+      return { id: workId };
+    });
+  }
 
   // A deleted Firestore parent can leave its sheets and session document behind.
   // Reading ignores these stale locks; a successful start replaces them atomically.
@@ -337,6 +386,8 @@ export function installationService(db: Firestore) {
         "Tipul instalării nu poate fi schimbat.",
       );
       const patch = copyKeys(input, editableKeys);
+      if (patch.tehnicieni !== undefined)
+        check(Array.isArray(patch.tehnicieni) && patch.tehnicieni.every((name: unknown) => typeof name === "string" && name.trim()), "Lista tehnicienilor este invalidă.");
       const started: string[] = work.installation.startedEquipmentIds || [];
       // Association locks apply to the whole installation, including continuation tickets.
       const history = await tx.get(
@@ -397,14 +448,21 @@ export function installationService(db: Firestore) {
           ]),
         ),
       };
+      const teamChanged = patch.tehnicieni !== undefined &&
+        JSON.stringify([...new Set(patch.tehnicieni)].sort()) !==
+          JSON.stringify([...new Set(work.tehnicieni || [])].sort());
+      if (teamChanged) meta.assignmentVersion = (work.installation.assignmentVersion || 0) + 1;
       const statusLucrare =
-        Object.keys(meta.activeSheetByEquipment).length || started.length
+        Object.keys(meta.activeSheetByEquipment).length ||
+        Object.keys(meta.awaitingSheetByEquipment || {}).length ||
+        (!teamChanged && started.length)
           ? work.statusLucrare
           : (patch.tehnicieni ?? work.tehnicieni).length
             ? "Atribuită"
             : "Listată";
       const update = {
         ...patch,
+        ...(teamChanged && work.technicianIds ? { technicianIds: [] } : {}),
         clientId: resolved.client.id,
         locationId: resolved.location.id,
         client: String(resolved.client.nume),
@@ -450,15 +508,41 @@ export function installationService(db: Firestore) {
       for (const [key, values] of Object.entries(append)) patch[key] = FieldValue.arrayUnion(...values);
       if ("preluatDispecer" in patch || "preluatDe" in patch) {
         check(patch.preluatDispecer === true, "Preluarea nu poate fi retrasă.");
-        check(work.statusLucrare === "Finalizat" && work.installation.closedReason === "completed", "Finalizează instalarea înainte de preluarea de către dispecer.", 409);
-        const completion = await tx.get(completionRef(work.installation.rootWorkId));
-        check(completion.exists, "Procesul-verbal de terminare nu este disponibil.", 409);
-        if (work.preluatDispecer) {
-          patch.preluatDispecer = true;
-          patch.preluatDe = work.preluatDe || String(user.displayName || user.email || "Dispecer");
+        check(keys.every(key => ["preluatDispecer", "preluatDe"].includes(key)), "Preluarea se execută separat de modificările comerciale.");
+        const version = work.installation.assignmentVersion || 0;
+        const expected = input.expectedAssignmentVersion;
+        if (expected !== undefined) {
+          check(Number.isSafeInteger(expected) && expected >= 0, "Versiune de atribuire invalidă.");
+          if (work.installation.lastPickupVersion === expected) return { id: workId };
+          check(version === expected, "Echipa a fost modificată. Reîncarcă tichetul înainte de preluare.", 409);
         } else {
-          patch.preluatDe = String(user.displayName || user.email || "Dispecer");
+          // Older clients only supported terminal pickup. Never let them release a later team.
+          check(work.installation.closedReason === "completed", "Finalizează instalarea sau reîncarcă pagina pentru preluarea între echipe.", 409);
+          if (work.preluatDispecer) return { id: workId };
         }
+        const reason = installationPickupReason(work as any);
+        check(!reason, reason, 409);
+        const completed = work.installation.closedReason === "completed";
+        const [sheets, sessions, completion] = await Promise.all([
+          tx.get(sheetsRef(workId)),
+          tx.get(db.collection("installationTechnicianSessions").where("workId", "==", workId)),
+          completed ? tx.get(completionRef(work.installation.rootWorkId)) : Promise.resolve(null),
+        ]);
+        check(!completed || completion?.exists, "Procesul-verbal de terminare nu este disponibil.", 409);
+        check(completed || !sheets.empty, "Preluarea necesită cel puțin o fișă închisă și semnată.", 409);
+        check(sheets.docs.every(doc => {
+          const sheet = doc.data();
+          return sheet.state === "closed" && sheet.documentSnapshot?.technicianSignature && sheet.documentSnapshot?.beneficiarySignature;
+        }), "Închide și semnează toate fișele înainte de preluare.", 409);
+        patch.preluatDe = work.preluatDe || String(user.displayName || user.email || "Dispecer");
+        patch.tehnicieni = [];
+        if (work.technicianIds) patch.technicianIds = [];
+        if (!completed) patch.statusLucrare = "Listată";
+        patch["installation.assignmentVersion"] = version + 1;
+        patch["installation.lastPickupVersion"] = version;
+        // All sheets are closed; remove only stale sessions owned by this ticket.
+        for (const session of sessions.docs) tx.delete(session.ref);
+        audit(tx, workId, actor, "pickup", { assignmentVersion: version, releasedTechnicians: work.tehnicieni || [] });
       }
       const pickedUp = work.preluatDispecer === true || patch.preluatDispecer === true;
       const invoiceKeys = ["facturaDocument", "statusFacturare", "motivNefacturare"];
@@ -1274,6 +1358,7 @@ export function installationService(db: Firestore) {
       .map(sanitize)
       .filter((sheet): sheet is InstallationSheet => sheet !== null);
     return {
+      ...(manager ? { managementActions: { archiveReasons: await archiveReasons(workId, work) } } : {}),
       work: {
         id: workId,
         client: work.client,
@@ -1454,6 +1539,7 @@ export function installationService(db: Firestore) {
     create,
     edit,
     manage,
+    archive,
     start,
     save,
     stop,

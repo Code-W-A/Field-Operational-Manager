@@ -141,6 +141,61 @@ async function commercialReady() {
   return { work, ref };
 }
 
+test("archive revalidates installation, pickup and invoicing, preserves signed documents and is idempotent", async () => {
+  const work = await create();
+  await assert.rejects(service.archive(tech, work.id), /Doar dispecerul/);
+  await assert.rejects(service.archive({ uid: tech.uid, role: "admin" }, work.id), /Acces neautorizat/);
+  await assert.rejects(service.archive(manager, work.id), /Finalizează instalarea/);
+  const { work: ready, ref } = await commercialReady();
+  await assert.rejects(service.archive(manager, ready.id), /Preia tichetul/);
+  await service.manage(manager, ready.id, { work: { preluatDispecer: true } });
+  await assert.rejects(service.archive(manager, ready.id), /factura/);
+  await service.manage(manager, ready.id, { work: { statusFacturare: "Nu se facturează", motivNefacturare: "Inclus în contract" } });
+  const before = (await ref.get()).data()!;
+  const document = (await ref.collection("installationCompletion").doc("final").get()).data();
+  const ui = await service.list(manager, ready.id);
+  assert.deepEqual(ui.managementActions?.archiveReasons, []);
+  await assert.rejects(service.list(tech, ready.id), /acces|atribuit|neautorizat/i);
+  await Promise.all([service.archive(manager, ready.id), service.archive(manager, ready.id)]);
+  const after = (await ref.get()).data()!;
+  assert.equal(after.statusLucrare, "Arhivată");
+  assert.equal(after.archivedBy, "Dispecer test");
+  assert.ok(after.archivedAt);
+  assert.equal(after.anulat, undefined);
+  assert.deepEqual(after.installation, before.installation);
+  assert.deepEqual((await ref.collection("installationCompletion").doc("final").get()).data(), document);
+  assert.equal((await ref.collection("installationAudit").where("action", "==", "archive").get()).size, 1);
+});
+
+test("archive rejects missing PV, open sheets, stale sessions and changed commercial settings", async () => {
+  const { work, ref } = await commercialReady();
+  await ref.update({ preluatDispecer: true, statusFacturare: "Nu se facturează", motivNefacturare: "Contract" });
+  const completion = ref.collection("installationCompletion").doc("final");
+  const snapshot = (await completion.get()).data()!;
+  await completion.delete();
+  await assert.rejects(service.archive(manager, work.id), /PV-ul final/);
+  await completion.set(snapshot);
+  for (const state of ["draft", "awaiting_signature"]) {
+    await ref.collection("installationSheets").doc("pending").set({ state });
+    await assert.rejects(service.archive(manager, work.id), /toate fișele/);
+  }
+  await ref.collection("installationSheets").doc("pending").delete();
+  const session = db.doc("installationTechnicianSessions/stale");
+  await session.set({ workId: work.id });
+  await assert.rejects(service.archive(manager, work.id), /sesiunile/);
+  await session.delete();
+  await ref.update({ necesitaOferta: true });
+  await assert.rejects(service.archive(manager, work.id), /Trimite oferta/);
+  await db.doc("predefinedSettings/archive_offer_require_offer_sent_when_needed").set({ value: false });
+  assert.deepEqual((await service.list(manager, work.id)).managementActions?.archiveReasons, []);
+  // A setting changed after GET must be checked again by the POST transaction.
+  await db.doc("predefinedSettings/archive_offer_require_offer_sent_when_needed").set({ value: true });
+  await assert.rejects(service.archive(manager, work.id), /Trimite oferta/);
+  assert.equal((await ref.get()).data()!.statusLucrare, "Finalizat");
+  await db.doc("users/dispatcher").update({ disabled: true });
+  await assert.rejects(service.archive(manager, work.id), /Acces neautorizat/);
+});
+
 test("completed installation supports dispatcher pickup and invoice without changing signed documents", async () => {
   const { work, ref } = await commercialReady();
   const before = (await ref.get()).data()!;
@@ -152,7 +207,8 @@ test("completed installation supports dispatcher pickup and invoice without chan
   assert.equal(after.statusFacturare, "Facturat");
   assert.equal(after.preluatDispecer, true);
   assert.equal(after.statusLucrare, "Finalizat");
-  assert.deepEqual(after.installation, before.installation);
+  assert.deepEqual(after.installation, { ...before.installation, assignmentVersion: 1, lastPickupVersion: 0 });
+  assert.deepEqual(after.tehnicieni, []);
   assert.deepEqual((await ref.collection("installationCompletion").doc("final").get()).data(), signedBefore);
   assert.equal(after.raportGenerat, undefined, "No legacy intervention report is created");
   const audit = await ref.collection("installationAudit").where("action", "==", "manage").get();
@@ -170,6 +226,83 @@ test("installation commercial transitions reject technicians, forged roles and u
   await assert.rejects(service.manage(manager, work.id, { work: { installation: {} } }), /nepermis/);
   await db.collection("lucrari").doc(work.id).update({ statusLucrare: "Finalizat", "installation.closedReason": "completed" });
   await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true } }), /Procesul-verbal/);
+});
+
+test("pickup releases a signed unfinished team, retains history and commercial access across repeated assignments", async () => {
+  const work = await create();
+  const ref = db.collection("lucrari").doc(work.id);
+  await ref.update({ technicianIds: [tech.uid, tech2.uid] });
+  const first = (await start(work.id)).sheet;
+  const second = (await start(work.id, "e2", tech2)).sheet;
+  await close(work.id, first);
+  await service.save(tech2, work.id, {
+    sheetId: second.id, revision: second.revision,
+    fields: { ...content, installationStatus: "blocked", blockReason: "Lipsă alimentare" }, signatures: signed,
+  }, true);
+  const before = (await ref.get()).data()!;
+  const sheetsBefore = (await ref.collection("installationSheets").get()).docs.map(d => d.data());
+  await db.doc("installationTechnicianSessions/stale").set({ workId: work.id });
+  await db.doc("installationTechnicianSessions/unrelated").set({ workId: "elsewhere" });
+  const pickup = { work: { preluatDispecer: true }, expectedAssignmentVersion: 0 };
+  await Promise.all([service.manage(manager, work.id, pickup), service.manage(manager, work.id, pickup)]);
+  let after = (await ref.get()).data()!;
+  assert.equal(after.statusLucrare, "Listată");
+  assert.equal(after.nrLucrare, before.nrLucrare);
+  assert.equal(after.preluatDispecer, true);
+  assert.deepEqual(after.tehnicieni, []);
+  assert.deepEqual(after.technicianIds, []);
+  assert.deepEqual(after.installation.equipmentStatus, before.installation.equipmentStatus);
+  assert.equal(after.installation.closedReason, undefined);
+  assert.equal((await ref.collection("installationCompletion").doc("final").get()).exists, false);
+  assert.deepEqual((await ref.collection("installationSheets").get()).docs.map(d => d.data()), sheetsBefore);
+  assert.equal((await db.doc("installationTechnicianSessions/stale").get()).exists, false);
+  assert.equal((await db.doc("installationTechnicianSessions/unrelated").get()).exists, true);
+  assert.equal((await ref.collection("installationAudit").where("action", "==", "pickup").get()).size, 1);
+  await assert.rejects(start(work.id), /atribuit/);
+  await service.edit(manager, work.id, { tehnicieni: ["Tehnician doi"] });
+  after = (await ref.get()).data()!;
+  assert.equal(after.statusLucrare, "Atribuită");
+  assert.equal(after.preluatDispecer, true);
+  assert.equal(after.installation.assignmentVersion, 2);
+  await service.manage(manager, work.id, pickup); // Delayed retry must not release the new team.
+  assert.deepEqual((await ref.get()).data()!.tehnicieni, ["Tehnician doi"]);
+  await service.manage(manager, work.id, { work: { devizTotal: 100, devizProducts: [] } });
+  await service.manage(manager, work.id, { work: { statusFacturare: "Nu se facturează", motivNefacturare: "Contract" } });
+  const third = (await start(work.id, "e1", tech2)).sheet;
+  assert.notEqual(third.id, first.id);
+  assert.equal((await ref.get()).data()!.statusLucrare, "În lucru");
+  await close(work.id, third);
+  await service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 2 });
+  after = (await ref.get()).data()!;
+  assert.equal(after.statusLucrare, "Listată");
+  assert.deepEqual(after.tehnicieni, []);
+  assert.equal(after.devizTotal, 100);
+  assert.equal(after.statusFacturare, "Nu se facturează");
+  assert.equal((await ref.collection("installationSheets").get()).size, 3);
+  assert.equal((await ref.collection("installationAudit").where("action", "==", "pickup").get()).size, 2);
+});
+
+test("pickup validates roles, assignment version and actual sheets even when equipment maps are stale", async () => {
+  const work = await create();
+  const ref = db.collection("lucrari").doc(work.id);
+  const input = { work: { preluatDispecer: true }, expectedAssignmentVersion: 0 };
+  await assert.rejects(service.manage(tech, work.id, input), /Doar dispecerul/);
+  await assert.rejects(service.manage({ uid: tech.uid, role: "admin" }, work.id, input), /neautorizat/);
+  await assert.rejects(service.manage(manager, work.id, input), /cel puțin o fișă/);
+  const { sheet } = await start(work.id);
+  await assert.rejects(service.manage(manager, work.id, input), /fișele active/);
+  await service.stop(tech, work.id, { sheetId: sheet.id, revision: sheet.revision, fields: content });
+  await assert.rejects(service.manage(manager, work.id, input), /Semnează toate/);
+  await ref.update({ "installation.awaitingSheetByEquipment": {} });
+  await assert.rejects(service.manage(manager, work.id, input), /Închide și semnează/);
+  await ref.collection("installationSheets").doc(sheet.id).update({ state: "closed", documentSnapshot: { technicianSignature: "signed" } });
+  await assert.rejects(service.manage(manager, work.id, input), /Închide și semnează/);
+  await ref.collection("installationSheets").doc(sheet.id).update({ "documentSnapshot.beneficiarySignature": "signed" });
+  await service.edit(manager, work.id, { tehnicieni: ["Tehnician doi"] });
+  await assert.rejects(service.manage(manager, work.id, input), /Echipa a fost modificată/);
+  await assert.rejects(service.manage(manager, work.id, { ...input, expectedAssignmentVersion: -1 }), /Versiune/);
+  await ref.update({ statusLucrare: "Arhivată" });
+  await assert.rejects(service.manage(manager, work.id, { ...input, expectedAssignmentVersion: 1 }), /arhivat sau anulat/);
 });
 
 test("offer versions append atomically before pickup; sent offers cannot be disabled", async () => {
