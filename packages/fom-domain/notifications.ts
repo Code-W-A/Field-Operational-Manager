@@ -30,6 +30,7 @@ export interface TicketNotification {
   createdAt: string;
   readAt: string | null;
   workId?: string;
+  workNumber?: string;
   workIds?: string[];
   changes?: NotificationChange[];
 }

@@ -1,3 +1,4 @@
+import { startInstallationTime, stopInstallationTime } from "@/packages/fom-domain/installation";
 import {
   FieldValue,
   type Firestore,
@@ -684,6 +685,7 @@ export function installationService(db: Firestore) {
             revision: 0,
             createdAt: now,
             updatedAt: now,
+            timeIntervals: [],
           };
       const participants = sheetParticipants(target).map((p) => ({ ...p }));
       const role =
@@ -755,6 +757,7 @@ export function installationService(db: Firestore) {
         tx.update(
           sheetsRef(currentSession.workId).doc(currentSession.sheetId),
           {
+            ...(source.timeIntervals ? { timeIntervals: stopInstallationTime(source.timeIntervals, now, actor.uid) } : {}),
             participants: sourceParticipants,
             participantUids: sourceParticipants.map((p) => p.uid),
             updatedAt: now,
@@ -766,8 +769,10 @@ export function installationService(db: Firestore) {
           destinationSheetId: targetId,
         });
       }
+      const timing = target.timeIntervals ? { timeIntervals: startInstallationTime(target.timeIntervals, additions.map(p => p.uid), now) } : {};
       const updated = {
         ...target,
+        ...timing,
         participants,
         participantUids: participants.map((p) => p.uid),
         allocationWarnings: warnings,
@@ -775,6 +780,7 @@ export function installationService(db: Firestore) {
       };
       if (targetDoc.exists)
         tx.update(targetRef, {
+          ...timing,
           participants,
           participantUids: updated.participantUids,
           allocationWarnings: warnings,
@@ -868,6 +874,8 @@ export function installationService(db: Firestore) {
         "Fișa nu mai este activă.",
         409,
       );
+      const now = new Date().toISOString();
+      const timing = sheet.timeIntervals ? { timeIntervals: stopInstallationTime(sheet.timeIntervals, now) } : {};
       const participants = sheetParticipants(sheet);
       const release: string[] = [];
       let frozenDocument: InstallationSheet["frozenDocument"];
@@ -883,6 +891,7 @@ export function installationService(db: Firestore) {
             release.push(member.uid);
         }
         frozenDocument = {
+          ...timing,
           client: resolveDocumentClientSnapshot(work, resolved.client),
           workNumber: String(work.nrLucrare || workId),
           workDate: sheet.workDate,
@@ -902,7 +911,6 @@ export function installationService(db: Firestore) {
             signedByUid: actor.uid,
           };
       }
-      const now = new Date().toISOString();
       const update = {
         ...content,
         updatedAt: now,
@@ -913,6 +921,7 @@ export function installationService(db: Firestore) {
                 mode === "close"
                   ? ("closed" as const)
                   : ("awaiting_signature" as const),
+              ...timing,
               stoppedAt: now,
               participants: participants.map((p) => ({ ...p, active: false })),
               participantUids: participants.map((p) => p.uid),
@@ -1429,6 +1438,7 @@ export function installationService(db: Firestore) {
       for (const sheet of drafts.docs) {
         const data = sheet.data() as InstallationSheet;
         tx.update(sheet.ref, {
+          ...(data.timeIntervals ? { timeIntervals: stopInstallationTime(data.timeIntervals, now) } : {}),
           participants: sheetParticipants(data).map((member) => ({
             ...member,
             active: false,

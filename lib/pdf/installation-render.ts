@@ -1,3 +1,4 @@
+import { installationTimeLines } from "@/packages/fom-domain/installation";
 import { jsPDF } from "jspdf";
 import { drawSimpleHeader, drawFooter, MARGIN, CONTENT_WIDTH } from "./common";
 import { ensurePdfFont } from "./font-loader";
@@ -89,6 +90,8 @@ export async function renderInstallationPdf(
     snapshot.participants?.forEach((participant) =>
       line("Participant", `${participant.name} · ${participant.role === "principal" ? "principal" : "secundar"}${participant.moved ? " · a continuat pe altă fișă" : ""}`),
     );
+    section("Timp lucrat");
+    installationTimeLines(snapshot).forEach(value => line("", value));
     section("Constatare la locație");
     line("", snapshot.finding || "");
     section("Operațiuni executate");

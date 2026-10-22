@@ -1347,3 +1347,50 @@ test("terminal or missing source sheets no longer lock a technician, while valid
   assert.equal((await service.list(tech, next.id)).currentSession, null);
   await start(next.id);
 });
+
+test("timing follows team joins, transfers, return and deferred signing without duplication", async () => {
+  const work = await create();
+  const first = (await start(work.id)).sheet;
+  assert.equal(first.timeIntervals!.length, 2);
+  assert.equal(first.timeIntervals![0].startedAt, first.timeIntervals![1].startedAt);
+  await start(work.id);
+  const second = (await start(work.id, "e2", tech2)).sheet;
+  let old = (await service.list(manager, work.id)).sheets.find(s => s.id === first.id)!;
+  const departure = old.timeIntervals!.find(i => i.uid === tech2.uid)!;
+  assert.equal(departure.endedAt, second.timeIntervals![0].startedAt);
+  assert.equal(old.timeIntervals!.find(i => i.uid === tech.uid)!.endedAt, undefined);
+  await close(work.id, second);
+  const returned = (await start(work.id, "e1", tech2)).sheet;
+  assert.equal(returned.timeIntervals!.filter(i => i.uid === tech2.uid).length, 2);
+  await assert.rejects(service.stop(tech, work.id, {sheetId: first.id, revision: 99, fields: content}));
+  const pending = (await service.stop(tech, work.id, {sheetId: first.id, revision: 0, fields: content})).sheet;
+  assert.ok(pending.timeIntervals!.every((i: import("@/types/installation").InstallationTimeInterval) => i.endedAt));
+  assert.deepEqual(pending.frozenDocument!.timeIntervals, pending.timeIntervals);
+  const signedSheet = (await service.sign(tech, work.id, {sheetId: first.id, revision: pending.revision, requestId: randomUUID(), signatures: signed})).sheet;
+  assert.deepEqual(signedSheet.documentSnapshot!.timeIntervals, pending.timeIntervals);
+  assert.equal(signedSheet.timeIntervals!.length, 3);
+});
+test("historical sheets stay untracked and concurrent scans create one interval per participant", async () => {
+  const work = await create();
+  const results = await Promise.all([start(work.id), start(work.id, "e1", tech2)]);
+  const sheet = results[0].sheet;
+  const ref = db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`);
+  assert.equal((await ref.get()).data()!.timeIntervals.length, 2);
+  const {FieldValue} = await import('firebase-admin/firestore');
+  await ref.update({timeIntervals: FieldValue.delete()});
+  const closed = (await close(work.id, sheet)).sheet;
+  assert.equal(closed.timeIntervals, undefined);
+  assert.equal(closed.documentSnapshot!.timeIntervals, undefined);
+});
+for (const mode of ['cancel', 'delete'] as const) test(`timing closes on ${mode}`, async () => {
+  const work = await create();
+  const sheet = (await start(work.id)).sheet;
+  if (mode === 'cancel') await service.cancel(manager, work.id, 'Test');
+  else {
+    await db.doc('users/dispatcher').update({role: 'admin'});
+    await service.delete({...manager, role: 'admin'}, work.id);
+  }
+  const saved = (await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).get()).data()!;
+  assert.ok(saved.timeIntervals.every((i: any) => i.endedAt === saved.stoppedAt));
+  assert.equal((await db.collection('installationTechnicianSessions').get()).size, 0);
+});

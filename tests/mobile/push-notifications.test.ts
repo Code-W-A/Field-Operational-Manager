@@ -183,7 +183,7 @@ test("out-of-order triggers retain history but send only the latest state", asyn
   assert.equal(calls.length, 1);
   assert.equal(calls[0].data.eventId, notificationId("change:newer", a));
 });
-test("withdrawal remains readable by its recipient and cannot open or expose a foreign ticket", async () => {
+test("withdrawal disappears from the inbox and cannot expose a foreign ticket", async () => {
   await clear();
   await db
     .doc(`lucrari/${workId}`)
@@ -196,9 +196,8 @@ test("withdrawal remains readable by its recipient and cannot open or expose a f
     new Date().toISOString(),
   );
   const id = notificationId("change:withdraw", a);
-  assert.equal((await service.list(a)).unreadCount, 1);
-  assert.equal((await service.open(a, id, actor)).assigned, false);
-  assert.equal((await service.open(a, id, actor)).event.kind, "withdrawn");
+  assert.equal((await service.list(a)).unreadCount, 0);
+  await assert.rejects(() => service.open(a, id, actor), /relevantă/);
   await assert.rejects(() => service.read(b, id), /disponibilă/);
   await service.read(a, id);
   await service.read(a, id);
@@ -212,6 +211,7 @@ test("pagination uses a stable cursor and unread total independent of the page",
       uid: a,
       kind: "assigned",
       title: "Test",
+      workId,
       body: "Generic",
       createdAt: new Date(1700000000000 + i).toISOString(),
       readAt: null,
@@ -336,14 +336,18 @@ test("08:00 summaries and per-ticket reminders are deduplicated without token re
   });
   await runtime.reminders(new Date("2026-10-12T05:00:00Z"));
   await runtime.reminders(new Date("2026-10-12T05:01:00Z"));
-  const rows = (await service.list(a)).items;
+  const summaryService = notificationService(
+    db,
+    () => new Date("2026-10-12T05:01:00Z"),
+  );
+  const rows = (await summaryService.list(a)).items;
   assert.deepEqual(rows.map((r) => r.kind).sort(), [
     "daily_overdue",
     "daily_today",
   ]);
   assert.equal((await db.collection(C.deliveries).get()).size, 0);
   await runtime.reminders(new Date("2026-10-12T04:59:59Z"));
-  assert.equal((await service.list(a)).items.length, 2);
+  assert.equal((await summaryService.list(a)).items.length, 2);
 });
 test("notifications API policy needs accepted terms but no attendance session", async () => {
   const access = mobileAccessService(db);
@@ -503,4 +507,122 @@ test("hourly reconciliation prepares existing timed works without retrospective 
   await runtime.reconcileSchedules();
   assert.equal((await db.doc(`${C.schedules}/${workId}`).get()).exists, true);
   assert.equal((await db.collection(C.events).get()).size, 0);
+});
+
+test("dismissal persists, undo is owner-scoped, and delayed push does not recreate it", async () => {
+  await clear();
+  await service.register(a, device);
+  await runtime.workChanged(
+    workId,
+    null,
+    work,
+    "dismiss-test",
+    new Date().toISOString(),
+  );
+  const id = notificationId("change:dismiss-test", a);
+  const removed = await service.action(a, { action: "dismiss", id });
+  assert(removed.token);
+  assert.equal((await service.list(a)).items.length, 0);
+  assert.equal((await service.list(a)).unreadCount, 0);
+  assert.equal((await notificationService(db).list(a)).items.length, 0);
+  await assert.rejects(() => service.open(a, id, actor), /disponibilă/);
+  await assert.rejects(
+    () => service.action(b, { action: "restore", id, token: removed.token }),
+    /disponibilă/,
+  );
+  await assert.rejects(
+    () => service.action(a, { action: "restore", id, token: "wrong" }),
+    /Anularea/,
+  );
+  const calls: any[] = [];
+  await runtime.dispatch(mockSend(calls), async () => true);
+  assert.equal(calls.length, 0);
+  await service.action(a, { action: "restore", id, token: removed.token });
+  assert.equal((await service.list(a)).unreadCount, 1);
+  await service.action(a, { action: "restore", id, token: removed.token });
+  await service.read(a, id);
+  assert.equal((await service.list(a)).unreadCount, 0);
+  const second = await service.action(a, { action: "dismiss", id });
+  await db
+    .doc(`${C.events}/${id}`)
+    .update({ dismissedAt: new Date(Date.now() - 20000).toISOString() });
+  await assert.rejects(
+    () => service.action(a, { action: "restore", id, token: second.token }),
+    /Anularea/,
+  );
+  assert.equal((await db.doc(`${C.events}/${id}`).get()).exists, true);
+});
+
+test("bulk operations include unloaded pages and preserve other owners and later arrivals", async () => {
+  await clear();
+  const batch = db.batch();
+  for (let i = 0; i < 75; i++)
+    batch.set(db.doc(`${C.events}/${notificationId(`bulk:${i}`, a)}`), {
+      uid: a,
+      kind: "assigned",
+      workId,
+      title: "Test",
+      body: "Test",
+      readAt: null,
+      createdAt: new Date(Date.now() - 1000 - i).toISOString(),
+    });
+  const foreign = notificationId("foreign", b),
+    future = notificationId("future", a);
+  batch.set(db.doc(`${C.events}/${foreign}`), {
+    uid: b,
+    kind: "assigned",
+    workId,
+    readAt: null,
+    createdAt: new Date().toISOString(),
+  });
+  batch.set(db.doc(`${C.events}/${future}`), {
+    uid: a,
+    kind: "assigned",
+    workId,
+    title: "Nou",
+    body: "Nou",
+    readAt: null,
+    createdAt: new Date(Date.now() + 60000).toISOString(),
+  });
+  await batch.commit();
+  assert.equal((await service.list(a)).items.length, 30);
+  await service.action(a, { action: "readAll" });
+  assert.equal((await service.list(a)).unreadCount, 1);
+  assert.equal(
+    (await db.doc(`${C.events}/${foreign}`).get()).data()!.readAt,
+    null,
+  );
+  await service.action(a, { action: "dismissAll" });
+  assert.deepEqual(
+    (await service.list(a)).items.map((row) => row.id),
+    [future],
+  );
+  assert.equal(
+    (await db.doc(`${C.events}/${foreign}`).get()).data()!.dismissedAt,
+    undefined,
+  );
+});
+
+test("old cursors remain usable after dismissal, and obsolete tickets leave no unread count", async () => {
+  await clear();
+  const batch = db.batch();
+  for (let i = 0; i < 40; i++)
+    batch.set(db.doc(`${C.events}/${notificationId(`cursor:${i}`, a)}`), {
+      uid: a,
+      kind: "assigned",
+      workId,
+      title: "Test",
+      body: "Test",
+      readAt: null,
+      createdAt: new Date(Date.now() - 1000 - i).toISOString(),
+    });
+  await batch.commit();
+  const page = await service.list(a);
+  await service.action(a, { action: "dismiss", id: page.cursor! });
+  assert.equal((await service.list(a, page.cursor!)).items.length, 10);
+  await db.doc(`lucrari/${workId}`).update({ statusLucrare: "Finalizat" });
+  assert.equal((await service.list(a)).unreadCount, 0);
+  assert.equal((await service.list(a)).items.length, 0);
+  await db.doc(`lucrari/${workId}`).delete();
+  assert.equal((await service.list(a)).items.length, 0);
 });

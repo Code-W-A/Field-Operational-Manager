@@ -446,18 +446,6 @@ export function InstallationSheetForm({
                 />
                 <div className="grid gap-4 xl:grid-cols-2 [&>div]:min-w-0 [&_[class*=justify-between]]:flex-wrap [&_[class*=justify-between]]:gap-2">
                   <SignaturePad
-                    title={`Semnătura tehnicianului — ${sheet.principalName}`}
-                    onClear={() => {
-                      setTechSignature("");
-                      setDirty(true);
-                    }}
-                    onSave={(value) => {
-                      setTechSignature(value);
-                      setDirty(true);
-                    }}
-                    existingSignature={technicianSignature}
-                  />
-                  <SignaturePad
                     title="Semnătura beneficiarului"
                     onClear={() => {
                       setBeneficiarySignature("");
@@ -468,6 +456,18 @@ export function InstallationSheetForm({
                       setDirty(true);
                     }}
                     existingSignature={beneficiarySignature}
+                  />
+                  <SignaturePad
+                    title={`Semnătura tehnicianului — ${sheet.principalName}`}
+                    onClear={() => {
+                      setTechSignature("");
+                      setDirty(true);
+                    }}
+                    onSave={(value) => {
+                      setTechSignature(value);
+                      setDirty(true);
+                    }}
+                    existingSignature={technicianSignature}
                   />
                 </div>
               </div>
@@ -623,16 +623,16 @@ export function InstallationCompletionForm({
           />
           <div className="grid gap-4 xl:grid-cols-2 [&>div]:min-w-0 [&_[class*=justify-between]]:flex-wrap [&_[class*=justify-between]]:gap-2">
             <SignaturePad
-              title={`Semnătura tehnicianului — ${userData?.displayName}`}
-              onClear={() => setTechnicianSignature("")}
-              onSave={setTechnicianSignature}
-              existingSignature={technicianSignature}
-            />
-            <SignaturePad
               title="Semnătura beneficiarului"
               onClear={() => setBeneficiarySignature("")}
               onSave={setBeneficiarySignature}
               existingSignature={beneficiarySignature}
+            />
+            <SignaturePad
+              title={`Semnătura tehnicianului — ${userData?.displayName}`}
+              onClear={() => setTechnicianSignature("")}
+              onSave={setTechnicianSignature}
+              existingSignature={technicianSignature}
             />
           </div>
         </FormSection>
@@ -824,16 +824,16 @@ function InstallationDeferredSignatures({
         />
         <div className="grid gap-4 xl:grid-cols-2 [&>div]:min-w-0 [&_[class*=justify-between]]:flex-wrap [&_[class*=justify-between]]:gap-2">
           <SignaturePad
-            title={`Semnătura tehnicianului — ${userData?.displayName}`}
-            existingSignature={technicianSignature}
-            onSave={setTechnician}
-            onClear={() => setTechnician("")}
-          />
-          <SignaturePad
             title="Semnătura beneficiarului"
             existingSignature={beneficiarySignature}
             onSave={setBeneficiary}
             onClear={() => setBeneficiary("")}
+          />
+          <SignaturePad
+            title={`Semnătura tehnicianului — ${userData?.displayName}`}
+            existingSignature={technicianSignature}
+            onSave={setTechnician}
+            onClear={() => setTechnician("")}
           />
         </div>
         {error && (

@@ -9,6 +9,13 @@ export type InstallationEquipment = {
   model: string;
   producator?: string;
 };
+export type InstallationTimeInterval = {
+  uid: string;
+  startedAt: string;
+  endedAt?: string;
+};
+export type InstallationTiming = { timeIntervals?: InstallationTimeInterval[] };
+
 export type InstallationParticipant = {
   uid: string;
   name: string;
@@ -39,49 +46,51 @@ export type InstallationSignatures = {
   technicianSignature: string;
   beneficiarySignature: string;
 };
-export type InstallationDocument = InstallationSignatures & {
-  client: DocumentClientSnapshot;
-  workNumber: string;
-  workDate: string;
-  equipment: InstallationEquipment[];
-  finding?: string;
-  operations?: string;
-  installationStatus?: InstallationStatus;
-  blockReason?: string;
-  observations?: string;
-  sheetReferences?: {
-    workId: string;
-    sheetId: string;
+export type InstallationDocument = InstallationSignatures &
+  InstallationTiming & {
+    client: DocumentClientSnapshot;
+    workNumber: string;
     workDate: string;
-    equipmentName: string;
-  }[];
-  photos: InstallationPhoto[];
-  principalName?: string;
-  participants?: InstallationParticipant[];
-  signedByUid?: string;
-};
-export type InstallationSheet = InstallationFields & {
-  id: string;
-  equipmentId: string;
-  principalUid: string;
-  principalName: string;
-  workDate: string;
-  state: "draft" | "awaiting_signature" | "closed";
-  createdAt: string;
-  updatedAt: string;
-  closedAt?: string;
-  photos: InstallationPhoto[];
-  revision: number;
-  documentSnapshot?: InstallationDocument;
-  frozenDocument?: InstallationFrozenDocument;
-  participants?: InstallationParticipant[];
-  participantUids?: string[];
-  allocationWarnings?: string[];
-  stoppedAt?: string;
-  signedByUid?: string;
-  signRequestId?: string;
-  canSign?: boolean;
-};
+    equipment: InstallationEquipment[];
+    finding?: string;
+    operations?: string;
+    installationStatus?: InstallationStatus;
+    blockReason?: string;
+    observations?: string;
+    sheetReferences?: {
+      workId: string;
+      sheetId: string;
+      workDate: string;
+      equipmentName: string;
+    }[];
+    photos: InstallationPhoto[];
+    principalName?: string;
+    participants?: InstallationParticipant[];
+    signedByUid?: string;
+  };
+export type InstallationSheet = InstallationFields &
+  InstallationTiming & {
+    id: string;
+    equipmentId: string;
+    principalUid: string;
+    principalName: string;
+    workDate: string;
+    state: "draft" | "awaiting_signature" | "closed";
+    createdAt: string;
+    updatedAt: string;
+    closedAt?: string;
+    photos: InstallationPhoto[];
+    revision: number;
+    documentSnapshot?: InstallationDocument;
+    frozenDocument?: InstallationFrozenDocument;
+    participants?: InstallationParticipant[];
+    participantUids?: string[];
+    allocationWarnings?: string[];
+    stoppedAt?: string;
+    signedByUid?: string;
+    signRequestId?: string;
+    canSign?: boolean;
+  };
 export type InstallationMeta = {
   schemaVersion: 1;
   rootWorkId: string;
@@ -146,4 +155,73 @@ export function installationDeliveryMessage(
   if (delivery.status === "pending" || delivery.status === "processing")
     return "Proces-verbal finalizat; trimiterea emailului este în curs.";
   return `Proces-verbal finalizat; emailul nu a fost confirmat.${delivery.error ? ` ${delivery.error}` : ""}`;
+}
+
+/** Undefined means a historical sheet, never backfilled from document dates. */
+export function startInstallationTime(
+  intervals: InstallationTimeInterval[] | undefined,
+  uids: string[],
+  at: string,
+) {
+  if (!intervals) return undefined;
+  return [
+    ...intervals,
+    ...[...new Set(uids)]
+      .filter((uid) => !intervals.some((i) => i.uid === uid && !i.endedAt))
+      .map((uid) => ({ uid, startedAt: at })),
+  ];
+}
+export function stopInstallationTime(
+  intervals: InstallationTimeInterval[] | undefined,
+  at: string,
+  uid?: string,
+) {
+  return intervals?.map((i) =>
+    !i.endedAt && (!uid || i.uid === uid) ? { ...i, endedAt: at } : i,
+  );
+}
+export function installationSeconds(
+  intervals: InstallationTimeInterval[],
+  now: number,
+) {
+  return intervals.reduce((sum, i) => {
+    const milliseconds =
+      Date.parse(i.endedAt || new Date(now).toISOString()) -
+      Date.parse(i.startedAt);
+    return (
+      sum +
+      (Number.isFinite(milliseconds) ? Math.max(0, milliseconds) / 1000 : 0)
+    );
+  }, 0);
+}
+export function installationDuration(seconds: number) {
+  const minutes = Math.round(seconds / 60);
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+export function installationTimeLines(
+  sheet: InstallationTiming & { participants?: InstallationParticipant[] },
+  now = Date.now(),
+): string[] {
+  if (!sheet.timeIntervals) return ["Timp neînregistrat"];
+  const date = (value: string) =>
+    new Date(value).toLocaleString("ro-RO", {
+      timeZone: "Europe/Bucharest",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  const lines = [...new Set(sheet.timeIntervals.map((i) => i.uid))].map(
+    (uid) => {
+      const intervals = sheet.timeIntervals!.filter((i) => i.uid === uid);
+      const name =
+        sheet.participants?.find((p) => p.uid === uid)?.name || "Tehnician";
+      return `${name} · ${intervals.map((i) => `${date(i.startedAt)} – ${i.endedAt ? date(i.endedAt) : "în lucru"}`).join("; ")} · ${installationDuration(installationSeconds(intervals, now))}`;
+    },
+  );
+  return [
+    ...lines,
+    `Total echipă — ore-om: ${installationDuration(installationSeconds(sheet.timeIntervals, now))}`,
+  ];
 }

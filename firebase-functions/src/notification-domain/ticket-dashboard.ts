@@ -1,4 +1,5 @@
 /** Shared, read-only dashboard classification. Never writes a work status. */
+import { hasTicketCompletionDocument, type TicketCompletion } from "./work-completion";
 export const OVERDUE_DEFAULTS = {
   intarziateEnabled: true,
   intarziateRequireExecDate: true,
@@ -112,6 +113,7 @@ export type DashboardWork = {
   tehnicieni?: unknown;
   technicianIds?: unknown;
   raportGenerat?: unknown;
+  installation?: TicketCompletion["installation"];
   anulat?: unknown;
   anulatAt?: unknown;
   motivAnulare?: unknown;
@@ -178,7 +180,7 @@ export function groupDashboardTickets<T extends DashboardWork>(
     if (
       isDashboardCanceled(work) ||
       (work.preluatDispecer &&
-        (work.raportGenerat || work.statusLucrare === "Amânată"))
+        (hasTicketCompletionDocument(work) || work.statusLucrare === "Amânată"))
     )
       continue;
     const scheduled = schedules.get(work.id);

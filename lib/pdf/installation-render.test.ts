@@ -24,6 +24,7 @@ for (const scenario of ["sheet", "long-sheet", "completion", "short-completion"]
       technicianName: "Ștefan Ionescu", beneficiaryName: "Andreea Șerban",
       technicianSignature: signature, beneficiarySignature: signature,
       principalName: "Ștefan Ionescu",
+      timeIntervals: [{uid: "p", startedAt: "2026-10-17T05:30:00Z", endedAt: "2026-10-17T07:15:00Z"}, {uid: "s", startedAt: "2026-10-17T05:30:00Z", endedAt: "2026-10-17T06:30:00Z"}],
       participants: [{ uid: "p", name: "Ștefan Ionescu", role: "principal", active: true }, { uid: "s", name: "Mihai Popescu", role: "secondary", active: false, moved: true }],
       finding: "S-a verificat amplasamentul și alimentarea electrică. ".repeat(long ? 90 : 1),
       operations: "Montaj, reglaj și verificări de funcționare în siguranță. ".repeat(long ? 150 : 2),
@@ -54,6 +55,10 @@ for (const scenario of ["sheet", "long-sheet", "completion", "short-completion"]
     } finally {
       const events = jsPDF.API.events as any;
       events.splice(events.indexOf(event), 1);
+    }
+    if (isSheet) {
+      assert(texts.some(t => t.value.includes("1 h 45 min")));
+      assert(texts.some(t => t.value.includes("2 h 45 min")));
     }
     const bottom = doc.internal.pageSize.getHeight() - 35;
     assert(texts.every(text => text.y <= bottom || text.y >= 279));

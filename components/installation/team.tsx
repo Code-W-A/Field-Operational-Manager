@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, useState } from "react";
+import { installationTimeLines } from "@/packages/fom-domain/installation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { InstallationSheet } from "@/types/installation";
@@ -13,9 +15,23 @@ export function InstallationTeam({
   sheet: InstallationSheet;
   compact?: boolean;
 }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!sheet.timeIntervals?.some((i) => !i.endedAt)) return;
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [sheet.timeIntervals]);
+  const timing = (
+    <div className="space-y-2 text-sm break-words">
+      {installationTimeLines(sheet, now).map((line, index) => (
+        <p key={index}>{line}</p>
+      ))}
+    </div>
+  );
   if (compact)
     return (
       <div className="space-y-2">
+        {timing}
         {sheet.state === "awaiting_signature" && (
           <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             {pendingSignatureMessage}
@@ -34,6 +50,7 @@ export function InstallationTeam({
         <CardTitle className="text-lg">Echipa fișei</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {timing}
         <div className="flex flex-wrap gap-2">
           {sheetParticipants(sheet).map((p) => (
             <Badge

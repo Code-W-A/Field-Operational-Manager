@@ -459,6 +459,7 @@ export function ticketNotificationRuntime(db: Firestore) {
             device = deviceRow.data();
           if (
             !event ||
+            event.dismissedAt ||
             !device?.enabled ||
             device.uid !== job.uid ||
             digest(device.expoToken) !== job.tokenHash ||

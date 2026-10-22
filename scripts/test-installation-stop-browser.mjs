@@ -13,11 +13,10 @@ const mocks = {
   "@/components/signature-pad": `export const SignaturePad=({title,onSave})=><button onClick={()=>onSave('data:image/png;base64,test')}>{title}</button>;`,
   "@/lib/installations/client": `export const installationApi=id=>'/installation/'+id;export const installationRequest=async(url,payload)=>{window.commands.push(payload);if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');window.saved={...(window.saved||window.sheet),...payload.fields,state:payload.action==='stop'?'awaiting_signature':payload.action==='sign'?'closed':'draft',revision:2};return{sheet:window.saved};};`,
   "@/components/installation/shared": `export const statuses={in_progress:'În lucru'};export const dateLabel=v=>v;export const pdf=async()=>{};`,
-  "@/components/installation/team": `export const sheetStateLabel=()=> 'În așteptarea semnăturilor';`,
 };
 const out = await build({
   stdin: {
-    contents: `import React,{useState}from'react';import{createRoot}from'react-dom/client';import{InstallationSheetForm}from'./components/installation/forms';function Fixture(){const[sheet,setSheet]=useState(window.sheet);const[left,setLeft]=useState(false);return left?<><h1>Fișe zilnice</h1><button onClick={()=>setLeft(false)}>Redeschide fișa</button></>:<InstallationSheetForm workId="work" sheet={sheet} onSheet={setSheet} onStopped={()=>{window.routes.push('/instalare?tab=sheets');setLeft(true)}} onRefresh={async()=>{window.refreshes++;throw Error('Reîncărcare indisponibilă')}}/>;}createRoot(document.getElementById('root')).render(<Fixture/>);`,
+    contents: `import React,{useState}from'react';import{createRoot}from'react-dom/client';import{InstallationSheetForm}from'./components/installation/forms';import{InstallationTeam}from'./components/installation/team';function Fixture(){const[sheet,setSheet]=useState(window.sheet);const[left,setLeft]=useState(false);return left?<><h1>Fișe zilnice</h1><button onClick={()=>setLeft(false)}>Redeschide fișa</button></>:<><InstallationTeam sheet={sheet}/><InstallationSheetForm workId="work" sheet={sheet} onSheet={setSheet} onStopped={()=>{window.routes.push('/instalare?tab=sheets');setLeft(true)}} onRefresh={async()=>{window.refreshes++;throw Error('Reîncărcare indisponibilă')}}/></>;}createRoot(document.getElementById('root')).render(<Fixture/>);`,
     resolveDir: process.cwd(),
     loader: "tsx",
   },
@@ -83,6 +82,8 @@ async function fixture() {
       internalNote: "Notă",
       photos: [{ id: "p", name: "Fotografie existentă" }],
       canSign: true,
+      participants: [{uid: "tech", name: "Tehnician", role: "principal", active: false}],
+      timeIntervals: [{uid: "tech", startedAt: "2026-10-21T05:30:00Z", endedAt: "2026-10-21T07:15:00Z"}],
     };
   });
   await p.addScriptTag({ content: out.outputFiles[0].text });
@@ -153,6 +154,13 @@ try {
   await p
     .getByLabel("Numele beneficiarului *", { exact: true })
     .fill("Beneficiar");
+  await expect(p.getByText("Total echipă — ore-om: 1 h 45 min", {exact: true})).toBeVisible();
+  const beneficiaryBox = await p.getByRole("button", {name: "Semnătura beneficiarului", exact:true}).boundingBox();
+  const technicianBox = await p.getByRole("button", {name: /Semnătura tehnicianului/}).boundingBox();
+  assert(beneficiaryBox.y < technicianBox.y);
+  await p.addStyleTag({content:'* { scroll-behavior: auto !important; } html, body {overflow: visible !important; height: auto !important;}'});
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.screenshot({path: '/tmp/fom-installation-time-web.png', fullPage:true, animations:'disabled'});
   await p.getByRole("button", { name: /Semnătura tehnicianului/ }).click();
   await p
     .getByRole("button", { name: "Semnătura beneficiarului", exact: true })
