@@ -1,6 +1,7 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { withTicketOrigin } from "@/lib/navigation/ticket-origin"
 import { useState, useRef, useEffect } from "react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -22,6 +23,7 @@ import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sy
 export default function RevisionEquipmentPage() {
   const params = useParams<{ id: string; equipmentId: string }>()
   const router = useRouter()
+  const source = useSearchParams().get("from")
   const workId = params?.id as string
   const equipmentId = params?.equipmentId as string
   
@@ -106,7 +108,7 @@ export default function RevisionEquipmentPage() {
     leavingRef.current = true
     hasUnsavedChangesRef.current = false
     setShowUnsavedDialog(false)
-    router.replace(`/dashboard/lucrari/${encodeURIComponent(workId)}`)
+    router.replace(withTicketOrigin(`/dashboard/lucrari/${encodeURIComponent(workId)}`, source))
   }
 
   const handleBack = () => {

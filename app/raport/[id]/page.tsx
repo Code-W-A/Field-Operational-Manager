@@ -6,6 +6,7 @@ import { InstallationWorkspace } from "@/components/installation-workspace"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
+import { ticketExitHref } from "@/lib/navigation/ticket-origin"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +43,9 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
 
   const router = useRouter()
   const searchParams = useSearchParams()
+  const fromSource = searchParams.get("from")
+  const exitHref = ticketExitHref(fromSource)
+  const handleExit = () => fromSource === "dashboard" ? router.push(exitHref) : router.back()
   const { userData } = useAuth()
   const { id: paramsId } = React.use(params)
   
@@ -951,7 +955,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         description: "Intervenția a fost închisă. Puteți genera raportul mai târziu.",
       })
 
-      router.push("/dashboard/lucrari")
+      router.push(exitHref)
     } catch (error) {
       console.error("Eroare la salvarea fără semnătură:", error)
       toast({
@@ -1300,7 +1304,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             <h2 className="mt-4 text-xl font-semibold text-red-600">Eroare</h2>
             <p className="mt-2 text-center text-gray-500">{error || "Nu s-au putut încărca datele raportului."}</p>
             <Button asChild className="mt-6">
-              <Link href="/dashboard/lucrari">
+              <Link href={exitHref}>
                 Înapoi la tichete
               </Link>
             </Button>
@@ -1317,7 +1321,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         <Card className="w-full max-w-3xl">
           <CardHeader className="text-center">
             <div className="flex items-center">
-              <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+              <Button variant="ghost" size="icon" className="absolute left-4" onClick={handleExit}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="w-full">
@@ -1934,7 +1938,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
             <div className="order-2 sm:order-1 w-full sm:w-auto">
               <Button
                 variant="outline"
-                onClick={() => router.back()}
+                onClick={handleExit}
                 className="w-full sm:w-auto"
                 disabled={isSubmitting}
               >
@@ -1969,7 +1973,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       <Card className="w-full max-w-3xl">
         <CardHeader className="text-center">
           <div className="flex items-center">
-            <Button variant="ghost" size="icon" className="absolute left-4" onClick={() => router.back()}>
+            <Button variant="ghost" size="icon" className="absolute left-4" onClick={handleExit}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="w-full">
@@ -2315,7 +2319,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                             }
 
                             // Redirect to dashboard after a short delay
-                            router.push("/dashboard/lucrari")
+                            router.push(exitHref)
                           } else {
                             toast({
                               title: "Raport finalizat",
@@ -2327,7 +2331,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                               updateWorkOrderStatus(updatedLucrare.id)
                             }
 
-                            router.push("/dashboard/lucrari")
+                            router.push(exitHref)
                           }
                         })
                         .catch((error) => {
@@ -2340,7 +2344,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                           if (updatedLucrare && updatedLucrare.id) {
                             updateWorkOrderStatus(updatedLucrare.id)
                           }
-                          router.push("/dashboard/lucrari")
+                          router.push(exitHref)
                         })
                         .finally(() => setIsSubmitting(false))
                     }}
@@ -2356,7 +2360,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
           <div className="order-2 sm:order-1 w-full sm:w-auto">
             <Button
               variant="outline"
-              onClick={() => router.back()}
+              onClick={handleExit}
               className="w-full sm:w-auto"
               disabled={isSubmitting}
             >

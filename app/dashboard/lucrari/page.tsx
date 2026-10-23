@@ -59,6 +59,7 @@ import { ColumnSelectionButton } from "@/components/column-selection-button"
 import { ColumnSelectionModal } from "@/components/column-selection-modal"
 import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { LucrariNotificationsBell } from "@/components/lucrari-notifications-bell"
+import { ticketExitHref } from "@/lib/navigation/ticket-origin"
 import { ReinterventionReasonDialog } from "@/components/reintervention-reason-dialog"
 import { EquipmentHistoryCheckDialog } from "@/components/equipment-history-check-dialog"
 import {
@@ -1797,6 +1798,8 @@ export default function Lucrari() {
           icon: <AlertCircle className="h-4 w-4" />,
         })
       }
+
+      if (reinterventionId && searchParams.get("from") === "dashboard") router.push(ticketExitHref("dashboard"))
 
       // Închidem dialogul și resetăm formularul
       setIsAddDialogOpen(false)

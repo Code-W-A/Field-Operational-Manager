@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { ticketExitHref, withTicketOrigin } from "@/lib/navigation/ticket-origin";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { QRCodeScanner } from "@/components/qr-code-scanner";
 import { Archive, ArrowLeft, FileText, Lock, Pencil, RefreshCw, Trash2, X } from "lucide-react";
@@ -81,6 +82,8 @@ export function InstallationWorkspace({
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
+  const source = search.get("from");
+  const originHref = (href: string) => withTicketOrigin(href, source);
   const requestedTab = search.get("tab");
   const tab = complete
     ? "documents"
@@ -166,7 +169,7 @@ export function InstallationWorkspace({
       (!data?.canStart || data?.currentSession?.sheetId === activeId)
     ) {
       router.push(
-        `${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(activeId)}`,
+        originHref(`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(activeId)}`),
       );
       return;
     }
@@ -212,7 +215,7 @@ export function InstallationWorkspace({
       });
       setScanEquipmentId(undefined);
       router.push(
-        `${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(result.sheet.id)}`,
+        originHref(`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(result.sheet.id)}`),
       );
     } finally {
       scanningRequest.current = false;
@@ -235,7 +238,7 @@ export function InstallationWorkspace({
       });
       toast({ title: confirmation === "archive" ? "Tichet arhivat" : confirmation === "cancel" ? "Tichet anulat" : "Tichet șters", description: confirmation === "archive" ? "Tichetul a fost mutat în Arhivate." : confirmation === "cancel" ? "Tichetul a fost anulat și arhivat." : "Tichetul a fost șters cu succes." });
       setConfirmation(null);
-      router.push(confirmation !== "delete" ? `/dashboard/arhivate/${workId}` : "/dashboard/lucrari");
+      router.push(ticketExitHref(source, confirmation !== "delete" ? `/dashboard/arhivate/${workId}` : "/dashboard/lucrari"));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Operația a eșuat.");
     } finally {
@@ -282,11 +285,11 @@ export function InstallationWorkspace({
         <Button asChild variant="outline">
           <Link
             href={
-              compact ? "/dashboard/lucrari" : `/dashboard/lucrari/${workId}`
+              compact ? ticketExitHref(source) : originHref(`/dashboard/lucrari/${workId}`)
             }
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            {compact ? "Înapoi la tichete" : "Înapoi la tichet"}
+            {compact ? (source === "dashboard" ? "Înapoi la Dashboard" : "Înapoi la tichete") : "Înapoi la tichet"}
           </Link>
         </Button>
         {manager && data && !canceled && (
@@ -315,7 +318,7 @@ export function InstallationWorkspace({
               ) : onEdit ? (
                 <Button variant="outline" size="icon" aria-label="Editează" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
               ) : (
-                <Button asChild variant="outline" size="icon" aria-label="Editează"><Link href={`/dashboard/lucrari/${workId}?edit=1`}><Pencil className="h-4 w-4" /></Link></Button>
+                <Button asChild variant="outline" size="icon" aria-label="Editează"><Link href={originHref(`/dashboard/lucrari/${workId}?edit=1`)}><Pencil className="h-4 w-4" /></Link></Button>
               )}
             </InstallationHeaderAction>
           </>
@@ -381,7 +384,7 @@ export function InstallationWorkspace({
         >
           {error}
           {data?.currentSession?.role === "principal" && (
-            <Button variant="outline" className="mt-3 block" onClick={() => router.push(`${pageUrl(data.currentSession!.workId)}?tab=sheets&sheetId=${encodeURIComponent(data.currentSession!.sheetId)}`)}>
+            <Button variant="outline" className="mt-3 block" onClick={() => router.push(originHref(`${pageUrl(data.currentSession!.workId)}?tab=sheets&sheetId=${encodeURIComponent(data.currentSession!.sheetId)}`))}>
               Deschide fișa în lucru
             </Button>
           )}
@@ -411,7 +414,7 @@ export function InstallationWorkspace({
           {!compact && selected ? (
             <>
               <Button asChild variant="ghost" className="px-0">
-                <Link href={pageUrl(workId) + "?tab=sheets"}>
+                <Link href={originHref(pageUrl(workId) + "?tab=sheets")}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Înapoi la fișele zilnice
                 </Link>
@@ -452,7 +455,7 @@ export function InstallationWorkspace({
                 readOnly={inactive}
                 onSheet={setSelected}
                 onStopped={() => {
-                  router.replace(pageUrl(workId) + "?tab=sheets");
+                  router.replace(originHref(pageUrl(workId) + "?tab=sheets"));
                 }}
                 onRefresh={async () => {
                   const refreshed: InstallationListResponse =
@@ -464,7 +467,7 @@ export function InstallationWorkspace({
               {selected.state === "closed" && canComplete && (
                 <Button
                   onClick={() =>
-                    router.push(pageUrl(workId) + "?tab=documents&complete=1")
+                    router.push(originHref(pageUrl(workId) + "?tab=documents&complete=1"))
                   }
                 >
                   Proces-verbal de terminare
@@ -549,13 +552,16 @@ export function InstallationWorkspace({
                       await load();
                     }}
                     onComplete={() =>
-                      router.push(pageUrl(workId) + "?tab=documents&complete=1")
+                      router.push(originHref(pageUrl(workId) + "?tab=documents&complete=1"))
                     }
                   />
                   {complete && canComplete && (
                     <InstallationCompletionForm
                       workId={workId}
-                      onComplete={load}
+                      onComplete={async () => {
+                        if (source === "dashboard") router.push(ticketExitHref(source));
+                        else await load();
+                      }}
                     />
                   )}
                 </TabsContent>

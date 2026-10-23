@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { withTicketOrigin } from "@/lib/navigation/ticket-origin";
 import { installationDeliveryMessage } from "@/packages/fom-domain";
 import {
   Box,
@@ -184,6 +186,7 @@ export function InstallationEquipmentList({
   onStart: (id: string) => void;
   busy?: boolean;
 }) {
+  const source = useSearchParams().get("from");
   const meta = data.work.installation;
   const { userData } = useAuth();
   const canGenerateQr =
@@ -248,7 +251,7 @@ export function InstallationEquipmentList({
               {meta.awaitingSheetByEquipment?.[e.id] && (
                 <Button asChild variant="outline">
                   <Link
-                    href={`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(meta.awaitingSheetByEquipment[e.id])}`}
+                    href={withTicketOrigin(`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(meta.awaitingSheetByEquipment[e.id])}`, source)}
                   >
                     Vezi fișa în așteptare
                   </Link>
@@ -301,6 +304,7 @@ export function InstallationHistory({
   filter?: string;
   onClear: () => void;
 }) {
+  const source = useSearchParams().get("from");
   const sheets = filter
     ? history.filter((s) => s.equipmentId === filter)
     : history;
@@ -311,7 +315,7 @@ export function InstallationHistory({
     <div className="flex flex-wrap gap-2">
       <Button asChild size="sm" variant="outline">
         <Link
-          href={`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(s.id)}`}
+          href={withTicketOrigin(`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(s.id)}`, source)}
         >
           {s.canSign
             ? "Semnează fișa"
@@ -450,6 +454,7 @@ export function InstallationDocuments({
   onContinue: () => Promise<void>;
   onComplete: () => void;
 }) {
+  const source = useSearchParams().get("from");
   const meta = data.work.installation;
   const active = Object.keys(meta.activeSheetByEquipment).length;
   const awaiting = Object.keys(meta.awaitingSheetByEquipment || {}).length;
@@ -554,7 +559,7 @@ export function InstallationDocuments({
         <CardContent className="space-y-4">
           {workId !== meta.rootWorkId ? (
             <Button asChild variant="outline">
-              <Link href={pageUrl(meta.rootWorkId) + "?tab=sheets"}>
+              <Link href={withTicketOrigin(pageUrl(meta.rootWorkId) + "?tab=sheets", source)}>
                 Istoricul tichetului inițiale
               </Link>
             </Button>
@@ -565,7 +570,7 @@ export function InstallationDocuments({
           )}
           {meta.continuationWorkId && (
             <Button asChild variant="outline">
-              <Link href={`/dashboard/lucrari/${meta.continuationWorkId}`}>
+              <Link href={withTicketOrigin(`/dashboard/lucrari/${meta.continuationWorkId}`, source)}>
                 Deschide tichetul de continuare
               </Link>
             </Button>

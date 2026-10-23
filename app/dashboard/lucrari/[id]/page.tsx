@@ -19,6 +19,7 @@ import { resolveTicketLiveDisplay } from "@/lib/work-documents/ticket-live-displ
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { ticketExitHref, withTicketOrigin } from "@/lib/navigation/ticket-origin"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DevDebugPanel } from "@/components/debug/dev-debug-panel"
@@ -325,21 +326,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   const fromSource = searchParams.get("from")
   const fromArhivate = fromSource === "arhivate"
   const fromIstoricEchipament = fromSource === "istoric-echipament"
-  const afterArchiveHref =
-    fromSource === "dashboard"
-      ? "/dashboard"
-      : fromSource === "arhivate"
-        ? "/dashboard/arhivate"
-        : "/dashboard/lucrari"
+  const exitHref = ticketExitHref(fromSource)
+  const afterArchiveHref = ticketExitHref(fromSource, fromArhivate ? "/dashboard/arhivate" : "/dashboard/lucrari")
+  const handleExit = () => fromSource === "dashboard" ? router.push(exitHref) : router.back()
 
   /** Păstrează accesul tehnicianului din fluxul „Istoric echipament” la tichete înrudite (ex. lucrarea inițială). */
   const relatedTicketUrl = useCallback(
     (lucrareId: string) => {
       if (!lucrareId) return "/dashboard/lucrari"
-      if (!fromIstoricEchipament) return `/dashboard/lucrari/${lucrareId}`
+      if (!fromIstoricEchipament) return withTicketOrigin(`/dashboard/lucrari/${lucrareId}`, fromSource)
       return `/dashboard/lucrari/${lucrareId}?from=istoric-echipament`
     },
-    [fromIstoricEchipament]
+    [fromIstoricEchipament, fromSource]
   )
 
   const { id: paramsId } = React.use(params)
@@ -970,7 +968,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
           description: "Nu aveți acces la acest tichet.",
           variant: "destructive",
         })
-        router.push("/dashboard/lucrari")
+        router.push(exitHref)
         return
       }
 
@@ -979,7 +977,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         description: "Poți vedea detaliile tichetului, dar nu poți face modificări (nu ești alocat pe tichet).",
       })
     }
-  }, [loading, lucrare, userData, router, fromIstoricEchipament])
+  }, [loading, lucrare, userData, router, fromIstoricEchipament, exitHref])
 
   // Funcție pentru a șterge o lucrare
   const handleDeleteLucrare = useStableCallback(async () => {
@@ -992,7 +990,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         title: "Tichet șters",
         description: "Tichet a fost ștears cu succes.",
       })
-      router.push("/dashboard/lucrari")
+      router.push(exitHref)
     } catch (error) {
       console.error("Eroare la ștergerea tichetului:", error)
       toast({
@@ -1266,13 +1264,13 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
 
     // Dacă raportul nu este generat, mergem la pagina de raport pentru completare
     if (!lucrare.raportGenerat) {
-      router.push(`/raport/${lucrare.id}`)
+      router.push(withTicketOrigin(`/raport/${lucrare.id}`, fromSource))
       return
     }
 
     // Raport deja generat: descărcare în pagină (ReportGenerator ascuns), ca în „Documente PDF”.
     handleDownloadReport()
-  }, [router, lucrare, toast, revizieEquipmentIds, handleDownloadReport])
+  }, [router, lucrare, toast, revizieEquipmentIds, handleDownloadReport, fromSource])
 
   // Funcție pentru a reîncărca datele lucrării
   // Important UX: toast "Actualizat" doar pentru acțiuni explicite (ex: salvare), nu la refresh automat (ex: focus).
@@ -1376,7 +1374,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         description: `Am creat un tichet nou pentru echipamentele rămase (ID: ${created.id}).`,
       })
       // Navigăm direct la generarea raportului pentru lucrarea curentă (doar echipamentele finalizate)
-      router.push(`/raport/${lucrare.id}`)
+      router.push(withTicketOrigin(`/raport/${lucrare.id}`, fromSource))
     } catch (e: any) {
       console.error("Eroare finalizare parțială:", e)
       toast({
@@ -1774,7 +1772,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         title: "Tichet anulat",
         description: "Tichetul a fost anulat și arhivat.",
       })
-      router.push(`/dashboard/arhivate/${lucrare.id}`)
+      router.push(ticketExitHref(fromSource, `/dashboard/arhivate/${lucrare.id}`))
     } catch (error) {
       console.error("Eroare la anularea tichetului:", error)
       toast({
@@ -1875,7 +1873,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     return (
       <DashboardShell>
         <DashboardHeader heading="Tichet negăsit" text="Tichetul nu a fost găsit în sistem" />
-        <Button onClick={() => router.back()}>
+        <Button onClick={handleExit}>
           <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
         </Button>
       </DashboardShell>
@@ -2038,7 +2036,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
     
     // Redirecționăm către pagina principală cu parametru pentru reintervenție
     const extra = textReinterventie ? `&textReinterventie=${encodeURIComponent(textReinterventie)}` : ""
-    router.push(`/dashboard/lucrari?reintervention=${lucrare.id}${extra}`)
+    router.push(withTicketOrigin(`/dashboard/lucrari?reintervention=${lucrare.id}${extra}`, fromSource))
   }
 
   const ticketBadgeText =
@@ -2159,7 +2157,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       >
         <div className="space-y-2">
           <div className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => router.back()}>
+            <Button variant="outline" onClick={handleExit}>
             <ChevronLeft className="mr-2 h-4 w-4" /> Înapoi
             </Button>
 
@@ -2551,7 +2549,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
               Tichetul are statusul „Fără semnătură”. Intervenția se încheie cu semnătura clientului din pagina de raport.
             </p>
             <Button asChild variant="outline" size="sm" className="border-amber-400 bg-white hover:bg-amber-100">
-              <Link href={`/raport/${paramsId}`}>Deschide raportul</Link>
+              <Link href={withTicketOrigin(`/raport/${paramsId}`, fromSource)}>Deschide raportul</Link>
             </Button>
           </AlertDescription>
         </Alert>
@@ -2945,7 +2943,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                                     className={`w-full h-12 text-base font-semibold rounded-lg ${statusConfig.buttonClass}`}
                                     size="lg"
                                   >
-                                    <Link href={`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`}>
+                                    <Link href={withTicketOrigin(`/dashboard/lucrari/${lucrare.id}/revizie/${eid}`, fromSource)}>
                                       {statusConfig.buttonText}
                                     </Link>
                                   </Button>
@@ -3131,7 +3129,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         >
                           <Link href={relatedTicketUrl(String(lucrare.lucrareOriginala))}>
                             <ChevronLeft className="h-3 w-3 mr-1" />
-                            Vezi ticheta inițială
+                            Vezi tichetul inițial
                           </Link>
                         </Button>
                       )}
@@ -4809,10 +4807,10 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                       onSuccess={() => {
                         toast({
                           title: "Tichet amânat",
-                          description: "Vei fi redirecționat către lista de tichete.",
+                          description: fromSource === "dashboard" ? "Vei fi redirecționat către Dashboard." : "Vei fi redirecționat către lista de tichete.",
                         })
                         setTimeout(() => {
-                          router.push("/dashboard/lucrari")
+                          router.push(exitHref)
                         }, 2000)
                       }}
                       className="w-full sm:self-end"

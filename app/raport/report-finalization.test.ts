@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { createContext, runInContext } from "node:vm"
 import ts from "typescript"
+import { ticketExitHref } from "@/lib/navigation/ticket-origin"
 
 // Execute the real handlers with isolated API/PDF dependencies. This regression
 // spans the page's saved state, generator props, error callback and retry path.
@@ -35,7 +36,7 @@ function evaluate(expression: string, context: ReturnType<typeof createContext>)
   return runInContext(ts.transpile(`(${expression})`, { target: ts.ScriptTarget.ES2022 }), context)
 }
 
-function fixture(initial: Record<string, unknown> = {}) {
+function fixture(initial: Record<string, unknown> = {}, source: string | null = null) {
   const original = { id: "report-test", statusLucrare: "În lucru", raportGenerat: false, raportDataLocked: false, products: [], ...initial }
   let stored = { ...original }
   let updated: typeof original | null = null
@@ -65,6 +66,7 @@ function fixture(initial: Record<string, unknown> = {}) {
       stored = { ...stored, raportGenerat: true, raportDataLocked: true, statusLucrare: "Finalizat" }
       return { work: { ...stored } }
     },
+    exitHref: ticketExitHref(source),
     router: { push: (path: string) => calls.routes.push(path) },
     updateWorkOrderStatus: () => {},
   })
@@ -149,4 +151,16 @@ test("both PDF interfaces receive latest work and release processing on errors",
     evaluate(prop(element, "onError"), context)(new Error("PDF failed"))
     assert.equal(context.isSubmitting, false)
   }
+})
+
+
+test("Dashboard report returns to its origin after PDF success and stays on generation failure", async () => {
+  const f = fixture({}, "dashboard")
+  await f.submit()
+  f.failPdf(true)
+  await f.generateSaved()
+  assert.deepEqual(f.calls.routes, [])
+  f.failPdf(false)
+  await f.retry()
+  assert.deepEqual(f.calls.routes, ["/dashboard"])
 })
