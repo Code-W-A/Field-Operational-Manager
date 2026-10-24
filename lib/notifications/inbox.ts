@@ -51,3 +51,31 @@ export function inboxEvent(
     ? { ...event, workIds, ...notificationCopy(event.kind, [], workIds.length) }
     : null;
 }
+
+/** Only the latest assignment represents the current assignment, even when dismissed.
+ * Keep updates/reminders separate: they carry different actionable information.
+ */
+export function currentAssignmentEvents<T extends TicketNotification>(
+  events: T[],
+): T[] {
+  const latest = new Map<string, T>();
+  for (const event of events) {
+    if (!event.workId || !["assigned", "withdrawn"].includes(event.kind))
+      continue;
+    const key = `${event.uid}:${event.workId}`;
+    const previous = latest.get(key);
+    if (
+      !previous ||
+      Date.parse(event.createdAt) > Date.parse(previous.createdAt) ||
+      (Date.parse(event.createdAt) === Date.parse(previous.createdAt) &&
+        event.id > previous.id)
+    )
+      latest.set(key, event);
+  }
+  return events.filter(
+    (event) =>
+      event.kind !== "assigned" ||
+      !event.workId ||
+      latest.get(`${event.uid}:${event.workId}`)?.id === event.id,
+  );
+}

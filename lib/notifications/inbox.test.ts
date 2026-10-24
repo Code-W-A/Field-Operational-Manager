@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inboxEvent } from "./inbox";
+import { inboxEvent, currentAssignmentEvents } from "./inbox";
 import { OVERDUE_DEFAULTS } from "@/packages/fom-domain/ticket-dashboard";
 import type { TicketNotification } from "@/packages/fom-domain";
 const actor = { uid: "tech", displayName: "Tehnician", role: "tehnician" };
@@ -113,4 +113,25 @@ test("today summaries follow current scheduling in Bucharest", () => {
   assert.deepEqual(inboxEvent(summary, actor, works, {}, now)?.workIds, [
     "one",
   ]);
+});
+
+test("assignment deduplication respects owner, withdrawal, and distinct event kinds", () => {
+  const old = { ...event, id: "old", createdAt: "2026-10-20T08:00:00Z" };
+  const fresh = { ...event, id: "fresh" };
+  const update = { ...event, id: "update", kind: "changed" as const };
+  const other = { ...old, id: "other", uid: "other" };
+  assert.deepEqual(
+    currentAssignmentEvents([old, fresh, update, other]).map((row) => row.id),
+    ["fresh", "update", "other"],
+  );
+  const withdrawal = {
+    ...fresh,
+    id: "withdrawn",
+    kind: "withdrawn" as const,
+    createdAt: "2026-10-22T08:00:00Z",
+  };
+  assert.deepEqual(
+    currentAssignmentEvents([old, fresh, withdrawal]).map((row) => row.id),
+    ["withdrawn"],
+  );
 });

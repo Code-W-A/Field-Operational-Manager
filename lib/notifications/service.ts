@@ -6,7 +6,7 @@ import {
   type NotificationPage,
   type TicketNotification,
 } from "@/packages/fom-domain";
-import { inboxEvent } from "./inbox";
+import { inboxEvent, currentAssignmentEvents } from "./inbox";
 import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
 import { TechnicianError } from "@/lib/technician/service";
 
@@ -175,7 +175,14 @@ export function notificationService(db: Firestore, clock = () => new Date()) {
       displayName: String(user.data()?.displayName || ""),
       role: "tehnician",
     };
-    const candidates = rows.docs.filter((row) => !row.data().dismissedAt);
+    const currentIds = new Set(
+      currentAssignmentEvents(
+        rows.docs.map((row) => publicEvent(row.id, row.data())),
+      ).map((event) => event.id),
+    );
+    const candidates = rows.docs.filter(
+      (row) => currentIds.has(row.id) && !row.data().dismissedAt,
+    );
     const ids = [
       ...new Set(
         candidates.flatMap((row) => {
@@ -238,7 +245,7 @@ export function notificationService(db: Firestore, clock = () => new Date()) {
   ): Promise<{ ok: boolean; token?: string; changed?: number }> {
     if (!input || typeof input !== "object" || Array.isArray(input))
       fail("Acțiune invalidă.");
-    const now = new Date().toISOString();
+    const now = clock().toISOString();
     if (input.action === "dismiss" || input.action === "restore") {
       if (!/^[a-f0-9]{64}$/.test(input.id || "")) fail("Notificare invalidă.");
       const ref = events.doc(input.id!);
@@ -277,10 +284,9 @@ export function notificationService(db: Firestore, clock = () => new Date()) {
     }
     if (!["readAll", "dismissAll"].includes(input.action || ""))
       fail("Acțiune invalidă.");
-    const rows = await events
-      .where("uid", "==", uid)
-      .where("createdAt", "<=", now)
-      .get();
+    // The query snapshot freezes existing events. Event timestamps can use a
+    // different clock/precision, so a timestamp cutoff can skip visible rows.
+    const rows = await events.where("uid", "==", uid).get();
     let changed = 0;
     // Freeze the set at request start. Re-read in transactions so concurrent reads
     // and deletions cannot be overwritten by an old batch snapshot.

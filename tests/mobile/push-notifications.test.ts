@@ -209,7 +209,7 @@ test("pagination uses a stable cursor and unread total independent of the page",
   for (let i = 0; i < 105; i++)
     batch.set(db.doc(`${C.events}/${notificationId(`page:${i}`, a)}`), {
       uid: a,
-      kind: "assigned",
+      kind: "changed",
       title: "Test",
       workId,
       body: "Generic",
@@ -553,13 +553,13 @@ test("dismissal persists, undo is owner-scoped, and delayed push does not recrea
   assert.equal((await db.doc(`${C.events}/${id}`).get()).exists, true);
 });
 
-test("bulk operations include unloaded pages and preserve other owners and later arrivals", async () => {
+test("bulk operations include unloaded pages and clock-skewed events while preserving other owners", async () => {
   await clear();
   const batch = db.batch();
   for (let i = 0; i < 75; i++)
     batch.set(db.doc(`${C.events}/${notificationId(`bulk:${i}`, a)}`), {
       uid: a,
-      kind: "assigned",
+      kind: "changed",
       workId,
       title: "Test",
       body: "Test",
@@ -570,14 +570,14 @@ test("bulk operations include unloaded pages and preserve other owners and later
     future = notificationId("future", a);
   batch.set(db.doc(`${C.events}/${foreign}`), {
     uid: b,
-    kind: "assigned",
+    kind: "changed",
     workId,
     readAt: null,
     createdAt: new Date().toISOString(),
   });
   batch.set(db.doc(`${C.events}/${future}`), {
     uid: a,
-    kind: "assigned",
+    kind: "changed",
     workId,
     title: "Nou",
     body: "Nou",
@@ -587,7 +587,7 @@ test("bulk operations include unloaded pages and preserve other owners and later
   await batch.commit();
   assert.equal((await service.list(a)).items.length, 30);
   await service.action(a, { action: "readAll" });
-  assert.equal((await service.list(a)).unreadCount, 1);
+  assert.equal((await service.list(a)).unreadCount, 0);
   assert.equal(
     (await db.doc(`${C.events}/${foreign}`).get()).data()!.readAt,
     null,
@@ -595,7 +595,7 @@ test("bulk operations include unloaded pages and preserve other owners and later
   await service.action(a, { action: "dismissAll" });
   assert.deepEqual(
     (await service.list(a)).items.map((row) => row.id),
-    [future],
+    [],
   );
   assert.equal(
     (await db.doc(`${C.events}/${foreign}`).get()).data()!.dismissedAt,
@@ -609,7 +609,7 @@ test("old cursors remain usable after dismissal, and obsolete tickets leave no u
   for (let i = 0; i < 40; i++)
     batch.set(db.doc(`${C.events}/${notificationId(`cursor:${i}`, a)}`), {
       uid: a,
-      kind: "assigned",
+      kind: "changed",
       workId,
       title: "Test",
       body: "Test",
@@ -625,4 +625,41 @@ test("old cursors remain usable after dismissal, and obsolete tickets leave no u
   assert.equal((await service.list(a)).items.length, 0);
   await db.doc(`lucrari/${workId}`).delete();
   assert.equal((await service.list(a)).items.length, 0);
+});
+
+test("repeated assignments collapse before pagination/counting and dismissal cannot revive old assignments", async () => {
+  await clear();
+  const older = await runtime.emit({
+    uid: a,
+    kind: "assigned",
+    workId,
+    key: "assignment-old",
+    createdAt: "2026-10-20T08:00:00.000Z",
+  });
+  const newer = await runtime.emit({
+    uid: a,
+    kind: "assigned",
+    workId,
+    key: "assignment-new",
+    createdAt: "2026-10-21T08:00:00.000Z",
+  });
+  assert.deepEqual(
+    (await service.list(a)).items.map((row) => row.id),
+    [newer],
+  );
+  assert.equal((await service.list(a)).unreadCount, 1);
+  await service.action(a, { action: "readAll" });
+  assert.equal((await service.list(a)).unreadCount, 0);
+  assert.ok((await db.doc(`${C.events}/${older}`).get()).data()!.readAt);
+  const deleted = await service.action(a, { action: "dismiss", id: newer });
+  assert.deepEqual((await service.list(a)).items, []);
+  await service.action(a, {
+    action: "restore",
+    id: newer,
+    token: deleted.token,
+  });
+  assert.deepEqual(
+    (await service.list(a)).items.map((row) => row.id),
+    [newer],
+  );
 });
