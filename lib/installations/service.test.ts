@@ -1202,6 +1202,31 @@ test("signing does not release the signer's current session and rejects managers
     current.sheet.id,
   );
 });
+test("assigned later cannot sign a stopped sheet; list reads preserve old data and authorization", async () => {
+  const work = await service.create(manager, { ...workInput, tehnicieni: ["Tehnician unu"] }, randomUUID());
+  const first = await start(work.id);
+  await service.stop(tech, work.id, { sheetId: first.sheet.id, revision: 0, fields: content });
+  await service.edit(manager, work.id, { tehnicieni: ["Tehnician unu", "Tehnician doi"] });
+  const ref = db.doc(`lucrari/${work.id}/installationSheets/${first.sheet.id}`);
+  const before = await ref.get();
+  const auditBefore = await db.doc(`lucrari/${work.id}`).collection("installationAudit").get();
+  for (const [actor, canSign] of [[tech, true], [tech2, false], [manager, false]] as const) {
+    const result = await service.list(actor, work.id);
+    assert.equal(result.sheets[0].canSign, canSign);
+    assert.deepEqual(result.sheets[0].participants!.map(p => p.uid), [tech.uid]);
+  }
+  await assert.rejects(service.sign(tech2, work.id, {
+    sheetId: first.sheet.id, revision: 1, requestId: randomUUID(), signatures: signed,
+  }), /participant/);
+  await assert.rejects(service.sign(tech, work.id, {
+    sheetId: first.sheet.id, revision: 0, requestId: randomUUID(), signatures: signed,
+  }), /altă fereastră/);
+  const after = await ref.get();
+  assert.deepEqual(after.data(), before.data());
+  assert.equal(after.updateTime!.toMillis(), before.updateTime!.toMillis());
+  assert.equal((await db.doc(`lucrari/${work.id}`).collection("installationAudit").get()).size, auditBefore.size);
+});
+
 test("two participants signing concurrently produce one immutable signed document", async () => {
   const work = await create();
   const first = await start(work.id);

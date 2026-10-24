@@ -31,6 +31,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { sheetStateLabel } from "./team";
+import { InstallationSigningNotice } from "./signing-notice";
 import { pdf, statuses, dateLabel } from "./shared";
 export function InstallationSheetForm({
   workId,
@@ -171,7 +172,7 @@ export function InstallationSheetForm({
                 {sheet.state === "closed"
                   ? "Document semnat, disponibil pentru consultare și descărcare."
                   : sheet.state === "awaiting_signature"
-                    ? "Conținutul este înghețat. Un tehnician participant poate colecta ambele semnături."
+                    ? "Conținutul fișei este păstrat pentru semnare."
                     : editable
                       ? "Completează fișa și salvează progresul înainte de închiderea zilei."
                       : "Doar principalul acestei fișe o poate modifica."}
@@ -191,6 +192,7 @@ export function InstallationSheetForm({
           </CardContent>
         </Card>
       )}
+      <InstallationSigningNotice sheet={sheet} inactive={readOnly} />
       {error && (
         <p role="alert" className="text-red-700">
           {error}

@@ -22,6 +22,7 @@ export * from "./documents";
 export * from "./hr";
 export * from "./attendance";
 export * from "./installation";
+export * from "./installation-signing-notice";
 export * from "./revision";
 export * from "./hr-validation";
 export * from "./overtime-duration";

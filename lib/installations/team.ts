@@ -3,8 +3,7 @@ import type {
   InstallationSheet,
 } from "@/types/installation";
 
-export const pendingSignatureMessage =
-  "Echipa este liberă. Pentru o fișă nouă pe acest echipament sau replanificare, semnează mai întâi fișa în așteptare.";
+export { installationPendingSignatureMessage as pendingSignatureMessage } from "@/packages/fom-domain/installation-signing-notice";
 export function sheetParticipants(
   sheet: Pick<
     InstallationSheet,

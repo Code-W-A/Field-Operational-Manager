@@ -4,10 +4,7 @@ import { installationTimeLines } from "@/packages/fom-domain/installation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { InstallationSheet } from "@/types/installation";
-import {
-  sheetParticipants,
-  pendingSignatureMessage,
-} from "@/lib/installations/team";
+import { sheetParticipants } from "@/lib/installations/team";
 export function InstallationTeam({
   sheet,
   compact = false,
@@ -32,11 +29,6 @@ export function InstallationTeam({
     return (
       <div className="space-y-2">
         {timing}
-        {sheet.state === "awaiting_signature" && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            {pendingSignatureMessage}
-          </p>
-        )}
         {sheet.allocationWarnings?.map((message) => (
           <p key={message} className="text-sm text-muted-foreground">
             {message}
@@ -63,11 +55,6 @@ export function InstallationTeam({
             </Badge>
           ))}
         </div>
-        {sheet.state === "awaiting_signature" && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            {pendingSignatureMessage}
-          </p>
-        )}
         {sheet.allocationWarnings?.map((message) => (
           <p key={message} className="text-sm text-muted-foreground">
             {message}

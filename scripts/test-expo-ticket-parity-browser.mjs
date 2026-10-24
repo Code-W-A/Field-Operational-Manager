@@ -4,10 +4,10 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 import {mkdir,readFile} from 'node:fs/promises';
 const er=createRequire(`${process.cwd()}/../expo-mobile-app/package.json`);
-const auth=`export const useAuth=()=>({status:'authenticated',user:{uid:window.uid||'tech'},profile:{displayName:'Tehnician'},backendReady:true});`;
+const auth=`export const useAuth=()=>({status:'authenticated',user:{uid:window.uid||'tech'},profile:{displayName:'Tehnician',role:window.role||'tehnician'},backendReady:true});`;
 const provider=`export const useConnected=()=>window.c;`;
 const mocks={
-'expo-router':`export const router={push:v=>window.routes.push(v),dismissTo:v=>window.routes.push(v),replace:v=>window.routes.push(v),setParams:v=>window.routes.push(v),canGoBack:()=>true,back:()=>window.routes.push('back')};export const useNavigation=()=>({dispatch:v=>window.routes.push(v)});export const useLocalSearchParams=()=>window.params;`,
+'expo-router':`export const router={push:v=>{window.routes.push(v);if(window.navigate&&typeof v==='string'&&v.includes('/sheet/')){window.params={id:'work',sheetId:'s'};window.renderAgain();}},dismissTo:v=>{window.routes.push(v);if(window.navigate){window.params={id:'work'};window.renderAgain();}},replace:v=>window.routes.push(v),setParams:v=>window.routes.push(v),canGoBack:()=>true,back:()=>window.routes.push('back')};export const useNavigation=()=>({dispatch:v=>window.routes.push(v)});export const useLocalSearchParams=()=>window.params;`,
 'expo-router/build/react-navigation/core':`export const usePreventRemove=(enabled,callback)=>{window.guard={enabled,callback};};`,
 'expo-crypto':`export const randomUUID=()=> 'fixture-'+(++window.ids);`,
 'react-native-safe-area-context':`export const useSafeAreaInsets=()=>({top:0,bottom:0,left:0,right:0});`,
@@ -30,14 +30,14 @@ const out=await build({stdin:{contents:`import React,{useState}from'react';impor
 const fonts = (await Promise.all([['Roboto','Roboto_400Regular.ttf'],['Space','SpaceGrotesk_700Bold.ttf'],['Mono','IBMPlexMono_500Medium.ttf']].map(async ([name,file]) => `@font-face{font-family:${name};src:url(data:font/ttf;base64,${(await readFile(`${process.cwd()}/../expo-mobile-app/assets/fonts/${file}`)).toString('base64')})}`))).join('');
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 async function fixture(opts={}){
- const p=await browser.newPage({viewport:{width:360,height:800}});p.on('pageerror',e=>console.error('Fixture runtime:',e.message));await p.setContent('<style>'+fonts+'body{margin:0}select{min-height:48px;max-width:100%;font-size:16px}button{min-height:44px}label{font-family:Arial}header{font-family:Arial}</style><div id="root"></div>');
+ const p=await browser.newPage({viewport:{width:opts.width||360,height:800}});p.on('pageerror',e=>console.error('Fixture runtime:',e.message));await p.setContent('<style>'+fonts+'body{margin:0}select{min-height:48px;max-width:100%;font-size:16px}button{min-height:44px}label{font-family:Arial}header{font-family:Arial}</style><div id="root"></div>');
  await p.evaluate(opts=>{
-  window.ids=0;window.routes=[];window.commands=[];window.fail=false;window.drafts={};window.uid=opts.secondary?'secondary':'tech';window.scan=!!opts.scan;window.report=!!opts.report;window.installation=!!opts.installation;window.params={id:'work',...(opts.sheet?{sheetId:'s'}:{}),...(opts.scan?{ticket:'work',equipment:'eq',code:'EQ1',...(opts.installation?{installation:'1'}:{})}: {})};window.section=opts.section;
+  window.ids=0;window.routes=[];window.commands=[];window.fail=false;window.drafts={};window.uid=opts.uid||(opts.secondary?'secondary':'tech');window.role=opts.role||'tehnician';window.navigate=!!opts.navigate;window.scan=!!opts.scan;window.report=!!opts.report;window.installation=!!opts.installation;window.params={id:'work',...(opts.sheet?{sheetId:'s'}:{}),...(opts.scan?{ticket:'work',equipment:'eq',code:'EQ1',...(opts.installation?{installation:'1'}:{})}: {})};window.section=opts.section;
   window.work={id:'work',client:'Client local de test',locatie:'Locație de test',nrLucrare:'002107',tipLucrare:opts.type||'Intervenție contra cost',statusLucrare:'În lucru',tehnicieni:['Tehnician'],mobileVersion:'v1',equipmentVerified:opts.verified!==false,dataEmiterii:'2026-10-14',dataInterventie:'2026-10-15',timpSosire:'2026-10-14T11:46:00Z',equipmentIds:['eq'],descriereInterventie:'Reparat',constatareLaLocatie:'Defect constatat',cauzaPrincipalaDefectId:'cause',cauzaPrincipalaDefect:'Uzură',mobileEquipment:[{id:'eq',name:'Ușă cu denumire lungă pentru ecran îngust',code:'EQ1',model:'Model 1',warranty:{statusText:'În garanție',installationDate:'14.10.2025',warrantyExpires:'14.10.2027',warrantyMessage:'Garanție validă'}}],revision:{equipmentStatus:{eq:opts.done?'done':'in_progress'}},revisionEquipmentTimes:{eq:{verifiedAt:'2026-10-14T10:00:00Z'}}};
   const meta={schemaVersion:1,equipment:window.work.mobileEquipment,equipmentStatus:{eq:opts.done?'done':'in_progress'},activeSheetByEquipment:opts.done?{}:{eq:'s'},awaitingSheetByEquipment:{},...opts.meta};
-  const sheet={id:'s',equipmentId:'eq',principalUid:'tech',principalName:'Tehnician',workDate:'2026-10-14',state:opts.state||'draft',revision:1,finding:'Constatare',operations:'Operațiuni',installationStatus:'in_progress',internalNote:'Privat principal',photos:[],participants:[{uid:'tech',name:'Tehnician',role:'principal',active:true},{uid:'secondary',name:'Secundar',role:'secondary',active:true}],canSign:opts.canSign};
-  const list={work:{...window.work,tipLucrare:'Instalare',installation:meta},canStart:opts.canStart!==false,currentSession:opts.currentSession||null,sheets:[sheet],nextCursor:null,completion:null};
-  window.c={accessGranted:true,navigationGranted:true,ready:true,activeSession:{id:'att'},online:opts.online!==false,state:{drafts:{},operations:[],bundle:{works:[window.work],settings:[],installations:{work:list},revisions:{work:[]}}},persistDraft:async(key,value)=>{window.drafts[key]=value;},ensureQrAttendance:async()=>{},refresh:async()=>{},loadInstallation:async()=>{},enqueue:async()=>{throw Error('Nu trebuie salvat fără confirmare');},enqueueAndConfirm:async(action,id,payload,files)=>{window.commands.push({action,payload,files});if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');if(action==='installation'){const updated={...sheet,...payload.fields,state:payload.action==='stop'?'awaiting_signature':['close','sign'].includes(payload.action)?'closed':'draft',revision:2};window.c.state.bundle.installations.work.sheets=[updated];window.renderAgain();return {sheet:updated};}if(action==='report.finalize'){window.work={...window.work,raportGenerat:true,raportDataLocked:true};window.renderAgain();}return {draft:{...window.drafts.work,files:[]}};}};
+  const sheet={id:'s',equipmentId:'eq',principalUid:'tech',principalName:'Tehnician',workDate:'2026-10-14',state:opts.state||'draft',revision:1,finding:'Constatare',operations:'Operațiuni',installationStatus:'in_progress',internalNote:'Privat principal',photos:[],participants:[{uid:'tech',name:'Tehnician',role:'principal',active:true},{uid:'secondary',name:'Secundar',role:'secondary',active:true}],canSign:opts.canSign,...opts.sheetData};if(opts.legacy)delete sheet.participants;
+  const list={work:{...window.work,tipLucrare:'Instalare',installation:meta,...opts.workData},canStart:opts.canStart!==false,currentSession:opts.currentSession||null,sheets:[sheet],nextCursor:null,completion:null};
+  window.c={accessGranted:opts.accessGranted!==false,navigationGranted:true,ready:true,activeSession:opts.attendance===false?undefined:{id:'att'},online:opts.online!==false,state:{drafts:{},operations:[],bundle:{works:[window.work],settings:[],installations:{work:list},revisions:{work:[]}}},persistDraft:async(key,value)=>{window.drafts[key]=value;},ensureQrAttendance:async()=>{},refresh:async()=>{},loadInstallation:async()=>{},enqueue:async()=>{throw Error('Nu trebuie salvat fără confirmare');},enqueueAndConfirm:async(action,id,payload,files)=>{window.commands.push({action,payload,files});if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');if(action==='installation'){const updated={...sheet,...payload.fields,state:payload.action==='stop'?'awaiting_signature':['close','sign'].includes(payload.action)?'closed':'draft',revision:2};window.c.state.bundle.installations.work.sheets=[updated];window.renderAgain();return {sheet:updated};}if(action==='report.finalize'){window.work={...window.work,raportGenerat:true,raportDataLocked:true};window.renderAgain();}return {draft:{...window.drafts.work,files:[]}};}};
  },opts);await p.addScriptTag({content:out.outputFiles[0].text});return p;
 }
 await mkdir('/private/tmp/fom-ticket-parity',{recursive:true});
@@ -71,6 +71,53 @@ try{
  await delayedSheet.close();
  const secondary=await fixture({installation:true,sheet:true,secondary:true});await expect(secondary.getByLabel('Operațiuni executate')).toHaveCount(0);await expect(secondary.getByText('Privat principal',{exact:false})).toHaveCount(0);await secondary.close();
  const awaiting=await fixture({installation:true,sheet:true,secondary:true,state:'awaiting_signature',canSign:true});await expect(awaiting.getByRole('button',{name:'Semnează fișa',exact:true})).toBeEnabled();await awaiting.getByLabel('Numele beneficiarului *').fill('Beneficiar');await awaiting.getByRole('button',{name:'Semnătura tehnicianului',exact:true}).click();await awaiting.getByRole('button',{name:'Semnătura beneficiarului',exact:true}).click();await awaiting.getByRole('button',{name:'Semnează fișa',exact:true}).click();await expect(awaiting.getByRole('button',{name:'Descarcă fișa PDF'})).toBeVisible();assert.equal(await awaiting.evaluate(()=>window.commands[0].payload.revision),1);await awaiting.close();
+ let noticeChecks=0;
+ const waiting={principalUid:'mihai',principalName:'Mihai Sima',participants:[{uid:'mihai',name:'Mihai Sima',role:'principal',active:false}]};
+ const base={installation:true,uid:'alin',state:'awaiting_signature',canSign:false,sheetData:waiting};
+ for(const width of [360,1280]) {
+  for(const legacy of [false,true]) {
+   const page=await fixture({...base,width,legacy,navigate:true});
+   await page.getByRole('tab',{name:'Fișe zilnice',exact:true}).click();
+   await expect(page.getByTestId('installation-signing-notice')).toContainText('Semnare indisponibilă: nu ești participant');
+   await page.getByRole('button',{name:'Deschide fișa',exact:true}).click();
+   await expect(page.getByText('Fișa zilnică',{exact:true})).toBeVisible();
+   await expect(page.getByTestId('installation-signing-notice')).toHaveCount(1);
+   await expect(page.getByTestId('installation-signing-notice')).toContainText('Nu poți semna această fișă');
+   await expect(page.getByText('Participant înregistrat: Mihai Sima.',{exact:true})).toBeVisible();
+   await expect(page.getByRole('button',{name:'Semnează fișa',exact:true})).toHaveCount(0);
+   await page.getByRole('button',{name:'Înapoi la fișele zilnice',exact:true}).click();
+   await expect(page.getByText('Istoric fișe zilnice',{exact:true})).toBeVisible();
+   assert.equal(await page.evaluate(()=>window.commands.length),0);
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await page.screenshot({path:`/tmp/fom-signing-expo-list-${width}-${legacy}.png`,fullPage:true});
+   await page.close();noticeChecks++;
+  }
+ }
+ for(const opts of [{role:'admin'},{role:'dispecer'},{workData:{statusLucrare:'Anulat'}},{workData:{statusLucrare:'Arhivată'}},{workData:{statusLucrare:'Finalizat'}},{accessGranted:false},{attendance:false},{online:false},{state:'draft'},{state:'closed'},{sheetData:{...waiting,participants:[]}},{sheetData:{...waiting,participants:[{uid:'mihai',name:'',role:'principal',active:false}]}},{canSign:undefined}]) {
+  const page=await fixture({...base,sheet:true,...opts});
+  await expect(page.getByText(/Nu poți semna această fișă/)).toHaveCount(0);
+  if(opts.workData)await expect(page.getByTestId('installation-signing-notice')).toContainText('tichetul este închis, arhivat sau anulat');
+  if(opts.accessGranted===false||opts.attendance===false||opts.online===false)await expect(page.getByTestId('installation-signing-notice')).toContainText('Verifică accesul');
+  if(opts.state)await expect(page.getByTestId('installation-signing-notice')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Semnează fișa',exact:true})).toHaveCount(0);
+  assert.equal(await page.evaluate(()=>window.commands.length),0);
+  await page.close();noticeChecks++;
+ }
+ for(const legacy of [false,true]) {
+  const page=await fixture({...base,sheet:true,legacy,uid:'mihai',canSign:true,sheetData:{...waiting,participants:[{...waiting.participants[0],moved:true}]}});
+  await expect(page.getByText(/Nu poți semna/)).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Semnează fișa',exact:true})).toBeEnabled();
+  assert.equal(await page.evaluate(()=>window.commands.length),0);
+  await page.close();noticeChecks++;
+ }
+ for(const width of [360,1280]) {
+  const page=await fixture({...base,width,sheet:true,sheetData:{...waiting,participants:[...waiting.participants,{uid:'stefan',name:'Ștefan '+ 'NumeLung'.repeat(30),role:'secondary',active:false,moved:true}]}});
+  await expect(page.getByTestId('installation-signing-notice')).toContainText('Participanți înregistrați: Mihai Sima, Ștefan');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:`/tmp/fom-signing-expo-detail-${width}.png`,fullPage:true});
+  await page.close();noticeChecks++;
+ }
+ console.log(`Signing explanations Expo: ${noticeChecks} scenarios passed (legacy/current, list/detail navigation, roles, inactive, access, incomplete data, long names, no writes).`);
  const principal=await fixture({installation:true,currentSession:{sheetId:'other',role:'principal'}});await principal.getByRole('button',{name:'Deschide fișa activă'}).click();await expect(principal.getByRole('alert')).toContainText('Oprește lucrul');assert.equal(await principal.evaluate(()=>window.routes.length),0);await principal.close();
 
  if(!process.argv.includes('--installation-only')) {

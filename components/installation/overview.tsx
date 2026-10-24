@@ -51,6 +51,7 @@ import type {
 } from "@/types/installation";
 import { pendingSignatureMessage } from "@/lib/installations/team";
 import { sheetStateLabel } from "./team";
+import { InstallationSigningNotice } from "./signing-notice";
 import { pageUrl, pdf, StatusBadge, dateLabel } from "./shared";
 type Run = (action: () => Promise<void>) => Promise<void>;
 export function InstallationSummary({
@@ -312,29 +313,35 @@ export function InstallationHistory({
     data.work.installation.equipment.find((e) => e.id === s.equipmentId)
       ?.name || s.equipmentId;
   const actions = (s: InstallationSheet) => (
-    <div className="flex flex-wrap gap-2">
-      <Button asChild size="sm" variant="outline">
-        <Link
-          href={withTicketOrigin(`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(s.id)}`, source)}
-        >
-          {s.canSign
-            ? "Semnează fișa"
-            : s.state === "closed"
-              ? "Consultă fișa"
-              : "Deschide"}
-        </Link>
-      </Button>
-      {s.documentSnapshot && (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => void run(() => pdf(s.documentSnapshot!, workId, s.id))}
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Descarcă PDF
+    <div>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm" variant="outline">
+          <Link
+            href={withTicketOrigin(`${pageUrl(workId)}?tab=sheets&sheetId=${encodeURIComponent(s.id)}`, source)}
+          >
+            {s.canSign
+              ? "Semnează fișa"
+              : s.state === "closed"
+                ? "Consultă fișa"
+                : "Deschide"}
+          </Link>
         </Button>
-      )}
+        {s.documentSnapshot && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => void run(() => pdf(s.documentSnapshot!, workId, s.id))}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Descarcă PDF
+          </Button>
+        )}
+      </div>
+      <InstallationSigningNotice sheet={s} compact inactive={Boolean(
+        data.work.anulat || data.work.installation.closedReason ||
+        ["Arhivată", "Finalizat", "Anulat", "Anulată"].includes(data.work.statusLucrare)
+      )} />
     </div>
   );
   return (
