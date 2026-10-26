@@ -183,7 +183,7 @@ test("out-of-order triggers retain history but send only the latest state", asyn
   assert.equal(calls.length, 1);
   assert.equal(calls[0].data.eventId, notificationId("change:newer", a));
 });
-test("withdrawal disappears from the inbox and cannot expose a foreign ticket", async () => {
+test("unread withdrawal stays in the inbox without exposing a foreign ticket", async () => {
   await clear();
   await db
     .doc(`lucrari/${workId}`)
@@ -196,7 +196,7 @@ test("withdrawal disappears from the inbox and cannot expose a foreign ticket", 
     new Date().toISOString(),
   );
   const id = notificationId("change:withdraw", a);
-  assert.equal((await service.list(a)).unreadCount, 0);
+  assert.equal((await service.list(a)).unreadCount, 1);
   await assert.rejects(() => service.open(a, id, actor), /relevantă/);
   await assert.rejects(() => service.read(b, id), /disponibilă/);
   await service.read(a, id);
@@ -537,8 +537,11 @@ test("dismissal persists, undo is owner-scoped, and delayed push does not recrea
   const calls: any[] = [];
   await runtime.dispatch(mockSend(calls), async () => true);
   assert.equal(calls.length, 0);
+  const migrated = (await db.doc(`${C.events}/${id}`).get()).data()!;
+  assert.equal(migrated.readAt, migrated.dismissedAt);
   await service.action(a, { action: "restore", id, token: removed.token });
-  assert.equal((await service.list(a)).unreadCount, 1);
+  // Legacy restore remains accepted but cannot undo a confirmed read.
+  assert.equal((await service.list(a)).unreadCount, 0);
   await service.action(a, { action: "restore", id, token: removed.token });
   await service.read(a, id);
   assert.equal((await service.list(a)).unreadCount, 0);
@@ -603,7 +606,7 @@ test("bulk operations include unloaded pages and clock-skewed events while prese
   );
 });
 
-test("old cursors remain usable after dismissal, and obsolete tickets leave no unread count", async () => {
+test("old cursors remain usable after read/dismissal and obsolete tickets stay unread", async () => {
   await clear();
   const batch = db.batch();
   for (let i = 0; i < 40; i++)
@@ -620,14 +623,20 @@ test("old cursors remain usable after dismissal, and obsolete tickets leave no u
   const page = await service.list(a);
   await service.action(a, { action: "dismiss", id: page.cursor! });
   assert.equal((await service.list(a, page.cursor!)).items.length, 10);
+  await service.read(a, page.items[0].id);
+  assert.equal((await service.list(a, page.cursor!)).items.length, 10);
   await db.doc(`lucrari/${workId}`).update({ statusLucrare: "Finalizat" });
-  assert.equal((await service.list(a)).unreadCount, 0);
-  assert.equal((await service.list(a)).items.length, 0);
+  assert.equal((await service.list(a)).unreadCount, 38);
+  assert.equal((await service.list(a)).items.length, 30);
   await db.doc(`lucrari/${workId}`).delete();
-  assert.equal((await service.list(a)).items.length, 0);
+  assert.equal((await service.list(a)).items.length, 30);
+  await assert.rejects(
+    () => service.open(a, page.items[1].id, actor),
+    /relevantă/,
+  );
 });
 
-test("repeated assignments collapse before pagination/counting and dismissal cannot revive old assignments", async () => {
+test("each unread assignment is listed and restore cannot revive a read assignment", async () => {
   await clear();
   const older = await runtime.emit({
     uid: a,
@@ -645,9 +654,9 @@ test("repeated assignments collapse before pagination/counting and dismissal can
   });
   assert.deepEqual(
     (await service.list(a)).items.map((row) => row.id),
-    [newer],
+    [newer, older],
   );
-  assert.equal((await service.list(a)).unreadCount, 1);
+  assert.equal((await service.list(a)).unreadCount, 2);
   await service.action(a, { action: "readAll" });
   assert.equal((await service.list(a)).unreadCount, 0);
   assert.ok((await db.doc(`${C.events}/${older}`).get()).data()!.readAt);
@@ -660,6 +669,108 @@ test("repeated assignments collapse before pagination/counting and dismissal can
   });
   assert.deepEqual(
     (await service.list(a)).items.map((row) => row.id),
-    [newer],
+    [],
   );
+});
+
+test("legacy dismissal conversion is idempotent and preserves existing reads and other owners", async () => {
+  await clear();
+  const ids = ["legacy", "already-read", "foreign-legacy"].map((key) =>
+    notificationId(key, a),
+  );
+  const dismissedAt = "2026-10-20T08:00:00.000Z";
+  const readAt = "2026-10-19T08:00:00.000Z";
+  for (let i = 0; i < ids.length; i++)
+    await db
+      .doc(`${C.events}/${ids[i]}`)
+      .set({
+        uid: i === 2 ? b : a,
+        kind: "changed",
+        workId,
+        title: "Legacy",
+        body: "Test",
+        createdAt: dismissedAt,
+        dismissedAt,
+        readAt: i === 1 ? readAt : null,
+      });
+  assert.deepEqual((await service.list(a)).items, []);
+  const before = await db.doc(`${C.events}/${ids[0]}`).get();
+  assert.equal(before.data()!.readAt, dismissedAt);
+  await service.list(a);
+  assert.equal(
+    (await before.ref.get()).updateTime!.isEqual(before.updateTime!),
+    true,
+  );
+  assert.equal(
+    (await db.doc(`${C.events}/${ids[1]}`).get()).data()!.readAt,
+    readAt,
+  );
+  assert.equal(
+    (await db.doc(`${C.events}/${ids[2]}`).get()).data()!.readAt,
+    null,
+  );
+});
+
+test("opening a read notification still checks access independently of the unread list", async () => {
+  await clear();
+  const id = await runtime.emit({
+    uid: a,
+    kind: "assigned",
+    workId,
+    key: "open-after-read",
+    createdAt: new Date().toISOString(),
+  });
+  await service.read(a, id);
+  assert.deepEqual((await service.list(a)).items, []);
+  assert.equal((await service.open(a, id, actor)).event.id, id);
+  await db
+    .doc(`lucrari/${workId}`)
+    .update({ technicianIds: [b], tehnicieni: ["Other"] });
+  await assert.rejects(() => service.open(a, id, actor), /relevantă/);
+  await assert.rejects(
+    () => service.open(b, id, { ...actor, uid: b }),
+    /disponibilă/,
+  );
+});
+
+test("old daily summaries remain unread and new events survive an earlier bulk read", async () => {
+  await clear();
+  const old = await runtime.emit({
+    uid: a,
+    kind: "daily_today",
+    workIds: ["missing-work"],
+    key: "old-summary",
+    createdAt: "2020-01-01T08:00:00.000Z",
+  });
+  assert.deepEqual(
+    (await service.list(a)).items.map((row) => row.id),
+    [old],
+  );
+  await service.action(a, { action: "readAll" });
+  const fresh = await runtime.emit({
+    uid: a,
+    kind: "changed",
+    workId,
+    key: "after-bulk",
+    createdAt: new Date().toISOString(),
+  });
+  const oldAccessible = await runtime.emit({
+    uid: a,
+    kind: "daily_today",
+    workIds: [workId],
+    key: "old-accessible-summary",
+    createdAt: "2020-01-01T08:00:00.000Z",
+  });
+  // Age and schedule only affect push generation, never access to a valid ticket.
+  assert.deepEqual(
+    (await service.open(a, oldAccessible, actor)).event.workIds,
+    [workId],
+  );
+  await service.read(a, oldAccessible);
+  const page = await service.list(a);
+  assert.deepEqual(
+    page.items.map((row) => row.id),
+    [fresh],
+  );
+  assert.equal(page.unreadCount, 1);
 });

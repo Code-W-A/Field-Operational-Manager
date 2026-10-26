@@ -2,9 +2,29 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    match /mobile-drafts/{uid}/{draftId}/{fileId} {
+      function owner() { return request.auth != null && request.auth.uid == uid
+        && firestore.get(/databases/(default)/documents/users/$(uid)).data.role == 'tehnician'; }
+      function access() {
+        let grant = firestore.get(/databases/(default)/documents/mobileDraftAccess/$(uid)).data;
+        let session = firestore.get(/databases/(default)/documents/attendance/$(grant.sessionId)).data;
+        return request.time.toMillis() < grant.expiresAt && session.status == 'active' && session.userId == uid
+          && session.get('sessionEnd', null) == null
+          && request.resource.metadata.workId in grant.workIds;
+      }
+      allow read: if owner();
+      allow create: if request.auth != null && request.auth.uid == uid && access() && request.resource.size > 0 && request.resource.size <= 3000000
+        && request.resource.contentType in ['image/jpeg', 'image/png']
+        && request.resource.metadata.ownerUid == uid && request.resource.metadata.draftId == draftId
+        && request.resource.metadata.fileId == fileId && fileId.matches('^[a-zA-Z0-9_-]{8,120}$');
+      // Stable photo IDs are immutable. A retry checks metadata instead of uploading again.
+      allow delete: if owner()
+        && firestore.get(/databases/(default)/documents/mobileDrafts/$(uid)/files/$(fileId)).data.deleting == true
+        && firestore.get(/databases/(default)/documents/mobileDrafts/$(uid)/files/$(fileId)).data.refs.size() == 0;
+    }
     // Installation photos are uploaded/read through authenticated server endpoints.
     match /{directory}/{allPaths=**} {
-      allow read, write: if directory != 'installations';
+      allow read, write: if !(directory in ['installations', 'mobile-drafts']);
     }
   }
 }

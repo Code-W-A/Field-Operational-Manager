@@ -76,7 +76,8 @@ async function main() {
     await page.getByRole("button",{name:"Scanează QR Code",exact:true}).click();
     await expect(page.getByText("Punct vizibil",{exact:true}).first()).toBeVisible({timeout:30000});
     await expect(page.getByRole("dialog")).toHaveCount(0,{timeout:30000});
-    await expect(page.getByText("Punct ascuns",{exact:true})).toHaveCount(0);
+    await expect(page.getByText("Punct ascuns",{exact:true})).toBeVisible();
+    for (const checkbox of await page.getByRole("checkbox").all()) await checkbox.check();
     await page.getByRole("checkbox").first().check();
     await page.locator('input[type="file"]').first().setInputFiles({name:"control.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=","base64")});
     await page.getByLabel("Observații",{exact:true}).fill("Observații păstrate după eroare");
@@ -108,7 +109,7 @@ async function main() {
     await page.reload();
     await page.getByRole("checkbox").first().check();
     await page.getByLabel("Observații",{exact:true}).fill("Ciornă reală");
-    await page.getByRole("button",{name:"Înapoi la lucrare",exact:true}).click();
+    await page.getByRole("button",{name:"Înapoi la tichet",exact:true}).click();
     await page.getByRole("button",{name:"Salvează și ieși",exact:true}).click();
     await expect.poll(async()=>(await db.doc(`lucrari/${changedId}/revisions/eq`).get()).data()?.finalObservations).toBe("Ciornă reală");
     for(const mode of (process.env.FOM_REVISION_ONLY === "true" ? [] : ["save","finalize","later"])){

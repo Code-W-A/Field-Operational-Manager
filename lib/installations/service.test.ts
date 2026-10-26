@@ -1419,3 +1419,15 @@ for (const mode of ['cancel', 'delete'] as const) test(`timing closes on ${mode}
   assert.ok(saved.timeIntervals.every((i: any) => i.endedAt === saved.stoppedAt));
   assert.equal((await db.collection('installationTechnicianSessions').get()).size, 0);
 });
+
+test("photo upload checks the sheet version transactionally and idempotent retry still succeeds", async () => {
+  const work = await create();
+  const { sheet } = await start(work.id);
+  const photo = {id:'offline-photo',path:'mobile/tech1/photo',name:'photo.jpg',contentType:'image/jpeg'};
+  const attached = await service.attachPhoto(tech,work.id,sheet.id,photo,false,sheet.revision);
+  assert.equal(attached.sheet.revision,sheet.revision+1);
+  const retry = await service.attachPhoto(tech,work.id,sheet.id,photo,false,sheet.revision);
+  assert.equal(retry.sheet.revision,attached.sheet.revision);
+  await assert.rejects(service.attachPhoto(tech,work.id,sheet.id,{...photo,id:'other-photo'},false,sheet.revision),/modificată/);
+  assert.equal((await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).get()).data()!.photos.length,1);
+});

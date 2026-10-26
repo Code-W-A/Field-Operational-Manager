@@ -63,7 +63,7 @@ import {
   FileCheck2,
 } from "lucide-react"
 import { format } from "date-fns"
-import { technicianCommand } from "@/lib/technician/client"
+import { technicianCommand, technicianVerify } from "@/lib/technician/client"
 import { getLucrareById, deleteLucrare, updateLucrare, addLucrare } from "@/lib/firebase/firestore"
 import { subscribeDocumentatiiFiles, type DocumentatiiFile } from "@/lib/firebase/documentatii"
 import { WORK_STATUS, WORK_STATUS_OPTIONS } from "@/lib/utils/constants"
@@ -1537,8 +1537,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         return
       }
 
-      setEquipmentVerified(true)
-
       // Actualizăm lucrarea în baza de date
       try {
         // Record arrival time
@@ -1617,11 +1615,15 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
         }
         
         if (role === "tehnician") {
-          const result = await technicianCommand("verify", lucrare.id, { code: String(lucrare.echipamentCod || "") }, { work: lucrare, occurredAt: timpSosire })
+          const result = await technicianVerify(lucrare.id, { code: String(lucrare.echipamentCod || "") }, lucrare, timpSosire)
           setLucrare(prev => prev ? { ...prev, ...result.work } : prev)
         } else {
           await updateLucrare(lucrare.id, updateData)
+          const confirmed = await getLucrareById(lucrare.id, { serverOnly: true })
+          if (confirmed) setLucrare(confirmed)
         }
+        // Mount the draft only after the QR write and its exact version are confirmed.
+        setEquipmentVerified(true)
         console.log("✅ timpSosire salvat cu succes în Firestore")
 
         // Actualizăm și starea locală dacă am modificat statusul
@@ -4669,6 +4671,9 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                 key={lucrare.id}
                 lucrareId={lucrare.id!}
                 initialData={{
+                  clientId: lucrare.clientId,
+                  locationId: (lucrare as any).locationId,
+                  equipmentId: (lucrare as any).equipmentId,
                   mobileVersion: (lucrare as any).mobileVersion,
                   updatedAt: lucrare.updatedAt,
                   descriereInterventie: lucrare.descriereInterventie,

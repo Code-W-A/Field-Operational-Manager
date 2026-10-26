@@ -63,6 +63,7 @@ export type ProcedureRead = ReadDocument<
 >;
 export type RevisionRead = ReadDocument<EquipmentRevisionDoc>;
 export type Bundle = {
+  offlineTicketGrant?: import("./ticket-drafts").OfflineTicketGrant;
   dashboardOverdueConfig?: import("./ticket-dashboard").OverdueConfig;
   works: Work[];
   clients: ReadDocument<Client<JsonTimestamp>>[];

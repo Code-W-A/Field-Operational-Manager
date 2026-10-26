@@ -1,3 +1,4 @@
+import { validatePrivatePhoto } from "./draft-adoption";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID, createHash } from "node:crypto";
 import { adminDb } from "@/lib/firebase/admin";
@@ -16,15 +17,63 @@ export function fileHandlers(
     try {
       const a = await resolveActor(request),
         form = await request.formData(),
-        file = form.get("file"),
         fileId = String(form.get("fileId")),
         workId = String(form.get("workId") || ""),
         purpose = String(form.get("purpose"));
+      let file = form.get("file");
       if (mobile)
         await mobileAccess.requireAccess(
           a.uid,
           purpose !== "attendance-selfie",
         );
+      if (form.has("privateDraft")) {
+        let input: any;
+        try {
+          input = JSON.parse(String(form.get("privateDraft")));
+        } catch {
+          throw new MobileError("Referință privată invalidă.");
+        }
+        if (
+          !input ||
+          typeof input.saveId !== "string" ||
+          !/^[\w-]{8,120}$/.test(input.saveId)
+        )
+          throw new MobileError("Referință privată invalidă.");
+        const saved = await adminDb
+          .doc(`mobileDrafts/${a.uid}/saves/${input.saveId}`)
+          .get();
+        const photo = validatePrivatePhoto(
+          input,
+          saved.exists ? (saved.data() as any) : null,
+          a.uid,
+          workId,
+          fileId,
+          purpose,
+          String(
+            form.get(purpose === "installation" ? "sheetId" : "equipmentId") ||
+              "",
+          ),
+        );
+        const source = bucket().file(photo.path);
+        const [metadata] = await source.getMetadata();
+        if (
+          Number(metadata.size) !== photo.size ||
+          metadata.contentType !== photo.contentType ||
+          metadata.metadata?.ownerUid !== a.uid ||
+          metadata.metadata?.workId !== workId ||
+          metadata.metadata?.fileId !== fileId
+        )
+          throw new MobileError(
+            "Fotografia privată nu corespunde ciornei.",
+            403,
+          );
+        const [bytes] = await source.download();
+        if (bytes.length !== photo.size)
+          throw new MobileError("Fotografie privată incompletă.");
+        file = new File([new Uint8Array(bytes)], photo.name, {
+          type: photo.contentType,
+        });
+      }
       if (
         !/^[\w-]{8,120}$/.test(fileId) ||
         !(file instanceof File) ||
@@ -154,6 +203,10 @@ export function fileHandlers(
           workId,
           sheetId,
           { id: fileId, path, name: file.name, contentType: file.type },
+          false,
+          form.has("sheetRevision")
+            ? Number(form.get("sheetRevision"))
+            : undefined,
         );
         result = { ...meta, sheet: attached.sheet };
       }

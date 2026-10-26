@@ -25,16 +25,18 @@ const mocks = {
   '@/hooks/use-toast': `export const toast = value => window.calls.toasts.push(value);`,
   '@/hooks/use-settings': `export const useTargetList = () => ({items:[{id:'cause',name:'Uzură'}]});`,
   '@/lib/utils/logging-service': `export const logInfo = () => {};`,
-  '@/lib/firebase/firestore': `export const getLucrareById = async () => window.seed; export const updateLucrare = async () => {throw Error('Unexpected direct write');};`,
+  '@/lib/firebase/firestore': `export const getLucrareById = async () => ({...window.serverWork}); export const updateLucrare = async () => {throw Error('Unexpected direct write');};`,
   '@/lib/firebase/storage': `export const uploadFile = async () => {throw Error('Unexpected upload');}; export const deleteFile = async () => {};`,
   '@/lib/firebase/config': `export const auth={app:{options:{projectId:'demo-warranty'}},currentUser:{uid:'tech',getIdToken:async()=>'isolated-token'}}; export const db={};`,
-  'firebase/firestore': `export const doc=()=>{}; export const getDoc=async()=>{throw Error('Unexpected implicit version refresh');};`,
+  'firebase/firestore': `export const doc=()=>{}; export const getDoc=async()=>{throw Error('Unexpected implicit version refresh');}; export const getDocFromServer=async()=>({data:()=>({...window.serverWork})});`,
 }
 const bundle = await build({
   stdin:{contents:`import React from 'react'; import {createRoot} from 'react-dom/client';
     import {TehnicianInterventionForm} from './components/tehnician-intervention-form';
-    import {technicianCommand} from './lib/technician/client';
+    import {technicianCommand,technicianVerify} from './lib/technician/client';
     import {interventionPatch,versionOf,assertCommand} from './packages/fom-domain';
+    import {readInterventionDraft,writeInterventionDraft} from './lib/technician/intervention-draft';
+    window.draftApi={read:readInterventionDraft,write:writeInterventionDraft};
     const serverWork={...window.seed}; window.serverWork=serverWork;
     const receipts=new Map();
     window.fetch=async (url,init)=>{
@@ -70,7 +72,9 @@ const bundle = await build({
       return <TehnicianInterventionForm key={lucrare.id} lucrareId={lucrare.id} initialData={${initializers[0]}} onUpdate={()=>{}}/>;}
     async function start(){
       if(!window.seed.equipmentVerified) {
-        const result=await technicianCommand('verify',serverWork.id,{code:'QR-test'},{work:serverWork});
+        const qrBase={...serverWork};
+        if(window.seed.qrConcurrentChange) Object.assign(serverWork,{updatedAt:{seconds:1792490000,nanoseconds:500000000},notaInternaTehnician:'Notă în timpul scanării'});
+        const result=await technicianVerify(serverWork.id,{code:'QR-test'},qrBase);
         window.seed=result.work;
       }
       window.calls.attempts=0;
@@ -144,6 +148,13 @@ try {
     checks++; await page.close()
   }
 
+  const qrRecovery=await fixture({qrConcurrentChange:true,tehnicianGarantieDecizie:'confirma'})
+  await report(qrRecovery)
+  await expect.poll(()=>qrRecovery.evaluate(()=>window.calls.routes.length)).toBe(1)
+  assert.equal(await qrRecovery.evaluate(()=>window.calls.commands[0].baseVersion),'ts:1792490000:501000000')
+  assert.equal(await qrRecovery.evaluate(()=>window.serverWork.notaInternaTehnician),'Notă în timpul scanării')
+  checks++; await qrRecovery.close()
+
   const invalid=await fixture()
   for(const action of ['Salvează','Generează raport']) {
     await invalid.getByRole('button',{name:action,exact:true}).click()
@@ -185,12 +196,72 @@ try {
     window.refreshParent()
   })
   await report(conflict)
-  await expect.poll(()=>conflict.evaluate(()=>window.calls.toasts.at(-1)?.description)).toBe('Tichetul a fost modificat. Ciorna este păstrată.')
+  await expect.poll(()=>conflict.evaluate(()=>window.calls.toasts.at(-1)?.description)).toContain('Unele câmpuri au fost modificate')
   assert.equal(await conflict.evaluate(()=>window.calls.conflicts),1)
   assert.equal(await conflict.evaluate(()=>window.calls.commands.length),0)
   await expect(conflict.locator('#descriereInterventie')).toHaveValue('Ciornă locală păstrată')
   assert.equal(await conflict.evaluate(()=>window.serverWork.descriereInterventie),'Modificare făcută de alt utilizator')
+  await conflict.getByText('Alege ce păstrezi',{exact:true}).scrollIntoViewIfNeeded()
+  await conflict.screenshot({path:'/tmp/fom-conflict-check/conflict-choice.png'})
+  checks++;
+
+  await conflict.getByRole('radio').first().check()
+  await conflict.getByRole('button',{name:'Aplică variantele alese'}).click()
+  await report(conflict)
+  await expect.poll(()=>conflict.evaluate(()=>window.serverWork.descriereInterventie)).toBe('Ciornă locală păstrată')
   checks++; await conflict.close()
+
+  const independent=await fixture({tehnicianGarantieDecizie:'confirma'})
+  await independent.locator('#descriereInterventie').fill('Reparație locală')
+  await independent.evaluate(()=>{
+    window.serverWork.updatedAt={seconds:1792490000,nanoseconds:900000000}
+    window.serverWork.notaInternaTehnician='Notă adăugată în paralel'
+    window.refreshParent()
+  })
+  await independent.getByRole('button',{name:'Salvează',exact:true}).click()
+  await expect.poll(()=>independent.evaluate(()=>window.calls.commands.length)).toBe(1)
+  assert.equal(await independent.evaluate(()=>window.serverWork.notaInternaTehnician),'Notă adăugată în paralel')
+  await independent.locator('#descriereInterventie').fill('A doua salvare')
+  await independent.getByRole('button',{name:'Salvează',exact:true}).click()
+  await expect.poll(()=>independent.evaluate(()=>window.calls.commands.length)).toBe(2)
+  assert.equal(await independent.evaluate(()=>window.serverWork.notaInternaTehnician),'Notă adăugată în paralel')
+  checks++; await independent.close()
+
+  const draft=await fixture({tehnicianGarantieDecizie:'confirma'})
+  await draft.locator('#descriereInterventie').fill('Text nesalvat recuperabil')
+  await expect.poll(()=>draft.evaluate(async()=>{
+    const db=await new Promise((ok,no)=>{const r=indexedDB.open('fom-intervention-drafts',1);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})
+    const value=await new Promise(ok=>{const r=db.transaction('drafts').objectStore('drafts').get('demo-warranty:tech:warranty-work');r.onsuccess=()=>ok(r.result)})
+    db.close(); return value?.values.descriereInterventie
+  })).toBe('Text nesalvat recuperabil')
+  const draftSeed=await draft.evaluate(()=>window.seed)
+  await draft.reload(); await mount(draft,draftSeed)
+  await expect(draft.locator('#descriereInterventie')).toHaveValue('Text nesalvat recuperabil')
+  checks++; await draft.close()
+
+  const photos=await fixture({tehnicianGarantieDecizie:'confirma',imaginiDefecte:[{id:'existing',url:'https://warranty.test/existing.png',fileName:'existing.png'}]})
+  await photos.locator('input[type=file]').setInputFiles({name:'draft.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1UAAAAASUVORK5CYII=','base64')})
+  await expect(photos.getByText('Imagini selectate (1)',{exact:true})).toBeVisible()
+  await expect.poll(()=>photos.evaluate(async()=>{
+    const db=await new Promise(ok=>{const r=indexedDB.open('fom-intervention-drafts',1);r.onsuccess=()=>ok(r.result)})
+    const value=await new Promise(ok=>{const r=db.transaction('drafts').objectStore('drafts').get('demo-warranty:tech:warranty-work');r.onsuccess=()=>ok(r.result)})
+    db.close(); return value?.files?.[0]?.size || 0
+  })).toBeGreaterThan(0)
+  const photoSeed=await photos.evaluate(()=>window.seed)
+  await photos.reload(); await mount(photos,photoSeed)
+  await expect(photos.getByText('Imagini selectate (1)',{exact:true})).toBeVisible()
+  checks++; await photos.close()
+
+  const draftRace=await fixture({tehnicianGarantieDecizie:'confirma'})
+  const lastWrite=await draftRace.evaluate(async()=>{
+    const key='isolated-queue-test'
+    for(let index=0;index<12;index++) window.draftApi.write(key,{base:{},values:{descriereInterventie:String(index)},files:[],images:[],deleted:[]})
+    const last=await window.draftApi.read(key)
+    await window.draftApi.write(key)
+    return {last:last.values.descriereInterventie,cleared:await window.draftApi.read(key)}
+  })
+  assert.equal(lastWrite.last,'11'); assert.equal(lastWrite.cleared,undefined)
+  checks++; await draftRace.close()
 
   const retry=await fixture({tehnicianGarantieDecizie:'confirma'})
   await retry.evaluate(()=>{window.failure='lost-response'})

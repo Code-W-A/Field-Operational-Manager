@@ -1,6 +1,6 @@
 "use client"
 
-import { interventionPatch } from "@/packages/fom-domain";
+import { interventionPatch, versionOf } from "@/packages/fom-domain";
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -29,6 +29,10 @@ import { ImageDefectUpload } from "@/components/image-defect-upload"
 import { uploadFile, deleteFile } from "@/lib/firebase/storage"
 import { technicianCommand, technicianFile } from "@/lib/technician/client"
 import { useAuth } from "@/contexts/AuthContext"
+import { auth } from "@/lib/firebase/config"
+import { InterventionConflict, saveInterventionWithRecovery } from "@/lib/technician/intervention-recovery"
+import { interventionValues, interventionGroups, interventionLabels } from "@/lib/technician/intervention-merge"
+import { readInterventionDraft, writeInterventionDraft } from "@/lib/technician/intervention-draft"
 import { useTargetList } from "@/hooks/use-settings"
 import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib/utils/failure-causes"
 
@@ -37,6 +41,9 @@ import { failureCauseOptionsFromSettings, resolveFailureCauseLabel } from "@/lib
 interface TehnicianInterventionFormProps {
   lucrareId: string
   initialData: {
+    clientId?: string
+    locationId?: string
+    equipmentId?: string
     mobileVersion?: string
     updatedAt?: unknown
     descriereInterventie?: string
@@ -83,7 +90,13 @@ export function TehnicianInterventionForm({
   const { userData } = useAuth()
   // The draft belongs to this version. Only our confirmed writes may advance it;
   // a parent refresh must not silently rebase unsaved changes over another writer.
-  const commandWork = useRef(initialData)
+  const commandWork = useRef<Record<string, any>>(initialData)
+  const [conflict, setConflict] = useState<InterventionConflict | null>(null)
+  const [conflictChoices, setConflictChoices] = useState<Record<string, "local" | "remote">>({})
+  const [draftReady, setDraftReady] = useState(false)
+  const [draftWarning, setDraftWarning] = useState("")
+  const draftQueue = useRef(Promise.resolve())
+  const draftKey = auth.currentUser?.uid ? `${auth.app.options.projectId}:${auth.currentUser.uid}:${lucrareId}` : ""
   const [formData, setFormData] = useState({
     descriereInterventie: initialData.descriereInterventie || "",
     constatareLaLocatie: initialData.constatareLaLocatie || "",
@@ -115,36 +128,24 @@ export function TehnicianInterventionForm({
 
 
 
-  // Cleanup pentru URL-urile de preview la unmount
+  // Keep previews that are still selected; adding a second photo must not revoke the first.
+  const previewUrls = useRef<string[]>([])
   useEffect(() => {
-    return () => {
-      imagePreviews.forEach(url => URL.revokeObjectURL(url))
-    }
+    previewUrls.current.filter(url => !imagePreviews.includes(url)).forEach(url => URL.revokeObjectURL(url))
+    previewUrls.current = imagePreviews
   }, [imagePreviews])
+  useEffect(() => () => previewUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
 
   // Reset imagesToDelete când se schimbă lucrarea
   useEffect(() => {
     setImagesToDelete([])
   }, [lucrareId])
 
-  // Sincronizăm imaginile uploadate local cu datele venite din părinte (refresh/reload).
-  useEffect(() => {
-    setUploadedDefectImages(initialData.imaginiDefecte || [])
-  }, [initialData.imaginiDefecte, lucrareId])
-
   const clearSelectedImages = () => {
     imagePreviews.forEach((url) => URL.revokeObjectURL(url))
     setSelectedImages([])
     setImagePreviews([])
   }
-
-  // Guard UX: dacă avem imagini uploadate și selecție locală rămasă după persistare,
-  // curățăm forțat selecția pentru a evita afișarea dublă.
-  useEffect(() => {
-    if ((isSaving || isGeneratingReport) || selectedImages.length === 0) return
-    if (uploadedDefectImages.length === 0) return
-    clearSelectedImages()
-  }, [uploadedDefectImages, isSaving, isGeneratingReport, selectedImages.length])
 
   // State pentru funcționalitatea de garanție
   const [warrantyInfo, setWarrantyInfo] = useState<any>(null)
@@ -165,6 +166,87 @@ export function TehnicianInterventionForm({
     _gInit.decizie
   )
   const [tehnicianGarantieNuIntraMotiv, setTehnicianGarantieNuIntraMotiv] = useState(_gInit.motiv)
+
+  const applyValues = (work: Record<string, any>) => {
+    const v = interventionValues(work)
+    setConstatareLaLocatie(v.constatareLaLocatie)
+    setDescriereInterventie(v.descriereInterventie)
+    setStatusEchipament(v.statusEchipament)
+    setCauzaPrincipalaDefectId(v.cauzaPrincipalaDefectId)
+    setCauzaPrincipalaDefect(v.cauzaPrincipalaDefect)
+    setNecesitaOferta(v.necesitaOferta)
+    setComentariiOferta(v.comentariiOferta)
+    setNotaInternaTehnician(v.notaInternaTehnician)
+    setTehnicianGarantieDecizie(v.tehnicianGarantieDecizie)
+    setTehnicianGarantieNuIntraMotiv(v.tehnicianGarantieNuIntraMotiv)
+    setUploadedDefectImages(v.imaginiDefecte)
+  }
+  useEffect(() => {
+    let active = true
+    if (!draftKey) return
+    readInterventionDraft(draftKey).then(draft => {
+      if (!active || !draft || formDisabled) return
+      commandWork.current = draft.base
+      applyValues(draft.values)
+      setUploadedDefectImages(draft.images)
+      setImagesToDelete(draft.deleted)
+      setSelectedImages(draft.files)
+      setImagePreviews(draft.files.map(file => URL.createObjectURL(file)))
+      toast({ title: "Ciornă recuperată", description: "Textul și fotografiile nesalvate au fost restaurate." })
+    }).catch(() => {
+      if (active) setDraftWarning("Ciorna nu poate fi păstrată pe acest dispozitiv. Nu închide pagina înainte de salvare.")
+    }).finally(() => { if (active) setDraftReady(true) })
+    return () => { active = false }
+  }, [draftKey])
+
+  useEffect(() => {
+    if (!draftReady || !draftKey || isSaving || isGeneratingReport || formDisabled) return
+    const values = interventionValues({ constatareLaLocatie, descriereInterventie, statusEchipament,
+      cauzaPrincipalaDefectId, cauzaPrincipalaDefect, necesitaOferta, comentariiOferta,
+      notaInternaTehnician, tehnicianGarantieDecizie, tehnicianGarantieNuIntraMotiv,
+      tehnicianConfirmaGarantie: tehnicianGarantieDecizie === "confirma", imaginiDefecte: uploadedDefectImages })
+    const base = JSON.parse(JSON.stringify({ ...interventionValues(commandWork.current),
+      ...Object.fromEntries(["tipLucrare", "echipamentCod", "clientId", "locationId", "equipmentId"]
+        .map(key => [key, commandWork.current[key]])), mobileVersion: versionOf(commandWork.current) }))
+    const clean = JSON.stringify(values) === JSON.stringify(interventionValues(base)) && !selectedImages.length && !imagesToDelete.length
+    const draft = clean ? undefined : { base, values, files: selectedImages, images: uploadedDefectImages, deleted: imagesToDelete }
+    draftQueue.current = writeInterventionDraft(draftKey, draft).catch(() => {
+      setDraftWarning("Ciorna nu poate fi păstrată pe acest dispozitiv. Nu închide pagina înainte de salvare.")
+    })
+  }, [draftReady, draftKey, isSaving, isGeneratingReport, formDisabled, constatareLaLocatie,
+    descriereInterventie, statusEchipament, cauzaPrincipalaDefectId, cauzaPrincipalaDefect,
+    necesitaOferta, comentariiOferta, notaInternaTehnician, tehnicianGarantieDecizie,
+    tehnicianGarantieNuIntraMotiv, uploadedDefectImages, selectedImages, imagesToDelete])
+
+  const resolveConflict = () => {
+    if (!conflict) return
+    const values = { ...conflict.comparison.merged }
+    for (const group of conflict.comparison.conflicts) {
+      const choice = conflictChoices[group]
+      if (!choice) return
+      for (const key of interventionGroups[group as keyof typeof interventionGroups])
+        values[key] = conflict.comparison[choice][key]
+    }
+    commandWork.current = conflict.latest
+    applyValues(values)
+    // These files have already uploaded, and are now represented by their metadata.
+    clearSelectedImages()
+    setImagesToDelete([])
+    setConflict(null)
+    setConflictChoices({})
+    toast({ title: "Variante selectate", description: "Verifică formularul, apoi apasă Salvează sau Generează raport." })
+  }
+
+  const clearConfirmedDraft = async () => {
+    if (!draftKey) return
+    try {
+      await draftQueue.current
+      await writeInterventionDraft(draftKey)
+    } catch {
+      // The server write already succeeded. A local-storage failure must not turn it into a failed save.
+      setDraftWarning("Datele sunt salvate pe server, dar ciorna locală nu a putut fi curățată.")
+    }
+  }
 
   useEffect(() => {
     const checkWorkOrderStatus = async () => {
@@ -247,14 +329,19 @@ export function TehnicianInterventionForm({
   const persistIntervention = async (data: Record<string, unknown>) => {
     const patch = interventionPatch(data, initialData)
     if (userData?.role === "tehnician") {
-      const result = await technicianCommand("intervention.save", lucrareId, patch, { work: commandWork.current })
+      const result = await saveInterventionWithRecovery(commandWork.current, patch,
+        (payload, work) => technicianCommand("intervention.save", lucrareId, interventionPatch(payload, work), { work }),
+        () => getLucrareById(lucrareId, { serverOnly: true }))
       commandWork.current = {
         ...commandWork.current,
         ...result.work,
         ...(typeof result.version === "string" ? { mobileVersion: result.version } : {}),
       }
+      applyValues(commandWork.current)
+      return commandWork.current.imaginiDefecte || []
     } else {
       await updateLucrare(lucrareId, patch)
+      return patch.imaginiDefecte || []
     }
   }
 
@@ -300,9 +387,10 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      await persistIntervention(updateData)
+      const savedImages = await persistIntervention(updateData)
       setImagesToDelete([])
-      setUploadedDefectImages(allImages)
+      setUploadedDefectImages(savedImages)
+      await clearConfirmedDraft()
 
       // Log upload imaginilor dacă au fost uplodate
       if (newUploadedImages.length > 0) {
@@ -333,6 +421,7 @@ export function TehnicianInterventionForm({
 
       onUpdate()
     } catch (error) {
+      if (error instanceof InterventionConflict) { setConflict(error); setConflictChoices({}) }
       console.error("Eroare la salvarea datelor:", error)
       toast({
         title: "Eroare",
@@ -398,9 +487,10 @@ export function TehnicianInterventionForm({
         updateData.tehnicianConfirmaGarantie = w.tehnicianConfirmaGarantie
       }
 
-      await persistIntervention(updateData)
+      const savedImages = await persistIntervention(updateData)
       setImagesToDelete([])
-      setUploadedDefectImages(allImages)
+      setUploadedDefectImages(savedImages)
+      await clearConfirmedDraft()
 
       // Log upload imaginilor dacă au fost uplodate
       if (newUploadedImages.length > 0) {
@@ -438,6 +528,7 @@ export function TehnicianInterventionForm({
       // Navigate to the report page
       router.push(`/raport/${lucrareId}`)
     } catch (error) {
+      if (error instanceof InterventionConflict) { setConflict(error); setConflictChoices({}) }
       console.error("Eroare la salvarea datelor:", error)
       toast({
         title: "Eroare",
@@ -580,6 +671,32 @@ export function TehnicianInterventionForm({
         <CardTitle>Formular intervenție tehnician</CardTitle>
       </CardHeader>
       <CardContent>
+        {draftWarning && <Alert className="mb-4"><AlertDescription>{draftWarning}</AlertDescription></Alert>}
+        {conflict && <Alert className="mb-4" role="alert">
+          <AlertTitle>Alege ce păstrezi</AlertTitle>
+          <AlertDescription>Aceste câmpuri au fost modificate și în altă parte. Celelalte modificări se păstrează automat.</AlertDescription>
+          {conflict.comparison.conflicts.map(group => <fieldset key={group} className="my-3 border rounded p-2">
+            <legend>{interventionLabels[group]}</legend>
+            {(["local", "remote"] as const).map(choice => <label key={choice} className="block my-2 whitespace-pre-wrap break-words">
+              <input type="radio" name={`conflict-${group}`} checked={conflictChoices[group] === choice}
+                onChange={() => setConflictChoices(previous => ({ ...previous, [group]: choice }))} />
+              {choice === "local" ? " Ciorna mea: " : " Varianta salvată: "}
+              {group === "imaginiDefecte" ? `${conflict.comparison[choice].imaginiDefecte.length} fotografii` :
+                interventionGroups[group as keyof typeof interventionGroups].map(key => {
+                  const value = conflict.comparison[choice][key]
+                  return typeof value === "boolean" ? (value ? "Da" : "Nu") : value || "(gol)"
+                }).join(" · ")}
+              {group === "imaginiDefecte" && <span className="flex flex-wrap gap-2 mt-2">
+                {conflict.comparison[choice].imaginiDefecte.map((photo: any, index: number) =>
+                  <img key={photo.id || photo.url || index} src={photo.url} alt={photo.fileName || `Fotografie ${index + 1}`}
+                    className="h-20 w-20 rounded object-cover" />)}
+              </span>}
+            </label>)}
+          </fieldset>)}
+          <Button type="button" onClick={resolveConflict}
+            disabled={conflict.comparison.conflicts.some(group => !conflictChoices[group])}>Aplică variantele alese</Button>
+        </Alert>}
+        <fieldset disabled={!draftReady || isSaving || isGeneratingReport || Boolean(conflict)}>
         <form onSubmit={(e) => {
           e.preventDefault()
         }}>
@@ -866,6 +983,7 @@ export function TehnicianInterventionForm({
             )}
           </div>
         </form>
+        </fieldset>
       </CardContent>
     </Card>
   )

@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:intervention-recovery": "tsx --test lib/technician/intervention-merge.test.ts",
+    "test:intervention-recovery:browser": "node scripts/test-warranty-intervention-browser.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -11,7 +11,104 @@ service cloud.firestore {
         || data.get('parentId', '') in ['equipment-manufacturers', 'equipment-models'];
     }
     function serverOnlyCollection(name) {
-      return name in ['revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
+      return name in ['mobileDrafts', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
+    }
+    function draftOwner(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && get(/databases/$(database)/documents/users/$(uid)).data.role == 'tehnician';
+    }
+    function draftAccess(uid, workId) {
+      let grant = get(/databases/$(database)/documents/mobileDraftAccess/$(uid)).data;
+      let attendance = get(/databases/$(database)/documents/attendance/$(grant.sessionId)).data;
+      let work = get(/databases/$(database)/documents/lucrari/$(workId)).data;
+      return draftOwner(uid) && request.time.toMillis() < grant.expiresAt
+        && workId in grant.workIds && attendance.userId == uid && attendance.status == 'active'
+        && attendance.get('sessionEnd', null) == null
+        && (uid in work.get('technicianIds', [])
+          || get(/databases/$(database)/documents/users/$(uid)).data.displayName in work.get('tehnicieni', []));
+    }
+    function draftPhoto(p, uid, draftId) {
+      return p.keys().hasOnly(['id','path','name','contentType','size'])
+        && p.id is string && p.id.matches('^[a-zA-Z0-9_-]{8,120}$')
+        && p.path == 'mobile-drafts/' + uid + '/' + draftId + '/' + p.id
+        && p.name is string && p.name.size() <= 200
+        && p.contentType in ['image/jpeg','image/png'] && p.size is int && p.size > 0 && p.size <= 3000000;
+    }
+    function draftContent(d) {
+      let c = d.content;
+      return c is map && (
+        (d.kind == 'installation' && c.keys().hasOnly(['finding','operations','installationStatus','blockReason','internalNote','beneficiaryName']))
+        || (d.kind == 'revision' && c.keys().hasOnly(['sections','finalObservations','photos']) && c.get('sections',[]) is list && c.get('sections',[]).size() <= 100)
+        || (d.kind == 'intervention' && c.keys().hasOnly(['constatareLaLocatie','descriereInterventie','statusEchipament','cauzaPrincipalaDefectId','tehnicianGarantieDecizie','tehnicianGarantieNuIntraMotiv','necesitaOferta','comentariiOferta','notaInternaTehnician','products','numeBeneficiar','manualEmails','useManualRecipients','imaginiDefecte']))
+      ) && c.get('finding','') is string && c.get('finding','').size() <= 12000
+        && c.get('operations','') is string && c.get('operations','').size() <= 12000
+        && c.get('finalObservations','') is string && c.get('finalObservations','').size() <= 12000
+        && c.get('constatareLaLocatie','') is string && c.get('constatareLaLocatie','').size() <= 12000
+        && c.get('descriereInterventie','') is string && c.get('descriereInterventie','').size() <= 12000
+        && c.get('internalNote','') is string && c.get('internalNote','').size() <= 12000
+        && c.get('blockReason','') is string && c.get('blockReason','').size() <= 12000
+        && c.get('installationStatus','') is string && c.get('installationStatus','').size() <= 12000
+        && c.get('beneficiaryName','') is string && c.get('beneficiaryName','').size() <= 12000
+        && c.get('statusEchipament','') is string && c.get('statusEchipament','').size() <= 12000
+        && c.get('cauzaPrincipalaDefectId','') is string && c.get('cauzaPrincipalaDefectId','').size() <= 12000
+        && c.get('tehnicianGarantieDecizie','') is string && c.get('tehnicianGarantieDecizie','').size() <= 12000
+        && c.get('tehnicianGarantieNuIntraMotiv','') is string && c.get('tehnicianGarantieNuIntraMotiv','').size() <= 12000
+        && c.get('comentariiOferta','') is string && c.get('comentariiOferta','').size() <= 12000
+        && c.get('notaInternaTehnician','') is string && c.get('notaInternaTehnician','').size() <= 12000
+        && c.get('numeBeneficiar','') is string && c.get('numeBeneficiar','').size() <= 12000
+        && c.get('manualEmails','') is string && c.get('manualEmails','').size() <= 12000
+        && c.get('necesitaOferta',false) is bool && c.get('useManualRecipients',false) is bool
+        && c.get('photos',[]) is list && c.get('photos',[]).size() <= 4
+        && c.get('imaginiDefecte',[]) is list && c.get('imaginiDefecte',[]).size() <= 4
+        && c.get('products',[]) is list && c.get('products',[]).size() <= 100;
+    }
+    function validDraft(d,uid) {
+      return d.keys().hasOnly(['schemaVersion','ownerUid','draftId','key','workId','targetId','kind','baseVersion','sheetRevision','localRevision','saveId','deviceId','expectedHead','content','photos','accepted','savedAt'])
+        && d.schemaVersion == 1 && d.ownerUid == uid
+        && d.workId is string && d.workId.matches('^[a-zA-Z0-9_-]{1,160}$')
+        && d.targetId is string && d.targetId.size() <= 160
+        && d.key is string && d.key.size() <= 340 && d.draftId is string && d.draftId.size() <= 400
+        && d.saveId.matches('^[a-zA-Z0-9_-]{8,120}$') && d.deviceId.matches('^[a-zA-Z0-9_-]{8,120}$')
+        && (d.baseVersion == null || (d.baseVersion is string && d.baseVersion.size() <= 200))
+        && (d.sheetRevision == null || d.sheetRevision is int)
+        && ((d.kind == 'intervention' && d.targetId == '' && d.key == d.workId && d.draftId == d.workId)
+          || (d.kind == 'revision' && d.targetId.matches('^[a-zA-Z0-9_-]{1,160}$') && d.key == d.workId + ':revision:' + d.targetId && d.draftId == d.workId + '~revision~' + d.targetId)
+          || (d.kind == 'installation' && d.targetId.matches('^[a-zA-Z0-9_-]{1,160}$') && d.key == d.workId + ':sheet:' + d.targetId && d.draftId == d.workId + '~sheet~' + d.targetId))
+        && d.localRevision is int && d.localRevision > 0 && d.accepted is bool && d.savedAt is number
+        && (d.expectedHead == null || d.expectedHead is string)
+        && d.photos is list && d.photos.size() <= 4
+        && (d.photos.size() < 1 || draftPhoto(d.photos[0],uid,d.draftId))
+        && (d.photos.size() < 2 || draftPhoto(d.photos[1],uid,d.draftId))
+        && (d.photos.size() < 3 || draftPhoto(d.photos[2],uid,d.draftId))
+        && (d.photos.size() < 4 || draftPhoto(d.photos[3],uid,d.draftId))
+        && draftContent(d);
+    }
+    match /mobileDraftAccess/{uid} { allow read: if draftOwner(uid); }
+    match /mobileDrafts/{uid}/heads/{draftId} {
+      allow read: if draftOwner(uid);
+      allow create, update: if draftAccess(uid,request.resource.data.workId)
+        && validDraft(request.resource.data,uid) && request.resource.data.draftId == draftId
+        && request.resource.data.accepted == true
+        && getAfter(/databases/$(database)/documents/mobileDrafts/$(uid)/saves/$(request.resource.data.saveId)).data == request.resource.data
+        && ((!exists(/databases/$(database)/documents/mobileDrafts/$(uid)/heads/$(draftId)) && request.resource.data.expectedHead == null)
+          || (exists(/databases/$(database)/documents/mobileDrafts/$(uid)/heads/$(draftId)) && resource.data.saveId == request.resource.data.expectedHead));
+      allow delete: if draftOwner(uid);
+    }
+    match /mobileDrafts/{uid}/saves/{saveId} {
+      allow read, delete: if draftOwner(uid);
+      allow create: if draftAccess(uid,request.resource.data.workId)
+        && validDraft(request.resource.data,uid) && request.resource.data.saveId == saveId
+        && (request.resource.data.accepted == false
+          || getAfter(/databases/$(database)/documents/mobileDrafts/$(uid)/heads/$(request.resource.data.draftId)).data.saveId == saveId);
+    }
+    match /mobileDrafts/{uid}/files/{fileId} {
+      allow read: if draftOwner(uid);
+      allow create, update: if draftOwner(uid)
+        && request.resource.data.keys().hasOnly(['path','draftId','refs','deleting'])
+        && request.resource.data.path == 'mobile-drafts/' + uid + '/' + request.resource.data.draftId + '/' + fileId
+        && request.resource.data.refs is list && request.resource.data.refs.size() <= 200
+        && request.resource.data.deleting is bool;
+      allow delete: if draftOwner(uid) && resource.data.deleting && resource.data.refs.size() == 0;
     }
     // Preserve legacy access while routing the new installation data through verified server APIs.
     // Do not add an overlapping unrestricted recursive wildcard: it would override these exclusions.

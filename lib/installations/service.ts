@@ -1514,6 +1514,7 @@ export function installationService(db: Firestore) {
     sheetId: string,
     photo: any,
     remove = false,
+    expectedRevision?: number,
   ) {
     return db.runTransaction(async (tx) => {
       const user = await actorData(tx, actor);
@@ -1533,6 +1534,8 @@ export function installationService(db: Firestore) {
         );
         return { sheet };
       }
+      if (expectedRevision !== undefined)
+        check(sheet.revision === expectedRevision, "Fișa a fost modificată. Ciorna este păstrată.", 409);
       const photos = remove
         ? sheet.photos.filter((p) => p.id !== photo.id)
         : [...sheet.photos, photo];

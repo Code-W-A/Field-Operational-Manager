@@ -39,8 +39,11 @@ export type LocalFile = {
   contentType: string;
   size?: number;
   remote?: RecordData;
+  privateDraft?: { path: string; draftId: string; saveId: string };
 };
 export type Operation = Command & {
+  privateDraftKey?: string;
+  privateDraftRevision?: number;
   status: OperationStatus;
   attempts: number;
   error?: string;
@@ -426,3 +429,5 @@ export * from "./equipment-catalog";
 export * from "./revision-editor";
 
 export * from "./error-codes";
+
+export * from "./ticket-drafts";

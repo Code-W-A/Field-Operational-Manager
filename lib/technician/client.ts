@@ -1,7 +1,8 @@
 "use client";
 
 import { auth, db } from "@/lib/firebase/config";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer } from "firebase/firestore";
+import { sameInterventionContext } from "./intervention-merge";
 import { prepareUploadPhoto } from "./upload-photo";
 import { FOM_CONTRACT_VERSION, assertCommand, versionOf, type CommandAction, type CommandPayloadMap, type Command } from "@/packages/fom-domain";
 
@@ -59,6 +60,19 @@ export async function technicianCommand<A extends CommandAction>(
 }
 
 const fileAttempts = new WeakMap<File, { owner: string; id: string; result?: any }>();
+
+/** QR is still validated by the server; only unrelated ticket edits may be retried. */
+export async function technicianVerify(entityId: string, payload: CommandPayloadMap["verify"], work: Record<string, any>, occurredAt?: string) {
+  try { return await technicianCommand("verify", entityId, payload, { work, occurredAt }); }
+  catch (error) {
+    if (!(error instanceof TechnicianCommandError) || error.kind !== "conflict" ||
+      error.message !== "Tichetul a fost modificat. Ciorna este păstrată.") throw error;
+    const latest = (await getDocFromServer(doc(db, "lucrari", entityId))).data();
+    if (!latest || !sameInterventionContext(work, latest))
+      throw new TechnicianCommandError("Echipamentul sau datele tichetului s-au schimbat. Reîncarcă tichetul și verifică din nou codul QR.", "conflict");
+    return technicianCommand("verify", entityId, payload, { work: latest, occurredAt });
+  }
+}
 export async function technicianFile(file: File, workId = "", purpose = "photo", fileId = crypto.randomUUID()) {
   const owner = `${auth.app.options.projectId}:${auth.currentUser?.uid}:${workId}:${purpose}`;
   let attempt = fileAttempts.get(file);

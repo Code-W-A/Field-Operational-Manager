@@ -2,12 +2,13 @@ import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import {
   FOM_PUSH_PROJECT_ID,
+  activeNotificationWork,
+  assigned,
+  hasTicketCompletionDocument,
   NOTIFICATION_COLLECTIONS as C,
   type NotificationPage,
   type TicketNotification,
 } from "@/packages/fom-domain";
-import { inboxEvent, currentAssignmentEvents } from "./inbox";
-import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
 import { TechnicianError } from "@/lib/technician/service";
 
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -157,69 +158,52 @@ export function notificationService(db: Firestore, clock = () => new Date()) {
     });
     return { ok: true, revoked };
   }
-  // Fetch the owner's event set so relevance and unread totals use the same
-  // predicate, including legacy documents without dismissal fields. Work reads
-  // are deduplicated and chunked; no migration or new Firestore index is needed.
-  async function inbox(uid: string) {
-    const [rows, user, settings] = await Promise.all([
-      events
-        .where("uid", "==", uid)
-        .orderBy("createdAt", "desc")
-        .orderBy(FieldPath.documentId(), "desc")
-        .get(),
-      db.collection("users").doc(uid).get(),
-      db.collection("predefinedSettings").get(),
-    ]);
-    const actor = {
-      uid,
-      displayName: String(user.data()?.displayName || ""),
-      role: "tehnician",
-    };
-    const currentIds = new Set(
-      currentAssignmentEvents(
-        rows.docs.map((row) => publicEvent(row.id, row.data())),
-      ).map((event) => event.id),
+  async function list(uid: string, cursor?: string): Promise<NotificationPage> {
+    const rows = await events
+      .where("uid", "==", uid)
+      .orderBy("createdAt", "desc")
+      .orderBy(FieldPath.documentId(), "desc")
+      .get();
+    // Legacy deletions are reads. Convert lazily, rechecking transactionally so
+    // an old client's concurrent restore cannot be overwritten by this snapshot.
+    const legacy = rows.docs.filter(
+      (row) => row.data().dismissedAt && !row.data().readAt,
     );
-    const candidates = rows.docs.filter(
-      (row) => currentIds.has(row.id) && !row.data().dismissedAt,
-    );
-    const ids = [
-      ...new Set(
-        candidates.flatMap((row) => {
+    for (let offset = 0; offset < legacy.length; offset += 200) {
+      await db.runTransaction(async (tx) => {
+        const snapshots = await tx.getAll(
+          ...legacy.slice(offset, offset + 200).map((row) => row.ref),
+        );
+        for (const row of snapshots) {
           const data = row.data();
-          return data.workId ? [data.workId] : data.workIds || [];
-        }),
+          if (data?.uid === uid && data.dismissedAt && !data.readAt)
+            tx.update(row.ref, { readAt: data.dismissedAt });
+        }
+      });
+    }
+    const visible = rows.docs
+      .filter((row) => !row.data().readAt && !row.data().dismissedAt)
+      .map((row) => publicEvent(row.id, row.data()));
+    // Enrich copy without using the work's status or existence as a list filter.
+    const workIds = [
+      ...new Set(
+        visible.flatMap((event) => (event.workId ? [event.workId] : [])),
       ),
-    ] as string[];
-    const works = new Map<string, Record<string, any>>();
-    for (let offset = 0; offset < ids.length; offset += 100) {
-      const snapshots = await db.getAll(
-        ...ids
+    ];
+    for (let offset = 0; offset < workIds.length; offset += 100) {
+      const works = await db.getAll(
+        ...workIds
           .slice(offset, offset + 100)
           .map((id) => db.collection("lucrari").doc(id)),
       );
-      snapshots.forEach((row) => {
-        if (row.exists) works.set(row.id, row.data()!);
-      });
-    }
-    const config = overdueConfigFromSettings(
-      settings.docs.map((row) => ({ id: row.id, ...row.data() })),
-    );
-    const now = clock();
-    const visible = candidates.flatMap((row) => {
-      const event = inboxEvent(
-        publicEvent(row.id, row.data()),
-        actor,
-        works,
-        config,
-        now,
+      const numbers = new Map(
+        works.map((work) => [work.id, work.data()?.nrLucrare]),
       );
-      return event ? [event] : [];
-    });
-    return { rows, visible };
-  }
-  async function list(uid: string, cursor?: string): Promise<NotificationPage> {
-    const { rows, visible } = await inbox(uid);
+      for (const event of visible) {
+        const number = event.workId && numbers.get(event.workId);
+        if (number) event.workNumber = String(number);
+      }
+    }
     let after = visible;
     if (cursor) {
       if (!/^[a-f0-9]{64}$/.test(cursor)) fail("Cursor invalid.");
@@ -335,11 +319,35 @@ export function notificationService(db: Firestore, clock = () => new Date()) {
     if (!row.exists || row.data()!.uid !== uid)
       fail("Notificarea nu este disponibilă.", 404);
     if (row.data()!.dismissedAt) fail("Notificarea nu este disponibilă.", 404);
-    const event = (await inbox(uid)).visible.find(
-      (event) => event.id === notificationId,
-    );
-    if (!event) fail("Notificarea nu mai este relevantă.", 404);
-    return { event: event!, assigned: true };
+    const event = publicEvent(row.id, row.data());
+    if (event.kind === "withdrawn")
+      fail("Notificarea nu mai este relevantă.", 404);
+    const ids = event.workId ? [event.workId] : event.workIds || [];
+    const accessible = [];
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const works = await db.getAll(
+        ...ids
+          .slice(offset, offset + 100)
+          .map((id) => db.collection("lucrari").doc(id)),
+      );
+      for (const work of works) {
+        const data = work.data();
+        if (
+          data &&
+          assigned(data, actor) &&
+          activeNotificationWork(data) &&
+          !hasTicketCompletionDocument(data) &&
+          data.statusLucrare !== "Finalizat"
+        ) {
+          accessible.push(work.id);
+          if (event.workId && data.nrLucrare)
+            event.workNumber = String(data.nrLucrare);
+        }
+      }
+    }
+    if (!accessible.length) fail("Notificarea nu mai este relevantă.", 404);
+    if (!event.workId) event.workIds = accessible;
+    return { event, assigned: true };
   }
 
   return { register, unregister, revokeWithProof, list, read, open, action };
