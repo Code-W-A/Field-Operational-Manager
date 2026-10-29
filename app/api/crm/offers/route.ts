@@ -27,10 +27,11 @@ function parseSnapshot(value: unknown): CrmOfferSnapshot | null {
   const data = value as Record<string, unknown>
 
   return {
-    products: normalizeOfferProducts(data.products),
-    optionalProducts: normalizeOfferProducts(data.optionalProducts, { dropEmptyNames: true }),
+    validityText: normalizeString(data.validityText),
+    products: normalizeOfferProducts(data.products, { preserveIncompleteFields: true }),
+    optionalProducts: normalizeOfferProducts(data.optionalProducts, { preserveIncompleteFields: true }),
     vatPercent: normalizeNumber(data.vatPercent, 0),
-    adjustmentPercent: normalizeNumber(data.adjustmentPercent, 0),
+    adjustmentPercent: data.adjustmentPercent == null || data.adjustmentPercent === "" ? Number.NaN : normalizeNumber(data.adjustmentPercent, Number.NaN),
     conditions: Array.isArray(data.conditions) ? data.conditions.map((item) => String(item || "").trim()).filter(Boolean) : [],
     comments: normalizeString(data.comments),
     subtotal: normalizeNumber(data.subtotal, 0),

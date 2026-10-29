@@ -16,7 +16,7 @@ function normalizeNumber(value: unknown, fallback = 0) {
  */
 export function normalizeOfferProducts(
   value: unknown,
-  options: { dropEmptyNames?: boolean } = {},
+  options: { dropEmptyNames?: boolean; preserveIncompleteFields?: boolean } = {},
 ): CrmOfferProduct[] {
   if (!Array.isArray(value)) return []
 
@@ -24,12 +24,12 @@ export function normalizeOfferProducts(
     .map((row) => {
       if (!row || typeof row !== "object" || Array.isArray(row)) return null
       const item = row as Record<string, unknown>
-      const quantity = normalizeNumber(item.quantity, 0)
-      const price = normalizeNumber(item.price, 0)
+      const quantity = normalizeNumber(item.quantity, options.preserveIncompleteFields ? Number.NaN : 0)
+      const price = normalizeNumber(item.price, options.preserveIncompleteFields ? Number.NaN : 0)
       return {
         id: normalizeString(item.id),
         name: normalizeString(item.name),
-        um: normalizeString(item.um) || "buc",
+        um: normalizeString(item.um) || (options.preserveIncompleteFields ? "" : "buc"),
         quantity,
         price,
         // Aceeași regulă ca în editor: un total absent, invalid sau 0 se recalculează.

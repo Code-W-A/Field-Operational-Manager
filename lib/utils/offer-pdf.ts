@@ -25,6 +25,7 @@ export interface OfferPdfInput {
   optionalProducts?: OfferItem[]
   offerVAT?: number
   conditions?: string[]
+  validityText?: string
   adjustmentPercent?: number
   // Extra display data
   equipmentName?: string
@@ -185,7 +186,8 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   let y = M
 
   const checkPage = (need: number) => {
-    if (y + need > PH - M) {
+    // Reserve space for the author and the standard footer, including long validity text.
+    if (y + need > PH - 40) {
       doc.addPage()
       y = M
     }
@@ -419,6 +421,8 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
     `Prețurile nu includ TVA (${vatPercent}%)`,
   ]
   const conds = (input.conditions && input.conditions.length ? input.conditions : defaultConds).map(normalizeForPdf)
+  if (input.validityText?.trim()) conds.push(normalizeForPdf(`Valabilitatea ofertei: ${input.validityText.trim()}`))
+  checkPage(12)
   doc.setFont("NotoSans", "bold").setFontSize(10).text("Termeni și condiții:", M, y)
   y += 6
   doc.setFont("NotoSans", "normal").setFontSize(9)
@@ -430,6 +434,8 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
       y += 6
     })
   })
+
+  y = drawResponseProof(doc, input, M, y, W, PH)
 
   // Prepared by (author and date) directly above footer separator (absolute positioning)
   try {

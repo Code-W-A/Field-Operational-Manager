@@ -20,7 +20,7 @@ import { downloadTechnicianCrmFile } from "@/lib/crm/technician-client"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import { resolveClientContactsForOpportunity } from "@/lib/crm/opportunity-contacts"
 import { getCrmClientById, listCrmClientContacts } from "@/lib/crm/opportunities"
-import { issueCrmOffer, listCrmOffers, saveCrmOfferDraft } from "@/lib/crm/offers"
+import { CrmOfferValidationError, issueCrmOffer, listCrmOffers, saveCrmOfferDraft } from "@/lib/crm/offers"
 import { isTerminalPipelineStageForOpportunityType } from "@/lib/crm/constants"
 import { formatDateTime } from "@/lib/crm/presenters"
 import { getDateValue } from "@/lib/crm/activity"
@@ -29,8 +29,8 @@ import { generateOfferPdf } from "@/lib/utils/offer-pdf"
 import { blobToBase64, isValidEmail, normalizeEmail } from "@/lib/work-documents/shared"
 import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
-import { normalizeOfferProducts } from "@/lib/crm/offer-products"
 import { applyAdjustment, computeOfferSubtotal, parseAdjustmentPercent } from "@/lib/crm/offer-totals"
+import { validateCrmOfferForIssue, type OfferFieldErrors } from "@/lib/crm/offer-validation"
 import type { CrmClient, CrmClientContact, CrmOffer } from "@/lib/crm/types"
 
 function createEmptyProduct(): ProductItem {
@@ -83,6 +83,8 @@ export default function OpportunityOffersPage() {
   const [adjustmentPercent, setAdjustmentPercent] = useState("0")
   const [conditionsInput, setConditionsInput] = useState("Plata: conform contract\nLivrare: conform stoc\nInstalare: conform programare")
   const [comments, setComments] = useState("")
+  const [validityText, setValidityText] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<OfferFieldErrors>({})
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [editingDraftOfferId, setEditingDraftOfferId] = useState<string | null>(null)
@@ -160,16 +162,6 @@ export default function OpportunityOffersPage() {
   }, [opportunity?.id, opportunity?.clientId, user?.uid])
 
   useEffect(() => {
-    if (!opportunity) return
-    if (!subject) setSubject(`Ofertă ${opportunity.code}`)
-    if (!message) {
-      setMessage(
-        `Bună ziua,\n\nVă transmitem oferta comercială pentru oportunitatea ${opportunity.code}${clientName ? ` — ${clientName}` : ""}.\n\nPuteți accepta sau refuza oferta din acest email, folosind butoanele incluse în mesaj.\n\nCu stimă,`
-      )
-    }
-  }, [clientName, message, opportunity, subject])
-
-  useEffect(() => {
     if (!offerEditorOpen) return
     void getDefaultOfferVatPercent().then((vat) => setVatPercent(String(vat)))
   }, [offerEditorOpen])
@@ -194,14 +186,15 @@ export default function OpportunityOffersPage() {
     products: products.map((row) => ({
       id: row.id,
       name: String(row.name || ""),
-      um: String(row.um || "buc"),
-      quantity: Number(row.quantity || 0),
-      price: Number(row.price || 0),
+      um: String(row.um || ""),
+      quantity: row.quantity,
+      price: row.price,
       total: Number(row.total || Number(row.quantity || 0) * Number(row.price || 0)),
     })),
-    optionalProducts: normalizeOfferProducts(optionalProducts, { dropEmptyNames: true }),
+    optionalProducts: optionalProducts,
+    validityText: validityText.trim(),
     vatPercent: Number(vatPercent.replace(",", ".")) || 0,
-    adjustmentPercent: adjustment,
+    adjustmentPercent: adjustmentPercent.trim() ? Number(adjustmentPercent.replace(",", ".")) : Number.NaN,
     conditions: parseConditions(conditionsInput),
     comments: comments.trim(),
     subtotal,
@@ -217,9 +210,11 @@ export default function OpportunityOffersPage() {
         : [createEmptyProduct()]
     )
     setOptionalProducts((snapshot.optionalProducts as ProductItem[] | undefined) || [])
-    setAdjustmentPercent(String(snapshot.adjustmentPercent ?? 0))
+    setAdjustmentPercent(snapshot.adjustmentPercent == null || !Number.isFinite(snapshot.adjustmentPercent) ? "" : String(snapshot.adjustmentPercent))
     setConditionsInput((snapshot.conditions || []).join("\n"))
     setComments(snapshot.comments || "")
+    setValidityText(snapshot.validityText || "")
+    setFieldErrors({})
     setSubject(offer.subject || "")
     setMessage(offer.message || "")
     setEditingDraftOfferId(offer.status === "DRAFT" ? offer.id : null)
@@ -246,8 +241,32 @@ export default function OpportunityOffersPage() {
       })
       return
     }
+    setFieldErrors({})
+    if (!editingDraftOfferId) {
+      setSubject((value) => value || `Ofertă ${opportunity.code}`)
+      setMessage((value) => value || `Bună ziua,\n\nVă transmitem oferta comercială pentru oportunitatea ${opportunity.code}${clientName ? ` — ${clientName}` : ""}.\n\nPuteți accepta sau refuza oferta din acest email, folosind butoanele incluse în mesaj.\n\nCu stimă,`)
+    }
     setOfferEditorOpen(true)
   }
+
+  const showFieldErrors = (errors: OfferFieldErrors) => {
+    setFieldErrors(errors)
+    const first = Object.keys(errors)[0]
+    requestAnimationFrame(() => {
+      const element = Array.from(document.querySelectorAll<HTMLElement>("[data-offer-field]")).find((node) => node.dataset.offerField === first)
+      element?.focus()
+      element?.scrollIntoView({ block: "center", behavior: "smooth" })
+    })
+  }
+
+  const fieldProps = (key: string) => ({
+    "data-offer-field": key,
+    "aria-invalid": Boolean(fieldErrors[key]),
+    "aria-describedby": fieldErrors[key] ? `offer-error-${key}` : undefined,
+  })
+  const fieldError = (key: string) => fieldErrors[key] ? (
+    <p id={`offer-error-${key}`} className="text-sm text-red-600">{fieldErrors[key]}</p>
+  ) : null
 
   const handleSaveDraft = async () => {
     if (!user?.uid || savingDraft) return
@@ -297,6 +316,16 @@ export default function OpportunityOffersPage() {
       return
     }
 
+    const errors = validateCrmOfferForIssue({
+      subject, message,
+      snapshot: { products, optionalProducts, validityText, conditions: parseConditions(conditionsInput), comments, vatPercent, adjustmentPercent: adjustmentPercent.replace(",", ".") },
+    })
+    if (Object.keys(errors).length) {
+      showFieldErrors(errors)
+      toast({ title: "Oferta este incompletă", description: "Completați câmpurile evidențiate înainte de emitere.", variant: "destructive" })
+      return
+    }
+    setFieldErrors({})
     setIssuingOffer(true)
     try {
       const snapshot = buildSnapshot()
@@ -322,6 +351,7 @@ export default function OpportunityOffersPage() {
         offerVAT: snapshot.vatPercent,
         adjustmentPercent: snapshot.adjustmentPercent,
         conditions: snapshot.conditions,
+        validityText: snapshot.validityText,
         locationName: opportunity.displayTitle || opportunity.title,
         preparedBy: userData?.displayName || userData?.email || user.uid,
         preparedAt: new Date().toISOString(),
@@ -367,6 +397,7 @@ export default function OpportunityOffersPage() {
       }
       await load()
     } catch (error) {
+      if (error instanceof CrmOfferValidationError) showFieldErrors(error.fieldErrors)
       toast({
         title: "Nu s-a putut emite oferta",
         description: error instanceof Error ? error.message : "Eroare neașteptată.",
@@ -393,12 +424,17 @@ export default function OpportunityOffersPage() {
             <div data-testid="offer-products-section">
               <ProductTableForm
                 products={products}
+                requireCompleteRows
+                fieldPath="snapshot.products"
+                fieldErrors={fieldErrors}
+                focusField={Object.keys(fieldErrors)[0]}
                 onProductsChange={setProducts}
                 disabled={false}
                 showTitle={false}
                 tableScrollClassName="max-h-[min(52vh,440px)]"
               />
             </div>
+            {fieldError("snapshot.products")}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-neutral-200 bg-neutral-50/90 px-3 py-2.5 text-sm text-neutral-700">
               <span>
                 Total fără TVA:{" "}
@@ -432,6 +468,10 @@ export default function OpportunityOffersPage() {
               </div>
               <ProductTableForm
                 products={optionalProducts}
+                requireCompleteRows
+                fieldPath="snapshot.optionalProducts"
+                fieldErrors={fieldErrors}
+                focusField={Object.keys(fieldErrors)[0]}
                 onProductsChange={setOptionalProducts}
                 disabled={false}
                 showTitle={false}
@@ -450,7 +490,7 @@ export default function OpportunityOffersPage() {
               </span>
               Email și condiții
             </CardTitle>
-            <CardDescription>Mesajul trimis clientului împreună cu PDF-ul ofertei.</CardDescription>
+            <CardDescription>Toate câmpurile sunt obligatorii la emitere. Drafturile pot fi salvate incomplete.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5">
             <div className="grid gap-2">
@@ -458,24 +498,28 @@ export default function OpportunityOffersPage() {
                 Subiect
               </Label>
               <Input
+                {...fieldProps("subject")}
                 id="offer-email-subject"
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
                 placeholder="Ex.: Ofertă OP.25"
                 className="h-10"
               />
+              {fieldError("subject")}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="offer-email-body" className="text-sm font-medium text-neutral-800">
                 Mesaj
               </Label>
               <Textarea
+                {...fieldProps("message")}
                 id="offer-email-body"
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder="Textul din corpul emailului…"
                 className="min-h-[140px] resize-y text-sm leading-relaxed"
               />
+              {fieldError("message")}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
@@ -483,49 +527,62 @@ export default function OpportunityOffersPage() {
                   TVA (%) — din Setări
                 </Label>
                 <Input
+                  {...fieldProps("snapshot.vatPercent")}
                   id="offer-vat"
                   value={vatPercent}
                   readOnly
                   title="Cota TVA se modifică în Setări → Sistem"
                   className="h-10 bg-muted text-muted-foreground cursor-not-allowed"
                 />
+                {fieldError("snapshot.vatPercent")}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="offer-adjustment" className="text-sm font-medium text-neutral-800">
                   Discount / ajustare (%)
                 </Label>
                 <Input
+                  {...fieldProps("snapshot.adjustmentPercent")}
                   id="offer-adjustment"
                   value={adjustmentPercent}
                   onChange={(event) => setAdjustmentPercent(event.target.value)}
                   placeholder="0"
                   className="h-10"
                 />
+                {fieldError("snapshot.adjustmentPercent")}
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="offer-validity">Valabilitatea ofertei</Label>
+              <Textarea id="offer-validity" {...fieldProps("snapshot.validityText")} value={validityText} onChange={(event) => setValidityText(event.target.value)} placeholder="Ex.: 30 de zile de la emitere" className="min-h-[72px]" />
+              {fieldError("snapshot.validityText")}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="offer-conditions" className="text-sm font-medium text-neutral-800">
                 Condiții comerciale
               </Label>
               <Textarea
+                {...fieldProps("snapshot.conditions")}
                 id="offer-conditions"
                 value={conditionsInput}
                 onChange={(event) => setConditionsInput(event.target.value)}
                 placeholder="Câte o condiție pe rând (apar în ofertă)"
                 className="min-h-[100px] resize-y text-sm leading-relaxed"
               />
+              {fieldError("snapshot.conditions")}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="offer-comments" className="text-sm font-medium text-neutral-800">
                 Comentarii interne (ofertă)
               </Label>
               <Textarea
+                {...fieldProps("snapshot.comments")}
                 id="offer-comments"
                 value={comments}
                 onChange={(event) => setComments(event.target.value)}
-                placeholder="Opțional, vizibil în fluxul ofertei"
+                placeholder="Comentarii interne obligatorii; nu apar în email sau PDF"
                 className="min-h-[88px] resize-y text-sm leading-relaxed"
               />
+              {fieldError("snapshot.comments")}
             </div>
           </CardContent>
         </Card>
@@ -638,7 +695,7 @@ export default function OpportunityOffersPage() {
         </div>
 
         <Dialog open={offerEditorOpen} onOpenChange={setOfferEditorOpen}>
-          <DialogContent className="flex max-h-[95vh] w-[calc(100%-2rem)] max-w-[1600px] min-h-0 flex-col gap-0 overflow-hidden p-0">
+          <DialogContent className="[&_[aria-invalid=true]]:border-red-500 flex max-h-[95vh] w-[calc(100%-2rem)] max-w-[1600px] min-h-0 flex-col gap-0 overflow-hidden p-0">
             <DialogHeader className="min-w-0 shrink-0 space-y-2 border-b border-neutral-200/80 bg-neutral-50/50 px-5 py-4 text-left pr-10 sm:px-7 sm:py-5 sm:pr-12">
               <DialogTitle className="text-xl font-semibold tracking-tight text-neutral-900">Editor ofertă</DialogTitle>
               <p className="min-w-0 break-words text-sm leading-relaxed text-neutral-600">

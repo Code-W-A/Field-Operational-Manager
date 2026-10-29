@@ -2,6 +2,7 @@ import { technicianCrmRequest } from "./technician-client";
 import { auth } from "@/lib/firebase/config"
 import { listE2eCrmOffers, saveE2eCrmOfferDraft } from "@/lib/crm/e2e-fixtures"
 import { isE2eTestMode } from "@/lib/utils/environment"
+import type { OfferFieldErrors } from "./offer-validation"
 import type { CrmOffer, IssueCrmOfferInput, SaveCrmOfferDraftInput } from "@/lib/crm/types"
 
 async function firebaseBearerHeader(): Promise<Record<string, string>> {
@@ -119,8 +120,15 @@ export async function saveCrmOfferDraft(input: SaveCrmOfferDraftInput) {
   return data.offerId
 }
 
+export class CrmOfferValidationError extends Error {
+  constructor(message: string, public readonly fieldErrors: OfferFieldErrors) {
+    super(message)
+    this.name = "CrmOfferValidationError"
+  }
+}
+
 export async function issueCrmOffer(input: IssueCrmOfferInput) {
-  if (!auth.currentUser) {
+  if (!auth.currentUser && !isE2eTestMode()) {
     throw new Error("Trebuie să fii autentificat pentru a emite oferta.")
   }
   const response = await fetch("/api/crm/offers/issue", {
@@ -134,6 +142,7 @@ export async function issueCrmOffer(input: IssueCrmOfferInput) {
     | {
         ok?: boolean
         error?: string
+        fieldErrors?: OfferFieldErrors
         offerId?: string
         version?: number
         publicUrl?: string
@@ -141,6 +150,7 @@ export async function issueCrmOffer(input: IssueCrmOfferInput) {
     | null
 
   if (!response.ok || !data?.ok || !data.offerId) {
+    if (data?.fieldErrors) throw new CrmOfferValidationError(data.error || "Oferta este incompletă.", data.fieldErrors)
     throw new Error(data?.error || "Nu s-a putut emite oferta.")
   }
 

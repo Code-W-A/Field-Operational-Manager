@@ -463,7 +463,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
             <Card>
               <CardContent className="p-3 sm:p-4">
                 {client?.locatii && client.locatii.length > 0 ? (
-                  <Accordion type="multiple" defaultValue={["locatie-0"]} className="w-full space-y-2">
+                  <Accordion type="multiple" className="w-full space-y-2">
                     {client.locatii.map((locatie, index) => {
                       const locationKey = String((locatie as any)?.id || `locatie-${index}`)
                       const locationEquipments = Array.isArray(locatie.echipamente) ? locatie.echipamente : []

@@ -110,6 +110,8 @@ export interface CrmOfferProduct {
 }
 
 export interface CrmOfferSnapshot {
+  /** Informative validity; optional for legacy offers and incomplete drafts. */
+  validityText?: string
   products: CrmOfferProduct[]
   /** Poziții afișate cu preț, dar excluse din subtotal/discount/total. */
   optionalProducts?: CrmOfferProduct[]

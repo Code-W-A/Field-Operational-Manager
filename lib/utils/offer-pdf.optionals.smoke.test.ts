@@ -145,3 +145,22 @@ test("conținutul PDF: opționalul fără denumire nu este tipărit", async (t) 
   assert.match(text, /Opționale/)
   assert.doesNotMatch(text, /12\.345/)
 })
+
+test("valabilitatea apare în PDF cu diacritice, iar lipsa ei păstrează compatibilitatea", async () => {
+  const validityText = "30 de zile lucrătoare de la emitere, până la confirmarea comenzii"
+  const text = extractText(await pdfBuffer({ ...baseInput, validityText }))
+  assert.ok(text)
+  assert.match(text, /Valabilitatea ofertei: 30 de zile lucrătoare de la emitere/)
+  const legacy = extractText(await pdfBuffer(baseInput))!
+  assert.doesNotMatch(legacy, /Valabilitatea ofertei/)
+})
+
+test("valabilitatea lungă și dovada răspunsului se păstrează pe mai multe pagini", async () => {
+  const validityText = Array.from({ length: 35 }, (_, i) => `Condiția ${i + 1}: oferta este valabilă în România, cu confirmare scrisă și acordul părților.`).join("\n")
+  const buffer = await pdfBuffer({ ...baseInput, validityText, responseProof: { action: "accept", actedAt: "2026-10-29T11:00:00Z", verifiedEmail: "client@example.test" } })
+  const text = extractText(buffer)!
+  assert.match(text, /Condiția 1:/)
+  assert.match(text, /Condiția 35:/)
+  assert.match(text, /Dovada raspuns client/)
+  assert.match(text, /client@example.test/)
+})

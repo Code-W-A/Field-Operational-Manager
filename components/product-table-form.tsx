@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useIsMobile } from "@/components/ui/use-mobile"
 import { cn } from "@/lib/utils"
 import React from "react"
+import type { OfferFieldErrors } from "@/lib/crm/offer-validation"
 
 import type { ReportProduct } from "@/packages/fom-domain/validation";
 export type ProductItem = ReportProduct;
@@ -20,6 +21,10 @@ export type ProductItem = ReportProduct;
 export type Product = ProductItem
 
 interface ProductTableFormProps {
+  requireCompleteRows?: boolean
+  fieldPath?: string
+  fieldErrors?: OfferFieldErrors
+  focusField?: string
   products: ProductItem[]
   onProductsChange: (products: ProductItem[]) => void
   disabled?: boolean
@@ -42,6 +47,10 @@ export const parseProductDecimalInput = (value: string) => {
 export function ProductTableForm({
   products,
   onProductsChange,
+  requireCompleteRows = false,
+  fieldPath = "products",
+  fieldErrors,
+  focusField,
   disabled = false,
   showTitle = true,
   allowDecimalQuantity = false,
@@ -53,6 +62,38 @@ export function ProductTableForm({
   const [draft, setDraft] = React.useState<ProductItem | null>(null)
   const [numberDrafts, setNumberDrafts] = React.useState<Record<string, string>>({})
   const lastFocusedFieldIdRef = React.useRef<string | null>(null)
+
+  const editingIndex = products.findIndex((product) => product.id === editingId)
+  const numberText = (value: number) => requireCompleteRows
+    ? (value == null || !Number.isFinite(Number(value)) ? "" : String(value))
+    : (value === 0 ? "" : String(value))
+  const fieldKey = (index: number, field: string) => `${fieldPath}.${index}.${field}`
+  const fieldProps = (index: number, field: string) => {
+    if (!requireCompleteRows) return {}
+    const key = fieldKey(index, field)
+    return {
+      "data-offer-field": key,
+      "aria-label": `${field === "name" ? "Denumire" : field === "um" ? "UM" : field === "price" ? "PU (lei)" : "Cantitate"} ${index + 1}`,
+      "aria-invalid": Boolean(fieldErrors?.[key]),
+      "aria-describedby": fieldErrors?.[key] ? `error-${key}` : undefined,
+    }
+  }
+  const fieldError = (index: number, field: string) => {
+    const key = fieldKey(index, field)
+    return fieldErrors?.[key] ? <p id={`error-${key}`} className="mt-1 text-xs text-red-600">{fieldErrors[key]}</p> : null
+  }
+
+  React.useEffect(() => {
+    if (!isMobile || !focusField?.startsWith(`${fieldPath}.`)) return
+    const index = Number(focusField.slice(fieldPath.length + 1).split(".")[0])
+    const product = products[index]
+    if (product) {
+      setDraft({ ...product })
+      setEditingId(product.id)
+    }
+    // Reopen on a validation attempt, not while editing the row.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusField, fieldErrors, fieldPath, isMobile])
 
   const numberDraftKey = (id: string, field: "price" | "quantity") => `${id}:${field}`
 
@@ -143,13 +184,14 @@ export function ProductTableForm({
   const totalWithVAT = totalWithoutVAT * 1.21 // Presupunem TVA 21%
   const handleNumberChange = (id: string, field: "price" | "quantity", rawValue: string) => {
     const parsed = parseProductDecimalInput(rawValue)
-    updateProduct(id, field, parsed ?? 0)
+    updateProduct(id, field, parsed ?? (requireCompleteRows ? Number.NaN : 0))
   }
 
   const hasValidationError = (p: ProductItem) => {
     const nameOk = (p.name || "").trim().length > 0
     const priceOk = (Number(p.price) || 0) >= 0
     const qtyOk = allowDecimalQuantity ? (Number(p.quantity) || 0) > 0 : (Number(p.quantity) || 0) >= 1
+    if (requireCompleteRows) return !(nameOk && (p.um || "").trim() && p.price != null && Number.isFinite(Number(p.price)) && Number(p.price) >= 0 && p.quantity != null && Number.isFinite(Number(p.quantity)) && Number(p.quantity) > 0)
     return !(nameOk && priceOk && qtyOk)
   }
 
@@ -168,8 +210,8 @@ export function ProductTableForm({
     if (!draft) return
     const nextProducts = products.map((p) => {
       if (p.id !== draft.id) return p
-      const nextQuantity = draft.quantity === (undefined as unknown as number) ? 0 : Number(draft.quantity) || 0
-      const nextPrice = draft.price === (undefined as unknown as number) ? 0 : Number(draft.price) || 0
+      const nextQuantity = requireCompleteRows ? (draft.quantity == null || String(draft.quantity).trim() === "" ? Number.NaN : Number(draft.quantity)) : Number(draft.quantity) || 0
+      const nextPrice = requireCompleteRows ? (draft.price == null || String(draft.price).trim() === "" ? Number.NaN : Number(draft.price)) : Number(draft.price) || 0
       return {
         ...p,
         name: draft.name,
@@ -205,6 +247,7 @@ export function ProductTableForm({
               <th className="min-w-[240px] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-600">
                 Denumire
               </th>
+              {requireCompleteRows ? <th className="w-20 px-2 py-2.5 text-left text-xs font-semibold uppercase text-neutral-600">UM</th> : null}
               <th className="w-28 shrink-0 px-2 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-600">
                 PU (lei)
               </th>
@@ -220,7 +263,7 @@ export function ProductTableForm({
           <tbody>
             {products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">Nu există poziții. Adăugați un rând.</td>
+                <td colSpan={requireCompleteRows ? 7 : 6} className="px-3 py-4 text-center text-muted-foreground">Nu există poziții. Adăugați un rând.</td>
               </tr>
             ) : (
               products.map((p, idx) => {
@@ -232,6 +275,7 @@ export function ProductTableForm({
                     <td className="px-2 py-2.5 align-top text-center text-sm text-muted-foreground">{idx + 1}</td>
                     <td className="min-w-[240px] px-3 py-2.5 align-top">
                       <Textarea
+                        {...fieldProps(idx, "name")}
                         id={`name-${p.id}`}
                         value={p.name}
                         onChange={(e) => updateProduct(p.id, "name", e.target.value)}
@@ -241,13 +285,19 @@ export function ProductTableForm({
                         rows={3}
                         onFocus={(e) => { lastFocusedFieldIdRef.current = e.currentTarget.id }}
                       />
+                      {fieldError(idx, "name")}
                     </td>
+                    {requireCompleteRows ? <td className="px-2 py-2.5 align-top">
+                      <Input id={`um-${p.id}`} {...fieldProps(idx, "um")} value={p.um || ""} onChange={(event) => updateProduct(p.id, "um", event.target.value)} disabled={disabled} className="h-9 w-20" />
+                      {fieldError(idx, "um")}
+                    </td> : null}
                     <td className="w-28 shrink-0 px-2 py-2.5 align-top">
                       <Input
+                        {...fieldProps(idx, "price")}
                         id={`price-${p.id}`}
                         type="text"
                         inputMode="decimal"
-                        value={numberDrafts[priceKey] ?? (p.price === 0 ? "" : String(p.price))}
+                        value={numberDrafts[priceKey] ?? (numberText(p.price))}
                         onChange={(e) => {
                           const norm = normalizeProductDecimalInput(e.target.value)
                           setNumberDrafts((prev) => ({ ...prev, [priceKey]: norm }))
@@ -258,18 +308,20 @@ export function ProductTableForm({
                         className="h-9 text-right text-sm tabular-nums"
                         onFocus={(e) => {
                           lastFocusedFieldIdRef.current = e.currentTarget.id
-                          setNumberDrafts((prev) => ({ ...prev, [priceKey]: p.price === 0 ? "" : String(p.price) }))
+                          setNumberDrafts((prev) => ({ ...prev, [priceKey]: numberText(p.price) }))
                         }}
                         onBlur={() => clearNumberDraft(p.id, "price")}
                       />
+                      {fieldError(idx, "price")}
                     </td>
                     <td className="w-24 shrink-0 px-2 py-2.5 align-top">
                       <Input
+                        {...fieldProps(idx, "quantity")}
                         id={`quantity-${p.id}`}
                         type="text"
                         inputMode={allowDecimalQuantity ? "decimal" : "numeric"}
                         pattern={allowDecimalQuantity ? "[0-9]+([.,][0-9]+)?" : "[0-9]*"}
-                        value={numberDrafts[quantityKey] ?? (p.quantity === 0 ? "" : String(p.quantity))}
+                        value={numberDrafts[quantityKey] ?? (numberText(p.quantity))}
                         onChange={(e) => {
                           const normalized = allowDecimalQuantity
                             ? normalizeProductDecimalInput(e.target.value)
@@ -282,10 +334,11 @@ export function ProductTableForm({
                         className="h-9 text-right text-sm tabular-nums"
                         onFocus={(e) => {
                           lastFocusedFieldIdRef.current = e.currentTarget.id
-                          setNumberDrafts((prev) => ({ ...prev, [quantityKey]: p.quantity === 0 ? "" : String(p.quantity) }))
+                          setNumberDrafts((prev) => ({ ...prev, [quantityKey]: numberText(p.quantity) }))
                         }}
                         onBlur={() => clearNumberDraft(p.id, "quantity")}
                       />
+                      {fieldError(idx, "quantity")}
                     </td>
                     <td className="w-28 shrink-0 px-2 py-2.5 align-top text-right text-sm font-semibold tabular-nums text-neutral-900">
                       {(Number(p.total) || 0).toFixed(2)}
@@ -302,7 +355,7 @@ export function ProductTableForm({
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-amber-200/80 bg-amber-50/90">
-              <td colSpan={4} className="px-3 py-3 text-right text-sm font-semibold text-amber-950">
+              <td colSpan={requireCompleteRows ? 5 : 4} className="px-3 py-3 text-right text-sm font-semibold text-amber-950">
                 {footerTotalLabel}
               </td>
               <td className="px-3 py-3 text-right text-base font-bold tabular-nums text-amber-950">
@@ -319,7 +372,7 @@ export function ProductTableForm({
             <div className="text-sm text-muted-foreground">Nu există poziții. Adăugați un rând.</div>
           )}
           {products.map((p, idx) => (
-            <Card key={p.id} className="border">
+            <Card key={p.id} className={cn("border", requireCompleteRows && hasValidationError(p) && "border-red-300")}>
               <CardContent className="p-3">
                 <div className="flex items-start justify-between">
                   <div>
@@ -328,7 +381,7 @@ export function ProductTableForm({
                     <div className="text-sm mt-1">Total: <span className="font-semibold">{(Number(p.total) || 0).toFixed(2)} lei</span></div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" onClick={() => openEditor(p)} disabled={disabled}>Editează</Button>
+                    <Button data-offer-field={`${fieldPath}.${idx}`} variant="outline" size="sm" onClick={() => openEditor(p)} disabled={disabled}>Editează</Button>
                     <Button variant="ghost" size="icon" onClick={() => removeProduct(p.id)} disabled={disabled}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -341,7 +394,7 @@ export function ProductTableForm({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-        <Button variant="outline" onClick={addProduct} disabled={disabled} className="gap-2 shadow-sm">
+        <Button data-offer-field={fieldPath} variant="outline" onClick={addProduct} disabled={disabled} className="gap-2 shadow-sm">
           <Plus className="h-4 w-4" /> Adaugă produs
         </Button>
         <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-600">
@@ -351,7 +404,12 @@ export function ProductTableForm({
 
       {/* Dialog editor mobil */}
       <Dialog open={!!editingId} onOpenChange={(open) => { if (!open) closeEditor() }}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-[480px]">
+        <DialogContent onOpenAutoFocus={(event) => {
+          if (!focusField) return
+          const container = document.querySelector('[role="dialog"][data-product-editor]')
+          const target = Array.from(container?.querySelectorAll<HTMLElement>("[data-offer-field]") || []).find((node) => node.dataset.offerField === focusField)
+          if (target) { event.preventDefault(); target.focus() }
+        }} data-product-editor className="[&_[aria-invalid=true]]:border-red-500 w-[calc(100%-2rem)] max-w-[480px]">
           <DialogHeader>
             <DialogTitle>Editează produs</DialogTitle>
           </DialogHeader>
@@ -359,20 +417,24 @@ export function ProductTableForm({
             <div className="grid gap-2">
               <label className="text-sm font-medium">Denumire</label>
               <Textarea
+                {...fieldProps(editingIndex, "name")}
                 value={draft?.name || ""}
                 onChange={(e) => setDraft((d) => ({ ...(d as ProductItem), name: e.target.value }))}
                 placeholder="Denumire produs/serviciu"
                 disabled={disabled}
               />
+              {fieldError(editingIndex, "name")}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-2">
                 <label className="text-sm font-medium">UM</label>
                 <Input
+                  {...fieldProps(editingIndex, "um")}
                   value={draft?.um || ""}
                   onChange={(e) => setDraft((d) => ({ ...(d as ProductItem), um: e.target.value }))}
                   disabled={disabled}
                 />
+                {fieldError(editingIndex, "um")}
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Buc</label>
@@ -382,13 +444,15 @@ export function ProductTableForm({
                   pattern={allowDecimalQuantity ? "[0-9]+([.,][0-9]+)?" : "[0-9]*"}
                   min={allowDecimalQuantity ? "0.01" : "1"}
                   step={allowDecimalQuantity ? "0.01" : "1"}
-                  value={draft?.quantity === undefined || draft?.quantity === null ? "" : String(draft.quantity)}
+                  {...fieldProps(editingIndex, "quantity")}
+                  value={draft ? numberText(draft.quantity) : ""}
                   onChange={(e) => {
                     const v = allowDecimalQuantity ? normalizeProductDecimalInput(e.target.value) : e.target.value.replace(/\D+/g, "")
                     setDraft((d) => ({ ...(d as ProductItem), quantity: v === "" ? (undefined as unknown as number) : (v as unknown as number) }))
                   }}
                   disabled={disabled}
                 />
+                {fieldError(editingIndex, "quantity")}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -400,13 +464,15 @@ export function ProductTableForm({
                   pattern="[0-9]+([.,][0-9]+)?"
                   min="0"
                   step="0.01"
-                  value={draft?.price === undefined || draft?.price === null ? "" : String(draft.price)}
+                  {...fieldProps(editingIndex, "price")}
+                  value={draft ? numberText(draft.price) : ""}
                   onChange={(e) => {
                     const v = normalizeProductDecimalInput(e.target.value)
                     setDraft((d) => ({ ...(d as ProductItem), price: v === "" ? (undefined as unknown as number) : (v as unknown as number) }))
                   }}
                   disabled={disabled}
                 />
+                {fieldError(editingIndex, "price")}
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Total (lei)</label>

@@ -2,7 +2,8 @@
 import { isInstallationV1 } from "@/types/installation"
 
 import type React from "react"
-import { freshReinterventionContact, resolveTicketLocation, ticketContactOptions } from "@/firebase-functions/src/client-ticket-sync"
+import { freshReinterventionContact, resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync"
+import { ticketContactSelectOptions } from "@/lib/ticket-contact-options"
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -2612,7 +2613,7 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
             <Select value={formData.contactId || ""} onValueChange={handleContactSelect}>
               <SelectTrigger id="ticket-contact"><SelectValue placeholder="Selectați contactul" /></SelectTrigger>
               <SelectContent>
-                {ticketContactOptions(selectedClient || {}, selectedLocatie || {}).filter(contact => contact.id).map(contact => (
+                {ticketContactSelectOptions(selectedClient || {}, selectedLocatie || {}, formData.contactId).map(contact => (
                   <SelectItem key={contact.id} value={contact.id!}>{contact.nume} — {contact.telefon} — {contact.email}</SelectItem>
                 ))}
               </SelectContent>

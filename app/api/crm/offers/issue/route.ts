@@ -9,7 +9,12 @@ import { hasOpportunityEditAccess } from "@/lib/crm/access"
 import { getEmailFrom } from "@/lib/email/from"
 import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server"
 import { normalizeOfferProducts } from "@/lib/crm/offer-products"
+import { validateCrmOfferForIssue } from "@/lib/crm/offer-validation"
 import type { CrmOfferSnapshot } from "@/lib/crm/types"
+
+function escapeOfferHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!)
+}
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
@@ -42,13 +47,15 @@ function buildOfferEmailHtml(params: {
   rejectUrl: string
   total: number
   version: number
+  validityText: string
 }) {
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220">
-      <h2 style="margin:0 0 10px;color:#0f56b3">${params.subject}</h2>
+      <h2 style="margin:0 0 10px;color:#0f56b3">${escapeOfferHtml(params.subject)}</h2>
       <p style="margin:0 0 10px;">Versiune ofertă: <strong>#${params.version}</strong></p>
+      <p style="margin:0 0 10px;"><strong>Valabilitatea ofertei:</strong> ${escapeOfferHtml(params.validityText).replace(/\n/g, "<br/>")}</p>
       <p style="margin:0 0 12px;">Total ofertă (fără TVA): <strong>${params.total.toFixed(2)} lei</strong></p>
-      <div style="white-space:pre-wrap;margin:0 0 14px;">${params.message || "-"}</div>
+      <div style="white-space:pre-wrap;margin:0 0 14px;">${escapeOfferHtml(params.message)}</div>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0">
         <tr>
           <td align="center" valign="middle" bgcolor="#16a34a" style="border-radius:6px;">
@@ -74,11 +81,12 @@ function parseSnapshot(value: unknown): CrmOfferSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   const data = value as Record<string, unknown>
   return {
+    validityText: normalizeString(data.validityText),
     products: normalizeOfferProducts(data.products),
     optionalProducts: normalizeOfferProducts(data.optionalProducts, { dropEmptyNames: true }),
     vatPercent: normalizeNumber(data.vatPercent, 0),
     adjustmentPercent: normalizeNumber(data.adjustmentPercent, 0),
-    conditions: Array.isArray(data.conditions) ? data.conditions.map((item) => String(item || "")) : [],
+    conditions: Array.isArray(data.conditions) ? data.conditions.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean) : [],
     comments: normalizeString(data.comments),
     subtotal: normalizeNumber(data.subtotal, 0),
     total: normalizeNumber(data.total, 0),
@@ -189,6 +197,10 @@ export async function POST(request: NextRequest) {
     const pdfMime = normalizeString(body.pdfMime) || "application/pdf"
     const pdfSize = normalizeNumber(body.pdfSize, 0)
     const attachmentBase64 = normalizeString(body.attachmentBase64)
+    const fieldErrors = validateCrmOfferForIssue(body)
+    if (Object.keys(fieldErrors).length) {
+      return NextResponse.json({ error: "Completați toate câmpurile obligatorii.", fieldErrors }, { status: 400 })
+    }
     const snapshot = parseSnapshot(body.snapshot)
 
     if (!opportunityId) return NextResponse.json({ error: "opportunityId este obligatoriu" }, { status: 400 })
@@ -247,12 +259,13 @@ export async function POST(request: NextRequest) {
       rejectUrl,
       total: snapshot.total,
       version,
+      validityText: snapshot.validityText || "",
     })
 
     const { messageId } = await sendInviteStyleEmail({
       to: [recipientEmail],
       subject,
-      content: `${message}\n\nAccept: ${acceptUrl}\nRefuz: ${rejectUrl}`,
+      content: `${message}\n\nValabilitatea ofertei: ${snapshot.validityText}\n\nAccept: ${acceptUrl}\nRefuz: ${rejectUrl}`,
       html,
       type: "OFFER",
       route: "/api/crm/offers/issue",

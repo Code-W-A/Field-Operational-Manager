@@ -175,6 +175,7 @@ export async function generateCertifiedCrmOfferPdf(params: {
     offerVAT: Number(snapshot.vatPercent || 0),
     adjustmentPercent: Number(snapshot.adjustmentPercent || 0),
     conditions: Array.isArray(snapshot.conditions) ? snapshot.conditions : undefined,
+    validityText: typeof snapshot.validityText === "string" ? snapshot.validityText : undefined,
     locationName: String(opportunity.displayTitle || opportunity.title || ""),
     preparedBy: String(offer.createdByName || offer.createdById || ""),
     preparedAt: formatPreparedDate(offer.sentAt || offer.createdAt || new Date()),
