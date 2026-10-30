@@ -1,9 +1,10 @@
-/** Private backups only. Never a command, signature, or canonical work document. */
+import { signaturePaths } from "./offline-work";
+/** Private backups, including bound signatures. Never a canonical work document. */
 export const TICKET_DRAFT_SCHEMA = 1 as const;
 export const OFFLINE_ACCESS_MS = 24 * 60 * 60 * 1000;
 export const TICKET_CACHE_LIMIT = 250 * 1024 * 1024;
 export const DRAFT_LOCAL_LIMIT = 500 * 1024 * 1024;
-export type TicketDraftKind = "intervention" | "revision" | "installation";
+export type TicketDraftKind = "intervention" | "revision" | "installation" | "completion";
 export type DraftPhoto = {
   id: string;
   path: string;
@@ -33,11 +34,14 @@ export type SavedTicketDraft = TicketDraft & {
   savedAt: number;
 };
 export type OfflineTicketGrant = {
+  grantId?: string;
+  phase2?: boolean;
   sessionId: string;
   confirmedAt: number;
   expiresAt: number;
 };
 export const draftFields = {
+  completion: ["observations", "beneficiaryName", "technicianPaths", "beneficiaryPaths", "signatureSnapshot"],
   intervention: [
     "constatareLaLocatie",
     "descriereInterventie",
@@ -50,6 +54,7 @@ export const draftFields = {
     "notaInternaTehnician",
     "products",
     "numeBeneficiar",
+    "technicianPaths", "beneficiaryPaths", "signatureSnapshot",
     "manualEmails",
     "useManualRecipients",
     "imaginiDefecte",
@@ -62,6 +67,7 @@ export const draftFields = {
     "blockReason",
     "internalNote",
     "beneficiaryName",
+    "technicianPaths", "beneficiaryPaths", "signatureSnapshot",
   ],
 } as const;
 const text = (v: unknown, limit = 12000) => {
@@ -78,7 +84,11 @@ export function ticketDraftContent(
   for (const key of draftFields[kind]) {
     const v = input[key];
     if (v === undefined) continue;
-    if (["necesitaOferta", "useManualRecipients"].includes(key)) {
+    if (key === "technicianPaths" || key === "beneficiaryPaths") {
+      out[key] = JSON.stringify(signaturePaths(typeof v === "string" ? JSON.parse(v) : v));
+    } else if (key === "signatureSnapshot") {
+      out[key] = text(v, 180000);
+    } else if (["necesitaOferta", "useManualRecipients"].includes(key)) {
       if (typeof v !== "boolean") throw new Error("Câmp de ciornă invalid.");
       out[key] = v;
     } else if (key === "sections") {
@@ -90,7 +100,7 @@ export function ticketDraftContent(
         return {
           id: text(s.id, 160),
           title: text(s.title || "", 1000),
-          showTitle: s.showTitle !== false,
+          showTitle: s.showTitle === true,
           items: s.items.map((i: any) => ({
             id: text(i.id, 160),
             label: text(i.label, 1000),
@@ -151,7 +161,7 @@ export function ticketDraftContent(
       );
     } else out[key] = text(v);
   }
-  if (JSON.stringify(out).length > 180000)
+  if (JSON.stringify(out).length > 500000)
     throw new Error("Ciorna este prea mare.");
   return out;
 }
@@ -163,6 +173,8 @@ export function draftIdentity(
   targetId: string;
   kind: TicketDraftKind;
 } | null {
+  const completion = /^([\w-]{1,160}):completion$/.exec(key);
+  if (completion) return { draftId: key.replace(/:/g, "~"), workId: completion[1], targetId: "", kind: "completion" };
   const m = /^([\w-]{1,160})(?::(revision|sheet):([\w-]{1,160}))?$/.exec(key);
   if (!m) return null;
   return {

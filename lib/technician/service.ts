@@ -1,4 +1,6 @@
-import { romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
+import { TechnicianError } from "./errors";
+import { prepareOfflineWork } from "@/lib/mobile/offline-work";
+import { offlineDuration, romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
 import { AMBIGUOUS_ATTENDANCE_HR } from "@/packages/fom-domain/attendance-hr";
 import { attendanceSpecialDay } from "@/packages/fom-domain/attendance-policy";
@@ -53,14 +55,7 @@ import {
   calculateDuration,
 } from "@/lib/utils/time-format";
 
-export class TechnicianError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
+export { TechnicianError } from "./errors";
 function check(
   condition: unknown,
   message: string,
@@ -302,6 +297,7 @@ export function technicianService(db: Firestore) {
     if (c.action === "installation") {
       const svc = installationService(db),
         p: RecordData = { ...c.payload, requestId: c.mutationId };
+      if (p.action === "complete" && channel === "mobile") p.expectedWorkVersion = c.baseVersion;
       if (channel === "mobile" && p.action !== "sign")
         await db.runTransaction((tx) => requireAttendance(tx, a, c, occurred));
       if (c.predecessorId) {
@@ -318,16 +314,16 @@ export function technicianService(db: Firestore) {
           "Comanda anterioară nu este confirmată.",
           409,
         );
-        if (previous.result?.sheet?.id === p.sheetId)
+        if (!c.offlineWork && previous.result?.sheet?.id === p.sheetId)
           p.revision = previous.result.sheet.revision;
       }
       const actions: Record<string, () => Promise<any>> = {
-        start: () => svc.start(a, c.entityId, p),
+        start: () => svc.start(a, c.entityId, p, c.offlineWork ? c : undefined),
         removePhoto: () =>
           svc.attachPhoto(a, c.entityId, p.sheetId, { id: p.photoId }, true),
         save: () => svc.save(a, c.entityId, p),
         close: () => svc.save(a, c.entityId, p, true),
-        stop: () => svc.stop(a, c.entityId, p),
+        stop: () => svc.stop(a, c.entityId, p, c.offlineWork ? c : undefined),
         sign: () => svc.sign(a, c.entityId, p),
         continue: () => svc.continueWork(a, c.entityId),
         complete: () => svc.complete(a, c.entityId, p),
@@ -404,11 +400,28 @@ export function technicianService(db: Firestore) {
           );
           if (channel === "mobile" && c.action !== "postpone")
             await requireAttendance(tx, a, c, occurred);
+          const offlineCommit = c.offlineWork ? await prepareOfflineWork(db, tx, uid, a.displayName, { ...w, id: snap.id }, c) : undefined;
           const settings = rows(await tx.get(db.collection("settings")));
           const validatedPhotos = await validatePhotos(tx, a, c, w);
           const now = Timestamp.now(),
             patch: RecordData = {};
-          if (c.action === "verify") {
+          if (c.action === "work.stop") {
+            const eq = await resolveEquipmentTx(tx, w, c.payload.equipmentId);
+            if (w.tipLucrare === "Revizie") {
+              const time = w.revisionEquipmentTimes?.[eq.id];
+              check(time?.startIso, "Pornirea nu este confirmată.", 409);
+              const stopped = { ...time, endIso: c.occurredAt, durationSeconds: (occurred - Date.parse(time.startIso)) / 1000 };
+              Object.assign(patch, { [`revisionEquipmentTimes.${eq.id}`]: stopped });
+              const times = { ...w.revisionEquipmentTimes, [eq.id]: stopped };
+              if (revisionEquipmentIds(w).every(id => times[id]?.endIso)) {
+                const end = new Date(Math.max(...revisionEquipmentIds(w).map(id => Date.parse(times[id].endIso)))).toISOString();
+                Object.assign(patch, { timpPlecare: end, dataPlecare: romanianWorkDate(end), oraPlecare: romanianWorkTime(end), durataInterventie: offlineDuration(revisionEquipmentIds(w).reduce((n,id) => n + (Date.parse(times[id].endIso) - Date.parse(times[id].startIso)) / 1000, 0)) });
+              }
+            } else {
+              check(w.timpSosire && !w.timpPlecare, "Intervalul nu mai este activ.", 409);
+              Object.assign(patch, { timpPlecare: c.occurredAt, dataPlecare: romanianWorkDate(c.occurredAt), oraPlecare: romanianWorkTime(c.occurredAt), durataInterventie: offlineDuration((occurred - Date.parse(w.timpSosire)) / 1000) });
+            }
+          } else if (c.action === "verify") {
             const equipment = await resolveEquipmentTx(
               tx,
               w,
@@ -501,8 +514,8 @@ export function technicianService(db: Firestore) {
             );
             const minutes = Math.max(
               0,
-              Math.floor(
-                (occurred - Date.parse(time.startIso || time.verifiedAt)) /
+              (time.durationSeconds !== undefined ? Math.round : Math.floor)(
+                (Date.parse(time.endIso || c.occurredAt) - Date.parse(time.startIso || time.verifiedAt)) /
                   60000,
               ),
             );
@@ -535,7 +548,7 @@ export function technicianService(db: Firestore) {
               [`revision.equipmentStatus.${eq.id}`]: c.payload.draft ? "in_progress" : "done",
               [`revisionEquipmentTimes.${eq.id}`]: {
                 ...time,
-                ...(!c.payload.draft ? { endIso: c.occurredAt, durationMinutes: minutes, durationText: revision.durationText } : {}),
+                ...(!c.payload.draft ? { endIso: time.endIso || c.occurredAt, durationMinutes: minutes, durationText: revision.durationText } : {}),
               },
             });
           } else {
@@ -675,6 +688,7 @@ export function technicianService(db: Firestore) {
               }
             }
           }
+          offlineCommit?.();
           // Same incidental effects as updateLucrare; reading notifications is handled separately.
           Object.assign(patch, {
             updatedAt: now,

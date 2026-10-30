@@ -15,7 +15,7 @@ test("draft identity distinguishes all targets without slash or percent escaping
   });
   assert.equal(draftIdentity("w:revision:e")?.kind, "revision");
   assert.equal(draftIdentity("w")?.kind, "intervention");
-  assert.equal(draftIdentity("w:completion"), null);
+  assert.equal(draftIdentity("w:completion")?.kind, "completion");
   assert.equal(draftIdentity("../w"), null);
   assert.equal(draftIdentity("w~sheet~s"), null);
 });

@@ -86,6 +86,9 @@ export function mobileErrorCode(
     return "CONFIRMATION_PENDING";
   if (/internet|Conexiunea s-a întrerupt/i.test(message))
     return "NETWORK_REQUIRED";
+  if (/Conținutul documentului s-a schimbat/i.test(message)) return "SIGNATURE_CONTENT_CHANGED";
+  if (/Intervalul de lucru trebuie sincronizat|intervalul anterior|Ora telefonului s-a schimbat/i.test(message)) return "OFFLINE_WORK_REVIEW";
+  if (/s-a modificat|s-a schimbat.*semnare/i.test(message)) return "DATA_CHANGED";
   if (status === 401) return "SESSION_CHANGED";
   if (status === 409) return "DATA_CHANGED";
   if (status === 403) return "ACCESS_DENIED";

@@ -1,3 +1,4 @@
+import type { OfflineWorkEvent } from "./offline-work";
 import type { CheckInRequest, CheckOutRequest, ExtraTimeType } from "./attendance";
 import type { HrRequestKind, HrRequestPayload } from "./hr";
 import type {
@@ -72,6 +73,7 @@ export type RequestCreateInput = {
   };
 }[HrRequestKind];
 export type CommandPayloadMap = {
+  "work.stop": { equipmentId: string };
   verify: { code: string; equipmentId?: string; qrRaw?: string };
   "intervention.save": InterventionInput;
   postpone: { motivAmanare: string };
@@ -99,6 +101,7 @@ export type CommandPayloadMap = {
 };
 export type CommandAction = keyof CommandPayloadMap;
 export type CommandEnvelope = {
+  offlineWork?: OfflineWorkEvent;
   mutationId: string;
   entityId: string;
   baseVersion: string | null;
@@ -117,6 +120,7 @@ export type Command = CommandEnvelope & {
   payload: Record<string, any>;
 };
 export const COMMAND_ACTIONS = [
+  "work.stop",
   "verify",
   "intervention.save",
   "postpone",

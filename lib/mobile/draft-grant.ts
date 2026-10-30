@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   OFFLINE_ACCESS_MS,
@@ -22,13 +23,16 @@ export async function issueDraftGrant(
         "Pontează-te pentru a continua.",
         "MOBILE_ATTENDANCE_REQUIRED",
       );
+    const phase2 = (await tx.get(db.doc("settings/mobile-offline-phase2"))).data()?.enabledUserIds?.includes(uid) === true;
     const confirmedAt = Date.now(),
       grant = {
+        ...(phase2 ? { grantId: randomUUID(), phase2: true } : {}),
         sessionId,
         confirmedAt,
         expiresAt: confirmedAt + OFFLINE_ACCESS_MS,
       };
     tx.set(db.doc(`mobileDraftAccess/${uid}`), { ...grant, workIds });
+    if (grant.grantId) tx.create(db.doc(`mobileOfflineGrants/${uid}/grants/${grant.grantId}`), { ...grant, workIds });
     return grant;
   });
 }

@@ -1,3 +1,4 @@
+import { assertOfflineWorkEvent } from "./offline-work";
 import { DomainError } from "./errors";
 import type { Command, RequestCreateInput } from "./commands";
 import {
@@ -17,7 +18,14 @@ function check(value: unknown, message: string): asserts value {
 }
 export function assertPayload(command: Command): void {
   const p = command.payload;
+  if (command.offlineWork) {
+    assertOfflineWorkEvent(command.offlineWork);
+    check((command.offlineWork.event === "start" && (command.action === "verify" || (command.action === "installation" && p.action === "start"))) || (command.offlineWork.event === "stop" && (command.action === "work.stop" || (command.action === "installation" && p.action === "stop"))), "Acțiune offline nepermisă.");
+  }
   switch (command.action) {
+    case "work.stop":
+      check(!!command.offlineWork && id(p.equipmentId), "Oprire offline invalidă.");
+      break;
     case "verify":
       check(
         typeof p.code === "string" && p.code.length > 0 && p.code.length < 4096,

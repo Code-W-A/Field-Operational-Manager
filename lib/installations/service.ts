@@ -1,6 +1,9 @@
+import { prepareOfflineWork } from "@/lib/mobile/offline-work";
+import { versionOf, type Command } from "@/packages/fom-domain";
 import { startInstallationTime, stopInstallationTime } from "@/packages/fom-domain/installation";
 import {
   FieldValue,
+  Timestamp,
   type Firestore,
   type Transaction,
   type DocumentReference,
@@ -576,6 +579,7 @@ export function installationService(db: Firestore) {
     actor: InstallationActor,
     workId: string,
     input: RecordData,
+    offlineCommand?: Command,
   ) {
     const equipmentId = identifier(input.equipmentId);
     const requestId = identifier(input.requestId);
@@ -598,13 +602,14 @@ export function installationService(db: Firestore) {
       if (receipt.exists) {
         const previous = receipt.data()!;
         check(
-          previous.uid === actor.uid && previous.equipmentId === equipmentId,
+          previous.uid === actor.uid && previous.equipmentId === equipmentId && (!offlineCommand || previous.offlineFingerprint === JSON.stringify(offlineCommand)),
           "Cerere deja utilizată.",
           409,
         );
         const saved = await tx.get(sheetsRef(workId).doc(previous.sheetId));
         check(saved.exists, "Fișa scanării nu mai există.", 409);
         return {
+          ...(previous.version ? { id: workId, version: previous.version } : {}),
           sheet: visibleSheet(
             { ...saved.data(), id: saved.id } as InstallationSheet,
             actor.uid,
@@ -629,6 +634,8 @@ export function installationService(db: Firestore) {
           ),
         };
       }
+      const offlineCommit = offlineCommand ? await prepareOfflineWork(db, tx, actor.uid, user.displayName, work, offlineCommand) : undefined;
+      const offlineUpdatedAt = offlineCommand ? Timestamp.now() : undefined;
       assertWork(work, true);
       check(
         !work.installation.awaitingSheetByEquipment?.[equipmentId],
@@ -666,7 +673,7 @@ export function installationService(db: Firestore) {
         "Fișa activă a echipamentului este inconsistentă.",
         409,
       );
-      const now = new Date().toISOString();
+      const now = offlineCommand?.occurredAt || new Date().toISOString();
       const target: InstallationSheet = targetDoc.exists
         ? ({ ...targetDoc.data(), id: targetId } as InstallationSheet)
         : {
@@ -708,7 +715,7 @@ export function installationService(db: Firestore) {
         { uid: actor.uid, role },
       ];
       // Every read (including candidate sessions) precedes the first transactional write.
-      if (!currentSession) {
+      if (!currentSession && !offlineCommand) {
         for (const name of [...new Set<string>(work.tehnicieni || [])]) {
           if (name === user.displayName) continue;
           const matches = await tx.get(
@@ -749,6 +756,7 @@ export function installationService(db: Firestore) {
           additions.push({ uid: candidate.id, role: "secondary" });
         }
       }
+      offlineCommit?.(targetId);
       if (source && currentSession) {
         const sourceParticipants = sheetParticipants(source).map((p) =>
           p.uid === actor.uid ? { ...p, active: false, moved: true } : p,
@@ -798,7 +806,7 @@ export function installationService(db: Firestore) {
           "installation.startedEquipmentIds":
             FieldValue.arrayUnion(equipmentId),
           statusLucrare: "În lucru",
-          updatedAt: FieldValue.serverTimestamp(),
+          updatedAt: offlineUpdatedAt || FieldValue.serverTimestamp(),
         });
       }
       for (const member of additions)
@@ -814,9 +822,10 @@ export function installationService(db: Firestore) {
         sheetId: targetId,
         equipmentId,
         allocatedUids: additions.map((p) => p.uid),
+        ...(offlineCommand ? { offlineFingerprint: JSON.stringify(offlineCommand), version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}),
         at: FieldValue.serverTimestamp(),
       });
-      return { sheet: visibleSheet(updated, actor.uid) };
+      return { sheet: visibleSheet(updated, actor.uid), ...(offlineUpdatedAt ? { id: workId, version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}) };
     });
   }
 
@@ -825,6 +834,7 @@ export function installationService(db: Firestore) {
     workId: string,
     input: RecordData,
     mode: "save" | "close" | "stop",
+    offlineCommand?: Command,
   ) {
     const sheetId = identifier(input.sheetId);
     const content = fields(input.fields, mode !== "save");
@@ -839,7 +849,7 @@ export function installationService(db: Firestore) {
       if (previous?.exists) {
         check(
           previous.data()?.fingerprint ===
-            JSON.stringify({ workId, input, mode }),
+            JSON.stringify({ workId, input, mode, offlineCommand }),
           "Identificator reutilizat.",
           409,
         );
@@ -874,7 +884,9 @@ export function installationService(db: Firestore) {
         "Fișa nu mai este activă.",
         409,
       );
-      const now = new Date().toISOString();
+      const offlineCommit = offlineCommand ? await prepareOfflineWork(db, tx, actor.uid, user.displayName, work, offlineCommand) : undefined;
+      const offlineUpdatedAt = offlineCommand ? Timestamp.now() : undefined;
+      const now = offlineCommand?.occurredAt || new Date().toISOString();
       const timing = sheet.timeIntervals ? { timeIntervals: stopInstallationTime(sheet.timeIntervals, now) } : {};
       const participants = sheetParticipants(sheet);
       const release: string[] = [];
@@ -932,6 +944,7 @@ export function installationService(db: Firestore) {
             }
           : {}),
       };
+      offlineCommit?.();
       tx.update(sr, update);
       if (mode !== "save") {
         for (const uid of release) tx.delete(sessionRef(uid));
@@ -950,16 +963,17 @@ export function installationService(db: Firestore) {
               : content.installationStatus === "completed"
                 ? "in_progress"
                 : content.installationStatus,
-          updatedAt: FieldValue.serverTimestamp(),
+          updatedAt: offlineUpdatedAt || FieldValue.serverTimestamp(),
         });
       }
       audit(tx, workId, actor, mode, { sheetId, releasedUids: release });
       const result = {
         sheet: visibleSheet({ ...sheet, ...update, id: sheetId }, actor.uid),
+        ...(offlineUpdatedAt ? { id: workId, version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}),
       };
       if (receipt)
         tx.set(receipt, {
-          fingerprint: JSON.stringify({ workId, input, mode }),
+          fingerprint: JSON.stringify({ workId, input, mode, offlineCommand }),
           result,
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -972,8 +986,8 @@ export function installationService(db: Firestore) {
     input: RecordData,
     close = false,
   ) => finish(actor, workId, input, close ? "close" : "save");
-  const stop = (actor: InstallationActor, workId: string, input: RecordData) =>
-    finish(actor, workId, input, "stop");
+  const stop = (actor: InstallationActor, workId: string, input: RecordData, offlineCommand?: Command) =>
+    finish(actor, workId, input, "stop", offlineCommand);
 
   async function sign(
     actor: InstallationActor,
@@ -1148,6 +1162,7 @@ export function installationService(db: Firestore) {
       const cr = completionRef(root);
       const issued = await tx.get(cr);
       if (issued.exists) return { document: issued.data() };
+      if (input.expectedWorkVersion !== undefined) check(versionOf(terminal) === input.expectedWorkVersion, "Instalarea s-a modificat. Verifică documentul înainte de semnare.", 409);
       assertWork(terminal, true);
       check(
         !terminal.installation.continuationWorkId,

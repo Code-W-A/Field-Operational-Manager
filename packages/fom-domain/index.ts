@@ -431,3 +431,5 @@ export * from "./revision-editor";
 export * from "./error-codes";
 
 export * from "./ticket-drafts";
+
+export * from "./offline-work";

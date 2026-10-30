@@ -7,11 +7,11 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     function catalogDocument(documentId, data) {
-      return documentId.matches('^equipment-(manufacturers|models)(-.*)?$')
+      return documentId == 'mobile-offline-phase2' || documentId.matches('^equipment-(manufacturers|models)(-.*)?$')
         || data.get('parentId', '') in ['equipment-manufacturers', 'equipment-models'];
     }
     function serverOnlyCollection(name) {
-      return name in ['mobileDrafts', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
+      return name in ['mobileOfflineGrants', 'mobileOfflineWork', 'mobileDrafts', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'crm_command_receipts', 'crm_equipment_uploads'];
     }
     function draftOwner(uid) {
       return request.auth != null && request.auth.uid == uid
@@ -37,10 +37,14 @@ service cloud.firestore {
     function draftContent(d) {
       let c = d.content;
       return c is map && (
-        (d.kind == 'installation' && c.keys().hasOnly(['finding','operations','installationStatus','blockReason','internalNote','beneficiaryName']))
+        (d.kind == 'installation' && c.keys().hasOnly(['finding','operations','installationStatus','blockReason','internalNote','beneficiaryName','technicianPaths','beneficiaryPaths','signatureSnapshot']))
+        || (d.kind == 'completion' && c.keys().hasOnly(['observations','beneficiaryName','technicianPaths','beneficiaryPaths','signatureSnapshot']) && c.get('observations','') is string && c.get('observations','').size() <= 12000)
         || (d.kind == 'revision' && c.keys().hasOnly(['sections','finalObservations','photos']) && c.get('sections',[]) is list && c.get('sections',[]).size() <= 100)
-        || (d.kind == 'intervention' && c.keys().hasOnly(['constatareLaLocatie','descriereInterventie','statusEchipament','cauzaPrincipalaDefectId','tehnicianGarantieDecizie','tehnicianGarantieNuIntraMotiv','necesitaOferta','comentariiOferta','notaInternaTehnician','products','numeBeneficiar','manualEmails','useManualRecipients','imaginiDefecte']))
-      ) && c.get('finding','') is string && c.get('finding','').size() <= 12000
+        || (d.kind == 'intervention' && c.keys().hasOnly(['constatareLaLocatie','descriereInterventie','statusEchipament','cauzaPrincipalaDefectId','tehnicianGarantieDecizie','tehnicianGarantieNuIntraMotiv','necesitaOferta','comentariiOferta','notaInternaTehnician','products','numeBeneficiar','manualEmails','useManualRecipients','imaginiDefecte','technicianPaths','beneficiaryPaths','signatureSnapshot']))
+      ) && c.get('technicianPaths','') is string && c.get('technicianPaths','').size() <= 60000
+        && c.get('beneficiaryPaths','') is string && c.get('beneficiaryPaths','').size() <= 60000
+        && c.get('signatureSnapshot','') is string && c.get('signatureSnapshot','').size() <= 180000
+        && c.get('finding','') is string && c.get('finding','').size() <= 12000
         && c.get('operations','') is string && c.get('operations','').size() <= 12000
         && c.get('finalObservations','') is string && c.get('finalObservations','').size() <= 12000
         && c.get('constatareLaLocatie','') is string && c.get('constatareLaLocatie','').size() <= 12000
@@ -71,7 +75,8 @@ service cloud.firestore {
         && d.saveId.matches('^[a-zA-Z0-9_-]{8,120}$') && d.deviceId.matches('^[a-zA-Z0-9_-]{8,120}$')
         && (d.baseVersion == null || (d.baseVersion is string && d.baseVersion.size() <= 200))
         && (d.sheetRevision == null || d.sheetRevision is int)
-        && ((d.kind == 'intervention' && d.targetId == '' && d.key == d.workId && d.draftId == d.workId)
+        && ((d.kind == 'completion' && d.targetId == '' && d.key == d.workId + ':completion' && d.draftId == d.workId + '~completion')
+          || (d.kind == 'intervention' && d.targetId == '' && d.key == d.workId && d.draftId == d.workId)
           || (d.kind == 'revision' && d.targetId.matches('^[a-zA-Z0-9_-]{1,160}$') && d.key == d.workId + ':revision:' + d.targetId && d.draftId == d.workId + '~revision~' + d.targetId)
           || (d.kind == 'installation' && d.targetId.matches('^[a-zA-Z0-9_-]{1,160}$') && d.key == d.workId + ':sheet:' + d.targetId && d.draftId == d.workId + '~sheet~' + d.targetId))
         && d.localRevision is int && d.localRevision > 0 && d.accepted is bool && d.savedAt is number
