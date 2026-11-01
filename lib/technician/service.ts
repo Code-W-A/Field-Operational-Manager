@@ -1,4 +1,5 @@
 import { TechnicianError } from "./errors";
+import { revisionReportSnapshot } from "./revision-report-snapshot";
 import { prepareOfflineWork } from "@/lib/mobile/offline-work";
 import { offlineDuration, romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
@@ -581,7 +582,7 @@ export function technicianService(db: Firestore) {
                     ),
                   "Completează toate fișele de revizie.",
                 );
-                patch.mobileRevisionSnapshot = serial(rows(revisions));
+                patch.mobileRevisionSnapshot = serial(revisionReportSnapshot(rows(revisions)));
               }
               Object.assign(patch, {
                 products: validateProducts(c.payload.products || []),
