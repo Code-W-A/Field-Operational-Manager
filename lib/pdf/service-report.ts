@@ -263,9 +263,10 @@ export async function renderServiceReport(
     plecareOra,
   });
 
-  // Calculăm și afișăm durata intervenției în ore și minute
-  let durataText = "";
-  if (lucrareForPDF.timpSosire && lucrareForPDF.timpPlecare) {
+  // The official stop freezes the duration, including the single rounding of
+  // offline seconds and totals across revision equipment. Preserve that value.
+  let durataText = lucrareForPDF.durataInterventie || "";
+  if (!durataText && lucrareForPDF.timpSosire && lucrareForPDF.timpPlecare) {
     const sosireTime = new Date(lucrareForPDF.timpSosire);
     const plecareTime = new Date(lucrareForPDF.timpPlecare);
     const ms = plecareTime.getTime() - sosireTime.getTime();
