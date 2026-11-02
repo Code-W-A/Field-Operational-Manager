@@ -13,7 +13,7 @@ const mocks = {
   "next/link": `import React from 'react';export default React.forwardRef(({href,children,...props},ref)=><a ref={ref} href={href} {...props}>{children}</a>);`,
   "@/components/equipment-qr-code": `export const EquipmentQRCode=()=>null;`,
   "@/components/signature-pad": `export const SignaturePad=({title,onSave})=><button onClick={()=>onSave('data:image/png;base64,test')}>{title}</button>;`,
-  "@/lib/installations/client": `export const installationApi=id=>'/installation/'+id;export const installationRequest=async(url,payload)=>{window.commands.push(payload);if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');window.saved={...(window.saved||window.sheet),...payload.fields,state:payload.action==='stop'?'awaiting_signature':payload.action==='sign'?'closed':'draft',revision:2};return{sheet:window.saved};};`,
+  "@/lib/installations/client": `export const installationApi=id=>'/installation/'+id;export const installationRequest=async(url,payload)=>{window.commands.push(payload);if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');window.saved={...(window.saved||window.sheet),...payload.fields,state:payload.action==='stop'?'awaiting_signature':payload.action==='sign'?'closed':(window.saved||window.sheet).state,revision:(window.saved||window.sheet).revision+1};return{sheet:window.saved};};`,
   "@/components/installation/shared": `export const statuses={in_progress:'În lucru'};export const dateLabel=v=>v;export const pdf=async()=>{};export const pageUrl=id=>'/instalare/'+id;export const StatusBadge=({status})=><span>{status}</span>;`,
 };
 const out = await build({
@@ -156,9 +156,12 @@ try {
     "awaiting_signature",
   );
   await p.getByRole("button", { name: "Redeschide fișa" }).click();
-  await expect(
-    p.getByText("Semnare ulterioară", { exact: true }),
-  ).toBeVisible();
+  await expect(p.getByLabel("Operațiuni executate *", {exact:true})).toBeEditable();
+  await expect(p.getByRole("button",{name:"Oprește lucrul și semnează ulterior",exact:true})).toHaveCount(0);
+  await p.getByLabel("Operațiuni executate *", {exact:true}).fill("Corectat după oprire");
+  await p.getByRole("button",{name:"Salvează ciorna",exact:true}).click();
+  assert.equal(await p.evaluate(()=>window.saved.state),"awaiting_signature");
+  assert.equal(await p.evaluate(()=>window.saved.operations),"Corectat după oprire");
   await p
     .getByLabel("Numele beneficiarului *", { exact: true })
     .fill("Beneficiar");
@@ -173,9 +176,16 @@ try {
   await p
     .getByRole("button", { name: "Semnătura beneficiarului", exact: true })
     .click();
+  await p.getByLabel("Operațiuni executate *", {exact:true}).fill("Ultima corecție înainte de semnare");
+  await expect(p.getByRole("button",{name:"Semnează fișa",exact:true})).toBeDisabled();
+  await p.getByRole("button",{name:/Semnătura tehnicianului/}).click();
+  await p.getByRole("button",{name:"Semnătura beneficiarului",exact:true}).click();
   await p
-    .getByRole("button", { name: "Semnează fișa zilei", exact: true })
+    .getByRole("button", { name: "Semnează fișa", exact: true })
     .click();
+  assert.equal(await p.evaluate(()=>window.commands.at(-1).action),"sign");
+  assert.equal(await p.evaluate(()=>window.commands.at(-1).fields.operations),"Ultima corecție înainte de semnare");
+  await expect(p.getByLabel("Operațiuni executate *", {exact:true})).toHaveCount(0);
   await expect(p.getByText(/^Fișă semnată ·/)).toBeVisible();
   await p.close();
   let noticeChecks = 0;
@@ -219,7 +229,8 @@ try {
   for (const legacy of [false,true]) {
     const page=await fixture({legacy,viewer:{uid:'mihai',role:'tehnician'},sheet:{...waiting,canSign:true,participants:[{...waiting.participants[0],moved:true}]}});
     await expect(page.getByText(/Nu poți semna/)).toHaveCount(0);
-    await expect(page.getByText('Semnare ulterioară',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('Operațiuni executate *',{exact:true})).toBeEditable();
+    await expect(page.getByRole('button',{name:'Semnează fișa',exact:true})).toBeVisible();
     assert.equal(await page.evaluate(()=>window.commands.length),0);
     await page.close();noticeChecks++;
   }

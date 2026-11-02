@@ -238,10 +238,15 @@ export function installationService(db: Firestore) {
       403,
     );
     check(
-      sheet.state === "draft",
+      sheet.state === "draft" || sheet.state === "awaiting_signature",
       "Fișa semnată nu mai poate fi modificată.",
       409,
     );
+  }
+  function editedFrozenDocument(sheet: InstallationSheet, content: ReturnType<typeof fields>) {
+    check(sheet.frozenDocument, "Datele fișei oprite lipsesc.", 409);
+    const { internalNote: _internalNote, ...publicContent } = content;
+    return { ...sheet.frozenDocument, ...publicContent, photos: sheet.photos };
   }
   async function resolveEquipment(
     tx: Transaction,
@@ -875,15 +880,19 @@ export function installationService(db: Firestore) {
         "Fișa s-a modificat în altă fereastră. Reîncărcați datele înainte de salvare.",
         409,
       );
-      const principalSession = await tx.get(sessionRef(actor.uid));
-      check(
-        principalSession.data()?.workId === workId &&
-          principalSession.data()?.sheetId === sheetId &&
-          work.installation.activeSheetByEquipment[sheet.equipmentId] ===
-            sheetId,
-        "Fișa nu mai este activă.",
-        409,
-      );
+      const stopped = sheet.state === "awaiting_signature";
+      if (stopped) {
+        check(mode === "save" && work.installation.awaitingSheetByEquipment?.[sheet.equipmentId] === sheetId,
+          "Fișa nu mai așteaptă semnăturile.", 409);
+      } else {
+        const principalSession = await tx.get(sessionRef(actor.uid));
+        check(
+          principalSession.data()?.workId === workId &&
+            principalSession.data()?.sheetId === sheetId &&
+            work.installation.activeSheetByEquipment[sheet.equipmentId] === sheetId,
+          "Fișa nu mai este activă.", 409,
+        );
+      }
       const offlineCommit = offlineCommand ? await prepareOfflineWork(db, tx, actor.uid, user.displayName, work, offlineCommand) : undefined;
       const offlineUpdatedAt = offlineCommand ? Timestamp.now() : undefined;
       const now = offlineCommand?.occurredAt || new Date().toISOString();
@@ -927,6 +936,7 @@ export function installationService(db: Firestore) {
         ...content,
         updatedAt: now,
         revision: sheet.revision + 1,
+        ...(stopped ? { frozenDocument: editedFrozenDocument(sheet, content) } : {}),
         ...(mode !== "save"
           ? {
               state:
@@ -1033,17 +1043,26 @@ export function installationService(db: Firestore) {
         "Fișa s-a modificat în altă fereastră. Reîncărcați datele înainte de semnare.",
         409,
       );
+      // Older clients sign stored content; current principals may sign their
+      // latest edits atomically, guarded by the sheet revision.
+      const content = fields(
+        sheet.principalUid === actor.uid ? input.fields ?? sheet : sheet,
+        true,
+      );
+      const frozenDocument = editedFrozenDocument(sheet, content);
       const documentSnapshot: InstallationDocument = {
-        ...sheet.frozenDocument,
+        ...frozenDocument,
         ...signatures(input.signatures, user.displayName),
         signedByUid: actor.uid,
       };
       const now = new Date().toISOString();
       const update = {
+        ...content,
         state: "closed" as const,
         closedAt: now,
         updatedAt: now,
         revision: sheet.revision + 1,
+        frozenDocument,
         documentSnapshot,
         signedByUid: actor.uid,
         signRequestId: requestId,
@@ -1053,9 +1072,9 @@ export function installationService(db: Firestore) {
         [`installation.awaitingSheetByEquipment.${sheet.equipmentId}`]:
           FieldValue.delete(),
         [`installation.equipmentStatus.${sheet.equipmentId}`]:
-          sheet.installationStatus === "completed"
+          content.installationStatus === "completed"
             ? "done"
-            : sheet.installationStatus,
+            : content.installationStatus,
         updatedAt: FieldValue.serverTimestamp(),
       });
       audit(tx, workId, actor, "sign", { sheetId, requestId });
@@ -1555,12 +1574,16 @@ export function installationService(db: Firestore) {
         ? sheet.photos.filter((p) => p.id !== photo.id)
         : [...sheet.photos, photo];
       check(photos.length <= 4, "Fișa permite maximum 4 fotografii.");
+      const frozen = sheet.state === "awaiting_signature"
+        ? { frozenDocument: { ...editedFrozenDocument(sheet, fields(sheet)), photos } }
+        : {};
       tx.update(ref, {
         photos,
+        ...frozen,
         revision: sheet.revision + 1,
         updatedAt: new Date().toISOString(),
       });
-      return { sheet: { ...sheet, photos, revision: sheet.revision + 1 } };
+      return { sheet: { ...sheet, ...frozen, photos, revision: sheet.revision + 1 } };
     });
   }
   return {

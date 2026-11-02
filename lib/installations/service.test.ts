@@ -1038,7 +1038,7 @@ test("concurrent team starts and repeated scans preserve one session per technic
     1,
   );
 });
-test("stop freezes content and photos, releases the team and blocks equipment, continuation and final handover", async () => {
+test("stop freezes time, releases the team and blocks equipment, continuation and final handover", async () => {
   const work = await create();
   const first = await start(work.id);
   await assert.rejects(
@@ -1072,16 +1072,8 @@ test("stop freezes content and photos, releases the team and blocks equipment, c
     0,
   );
   await assert.rejects(
-    service.save(tech, work.id, {
-      sheetId: first.sheet.id,
-      revision: 1,
-      fields: content,
-    }),
-    /semnată/,
-  );
-  await assert.rejects(
-    service.attachPhoto(tech, work.id, first.sheet.id, { id: "forged" }),
-    /semnată/,
+    service.save(tech2, work.id, {sheetId: first.sheet.id, revision: 1, fields: content}),
+    /principalul/,
   );
   await assert.rejects(start(work.id), /Echipa este liberă/);
   await assert.rejects(
@@ -1430,4 +1422,66 @@ test("photo upload checks the sheet version transactionally and idempotent retry
   assert.equal(retry.sheet.revision,attached.sheet.revision);
   await assert.rejects(service.attachPhoto(tech,work.id,sheet.id,{...photo,id:'other-photo'},false,sheet.revision),/modificată/);
   assert.equal((await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).get()).data()!.photos.length,1);
+});
+
+test("stopped unsigned sheets remain editable, refresh photos and freeze only on signing", async () => {
+  const work = await create();
+  const first = await start(work.id);
+  const pending = (await service.stop(tech, work.id, {sheetId:first.sheet.id, revision:0, fields:content})).sheet;
+  const edited = {...content, finding:"Constatare corectată", operations:"Operațiuni corectate", internalNote:"NOTA NOUA", installationStatus:"blocked", blockReason:"Lipsă piese"};
+  const saved = (await service.save(tech,work.id,{sheetId:pending.id,revision:pending.revision,fields:edited})).sheet;
+  assert.equal(saved.state,"awaiting_signature");
+  assert.equal(saved.finding,edited.finding);
+  assert.equal(saved.frozenDocument!.operations,edited.operations);
+  assert.ok(!JSON.stringify(saved.frozenDocument).includes("NOTA NOUA"));
+  assert.deepEqual(saved.timeIntervals,pending.timeIntervals);
+  assert.equal(saved.stoppedAt,pending.stoppedAt);
+  assert.equal((await db.collection("installationTechnicianSessions").get()).size,0);
+  await assert.rejects(service.save(tech,work.id,{sheetId:saved.id,revision:pending.revision,fields:content}),/altă fereastră/);
+  const photo={id:"photo-after-stop",path:"installation/test/photo.png",name:"test.png",contentType:"image/png"};
+  const attached=(await service.attachPhoto(tech,work.id,saved.id,photo,false,saved.revision)).sheet;
+  assert.deepEqual(attached.frozenDocument!.photos,[photo]);
+  await assert.rejects(service.sign(tech,work.id,{sheetId:saved.id,revision:saved.revision,requestId:randomUUID(),signatures:signed}),/altă fereastră/);
+  await assert.rejects(service.sign(tech,work.id,{sheetId:saved.id,revision:attached.revision,requestId:randomUUID(),fields:{...edited,operations:""},signatures:signed}),/operațiunile/);
+  const finalFields={...edited,operations:"Ultima editare înainte de semnare",installationStatus:"completed"};
+  const input={sheetId:saved.id,revision:attached.revision,requestId:randomUUID(),fields:finalFields,signatures:signed};
+  const closed=(await service.sign(tech,work.id,input)).sheet;
+  assert.equal(closed.state,"closed");
+  assert.equal(closed.operations,finalFields.operations);
+  assert.equal(closed.documentSnapshot!.operations,finalFields.operations);
+  assert.deepEqual(closed.documentSnapshot!.photos,[photo]);
+  assert.deepEqual(closed.timeIntervals,pending.timeIntervals);
+  assert.equal(closed.stoppedAt,pending.stoppedAt);
+  assert.equal((await service.sign(tech,work.id,input)).sheet.revision,closed.revision);
+  await assert.rejects(service.save(tech,work.id,{sheetId:saved.id,revision:closed.revision,fields:content}),/semnată/);
+  await assert.rejects(service.attachPhoto(tech,work.id,saved.id,photo,true),/semnată/);
+});
+
+test("removing photos from an unsigned stopped sheet updates the document to sign", async () => {
+  const work=await create(), first=await start(work.id);
+  const photo={id:"photo-to-remove",path:"installation/test/remove.png",name:"remove.png",contentType:"image/png"};
+  const withPhoto=(await service.attachPhoto(tech,work.id,first.sheet.id,photo)).sheet;
+  const pending=(await service.stop(tech,work.id,{sheetId:first.sheet.id,revision:withPhoto.revision,fields:content})).sheet;
+  const removed=(await service.attachPhoto(tech,work.id,pending.id,photo,true,pending.revision)).sheet;
+  assert.deepEqual(removed.photos,[]);
+  assert.deepEqual(removed.frozenDocument!.photos,[]);
+  assert.equal(removed.stoppedAt,pending.stoppedAt);
+});
+
+test("concurrent edit and signature accept one revision and never alter signed content", async () => {
+  const work=await create(),first=await start(work.id);
+  const sheet=(await service.stop(tech,work.id,{sheetId:first.sheet.id,revision:0,fields:content})).sheet;
+  const edited={...content,finding:"Editare concurentă"};
+  const results=await Promise.allSettled([
+    service.save(tech,work.id,{sheetId:sheet.id,revision:sheet.revision,fields:edited}),
+    service.sign(tech,work.id,{sheetId:sheet.id,revision:sheet.revision,requestId:randomUUID(),signatures:signed}),
+  ]);
+  assert.equal(results.filter(r=>r.status==="fulfilled").length,1);
+  const current=(await db.doc(`lucrari/${work.id}/installationSheets/${sheet.id}`).get()).data()!;
+  if(current.state==="closed") assert.equal(current.documentSnapshot.finding,content.finding);
+  else {
+    assert.equal(current.finding,edited.finding);
+    const signedNow=(await service.sign(tech,work.id,{sheetId:sheet.id,revision:current.revision,requestId:randomUUID(),signatures:signed})).sheet;
+    assert.equal(signedNow.documentSnapshot!.finding,edited.finding);
+  }
 });

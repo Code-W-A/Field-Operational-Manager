@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, context: Context) {
     check(["image/jpeg", "image/png"].includes(file.type), "Folosiți o fotografie JPEG sau PNG.")
     const data = await service.list(actor, id, undefined, sheetId)
     const sheet = data.sheets[0]
-    check(sheet?.state === "draft" && sheet.principalUid === actor.uid, "Doar principalul fișei active poate adăuga poze.", 403)
+    check(sheet && ["draft", "awaiting_signature"].includes(sheet.state) && sheet.principalUid === actor.uid, "Doar principalul fișei nesemnate poate adăuga poze.", 403)
     check(sheet.photos.length < 4, "Fișa permite maximum 4 fotografii.")
     const bytes = Buffer.from(await file.arrayBuffer())
     check(file.type === "image/png" ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255, "Conținutul fotografiei este invalid.")

@@ -7,6 +7,8 @@ const er=createRequire(`${process.cwd()}/../expo-mobile-app/package.json`);
 const auth=`export const useAuth=()=>({status:'authenticated',user:{uid:window.uid||'tech'},profile:{displayName:'Tehnician',role:window.role||'tehnician'},backendReady:true});`;
 const provider=`export const useConnected=()=>window.c;`;
 const mocks={
+'../offline-tickets/work-status':`export const WorkStatus=()=>null;`,
+'../offline-tickets/status':`export const DraftStatus=()=>null;`,
 'expo-router':`export const router={push:v=>{window.routes.push(v);if(window.navigate&&typeof v==='string'&&v.includes('/sheet/')){window.params={id:'work',sheetId:'s'};window.renderAgain();}},dismissTo:v=>{window.routes.push(v);if(window.navigate){window.params={id:'work'};window.renderAgain();}},replace:v=>window.routes.push(v),setParams:v=>window.routes.push(v),canGoBack:()=>true,back:()=>window.routes.push('back')};export const useNavigation=()=>({dispatch:v=>window.routes.push(v)});export const useLocalSearchParams=()=>window.params;`,
 'expo-router/build/react-navigation/core':`export const usePreventRemove=(enabled,callback)=>{window.guard={enabled,callback};};`,
 'expo-crypto':`export const randomUUID=()=> 'fixture-'+(++window.ids);`,
@@ -37,7 +39,7 @@ async function fixture(opts={}){
   const meta={schemaVersion:1,equipment:window.work.mobileEquipment,equipmentStatus:{eq:opts.done?'done':'in_progress'},activeSheetByEquipment:opts.done?{}:{eq:'s'},awaitingSheetByEquipment:{},...opts.meta};
   const sheet={id:'s',equipmentId:'eq',principalUid:'tech',principalName:'Tehnician',workDate:'2026-10-14',state:opts.state||'draft',revision:1,finding:'Constatare',operations:'Operațiuni',installationStatus:'in_progress',internalNote:'Privat principal',photos:[],participants:[{uid:'tech',name:'Tehnician',role:'principal',active:true},{uid:'secondary',name:'Secundar',role:'secondary',active:true}],canSign:opts.canSign,...opts.sheetData};if(opts.legacy)delete sheet.participants;
   const list={work:{...window.work,tipLucrare:'Instalare',installation:meta,...opts.workData},canStart:opts.canStart!==false,currentSession:opts.currentSession||null,sheets:[sheet],nextCursor:null,completion:null};
-  window.c={accessGranted:opts.accessGranted!==false,navigationGranted:true,ready:true,activeSession:opts.attendance===false?undefined:{id:'att'},online:opts.online!==false,state:{drafts:{},operations:[],bundle:{works:[window.work],settings:[],installations:{work:list},revisions:{work:[]}}},persistDraft:async(key,value)=>{window.drafts[key]=value;},ensureQrAttendance:async()=>{},refresh:async()=>{},loadInstallation:async()=>{},enqueue:async()=>{throw Error('Nu trebuie salvat fără confirmare');},enqueueAndConfirm:async(action,id,payload,files)=>{window.commands.push({action,payload,files});if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');if(action==='installation'){const updated={...sheet,...payload.fields,state:payload.action==='stop'?'awaiting_signature':['close','sign'].includes(payload.action)?'closed':'draft',revision:2};window.c.state.bundle.installations.work.sheets=[updated];window.renderAgain();return {sheet:updated};}if(action==='report.finalize'){window.work={...window.work,raportGenerat:true,raportDataLocked:true};window.renderAgain();}return {draft:{...window.drafts.work,files:[]}};}};
+  window.c={accessGranted:opts.accessGranted!==false,navigationGranted:true,ready:true,activeSession:opts.attendance===false?undefined:{id:'att'},online:opts.online!==false,state:{drafts:{},operations:[],bundle:{works:[window.work],settings:[],installations:{work:list},revisions:{work:[]}}},flushDrafts:async()=>{},persistDraft:async(key,value)=>{window.drafts[key]=value;},ensureQrAttendance:async()=>{},refresh:async()=>{},loadInstallation:async()=>{},enqueue:async()=>{throw Error('Nu trebuie salvat fără confirmare');},enqueueAndConfirm:async(action,id,payload,files)=>{window.commands.push({action,payload,files});if(window.delay)await new Promise(resolve=>window.finishSave=resolve);if(window.fail)throw Error('Eroare de rețea');if(action==='installation'){const current=window.lastSheet||sheet;const updated={...current,...payload.fields,state:payload.action==='stop'?'awaiting_signature':['close','sign'].includes(payload.action)?'closed':current.state,revision:current.revision+1};window.lastSheet=updated;if(!opts.staleAfterSave||payload.action!=='save')window.c.state.bundle.installations.work.sheets=[updated];window.renderAgain();return {sheet:updated};}if(action==='report.finalize'){window.work={...window.work,raportGenerat:true,raportDataLocked:true};window.renderAgain();}return {draft:{...window.drafts.work,files:[]}};}};
  },opts);await p.addScriptTag({content:out.outputFiles[0].text});return p;
 }
 await mkdir('/private/tmp/fom-ticket-parity',{recursive:true});
@@ -69,6 +71,20 @@ try{
  await delayedSheet.evaluate(()=>{window.fail=false;window.delay=false;});await stop.click();
  await expect.poll(()=>delayedSheet.evaluate(()=>window.routes.at(-1))).toBe('/installation/work');
  await delayedSheet.close();
+ const editedStopped=await fixture({installation:true,sheet:true,state:'awaiting_signature',staleAfterSave:true});
+ await editedStopped.getByLabel('Operațiuni executate').fill('Corectat după oprire');
+ await editedStopped.getByRole('button',{name:'Salvează ciorna',exact:true}).click();
+ await expect(editedStopped.getByRole('alert').filter({hasText:'Ciorna a fost confirmată de server.'})).toBeVisible();
+ assert.equal(await editedStopped.evaluate(()=>window.c.state.bundle.installations.work.sheets[0].revision),1);
+ await editedStopped.getByLabel('Numele beneficiarului *').fill('Beneficiar');
+ await editedStopped.getByRole('button',{name:'Semnătura beneficiarului',exact:true}).click();
+ await editedStopped.getByRole('button',{name:'Semnătura tehnicianului',exact:true}).click();
+ await editedStopped.getByRole('button',{name:'Semnează fișa',exact:true}).click();
+ await expect(editedStopped.getByRole('button',{name:'Descarcă fișa PDF'})).toBeVisible();
+ assert.equal(await editedStopped.evaluate(()=>window.commands.at(-1).payload.revision),2);
+ assert.equal(await editedStopped.evaluate(()=>window.commands.at(-1).payload.fields.operations),'Corectat după oprire');
+ await expect(editedStopped.getByLabel('Operațiuni executate')).toHaveCount(0);
+ await editedStopped.close();
  const secondary=await fixture({installation:true,sheet:true,secondary:true});await expect(secondary.getByLabel('Operațiuni executate')).toHaveCount(0);await expect(secondary.getByText('Privat principal',{exact:false})).toHaveCount(0);await secondary.close();
  const awaiting=await fixture({installation:true,sheet:true,secondary:true,state:'awaiting_signature',canSign:true});await expect(awaiting.getByRole('button',{name:'Semnează fișa',exact:true})).toBeEnabled();await awaiting.getByLabel('Numele beneficiarului *').fill('Beneficiar');await awaiting.getByRole('button',{name:'Semnătura tehnicianului',exact:true}).click();await awaiting.getByRole('button',{name:'Semnătura beneficiarului',exact:true}).click();await awaiting.getByRole('button',{name:'Semnează fișa',exact:true}).click();await expect(awaiting.getByRole('button',{name:'Descarcă fișa PDF'})).toBeVisible();assert.equal(await awaiting.evaluate(()=>window.commands[0].payload.revision),1);await awaiting.close();
  let noticeChecks=0;

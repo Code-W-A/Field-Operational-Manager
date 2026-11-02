@@ -109,7 +109,7 @@ export function InstallationSheetForm({
   }, [dirty]);
   const editable =
     !readOnly &&
-    sheet.state === "draft" &&
+    ["draft", "awaiting_signature"].includes(sheet.state) &&
     sheet.principalUid === userData?.uid;
   async function run(fn: () => Promise<void>) {
     if (commandPending.current) return;
@@ -131,7 +131,7 @@ export function InstallationSheetForm({
     await run(async () => {
       setSavingAction(deferred ? "stop" : close ? "close" : "save");
       const result = await installationRequest(installationApi(workId), {
-        action: deferred ? "stop" : close ? "close" : "save",
+        action: deferred ? "stop" : close ? (sheet.state === "awaiting_signature" ? "sign" : "close") : "save",
         sheetId: sheet.id,
         fields: content,
         revision: sheet.revision,
@@ -157,7 +157,14 @@ export function InstallationSheetForm({
   }
   const change = (key: keyof InstallationFields, value: string) => {
     setContent((previous) => ({ ...previous, [key]: value }));
+    setTechSignature("");
+    setBeneficiarySignature("");
     setDirty(true);
+  };
+  const photoChanged = (next: InstallationSheet) => {
+    setTechSignature("");
+    setBeneficiarySignature("");
+    onSheet(next);
   };
   return (
     <section className="space-y-5">
@@ -172,7 +179,7 @@ export function InstallationSheetForm({
                 {sheet.state === "closed"
                   ? "Document semnat, disponibil pentru consultare și descărcare."
                   : sheet.state === "awaiting_signature"
-                    ? "Conținutul fișei este păstrat pentru semnare."
+                    ? "Conținutul poate fi modificat până la semnare."
                     : editable
                       ? "Completează fișa și salvează progresul înainte de închiderea zilei."
                       : "Doar principalul acestei fișe o poate modifica."}
@@ -389,7 +396,7 @@ export function InstallationSheetForm({
                           `${installationApi(workId)}/photos`,
                           form,
                         );
-                        onSheet(result.sheet);
+                        photoChanged(result.sheet);
                       }
                     });
                   }}
@@ -401,7 +408,7 @@ export function InstallationSheetForm({
                 editable={editable}
                 busy={busy}
                 run={run}
-                onSheet={onSheet}
+                onSheet={photoChanged}
               />
             </FormSection>
             <FormSection
@@ -443,6 +450,8 @@ export function InstallationSheetForm({
                   value={beneficiaryName}
                   onChange={(e) => {
                     setBeneficiaryName(e.target.value);
+                    setTechSignature("");
+                    setBeneficiarySignature("");
                     setDirty(true);
                   }}
                 />
@@ -491,7 +500,7 @@ export function InstallationSheetForm({
               >
                 Salvează ciorna
               </Button>
-              <Button
+              {sheet.state === "draft" && <Button
                 className="h-auto min-h-10 whitespace-normal bg-[#E8623D] text-white hover:bg-[#E8623D]/90"
                 disabled={busy}
                 aria-busy={savingAction === "stop"}
@@ -504,7 +513,7 @@ export function InstallationSheetForm({
                   />
                 )}
                 Oprește lucrul și semnează ulterior
-              </Button>
+              </Button>}
               <Button
                 disabled={
                   busy ||
@@ -514,13 +523,13 @@ export function InstallationSheetForm({
                 }
                 onClick={() => void save(true)}
               >
-                Închide fișa zilei
+                {sheet.state === "awaiting_signature" ? "Semnează fișa" : "Închide fișa zilei"}
               </Button>
             </div>
           </div>
         </>
       )}
-      {!readOnly && sheet.state === "awaiting_signature" && sheet.canSign && (
+      {!editable && !readOnly && sheet.state === "awaiting_signature" && sheet.canSign && (
         <InstallationDeferredSignatures
           key={sheet.id}
           workId={workId}
