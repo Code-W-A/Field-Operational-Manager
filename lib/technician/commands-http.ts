@@ -3,8 +3,6 @@ import {
   attendanceAction,
   assertCommand,
 } from "@/packages/fom-domain";
-import { dispatchEffect } from "./effects";
-import { sendInstallationCompletion } from "@/lib/installations/delivery.server";
 import { NextRequest, NextResponse } from "next/server";
 import { service, mobileAccess, headers, failure } from "./http";
 export function commandHandler(
@@ -31,15 +29,17 @@ export function commandHandler(
         );
       }
       const result = await service.command(a.uid, command, channel);
-      const delivery =
+      // Attendance never creates a delivery effect. Avoid its extra transaction and
+      // loading document/email modules on this latency-sensitive path.
+      const delivery = attendanceAction(command.action) ? undefined :
         command.action === "installation" &&
         command.payload.action === "complete"
-          ? await sendInstallationCompletion(
+          ? await (await import("@/lib/installations/delivery.server")).sendInstallationCompletion(
               request,
               command.entityId,
               result.document?.deliveryEffectId,
             )
-          : await dispatchEffect(request, a.uid, command.mutationId);
+          : await (await import("./effects")).dispatchEffect(request, a.uid, command.mutationId);
       return NextResponse.json(
         {
           ...result,

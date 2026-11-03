@@ -844,17 +844,18 @@ export function technicianService(db: Firestore) {
     );
   }
   async function attendance(tx: Transaction, a: Actor, c: Command, at: number) {
-    const lockRef = db.collection("attendanceActiveSessions").doc(a.uid),
-      lock = await tx.get(lockRef);
-    const sessionRef = db.collection("attendance").doc(id(c.entityId)),
-      existing = await tx.get(sessionRef);
-    const employees = await tx.get(
-      db.collection("hrEmployees").where("userUid", "==", a.uid),
-    );
+    const lockRef = db.collection("attendanceActiveSessions").doc(a.uid);
+    const sessionRef = db.collection("attendance").doc(id(c.entityId));
+    // Independent reads share the transaction; all validations still precede writes.
+    const [lock, existing, employees, defaultsSnapshot] = await Promise.all([
+      tx.get(lockRef),
+      tx.get(sessionRef),
+      tx.get(db.collection("hrEmployees").where("userUid", "==", a.uid)),
+      tx.get(db.collection("hrSettings").doc("defaults")),
+    ]);
     check(employees.size <= 1, AMBIGUOUS_ATTENDANCE_HR, 409);
     const employee = rows(employees)[0];
-    const defaults =
-      (await tx.get(db.collection("hrSettings").doc("defaults"))).data() || {};
+    const defaults = defaultsSnapshot.data() || {};
     const schedule = {
       ...defaults,
       ...Object.fromEntries(
@@ -1085,11 +1086,11 @@ export function technicianService(db: Firestore) {
     if (employee) {
       const day = localDay(start),
         month = day.slice(0, 7),
-        ref = db.collection("hrTimesheets").doc(`${employee.id}_${month}`),
-        snap = await tx.get(ref);
-      const sessions = await tx.get(
-        db.collection("attendance").where("userId", "==", a.uid),
-      );
+        ref = db.collection("hrTimesheets").doc(`${employee.id}_${month}`);
+      const [snap, sessions] = await Promise.all([
+        tx.get(ref),
+        tx.get(db.collection("attendance").where("userId", "==", a.uid)),
+      ]);
       const same = rows(sessions).filter(
         (r) =>
           r.id !== sessionId &&

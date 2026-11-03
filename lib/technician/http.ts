@@ -52,10 +52,14 @@ export async function technicianActor(request: NextRequest) {
   const bearer = request.headers
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
-  if (bearer) await adminAuth.verifyIdToken(bearer, true);
-  const authUser = await adminAuth.getUser(identity.uid);
+  // Preserve revocation, disabled-account and actor checks, without serial network waits.
+  const [, authUser, actor] = await Promise.all([
+    bearer ? adminAuth.verifyIdToken(bearer, true) : Promise.resolve(),
+    adminAuth.getUser(identity.uid),
+    service.actor(identity.uid),
+  ]);
   if (authUser.disabled) throw new MobileError("Cont dezactivat.", 403);
-  return service.actor(identity.uid);
+  return actor;
 }
 export function failure(request: NextRequest, e: unknown) {
   if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true")

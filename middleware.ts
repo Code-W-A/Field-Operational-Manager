@@ -34,6 +34,9 @@ export function middleware(req: NextRequest) {
   // Skip typical static file requests from /public (favicon, images, fonts, etc).
   if (pathname.includes(".")) return NextResponse.next()
 
+  // Public legal information must remain readable for every account role.
+  if (pathname === "/confidentialitate" || pathname === "/confidentialitate/") return NextResponse.next()
+
   const roleCookie = req.cookies.get("userRole")?.value
   const role = roleCookie ? decodeURIComponent(roleCookie) : undefined
 

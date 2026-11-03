@@ -34,6 +34,11 @@ export interface DeviceInfo {
   userAgent: string;
   /** Auto pontaj/depontaj motive (ex. first_qr, report_signed). */
   reason?: string;
+  /** Phone-local confirmation; neither biometric data nor server identity attestation. */
+  authentication?: {
+    method: "device_authentication";
+    authenticatedAt: string;
+  };
 }
 
 export interface AttendanceSession<TTimestamp = number> {

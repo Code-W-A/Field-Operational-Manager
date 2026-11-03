@@ -226,6 +226,21 @@ test("protected timesheet is preserved while checkout commits; missing HR is exp
     "no_employee",
   );
 });
+test("phone authentication metadata is preserved without selfie fields and replay is idempotent", async () => {
+  const uid=await actor("phone-auth"), id=`${uid}-session`;
+  const device=(time:string)=>({type:"field",userAgent:"FOM Expo Android",authentication:{method:"device_authentication",authenticatedAt:at(time)}});
+  const start=cmd("attendance.start",id,"08:00",{mode:"field",location:{lat:44,lng:26},deviceInfo:device("08:00")});
+  const first=await service.command(uid,start);
+  assert.deepEqual(await service.command(uid,start),first);
+  const stop=cmd("attendance.stop",id,"09:00",{mode:"field",location:{lat:44,lng:26},deviceInfo:device("09:00")});
+  const result=await service.command(uid,stop);
+  assert.deepEqual(await service.command(uid,stop),result);
+  const session=(await db.doc(`attendance/${id}`).get()).data()!;
+  assert.deepEqual(session.deviceInfo,device("08:00"));
+  assert.deepEqual(session.checkOutDeviceInfo,device("09:00"));
+  for(const key of Object.keys(session)) assert.ok(!/Selfie|faceRecognition/i.test(key));
+  assert.equal(session.status,"completed");
+});
 test("selfie paths cannot point to another user's image", async () => {
   const uid = await actor("selfie");
   await assert.rejects(
@@ -254,4 +269,27 @@ after(async () => {
       if (doc.id.startsWith(prefix)) await doc.ref.delete();
   }
   await deleteApp(app);
+});
+
+test("concurrent starts preserve a single active session and identical receipt retries", async () => {
+  const uid = await actor("concurrent"), id = `${uid}-one`;
+  const start = cmd("attendance.start", id, "09:00", { mode: "field" });
+  const results = await Promise.all([
+    service.command(uid, start, "mobile"),
+    service.command(uid, start, "mobile"),
+  ]);
+  assert.deepEqual(results[0], results[1]);
+  await assert.rejects(
+    service.command(uid, cmd("attendance.start", `${uid}-two`, "09:01", { mode: "field" }), "mobile"),
+    /pontaj activ/,
+  );
+  const stop = cmd("attendance.stop", id, "10:00", {});
+  const stopped = await Promise.all([
+    service.command(uid, stop, "mobile"),
+    service.command(uid, stop, "mobile"),
+  ]);
+  assert.deepEqual(stopped[0], stopped[1]);
+  const sessions = await db.collection("attendance").where("userId", "==", uid).get();
+  assert.equal(sessions.size, 1);
+  assert.equal(sessions.docs[0].data().status, "completed");
 });

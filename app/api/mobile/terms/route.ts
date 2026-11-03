@@ -8,6 +8,7 @@ import {
   options,
 } from "@/lib/technician/http";
 export const runtime = "nodejs";
+export const preferredRegion = "fra1";
 export const OPTIONS = options;
 export async function GET(request: NextRequest) {
   try {

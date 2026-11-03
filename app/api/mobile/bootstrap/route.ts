@@ -12,6 +12,8 @@ import {
   options,
 } from "@/lib/mobile/http";
 export const runtime = "nodejs";
+// Keep the mobile attendance path near the existing eur3 Firestore database.
+export const preferredRegion = "fra1";
 export const OPTIONS = options;
 export async function GET(request: NextRequest) {
   try {
@@ -31,12 +33,13 @@ export async function GET(request: NextRequest) {
         ),
         { headers: headers(request) },
       );
+    const attendanceOnly = request.nextUrl.searchParams.get("attendance") === "1";
     const bundle = code
       ? undefined
-      : access.activeSessionId
+      : access.activeSessionId && !attendanceOnly
         ? await service.bundle(a.uid)
         : await mobileAccess.attendanceBundle(a.uid);
-    if (bundle && access.activeSessionId)
+    if (bundle && access.activeSessionId && !attendanceOnly)
       bundle.offlineTicketGrant = await issueDraftGrant(
         adminDb,
         a.uid,
