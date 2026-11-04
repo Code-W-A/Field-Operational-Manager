@@ -1,3 +1,4 @@
+import { hasTicketCompletionDocument } from "@/lib/utils/work-completion"
 import type { UninvoicedReportRow } from "@/lib/reports/types"
 
 function normalize(value: unknown) {
@@ -12,7 +13,7 @@ function toDate(value: any): Date | null {
 }
 
 export function isUninvoicedWork(work: any) {
-  if (!work?.raportGenerat) return false
+  if (!work || !hasTicketCompletionDocument(work)) return false
   if (String(work?.numarFactura || "").trim()) return false
   if (work?.facturaDocument && (work.facturaDocument.url || work.facturaDocument.fileName || work.facturaDocument.numarFactura)) {
     return false

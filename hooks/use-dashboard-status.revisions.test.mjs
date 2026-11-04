@@ -68,3 +68,23 @@ test('real hook: disabling technician filter never lists auto revisions; disable
   assert.deepEqual(buckets.listate.map(x=>x.id),['manual'])
   assert.deepEqual(buckets.programatorRevizii,[])
 })
+
+test('real hook: finalized installation #002168 moves from Listate to Nefacturate without changing ticket data', () => {
+  const completed = { id:'795e0291-1736-403b-890e-9bf30c07b858', nrLucrare:'#002168',
+    tipLucrare:'Instalare', statusLucrare:'Finalizat', tehnicieni:[], preluatDispecer:true,
+    statusFacturare:'Nefacturat', installation:{schemaVersion:1,closedReason:'completed',completionDocumentId:'final'} }
+  const open = {...completed,id:'open',nrLucrare:'#OPEN',statusLucrare:'Listată',preluatDispecer:false,installation:{schemaVersion:1}}
+  const continued = {...completed,id:'continued',installation:{schemaVersion:1,closedReason:'continuation'}}
+  const invoiced = {...completed,id:'invoiced',numarFactura:'F-1'}
+  const exempt = {...completed,id:'exempt',motivNefacturare:'Inclus în contract'}
+  const works=[completed,open,continued,invoiced,exempt]
+  const original=structuredClone(works)
+  for (const listateRequireNoTechnicians of [true,false]) {
+    const {buckets}=run({works},{listateRequireNoTechnicians,nefacturateEnabled:true,
+      nepreluateEnabled:true,nepreluateRequireReportGenerated:true,nepreluateRequireNotPickedUp:true})
+    assert.deepEqual(buckets.listate.map(x=>x.id),['open'])
+    assert.deepEqual(buckets.nefacturate.map(x=>x.id),[completed.id])
+    assert.deepEqual(buckets.nepreluate,[])
+  }
+  assert.deepEqual(works,original)
+})

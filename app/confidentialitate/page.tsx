@@ -11,8 +11,8 @@ const sections = [
   {
     title: "Cine răspunde de datele tale",
     paragraphs: [
-      "FOM Teren este o aplicație profesională pentru evidența activităților de teren. Accesul se face cu un cont furnizat de organizația în care lucrezi. Organizația care stabilește scopurile și regulile de utilizare a datelor de serviciu trebuie identificată în informarea finală, împreună cu datele sale de contact și, dacă este cazul, contactul responsabilului cu protecția datelor.",
-      "Această versiune nu stabilește o identitate juridică sau un contact care nu au fost încă confirmate de organizație. Pentru informațiile specifice raportului tău de muncă, adresează-te administratorului FOM din organizația ta.",
+      "FOM Teren este o aplicație profesională pentru evidența activităților de teren, deținută de NRG ACCESS SYSTEMS SRL, CUI 34272913, cu sediul în sat Roșu, județul Ilfov, Str. Rezervelor nr. 70, bl. 1, ap. 15, cod poștal 077042. NRG ACCESS SYSTEMS SRL este operatorul datelor prelucrate pentru activitățile sale prin FOM Teren. Accesul se face cu un cont furnizat de organizație.",
+      "Pentru întrebări despre protecția datelor sau exercitarea drepturilor tale, ne poți contacta la mobitoolsro@gmail.com. Pentru informațiile specifice raportului tău de muncă, te poți adresa și administratorului FOM din organizație.",
     ],
   },
   {
@@ -52,14 +52,18 @@ const sections = [
     paragraphs: [
       "Accesul la informațiile de lucru este limitat prin autentificare și drepturi de cont. În aplicația mobilă, detaliile lucrărilor sunt condiționate și de pontajul activ. După depontare, istoricul notificărilor poate rămâne disponibil contului autentificat.",
       "Datele de autentificare și anumite preferințe sunt păstrate pe dispozitiv. Unele operații sau puncte de traseu colectate în timpul unei sesiuni pot aștepta conexiunea pentru a fi trimise. Dezinstalarea aplicației nu șterge automat evidențele de serviciu de pe server.",
-      "Duratele de păstrare pentru conturi, pontaje, trasee, fotografii și documente trebuie stabilite de organizație în funcție de scopurile și obligațiile sale. Aceste durate nu sunt încă confirmate în această versiune de lucru; nu se promite o ștergere automată după un termen inventat.",
+      "Traseele GPS și fotografiile folosite pentru verificarea pontajului se păstrează 30 de zile de la colectare. Păstrarea peste acest termen se limitează la situațiile prevăzute de lege sau temeinic justificate, de exemplu pentru clarificarea unui incident ori a unui litigiu, numai pentru datele necesare și pe durata justificată de situația respectivă.",
+      "Pontajele care constituie documente justificative pentru calculul salariilor se păstrează 5 ani, calculați de la 1 iulie a anului următor încheierii exercițiului financiar în care au fost întocmite, conform regulilor de arhivare financiar-contabilă. Această perioadă nu prelungește automat păstrarea traseelor GPS sau a fotografiilor de verificare a pontajului.",
+      "Rapoartele, documentele și fotografiile de service se păstrează pe durata contractului și a garanției aplicabile. Ulterior, se păstrează numai documentele necesare îndeplinirii obligațiilor legale sau constatării, exercitării ori apărării unui drept în instanță, până la expirarea termenului legal aplicabil sau soluționarea definitivă a litigiului. Documentele justificative financiar-contabile urmează termenul legal de arhivare.",
+      "Conturile rămân active cât timp persoanele au acces autorizat la FOM. La încetarea autorizării, accesul se dezactivează. Datele contului care nu mai sunt necesare se șterg sau se anonimizează; evidențele de serviciu supuse termenelor de mai sus se păstrează separat, cu acces limitat.",
+      "La expirarea perioadelor aplicabile, datele se șterg sau se anonimizează. NRG ACCESS SYSTEMS SRL răspunde de aplicarea acestor termene și de limitarea accesului la datele păstrate pentru obligații legale sau litigii.",
     ],
   },
   {
     title: "Drepturi și solicitări",
     paragraphs: [
       "În condițiile legislației aplicabile, poți solicita informații despre datele tale, acces, rectificare, ștergere sau restricționare și poți exercita dreptul la opoziție și, unde este aplicabil, la portabilitate. Unele evidențe de serviciu pot trebui păstrate pentru îndeplinirea unor obligații legale.",
-      "Pentru închiderea contului sau o solicitare referitoare la date, contactează administratorul FOM din organizația ta. Conturile sunt furnizate de organizație; aplicația mobilă nu oferă înregistrare publică. Datele de contact directe și procedura finală de răspuns trebuie completate în informarea aprobată de organizație.",
+      "Pentru închiderea contului sau o solicitare referitoare la date, scrie la mobitoolsro@gmail.com și precizează contul FOM la care se referă solicitarea. Poți contacta și administratorul FOM din organizație. Conturile sunt furnizate de organizație; aplicația mobilă nu oferă înregistrare publică.",
       "Dacă prelucrarea intră sub incidența GDPR, ai și dreptul de a depune o plângere la autoritatea de supraveghere competentă.",
     ],
   },
@@ -78,13 +82,13 @@ export default function PrivacyPage() {
         <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8">
           <p className="mb-5 text-sm font-semibold tracking-widest text-orange-400">FOM / TEREN</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Politica de confidențialitate</h1>
-          <p className="mt-4 text-slate-300">Aplicația FOM Teren · Versiune de lucru din 3 noiembrie 2026</p>
+          <p className="mt-4 text-slate-300">Aplicația FOM Teren · Versiune de lucru actualizată la 4 noiembrie 2026</p>
         </div>
       </header>
       <div className="mx-auto max-w-3xl space-y-8 px-5 py-8 sm:px-8">
         <aside className="rounded-xl border border-amber-300 bg-amber-50 p-5" aria-label="Starea documentului">
           <h2 className="font-semibold">Document în pregătire</h2>
-          <p className="mt-2 leading-7">Înainte de publicare trebuie confirmate identitatea și contactul operatorului, temeiurile juridice, destinatarii și duratele de păstrare. Această pagină nu este încă informarea finală pentru lansarea în Google Play.</p>
+          <p className="mt-2 leading-7">Operatorul și adresa de contact au fost completate. Înainte de finalizarea documentului trebuie confirmate temeiurile juridice și destinatarii și verificată aplicarea în sistem a termenelor de păstrare de mai jos. Această pagină nu este încă informarea finală pentru lansarea în Google Play.</p>
         </aside>
         <nav aria-label="Cuprins" className="rounded-xl border bg-white p-5">
           <h2 className="font-semibold">Cuprins</h2>

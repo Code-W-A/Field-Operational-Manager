@@ -70,3 +70,33 @@ test("rândul fără echipament folosește placeholder", () => {
   })
   assert.equal(row.equipment, "—")
 })
+
+
+test("installation #002168 uses the final handover instead of the ordinary report flag", () => {
+  const work = {
+    nrLucrare: "#002168", tipLucrare: "Instalare", statusLucrare: "Finalizat", preluatDispecer: true,
+    tehnicieni: [], statusFacturare: "Nefacturat",
+    installation: { schemaVersion: 1, closedReason: "completed", completionDocumentId: "final" },
+  }
+  assert.equal(isUninvoicedWork(work), true)
+  assert.equal(isUninvoicedWork({ ...work, raportGenerat: false }), true)
+  for (const invoice of [
+    { numarFactura: "F-1" },
+    { facturaDocument: { url: "https://example.test/invoice.pdf" } },
+    { facturaDocument: { fileName: "invoice.pdf" } },
+    { facturaDocument: { numarFactura: "F-1" } },
+    { statusFacturare: "Facturat" },
+    { statusFacturare: "Nu se facturează" },
+    { motivNefacturare: "Inclus în contract" },
+  ]) assert.equal(isUninvoicedWork({ ...work, ...invoice }), false)
+})
+
+test("unfinished, unsigned and continuation installations are not invoice-ready", () => {
+  for (const installation of [
+    { schemaVersion: 1 },
+    { schemaVersion: 1, closedReason: "completed" },
+    { schemaVersion: 1, completionDocumentId: "draft" },
+    { schemaVersion: 1, closedReason: "continuation", completionDocumentId: "final" },
+  ]) assert.equal(isUninvoicedWork({ raportGenerat: true, installation, statusFacturare: "Nefacturat" }), false)
+  assert.equal(isUninvoicedWork(null), false)
+})

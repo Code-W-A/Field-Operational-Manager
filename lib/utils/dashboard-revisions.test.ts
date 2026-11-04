@@ -70,3 +70,28 @@ test("canceled automatic revisions cannot supply scheduler links", () => {
   const index = buildAutomaticRevisionIndex([{ ...automatic, statusLucrare: "Anulat" }])
   assert.equal(findScheduledAutomaticRevision(index, schedule), undefined)
 })
+
+
+test("completed installations never enter Listate, even after releasing technicians", () => {
+  const installation = {
+    id: "795e0291-1736-403b-890e-9bf30c07b858",
+    tipLucrare: "Instalare",
+    statusLucrare: "Finalizat",
+    tehnicieni: [],
+    installation: { schemaVersion: 1, closedReason: "completed", completionDocumentId: "final" },
+  }
+  for (const requireNoTechnicians of [true, false]) {
+    assert.equal(isListedDashboardWork(installation, requireNoTechnicians), false)
+    // The signed completion document also excludes stale work-status labels.
+    assert.equal(isListedDashboardWork({ ...installation, statusLucrare: "Listată" }, requireNoTechnicians), false)
+    // A continuation closes the original ticket without issuing its own final document.
+    assert.equal(isListedDashboardWork({ ...installation, installation: { schemaVersion: 1, closedReason: "continuation", completionDocumentId: undefined } }, requireNoTechnicians), false)
+  }
+})
+
+test("open installations remain listed; ordinary completed reports are excluded", () => {
+  const open = { tipLucrare: "Instalare", statusLucrare: "Listată", tehnicieni: [], installation: { schemaVersion: 1 } }
+  assert.equal(isListedDashboardWork(open, true), true)
+  assert.equal(isListedDashboardWork({ ...open, raportGenerat: true }, true), true)
+  assert.equal(isListedDashboardWork({ statusLucrare: "Listată", raportGenerat: true }, false), false)
+})
