@@ -453,8 +453,15 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
       // Status oferte (acceptate/refuzate) - sortate după data primirii răspunsului
       const resp = (l as any).offerResponse
+      // Oferta acceptată este deja preluată în reintervenție; păstrăm tichetul în celelalte coloane.
+      const hasReinterventionLaunched =
+        (l as any).reinterventieLansata === true ||
+        Boolean((l as any).reinterventieLansataAt) ||
+        Boolean((l as any).reinterventieLucrareId) ||
+        (Array.isArray((l as any).reinterventii) && (l as any).reinterventii.length > 0) ||
+        (typeof (l as any).reinterventiiCount === "number" && (l as any).reinterventiiCount > 0)
       if (cfg.statusOferteEnabled) {
-        if (cfg.statusOferteIncludeAccept && resp?.status === "accept") {
+        if (cfg.statusOferteIncludeAccept && resp?.status === "accept" && !hasReinterventionLaunched) {
         const responseDate = toDate(resp.at)
         res.statusOferte.push(buildBubble(l, "accept", responseDate || undefined))
       }
