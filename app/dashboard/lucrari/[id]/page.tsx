@@ -76,6 +76,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TehnicianInterventionForm } from "@/components/tehnician-intervention-form"
 import { DocumentUpload } from "@/components/document-upload"
+import { InvoiceDraftSection } from "@/components/invoicing/invoice-draft-section"
 import { ReportGenerator } from "@/components/report-generator"
 import { ReportResendDialog } from "@/components/report-resend-dialog"
 import { ImageDefectViewer } from "@/components/image-defect-viewer"
@@ -4173,6 +4174,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     </div>
                   </div>
                 )}
+                {isAdminOrDispatcher && lucrare.id && <InvoiceDraftSection key={lucrare.id} workId={lucrare.id} work={lucrare} />}
                 {role !== "client" && hasOfferHistory && lucrare.id && (
                   <OfferEvidencePanel mode="lucrari" entityId={lucrare.id} className="mb-4" />
                 )}

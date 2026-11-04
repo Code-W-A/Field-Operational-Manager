@@ -1,3 +1,4 @@
+import { prepareLocationEvent, locationEventReceipt, locationCommandFingerprint } from "../tracking/location-event";
 import { prepareOfflineWork } from "@/lib/mobile/offline-work";
 import { versionOf, type Command } from "@/packages/fom-domain";
 import { startInstallationTime, stopInstallationTime } from "@/packages/fom-domain/installation";
@@ -585,6 +586,7 @@ export function installationService(db: Firestore) {
     workId: string,
     input: RecordData,
     offlineCommand?: Command,
+    locationCommand?: Command,
   ) {
     const equipmentId = identifier(input.equipmentId);
     const requestId = identifier(input.requestId);
@@ -607,7 +609,7 @@ export function installationService(db: Firestore) {
       if (receipt.exists) {
         const previous = receipt.data()!;
         check(
-          previous.uid === actor.uid && previous.equipmentId === equipmentId && (!offlineCommand || previous.offlineFingerprint === JSON.stringify(offlineCommand)),
+          previous.uid === actor.uid && previous.equipmentId === equipmentId && (!offlineCommand || previous.offlineFingerprint === JSON.stringify(offlineCommand)) && (!locationCommand?.payload.locationCapture || previous.locationFingerprint === locationCommandFingerprint(locationCommand)),
           "Cerere deja utilizată.",
           409,
         );
@@ -615,6 +617,7 @@ export function installationService(db: Firestore) {
         check(saved.exists, "Fișa scanării nu mai există.", 409);
         return {
           ...(previous.version ? { id: workId, version: previous.version } : {}),
+          ...(previous.locationEvent ? {locationEvent: previous.locationEvent} : {}),
           sheet: visibleSheet(
             { ...saved.data(), id: saved.id } as InstallationSheet,
             actor.uid,
@@ -639,6 +642,17 @@ export function installationService(db: Firestore) {
           ),
         };
       }
+      let locationEvent: Awaited<ReturnType<typeof prepareLocationEvent>>;
+      if (locationCommand?.payload.locationCapture) {
+        const sid = identifier(locationCommand.attendanceId);
+        const attendance = (await tx.get(db.doc(`attendance/${sid}`))).data();
+        check(attendance?.userId === actor.uid && attendance.status === "active" && !attendance.sessionEnd, "Pontajul nu mai este activ.", 409);
+        locationEvent = await prepareLocationEvent(db, tx, {
+          uid: actor.uid, mutationId: requestId, sessionId: sid, kind: "qr_verified",
+          occurredAt: Date.parse(locationCommand.occurredAt), capture: locationCommand.payload.locationCapture,
+          workId, equipmentId,
+        });
+      }
       const offlineCommit = offlineCommand ? await prepareOfflineWork(db, tx, actor.uid, user.displayName, work, offlineCommand) : undefined;
       const offlineUpdatedAt = offlineCommand ? Timestamp.now() : undefined;
       assertWork(work, true);
@@ -660,7 +674,9 @@ export function installationService(db: Firestore) {
           currentSession.workId === workId &&
           currentSession.equipmentId === equipmentId
         ) {
-          return { sheet: visibleSheet(source, actor.uid) };
+          locationEvent?.commit();
+          if (locationEvent) tx.create(receiptRef, {uid: actor.uid, equipmentId, sheetId: source.id, action: "verify", locationFingerprint: locationCommandFingerprint(locationCommand), locationEvent: locationEventReceipt(locationEvent.event), at: FieldValue.serverTimestamp()});
+          return { sheet: visibleSheet(source, actor.uid), ...(locationEvent ? { locationEvent: locationEventReceipt(locationEvent.event) } : {}) };
         }
         check(
           source.principalUid !== actor.uid,
@@ -761,6 +777,7 @@ export function installationService(db: Firestore) {
           additions.push({ uid: candidate.id, role: "secondary" });
         }
       }
+      locationEvent?.commit();
       offlineCommit?.(targetId);
       if (source && currentSession) {
         const sourceParticipants = sheetParticipants(source).map((p) =>
@@ -822,6 +839,7 @@ export function installationService(db: Firestore) {
           role: member.role,
         });
       tx.create(receiptRef, {
+        ...(locationEvent ? { locationEvent: locationEventReceipt(locationEvent.event), locationFingerprint: locationCommandFingerprint(locationCommand) } : {}),
         uid: actor.uid,
         action: source ? "transfer" : targetDoc.exists ? "join" : "start",
         sheetId: targetId,
@@ -830,7 +848,7 @@ export function installationService(db: Firestore) {
         ...(offlineCommand ? { offlineFingerprint: JSON.stringify(offlineCommand), version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}),
         at: FieldValue.serverTimestamp(),
       });
-      return { sheet: visibleSheet(updated, actor.uid), ...(offlineUpdatedAt ? { id: workId, version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}) };
+      return { sheet: visibleSheet(updated, actor.uid), ...(locationEvent ? { locationEvent: locationEventReceipt(locationEvent.event) } : {}), ...(offlineUpdatedAt ? { id: workId, version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}) };
     });
   }
 

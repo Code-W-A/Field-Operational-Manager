@@ -12,7 +12,7 @@ export const MOBILE_TERMS_SECTIONS = [
   },
   {
     title: "Localizare",
-    text: "În timpul pontajului activ, aplicația înregistrează traseul inclusiv în fundal și cu ecranul blocat. La depontare, înregistrarea traseului se oprește. Punctele colectate fără internet pot fi sincronizate ulterior.",
+    text: "Aplicația încearcă să înregistreze o poziție numai la pontare, depontare și confirmarea verificării QR. Nu urmărește deplasările între aceste acțiuni și nu colectează locația în fundal. Dacă poziția nu este disponibilă, acțiunea poate continua cu avertizare și consemnarea lipsei locației.",
   },
   {
     title: "Cameră, fotografii și notificări",

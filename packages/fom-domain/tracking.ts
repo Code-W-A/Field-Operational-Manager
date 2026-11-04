@@ -1,4 +1,5 @@
 import { attendanceDay } from "./attendance-policy";
+import type { LocationEventKind } from "./location-events";
 import { attendanceZonedDateTimeToUtcMs } from "./attendance-timezone";
 export const TRACKING_RETENTION_MS = 90 * 86400000;
 export const TRACKING_GAP_MS = 5 * 60000;
@@ -7,6 +8,9 @@ export const TRACKING_BATCH_SIZE = 100;
 export type TrackingState =
   "active" | "gps_unavailable" | "permission_denied" | "stopped";
 export type TrackingPoint = {
+  eventKind?: LocationEventKind;
+  workId?: string;
+  equipmentId?: string;
   id: string;
   sessionId: string;
   capturedAt: number;
@@ -98,6 +102,13 @@ export function trackingRoute(points: TrackingPoint[]) {
     cluster = [];
   };
   for (const point of ordered) {
+    // Event snapshots are isolated observations, never evidence of travel or stops.
+    if (point.eventKind) {
+      finishStop();
+      if (segment.length) segments.push(segment);
+      segment = [];
+      continue;
+    }
     if (point.accuracy > 100) {
       finishStop();
       if (segment.length) segments.push(segment);

@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  LOCATION_EVENT_LABELS,
+  type LocationEvent,
+} from "@/packages/fom-domain/location-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -30,6 +34,8 @@ import {
   gpsDisplay,
   initials,
   trackingTime,
+  trackingDateTime,
+  positionAge,
   type Technician,
 } from "@/components/tracking/presentation";
 import styles from "@/components/tracking/tracking.module.css";
@@ -44,12 +50,14 @@ const Map = dynamic(() => import("@/components/tracking/map"), {
   ),
 });
 type History = {
+  events: LocationEvent[];
   points: TrackingPoint[];
   segments: TrackingPoint[][];
   stops: TrackingStop[];
   truncated: boolean;
 };
 const emptyHistory: History = {
+  events: [],
   points: [],
   segments: [],
   stops: [],
@@ -168,7 +176,7 @@ export default function TrackingPage() {
               : "Lista tehnicienilor nu este disponibilă.",
           );
         if (daily.status === "fulfilled" && daily.value)
-          setHistory(daily.value);
+          setHistory({ ...daily.value, events: daily.value.events || [] });
         else if (daily.status === "rejected")
           failures.push(
             daily.reason instanceof Error
@@ -235,9 +243,7 @@ export default function TrackingPage() {
     () =>
       mode === "live"
         ? visible
-            .filter(
-              ({ technician }) => technician.point && technician.sessionId,
-            )
+            .filter(({ technician }) => technician.point)
             .map(({ technician, gps }) => ({
               ...technician,
               point: technician.point!,
@@ -252,10 +258,10 @@ export default function TrackingPage() {
   const initialLoading = lastSync === null && loading;
   const filters: { value: Filter; label: string; count: number }[] = [
     { value: "all", label: "Toți", count: total },
-    { value: "active", label: "GPS activ", count: gpsActive },
+    { value: "active", label: "Cu poziție", count: gpsActive },
     {
       value: "unavailable",
-      label: "Fără poziție actualizată",
+      label: "Fără poziție",
       count: total - gpsActive,
     },
   ];
@@ -268,7 +274,7 @@ export default function TrackingPage() {
     if (!selectedTechnician || userData?.role !== "admin" || historyDeleting)
       return;
     const confirmed = window.confirm(
-      `Ștergi definitiv istoricul GPS pentru ${selectedTechnician.name} din ${day}? Poziția live și pontajul nu vor fi șterse.`,
+      `Ștergi definitiv istoricul GPS pentru ${selectedTechnician.name} din ${day}? Ultima poziție și pontajul nu vor fi șterse.`,
     );
     if (!confirmed) return;
 
@@ -300,10 +306,10 @@ export default function TrackingPage() {
           `/api/tracking/history?uid=${encodeURIComponent(selectedTechnician.uid)}&day=${day}`,
           controller.signal,
         );
-        setHistory(refreshed);
+        setHistory({ ...refreshed, events: refreshed.events || [] });
         setHistoryActionMessage(
           data.deletedCount
-            ? `Au fost șterse ${data.deletedCount} puncte GPS.`
+            ? `Au fost șterse ${data.deletedCount} înregistrări.`
             : "Nu existau puncte GPS pentru ziua selectată.",
         );
       } catch {
@@ -354,9 +360,7 @@ export default function TrackingPage() {
             <header className={styles.overview}>
               <div>
                 <h1 className={styles.title}>Hartă tehnicieni</h1>
-                <p className={styles.subtitle}>
-                  Monitorizarea tehnicienilor din teren
-                </p>
+                <p className={styles.subtitle}>Ultimele poziții înregistrate</p>
               </div>
               <div className={styles.statistics} aria-busy={initialLoading}>
                 <Statistic
@@ -378,7 +382,7 @@ export default function TrackingPage() {
                   unavailable={lastSync === null && !loading}
                 />
                 <Statistic
-                  label="GPS activ"
+                  label="Cu poziție"
                   value={gpsActive}
                   note={percent(gpsActive)}
                   icon={MapPin}
@@ -387,7 +391,7 @@ export default function TrackingPage() {
                   unavailable={lastSync === null && !loading}
                 />
                 <Statistic
-                  label="Fără poziție actualizată"
+                  label="Fără poziție"
                   value={total - gpsActive}
                   note={percent(total - gpsActive)}
                   icon={MapPinOff}
@@ -484,7 +488,7 @@ export default function TrackingPage() {
                                 <span
                                   className={`${styles.dot} ${technician.sessionId ? styles.dotGreen : styles.dotRed}`}
                                 />
-                                {technician.sessionId ? "Pontat" : "Nepontat"}
+                                {technician.sessionId ? "Pontat" : "Depontat"}
                               </span>
                               <span
                                 className={`${styles.badge} ${styles[gps.tone]}`}
@@ -496,9 +500,24 @@ export default function TrackingPage() {
                             <span className={styles.updated}>
                               <Clock size={12} aria-hidden="true" />
                               {technician.point
-                                ? `Ultima poziție: ${trackingTime(technician.point.capturedAt)}`
+                                ? `Ultima poziție: ${trackingDateTime(technician.point.capturedAt)} · ${positionAge(technician.point.capturedAt, now)}`
                                 : "Nicio poziție GPS disponibilă"}
                             </span>
+                            {technician.lastEvent?.capture.status ===
+                              "unavailable" && (
+                              <span className={styles.updated}>
+                                {
+                                  LOCATION_EVENT_LABELS[
+                                    technician.lastEvent.kind
+                                  ]
+                                }{" "}
+                                ·{" "}
+                                {trackingDateTime(
+                                  technician.lastEvent.occurredAt,
+                                )}{" "}
+                                · Fără locație
+                              </span>
+                            )}
                           </span>
                           <ChevronRight
                             size={17}
@@ -531,7 +550,7 @@ export default function TrackingPage() {
                     </span>
                     {mode === "live"
                       ? "Poziția tehnicienilor"
-                      : "Istoricul traseului"}
+                      : "Evenimente și trasee istorice"}
                   </h2>
                   <div className={styles.sync}>
                     <span className={styles.live}>
@@ -544,7 +563,7 @@ export default function TrackingPage() {
                           ? "Actualizare în pauză"
                           : loading
                             ? "Se actualizează…"
-                            : "Actualizare live"}
+                            : "Listă actualizată"}
                     </span>
                     <span>{syncAge}</span>
                     <button
@@ -565,7 +584,7 @@ export default function TrackingPage() {
                       aria-pressed={mode === "live"}
                       onClick={() => setMode("live")}
                     >
-                      Live
+                      Ultimele poziții
                     </button>
                     <button
                       className={styles.tab}
@@ -580,7 +599,7 @@ export default function TrackingPage() {
                       <CalendarDays size={16} aria-hidden="true" />
                       Ziua
                       <input
-                        aria-label="Ziua traseului"
+                        aria-label="Ziua istoricului"
                         type="date"
                         value={day}
                         onChange={(event) => setDay(event.target.value)}
@@ -623,7 +642,7 @@ export default function TrackingPage() {
                 </div>
                 {mode === "history" && !selected ? (
                   <p className={styles.notice}>
-                    Selectează un tehnician din listă pentru traseul zilei.
+                    Selectează un tehnician din listă pentru evenimentele zilei.
                   </p>
                 ) : initialLoading ? (
                   <div
@@ -637,6 +656,11 @@ export default function TrackingPage() {
                     selectedUid={mode === "live" ? selected : ""}
                     onSelect={selectTechnician}
                     onHistory={viewHistory}
+                    eventPoints={
+                      mode === "history"
+                        ? history.points.filter((point) => point.eventKind)
+                        : []
+                    }
                     segments={mode === "history" ? history.segments : []}
                     stops={mode === "history" ? history.stops : []}
                     selectedStopIndex={
@@ -669,7 +693,7 @@ export default function TrackingPage() {
                 <aside
                   className={`${styles.panel} ${styles.history} ${!stopsOpen ? styles.historyCollapsed : ""}`}
                   aria-busy={historyLoading}
-                  aria-label="Opririle traseului"
+                  aria-label="Evenimentele zilei"
                 >
                   <button
                     type="button"
@@ -678,8 +702,10 @@ export default function TrackingPage() {
                     aria-controls="tracking-stops"
                     onClick={() => setStopsOpen(!stopsOpen)}
                   >
-                    Opriri{" "}
-                    <span className={styles.count}>{history.stops.length}</span>
+                    Evenimente{" "}
+                    <span className={styles.count}>
+                      {history.events.length}
+                    </span>
                     <ChevronRight size={16} aria-hidden="true" />
                   </button>
                   <div id="tracking-stops" className={styles.stopList}>
@@ -699,11 +725,28 @@ export default function TrackingPage() {
                     )}
                     {historyLoading ? (
                       <p role="status" className={styles.notice}>
-                        Se încarcă traseul…
+                        Se încarcă istoricul…
                       </p>
                     ) : (
                       <>
-                        {!history.points.length && (
+                        {history.events.map((event) => (
+                          <div key={event.id} className={styles.stop}>
+                            <strong>{LOCATION_EVENT_LABELS[event.kind]}</strong>
+                            <span>{trackingDateTime(event.occurredAt)}</span>
+                            <span>
+                              {event.capture.status === "available"
+                                ? `Poziție: ${trackingDateTime(event.capture.capturedAt)} · ±${Math.round(event.capture.accuracy)} m`
+                                : "Acțiune confirmată fără locație"}
+                            </span>
+                          </div>
+                        ))}
+                        {!!history.segments.length && (
+                          <p className={styles.notice}>
+                            Tracking continuu (istoric): trasee și opriri
+                            colectate de aplicațiile vechi.
+                          </p>
+                        )}
+                        {!history.points.length && !history.events.length && (
                           <p className={styles.notice}>
                             {error
                               ? "Istoricul nu a putut fi încărcat. Reîncearcă actualizarea."
@@ -723,40 +766,36 @@ export default function TrackingPage() {
                             considerate opriri.
                           </p>
                         )}
-                        {history.stops.length ? (
-                          history.stops.map((stop, index) => (
-                            <button
-                              type="button"
-                              aria-pressed={
-                                selectedStop?.context ===
-                                  `${selected}-${day}` &&
-                                selectedStop.index === index
-                              }
-                              onClick={() =>
-                                setSelectedStop({
-                                  context: `${selected}-${day}`,
-                                  index,
-                                })
-                              }
-                              key={`${stop.sessionId}-${stop.startedAt}-${index}`}
-                              className={styles.stop}
-                            >
-                              <span>
-                                <Clock size={13} aria-hidden="true" />{" "}
-                                {trackingTime(stop.startedAt)} –{" "}
-                                {trackingTime(stop.endedAt)} ·{" "}
-                                <strong>{stop.minutes} minute</strong>
-                              </span>
-                              <span>
-                                {stop.lat.toFixed(5)}, {stop.lng.toFixed(5)}
-                              </span>
-                            </button>
-                          ))
-                        ) : (
-                          <p className={styles.notice}>
-                            Nicio oprire de minimum 3 minute identificată.
-                          </p>
-                        )}
+                        {history.stops.length
+                          ? history.stops.map((stop, index) => (
+                              <button
+                                type="button"
+                                aria-pressed={
+                                  selectedStop?.context ===
+                                    `${selected}-${day}` &&
+                                  selectedStop.index === index
+                                }
+                                onClick={() =>
+                                  setSelectedStop({
+                                    context: `${selected}-${day}`,
+                                    index,
+                                  })
+                                }
+                                key={`${stop.sessionId}-${stop.startedAt}-${index}`}
+                                className={styles.stop}
+                              >
+                                <span>
+                                  <Clock size={13} aria-hidden="true" />{" "}
+                                  {trackingTime(stop.startedAt)} –{" "}
+                                  {trackingTime(stop.endedAt)} ·{" "}
+                                  <strong>{stop.minutes} minute</strong>
+                                </span>
+                                <span>
+                                  {stop.lat.toFixed(5)}, {stop.lng.toFixed(5)}
+                                </span>
+                              </button>
+                            ))
+                          : null}
                       </>
                     )}
                   </div>
@@ -770,9 +809,9 @@ export default function TrackingPage() {
               <p>
                 <Navigation size={12} aria-hidden="true" /> Orele sunt afișate
                 pentru București. Istoricul GPS este disponibil 90 de zile.
-                Pozițiile mai vechi de două minute sunt neactualizate și nu
-                confirmă locația curentă. Trackingul funcționează numai în
-                timpul pontajului.
+                Aplicația nouă înregistrează poziția numai la pontare, depontare
+                și QR valid. Poziția afișată nu confirmă locația curentă.
+                Punctele noi nu formează trasee.
               </p>
             </details>
           </>

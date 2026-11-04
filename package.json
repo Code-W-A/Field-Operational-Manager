@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:invoice-draft": "tsx --test lib/invoicing/draft.test.ts",
+    "test:invoice-draft:integration": "tsx scripts/test-invoice-draft.ts",
     "test:intervention-recovery": "tsx --test lib/technician/intervention-merge.test.ts",
     "test:intervention-recovery:browser": "node scripts/test-warranty-intervention-browser.mjs",
     "dev": "next dev",

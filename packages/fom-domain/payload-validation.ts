@@ -1,4 +1,5 @@
 import { assertOfflineWorkEvent } from "./offline-work";
+import { assertLocationCapture } from "./location-events";
 import { DomainError } from "./errors";
 import type { Command, RequestCreateInput } from "./commands";
 import {
@@ -18,6 +19,11 @@ function check(value: unknown, message: string): asserts value {
 }
 export function assertPayload(command: Command): void {
   const p = command.payload;
+  if (p.locationCapture !== undefined) {
+    check(["attendance.start", "attendance.stop", "verify"].includes(command.action) || (command.action === "installation" && p.action === "start"), "Localizare nepermisă pentru această acțiune.");
+    assertLocationCapture(p.locationCapture, Date.parse(command.occurredAt));
+    if (command.action === "verify") check(id(p.equipmentId), "Echipament invalid pentru localizare.");
+  }
   if (command.offlineWork) {
     assertOfflineWorkEvent(command.offlineWork);
     check((command.offlineWork.event === "start" && (command.action === "verify" || (command.action === "installation" && p.action === "start"))) || (command.offlineWork.event === "stop" && (command.action === "work.stop" || (command.action === "installation" && p.action === "stop"))), "Acțiune offline nepermisă.");

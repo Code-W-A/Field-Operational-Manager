@@ -1,3 +1,4 @@
+import { prepareLocationEvent, locationEventReceipt, locationCommandFingerprint } from "../tracking/location-event";
 import { TechnicianError } from "./errors";
 import { revisionReportSnapshot } from "./revision-report-snapshot";
 import { prepareOfflineWork } from "@/lib/mobile/offline-work";
@@ -289,7 +290,7 @@ export function technicianService(db: Firestore) {
     const previous = await receipt.get();
     if (previous.exists) {
       check(
-        previous.data()?.fingerprint === JSON.stringify(c),
+        previous.data()?.fingerprint === locationCommandFingerprint(c),
         "Identificator reutilizat pentru altă comandă.",
         409,
       );
@@ -319,7 +320,7 @@ export function technicianService(db: Firestore) {
           p.revision = previous.result.sheet.revision;
       }
       const actions: Record<string, () => Promise<any>> = {
-        start: () => svc.start(a, c.entityId, p, c.offlineWork ? c : undefined),
+        start: () => svc.start(a, c.entityId, p, c.offlineWork ? c : undefined, channel === "mobile" ? c : undefined),
         removePhoto: () =>
           svc.attachPhoto(a, c.entityId, p.sheetId, { id: p.photoId }, true),
         save: () => svc.save(a, c.entityId, p),
@@ -333,7 +334,7 @@ export function technicianService(db: Firestore) {
       const result = serial(await actions[p.action]());
       await receipt.set({
         uid,
-        fingerprint: JSON.stringify(c),
+        fingerprint: locationCommandFingerprint(c),
         result,
         createdAt: FieldValue.serverTimestamp(),
       });
@@ -343,7 +344,7 @@ export function technicianService(db: Firestore) {
       const receiptSnap = await tx.get(receipt);
       if (receiptSnap.exists) {
         check(
-          receiptSnap.data()?.fingerprint === JSON.stringify(c),
+          receiptSnap.data()?.fingerprint === locationCommandFingerprint(c),
           "Identificator reutilizat.",
           409,
         );
@@ -355,6 +356,12 @@ export function technicianService(db: Firestore) {
         "Profil invalid.",
         403,
       );
+      const eventKind = c.action === "attendance.start" ? "checkin" : c.action === "attendance.stop" ? "checkout" : c.action === "verify" ? "qr_verified" : undefined;
+      const locationEvent = channel === "mobile" && eventKind ? await prepareLocationEvent(db, tx, {
+        uid, mutationId: c.mutationId, sessionId: c.action === "verify" ? c.attendanceId || "" : c.entityId,
+        kind: eventKind, occurredAt: occurred, capture: c.payload.locationCapture,
+        ...(c.action === "verify" ? { workId: c.entityId, equipmentId: c.payload.equipmentId } : {}),
+      }) : undefined;
       let result: RecordData = {};
       if (c.action.startsWith("attendance."))
         result = await attendance(tx, a, c, occurred);
@@ -718,9 +725,13 @@ export function technicianService(db: Firestore) {
             );
         }
       }
+      if (locationEvent) {
+        locationEvent.commit();
+        result.locationEvent = locationEventReceipt(locationEvent.event);
+      }
       tx.set(receipt, {
         uid,
-        fingerprint: JSON.stringify(c),
+        fingerprint: locationCommandFingerprint(c),
         result: serial(result),
         createdAt: FieldValue.serverTimestamp(),
       });

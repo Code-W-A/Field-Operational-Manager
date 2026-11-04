@@ -1,9 +1,9 @@
-import {
-  TRACKING_STALE_MS,
-  type TrackingPoint,
-} from "@/packages/fom-domain/tracking";
+import type { LocationEvent } from "@/packages/fom-domain/location-events";
+import { type TrackingPoint } from "@/packages/fom-domain/tracking";
 
 export type Technician = {
+  mode?: "events" | "legacy";
+  lastEvent?: LocationEvent | null;
   uid: string;
   name: string;
   sessionId: string | null;
@@ -17,19 +17,15 @@ export type GpsDisplay = {
   active: boolean;
 };
 export function gpsDisplay(technician: Technician, now: number): GpsDisplay {
-  if (!technician.sessionId)
-    return { label: "Tracking oprit", tone: "gray", active: false };
-  if (technician.state === "permission_denied")
-    return { label: "Permisiune GPS lipsă", tone: "red", active: false };
-  if (technician.state === "gps_unavailable")
-    return { label: "GPS indisponibil", tone: "red", active: false };
-  if (!technician.point)
-    return { label: "Fără poziție GPS", tone: "gray", active: false };
-  if (now - technician.point.capturedAt > TRACKING_STALE_MS)
-    return { label: "Neactualizată", tone: "gray", active: false };
-  if (technician.state !== "active")
-    return { label: "Tracking indisponibil", tone: "gray", active: false };
-  return { label: "GPS activ", tone: "green", active: true };
+  return technician.point
+    ? {
+        label: technician.point.eventKind
+          ? "Poziție înregistrată"
+          : "Tracking continuu (istoric)",
+        tone: "green",
+        active: true,
+      }
+    : { label: "Fără poziție înregistrată", tone: "gray", active: false };
 }
 export function initials(name: string) {
   return (
@@ -49,4 +45,23 @@ export function trackingTime(value: number) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+export function trackingDateTime(value: number) {
+  return new Date(value).toLocaleString("ro-RO", {
+    timeZone: "Europe/Bucharest",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+export function positionAge(capturedAt: number, now: number) {
+  const minutes = Math.max(0, Math.floor((now - capturedAt) / 60000));
+  return minutes < 1
+    ? "acum"
+    : minutes < 60
+      ? `acum ${minutes} min`
+      : minutes < 1440
+        ? `acum ${Math.floor(minutes / 60)} h`
+        : `acum ${Math.floor(minutes / 1440)} zile`;
 }

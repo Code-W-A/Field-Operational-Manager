@@ -9,7 +9,7 @@ export const purgeExpiredTracking = functions
   .onRun(async () => {
     const db = getFirestore(),
       now = Date.now();
-    for (const name of ["trackingPoints", "trackingLatest"]) {
+    for (const name of ["trackingPoints", "trackingLatest", "trackingEvents"]) {
       for (let page = 0; page < 200; page++) {
         const snapshot = await db
           .collection(name)

@@ -12,6 +12,7 @@ import {
   REVISION_STATES,
 } from "./validation";
 export * from "./errors";
+export * from "./location-events";
 export * from "./auth";
 export * from "./procedures";
 export * from "./constants";

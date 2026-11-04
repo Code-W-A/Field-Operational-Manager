@@ -824,7 +824,7 @@ test("rules deny direct writes/reads to installation sheets and protected parent
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields }),
     });
-  for(const collection of ["mobileCommands","mobileFiles","mobileEffects","installationCommands"]){assert.equal((await patch(`${collection}/forged`,{uid:{stringValue:"tech1"}})).status,403);assert.equal((await fetch(`${root}/${collection}/forged`)).status,403);}
+  for(const collection of ["mobileCommands","mobileFiles","mobileEffects","installationCommands","trackingPoints","trackingLatest","trackingEvents"]){assert.equal((await patch(`${collection}/forged`,{uid:{stringValue:"tech1"}})).status,403);assert.equal((await fetch(`${root}/${collection}/forged`)).status,403);}
   assert.equal(
     (
       await patch(`lucrari/${work.id}/installationSheets/forged`, {
@@ -1484,4 +1484,20 @@ test("concurrent edit and signature accept one revision and never alter signed c
     const signedNow=(await service.sign(tech,work.id,{sheetId:sheet.id,revision:current.revision,requestId:randomUUID(),signatures:signed})).sheet;
     assert.equal(signedNow.documentSnapshot!.finding,edited.finding);
   }
+});
+
+test("installation QR location is atomic, owned and idempotent including reopening an active sheet",async()=>{
+ const work=await create();const session="event-session";await db.doc(`attendance/${session}`).set({userId:tech.uid,status:"active",sessionStart:Date.now()-1000});
+ const capture={status:"available",capturedAt:Date.now(),lat:44,lng:26,accuracy:8};
+ const requestId=randomUUID();const input={equipmentId:"e1",qrRaw:"QR1",requestId};
+ const command:any={mutationId:requestId,action:"installation",entityId:work.id,occurredAt:new Date().toISOString(),baseVersion:null,attendanceId:session,payload:{action:"start",...input,locationCapture:capture}};
+ await assert.rejects(()=>service.start(tech,work.id,{...input,qrRaw:"WRONG"},undefined,command));
+ assert.equal((await db.collection("trackingEvents").get()).size,0);
+ const first=await service.start(tech,work.id,input,undefined,command);const retry=await service.start(tech,work.id,input,undefined,command);
+ assert.deepEqual(retry.locationEvent,first.locationEvent);assert.equal((await db.collection("trackingEvents").get()).size,1);
+ const nextId=randomUUID();const next={...command,mutationId:nextId,payload:{...command.payload,requestId:nextId,locationCapture:{status:"unavailable",capturedAt:Date.now(),reason:"timeout"}}};
+ await service.start(tech,work.id,{...input,requestId:nextId},undefined,next);await service.start(tech,work.id,{...input,requestId:nextId},undefined,next);
+ assert.equal((await db.collection("trackingEvents").get()).size,2);
+ assert.equal((await db.collection("trackingPoints").get()).size,1);
+ await assert.rejects(()=>service.start(tech,work.id,{...input,requestId:randomUUID()},undefined,{...next,attendanceId:"foreign"}),/Pontajul/);
 });

@@ -1,3 +1,4 @@
+import type { LocationEvent } from "@/packages/fom-domain/location-events";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { timestampMillis } from "@/packages/fom-domain";
@@ -114,7 +115,7 @@ export function trackingService(db: Firestore, clock = Date.now) {
         if (
           old &&
           ["capturedAt", "lat", "lng", "accuracy", "sessionId"].some(
-            (key) => old[key] !== p[key as keyof TrackingPoint],
+            (key) => old[key] !== p[key as keyof typeof p],
           )
         )
           throw new TrackingError(
@@ -140,13 +141,17 @@ export function trackingService(db: Firestore, clock = Date.now) {
         update.point = FieldValue.delete();
       if (
         newest &&
+        latest?.mode !== "events" &&
         (!latest?.point || newest.capturedAt > latest.point.capturedAt)
       ) {
         update.point = newest;
         update.expiresAt = newest.capturedAt + TRACKING_RETENTION_MS;
       }
       // Delayed batches from an old session never overwrite a newer session's health.
-      if (live || latest?.sessionId === sid || !latest) {
+      if (
+        latest?.mode !== "events" &&
+        (live || latest?.sessionId === sid || !latest)
+      ) {
         update.sessionId = sid;
         update.state = live ? input.state || "active" : "stopped";
         update.statusAt = now;
@@ -182,25 +187,28 @@ export function trackingService(db: Firestore, clock = Date.now) {
         data = states.get(user.id),
         candidate = data?.point;
       const point =
-        session &&
-        candidate &&
-        candidate.capturedAt >= now - TRACKING_RETENTION_MS &&
-        (!session ||
-          (candidate.sessionId === session.id &&
-            candidate.capturedAt >= millis(session.data().sessionStart)))
+        candidate && candidate.capturedAt >= now - TRACKING_RETENTION_MS
           ? (candidate as TrackingPoint)
           : null;
       return {
         uid: user.id,
         name: String(user.data().displayName || "Tehnician"),
         sessionId: session?.id || null,
+        mode: data?.mode || "legacy",
+        lastEvent:
+          data?.lastEvent?.occurredAt >= now - TRACKING_RETENTION_MS
+            ? data?.lastEvent
+            : null,
         point,
         state: session
           ? data?.sessionId === session.id
-            ? data.state
+            ? data?.state
             : "unavailable"
           : "stopped",
-        stale: !point || now - point.capturedAt > TRACKING_STALE_MS,
+        stale:
+          data?.mode === "events"
+            ? false
+            : !point || now - point.capturedAt > TRACKING_STALE_MS,
       };
     });
   }
@@ -217,7 +225,13 @@ export function trackingService(db: Firestore, clock = Date.now) {
       now = clock();
     const floor = Math.max(start, now - TRACKING_RETENTION_MS);
     if (floor >= end)
-      return { points: [], segments: [], stops: [], truncated: false };
+      return {
+        points: [],
+        events: [],
+        segments: [],
+        stops: [],
+        truncated: false,
+      };
     const snapshot = await db
       .collection("trackingPoints")
       .where("uid", "==", technician)
@@ -226,10 +240,41 @@ export function trackingService(db: Firestore, clock = Date.now) {
       .orderBy("capturedAt")
       .limit(10001)
       .get();
+    const eventSnapshot = await db
+      .collection("trackingEvents")
+      .where("uid", "==", technician)
+      .where("occurredAt", ">=", floor)
+      .where("occurredAt", "<", Math.min(end, now + 1))
+      .orderBy("occurredAt")
+      .limit(10001)
+      .get();
+    const events = eventSnapshot.docs
+      .slice(0, 10000)
+      .map((d) => d.data() as LocationEvent);
+    const eventIds = new Set(events.map((event) => event.id));
     const raw = snapshot.docs
       .slice(0, 10000)
-      .map((d) => d.data() as TrackingPoint);
-    const sids = [...new Set(raw.map((p) => p.sessionId))];
+      .map((d) => d.data() as TrackingPoint)
+      .filter((point) => !point.eventKind || eventIds.has(point.id));
+    // A capture reused by QR/autocheckin can precede midnight. The marker belongs
+    // with the confirmed event, while its actual measurement time stays visible.
+    const pointIds = new Set(raw.map((point) => point.id));
+    for (const event of events) {
+      if (event.capture.status !== "available" || pointIds.has(event.id))
+        continue;
+      raw.push({
+        id: event.id,
+        sessionId: event.sessionId,
+        eventKind: event.kind,
+        capturedAt: event.capture.capturedAt,
+        lat: event.capture.lat,
+        lng: event.capture.lng,
+        accuracy: event.capture.accuracy,
+        ...(event.workId ? { workId: event.workId } : {}),
+        ...(event.equipmentId ? { equipmentId: event.equipmentId } : {}),
+      });
+    }
+    const sids = [...new Set([...raw, ...events].map((p) => p.sessionId))];
     const sessions = sids.length
       ? await db.getAll(
           ...sids.map((id) => db.doc(`attendance/${requireId(id)}`)),
@@ -240,14 +285,18 @@ export function trackingService(db: Firestore, clock = Date.now) {
       const s = validSessions.get(p.sessionId);
       return (
         s?.userId === technician &&
-        p.capturedAt >= millis(s.sessionStart) &&
-        (!s.sessionEnd || p.capturedAt <= millis(s.sessionEnd))
+        (p.eventKind ||
+          (p.capturedAt >= millis(s.sessionStart) &&
+            (!s.sessionEnd || p.capturedAt <= millis(s.sessionEnd))))
       );
     });
     return {
-      points,
+      points: points.sort((a, b) => a.capturedAt - b.capturedAt),
+      events: events.filter(
+        (e) => validSessions.get(e.sessionId)?.userId === technician,
+      ),
       ...trackingRoute(points),
-      truncated: snapshot.size > 10000,
+      truncated: snapshot.size > 10000 || eventSnapshot.size > 10000,
     };
   }
   async function deleteHistory(uid: string, technician: string, day: string) {
@@ -269,25 +318,43 @@ export function trackingService(db: Firestore, clock = Date.now) {
     if (bounds.start >= upperBound) return { deletedCount: 0 };
 
     let deletedCount = 0;
-    let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
-    while (true) {
-      let query = db
-        .collection("trackingPoints")
-        .where("uid", "==", technician)
-        .where("capturedAt", ">=", bounds.start)
-        .where("capturedAt", "<", upperBound)
-        .orderBy("capturedAt")
-        .limit(400);
-      if (cursor) query = query.startAfter(cursor);
-      const snapshot = await query.get();
-      if (snapshot.empty) break;
+    for (const [collection, timeField] of [
+      ["trackingPoints", "capturedAt"],
+      ["trackingEvents", "occurredAt"],
+    ]) {
+      const batchSize = collection === "trackingEvents" ? 200 : 400;
+      let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+      while (true) {
+        let query = db
+          .collection(collection)
+          .where("uid", "==", technician)
+          .where(timeField, ">=", bounds.start)
+          .where(timeField, "<", upperBound)
+          .orderBy(timeField)
+          .limit(batchSize);
+        if (cursor) query = query.startAfter(cursor);
+        const snapshot = await query.get();
+        if (snapshot.empty) break;
 
-      const batch = db.batch();
-      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-      await batch.commit();
-      deletedCount += snapshot.size;
-      cursor = snapshot.docs[snapshot.docs.length - 1];
-      if (snapshot.size < 400) break;
+        const associatedPoints =
+          collection === "trackingEvents"
+            ? await db.getAll(
+                ...snapshot.docs.map((doc) =>
+                  db.doc(`trackingPoints/${doc.id}`),
+                ),
+              )
+            : [];
+        const batch = db.batch();
+        snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+        associatedPoints
+          .filter((doc) => doc.exists)
+          .forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+        deletedCount +=
+          snapshot.size + associatedPoints.filter((doc) => doc.exists).length;
+        cursor = snapshot.docs[snapshot.docs.length - 1];
+        if (snapshot.size < batchSize) break;
+      }
     }
     return { deletedCount };
   }

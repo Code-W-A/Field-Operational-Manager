@@ -1,5 +1,6 @@
 "use client";
 
+import { LOCATION_EVENT_LABELS } from "@/packages/fom-domain/location-events";
 import { useEffect, useRef, useState } from "react";
 import { Expand, LocateFixed, Minimize } from "lucide-react";
 import type {
@@ -16,6 +17,7 @@ import type {
 import {
   initials,
   trackingTime,
+  trackingDateTime,
   type Technician,
   type GpsDisplay,
 } from "./presentation";
@@ -25,6 +27,7 @@ export type MapMarker = Technician & { point: TrackingPoint; gps: GpsDisplay };
 type Props = {
   markers: MapMarker[];
   segments: TrackingPoint[][];
+  eventPoints: TrackingPoint[];
   stops: TrackingStop[];
   selectedUid: string;
   onSelect: (uid: string) => void;
@@ -46,7 +49,7 @@ function popup(marker: MapMarker, onHistory: () => void) {
   person.append(node("strong", styles.personName, marker.name));
   const status = node("div", styles.personStatus);
   status.append(
-    node("span", styles.attendance, marker.sessionId ? "Pontat" : "Nepontat"),
+    node("span", styles.attendance, marker.sessionId ? "Pontat" : "Depontat"),
     node(
       "span",
       `${styles.badge} ${styles[marker.gps.tone]}`,
@@ -60,14 +63,14 @@ function popup(marker: MapMarker, onHistory: () => void) {
     node(
       "div",
       styles.popupRow,
-      `Ultima poziție: ${trackingTime(marker.point.capturedAt)}`,
+      `Ultima poziție: ${trackingDateTime(marker.point.capturedAt)}`,
     ),
   );
   card.append(
     node(
       "div",
       styles.popupRow,
-      `Precizie: ±${Math.round(marker.point.accuracy)} m`,
+      `${marker.point.eventKind ? LOCATION_EVENT_LABELS[marker.point.eventKind] : "Tracking continuu (istoric)"} · Precizie: ±${Math.round(marker.point.accuracy)} m`,
     ),
   );
   card.append(
@@ -90,6 +93,7 @@ function popup(marker: MapMarker, onHistory: () => void) {
 export default function TrackingMap({
   markers,
   segments,
+  eventPoints,
   stops,
   selectedUid,
   onSelect,
@@ -216,6 +220,21 @@ export default function TrackingMap({
           if (selectedUid === marker.uid && reopenPopup) layer.openPopup();
           visibleBounds.extend([marker.point.lat, marker.point.lng]);
         });
+        eventPoints.forEach((point) => {
+          L.circleMarker([point.lat, point.lng], {
+            radius: 7,
+            color: "#0f766e",
+          })
+            .bindTooltip(
+              node(
+                "span",
+                "",
+                `${LOCATION_EVENT_LABELS[point.eventKind!]} · ${trackingDateTime(point.capturedAt)} · ±${Math.round(point.accuracy)} m`,
+              ),
+            )
+            .addTo(layers.current!);
+          visibleBounds.extend([point.lat, point.lng]);
+        });
         segments.forEach((segment) => {
           const coordinates = segment.map(
             (point) => [point.lat, point.lng] as [number, number],
@@ -282,6 +301,7 @@ export default function TrackingMap({
     ready,
     markers,
     segments,
+    eventPoints,
     stops,
     selectedUid,
     contextKey,
@@ -340,15 +360,15 @@ export default function TrackingMap({
           <div className={styles.legendItems}>
             <span>
               <i className={`${styles.dot} ${styles.dotGreen}`} />
-              GPS activ
+              Poziție înregistrată
             </span>
             <span>
               <i className={styles.dot} />
-              Neactualizată / fără date
+              Fără poziție
             </span>
             <span>
               <i className={`${styles.dot} ${styles.dotRed}`} />
-              GPS indisponibil / refuzat
+              Localizare indisponibilă
             </span>
           </div>
         </div>

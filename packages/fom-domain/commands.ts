@@ -1,4 +1,5 @@
 import type { OfflineWorkEvent } from "./offline-work";
+import type { LocationCapture } from "./location-events";
 import type { CheckInRequest, CheckOutRequest, ExtraTimeType } from "./attendance";
 import type { HrRequestKind, HrRequestPayload } from "./hr";
 import type {
@@ -42,7 +43,7 @@ export type InstallationSignatureInput = Omit<
   "technicianName"
 > & { technicianName?: string };
 export type InstallationCommandInput =
-  | { action: "start"; equipmentId: string; qrRaw: string }
+  | { action: "start"; equipmentId: string; qrRaw: string; locationCapture?: LocationCapture }
   | {
       action: "save" | "stop" | "close";
       sheetId: string;
@@ -74,7 +75,7 @@ export type RequestCreateInput = {
 }[HrRequestKind];
 export type CommandPayloadMap = {
   "work.stop": { equipmentId: string };
-  verify: { code: string; equipmentId?: string; qrRaw?: string };
+  verify: { code: string; equipmentId?: string; qrRaw?: string; locationCapture?: LocationCapture };
   "intervention.save": InterventionInput;
   postpone: { motivAmanare: string };
   "revision.save": {
@@ -92,8 +93,8 @@ export type CommandPayloadMap = {
   };
   "report.later": ReportInput;
   "report.finalize": ReportInput;
-  "attendance.start": Partial<Omit<CheckInRequest, "userId" | "userName" | "sessionStartMs" | "specialDayConfirmation">> & { specialDayConfirmed?: boolean };
-  "attendance.stop": Partial<Omit<CheckOutRequest, "sessionId" | "sessionEndMs" | "debugSimulatedDurationMinutes">>;
+  "attendance.start": Partial<Omit<CheckInRequest, "userId" | "userName" | "sessionStartMs" | "specialDayConfirmation">> & { specialDayConfirmed?: boolean; locationCapture?: LocationCapture };
+  "attendance.stop": Partial<Omit<CheckOutRequest, "sessionId" | "sessionEndMs" | "debugSimulatedDurationMinutes">> & { locationCapture?: LocationCapture };
   "attendance.extra": { operation: "start" | "end"; type: ExtraTimeType };
   "request.create": RequestCreateInput;
   "notification.read": Record<string, never>;
