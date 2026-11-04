@@ -5,7 +5,7 @@ import { workDocument } from "./documents";
 import { canGenerateHrRequestDocx } from "@/lib/hr/request-document-format";
 import { generateHrRequestPdfBuffer } from "@/lib/hr/request-pdf.server";
 import { generateHrRequestDocxBuffer } from "@/lib/hr/request-docx.server";
-import { TechnicianError as MobileError } from "./service";
+import { serial, TechnicianError as MobileError } from "./service";
 export function documentHandlers(resolveActor: (request: NextRequest) => Promise<import("@/packages/fom-domain").Actor>) {
 async function GET(request: NextRequest) {
   try {
@@ -18,7 +18,7 @@ async function GET(request: NextRequest) {
       const snap = await adminDb.collection("hrRequests").doc(rid).get();
       if (snap.data()?.requesterUid !== a.uid)
         throw new MobileError("Cerere inaccesibilă.", 403);
-      const data = { ...snap.data(), id: snap.id } as any;
+      const data = serial({ ...snap.data(), id: snap.id });
       if (!canGenerateHrRequestDocx(data.kind)) {
         const { buffer, filename } = await generateHrRequestPdfBuffer(data);
         return new NextResponse(new Uint8Array(buffer), {
