@@ -25,7 +25,7 @@ export function commandHandler(
         assertCommand(command);
         await mobileAccess.requireAccess(
           a.uid,
-          !attendanceAction(command.action) && !command.offlineWork,
+          !attendanceAction(command.action) && !command.offlineWork && !command.offlineStop,
         );
       }
       const result = await service.command(a.uid, command, channel);

@@ -2,7 +2,7 @@ import test, { beforeEach, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { installationService } from "./service";
 import { verifyQr, workDate } from "./validation";
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation";
@@ -1500,4 +1500,106 @@ test("installation QR location is atomic, owned and idempotent including reopeni
  assert.equal((await db.collection("trackingEvents").get()).size,2);
  assert.equal((await db.collection("trackingPoints").get()).size,1);
  await assert.rejects(()=>service.start(tech,work.id,{...input,requestId:randomUUID()},undefined,{...next,attendanceId:"foreign"}),/Pontajul/);
+});
+
+test("pickup eligibility follows confirmed signatures in the current assignment, not historical sheets", async () => {
+  const work = await create();
+  const ref = db.doc(`lucrari/${work.id}`);
+  const eligibility = async () => (await service.list(manager, work.id)).managementActions!.pickup;
+  assert.equal((await eligibility()).eligible, false);
+  const first = (await start(work.id)).sheet;
+  assert.equal((await eligibility()).eligible, false);
+  const stopped = (await service.stop(tech, work.id, { sheetId: first.id, revision: first.revision, fields: content })).sheet;
+  assert.equal((await eligibility()).eligible, false);
+  await assert.rejects(service.sign(tech, work.id, { sheetId: first.id, requestId: randomUUID(), revision: stopped.revision, signatures: { ...signed, beneficiarySignature: "" } }));
+  assert.equal((await eligibility()).eligible, false);
+  assert.equal((await ref.collection("installationSheets").doc(first.id).get()).data()!.signedAssignmentVersion, undefined);
+  const signInput = { sheetId: first.id, requestId: randomUUID(), revision: stopped.revision, signatures: signed };
+  const closed = await service.sign(tech, work.id, signInput);
+  assert.equal(closed.sheet.signedAssignmentVersion, 0);
+  assert.equal((await eligibility()).eligible, true);
+  await service.edit(manager, work.id, { tehnicieni: ["Tehnician doi"] });
+  assert.equal((await eligibility()).eligible, false);
+  await service.sign(tech, work.id, signInput); // Retrying an old signature must not certify the new assignment.
+  assert.equal((await eligibility()).eligible, false);
+  await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 1 }), /atribuirea curentă/);
+  assert.deepEqual((await ref.get()).data()!.tehnicieni, ["Tehnician doi"]);
+  const second = (await start(work.id, "e1", tech2)).sheet;
+  await close(work.id, second);
+  assert.equal((await ref.collection("installationSheets").doc(second.id).get()).data()!.signedAssignmentVersion, 1);
+  assert.equal((await eligibility()).eligible, true);
+  const signedBefore = (await ref.collection("installationSheets").get()).docs.map(doc => doc.data());
+  await service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 1 });
+  assert.deepEqual((await ref.get()).data()!.tehnicieni, []);
+  assert.deepEqual((await ref.collection("installationSheets").get()).docs.map(doc => doc.data()), signedBefore);
+});
+
+test("a former participant may sign their pending sheet without certifying the newly assigned team", async () => {
+  const work = await create();
+  const sheet = (await start(work.id)).sheet;
+  const stopped = (await service.stop(tech, work.id, { sheetId: sheet.id, revision: sheet.revision, fields: content })).sheet;
+  await service.edit(manager, work.id, { tehnicieni: ["Tehnician doi"] });
+  const result = await service.sign(tech, work.id, { sheetId: sheet.id, requestId: randomUUID(), revision: stopped.revision, signatures: signed });
+  assert.equal(result.sheet.signedAssignmentVersion, -1);
+  assert.equal((await service.list(manager, work.id)).managementActions!.pickup.eligible, false);
+  await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 1 }), /atribuirea curentă/);
+});
+
+test("legacy pickup uses signing audit after assignment and preserves the signed document", async () => {
+  const work = await create();
+  const sheet = (await start(work.id)).sheet;
+  await close(work.id, sheet);
+  const ref = db.doc(`lucrari/${work.id}`);
+  const sr = ref.collection("installationSheets").doc(sheet.id);
+  await sr.update({ signedAssignmentVersion: FieldValue.delete() });
+  const before = (await sr.get()).data();
+  assert.equal((await service.list(manager, work.id)).managementActions!.pickup.eligible, true);
+  await service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 0 });
+  assert.deepEqual((await sr.get()).data(), before);
+  await service.edit(manager, work.id, { tehnicieni: ["Tehnician doi"] });
+  assert.equal((await service.list(manager, work.id)).managementActions!.pickup.eligible, false);
+  const second = (await start(work.id, "e1", tech2)).sheet;
+  await close(work.id, second);
+  await ref.collection("installationSheets").doc(second.id).update({ signedAssignmentVersion: FieldValue.delete() });
+  assert.equal((await service.list(manager, work.id)).managementActions!.pickup.eligible, true);
+  // Commercial edits with known unchanged assignment do not invalidate a proven legacy signature.
+  await service.edit(manager, work.id, { descriere: "Actualizare descriere" });
+  assert.equal((await service.list(manager, work.id)).managementActions!.pickup.eligible, true);
+  await service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 2 });
+});
+
+test("legacy signatures with missing or ambiguous assignment audit fail closed", async () => {
+  const work = await create();
+  const sheet = (await start(work.id)).sheet;
+  await close(work.id, sheet);
+  const ref = db.doc(`lucrari/${work.id}`);
+  await ref.collection("installationSheets").doc(sheet.id).update({ signedAssignmentVersion: FieldValue.delete() });
+  // An old unversioned edit after signing cannot prove that the signed sheet belongs to today's team.
+  await ref.collection("installationAudit").add({ action: "edit", at: new Date(Date.now() + 60000) });
+  const state = (await service.list(manager, work.id)).managementActions!.pickup;
+  assert.equal(state.eligible, false);
+  assert.match(state.reason, /istorice/);
+  await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 0 }), /istorice/);
+  const audits = await ref.collection("installationAudit").get();
+  await Promise.all(audits.docs.map(doc => doc.ref.delete()));
+  assert.equal((await service.list(manager, work.id)).managementActions!.pickup.eligible, false);
+});
+
+test("pickup checks all sheets even outside the displayed page or selected sheet", async () => {
+  const work = await create();
+  const sheet = (await start(work.id)).sheet;
+  await close(work.id, sheet);
+  const ref = db.doc(`lucrari/${work.id}`);
+  const closed = (await ref.collection("installationSheets").doc(sheet.id).get()).data()!;
+  const batch = db.batch();
+  for (let i = 0; i < 26; i++) batch.set(ref.collection("installationSheets").doc(`history-${i}`), { ...closed, createdAt: `2099-01-01T00:00:${String(i).padStart(2, "0")}.000Z` });
+  batch.set(ref.collection("installationSheets").doc("old-unsigned"), { ...closed, state: "awaiting_signature", createdAt: "2000-01-01T00:00:00.000Z", documentSnapshot: null });
+  await batch.commit();
+  const page = await service.list(manager, work.id);
+  assert.equal(page.sheets.length, 25);
+  assert.ok(page.nextCursor);
+  assert.equal(page.sheets.some(s => s.id === "old-unsigned"), false);
+  assert.equal(page.managementActions!.pickup.eligible, false);
+  assert.equal((await service.list(manager, work.id, undefined, sheet.id)).managementActions!.pickup.eligible, false);
+  await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 0 }), /toate fișele/);
 });

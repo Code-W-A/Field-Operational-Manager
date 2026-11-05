@@ -1,3 +1,5 @@
+import { revisionEquipmentIds } from "./revision-equipment-ids";
+export { revisionEquipmentIds } from "./revision-equipment-ids";
 import { assertPayload } from "./payload-validation";
 import { hasTicketCompletionDocument } from "./work-completion";
 export * from "./work-completion";
@@ -103,15 +105,6 @@ export function visibleWork(work: RecordData, actor: Actor) {
       work.preluatDispecer &&
       (hasTicketCompletionDocument(work) || work.statusLucrare === "Amânată")
     )
-  );
-}
-export function revisionEquipmentIds(work: RecordData): string[] {
-  return Array.from(
-    new Set(
-      (
-        work.equipmentIds || Object.keys(work.revision?.equipmentStatus || {})
-      ).map(String),
-    ),
   );
 }
 export function checklistFromSettings(
@@ -434,3 +427,4 @@ export * from "./error-codes";
 export * from "./ticket-drafts";
 
 export * from "./offline-work";
+export * from "./offline-stop";

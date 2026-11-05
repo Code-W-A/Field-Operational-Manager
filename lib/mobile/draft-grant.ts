@@ -24,9 +24,12 @@ export async function issueDraftGrant(
         "MOBILE_ATTENDANCE_REQUIRED",
       );
     const phase2 = (await tx.get(db.doc("settings/mobile-offline-phase2"))).data()?.enabledUserIds?.includes(uid) === true;
+    const stopForSigning = (process.env.MOBILE_STOP_FOR_SIGNING_USER_IDS || "").split(",").map(v => v.trim()).includes(uid);
     const confirmedAt = Date.now(),
       grant = {
-        ...(phase2 ? { grantId: randomUUID(), phase2: true } : {}),
+        ...((phase2 || stopForSigning) ? { grantId: randomUUID() } : {}),
+        ...(phase2 ? { phase2: true } : {}),
+        ...(stopForSigning ? { stopForSigning: true } : {}),
         sessionId,
         confirmedAt,
         expiresAt: confirmedAt + OFFLINE_ACCESS_MS,

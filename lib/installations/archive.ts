@@ -18,10 +18,7 @@ export const installationArchiveSettings: Record<
   offerWait30DaysWhenNoResponse: "archive_offer_wait_30_days_when_no_response",
 };
 
-// Web-only extension; the shared mobile installation contract stays unchanged.
-export type InstallationWorkspaceResponse = InstallationListResponse & {
-  managementActions?: { archiveReasons: string[] };
-};
+export type InstallationWorkspaceResponse = InstallationListResponse;
 
 export function installationArchiveReasons(
   work: Record<string, any>,

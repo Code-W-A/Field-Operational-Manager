@@ -5,7 +5,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import { bucket } from "./documents";
 import { headers, failure, mobileAccess } from "./http";
 import { TechnicianError as MobileError } from "./service";
-import { assigned } from "@/packages/fom-domain";
+import { validateOfflineStop } from "@/lib/mobile/offline-stop";
+import { assertCommand, type Command, assigned } from "@/packages/fom-domain";
 import { installationService } from "@/lib/installations/service";
 export function fileHandlers(
   resolveActor: (
@@ -21,10 +22,26 @@ export function fileHandlers(
         workId = String(form.get("workId") || ""),
         purpose = String(form.get("purpose"));
       let file = form.get("file");
+      let offlineStopCommand: Command | undefined;
+      if (form.has("offlineStopCommand")) {
+        offlineStopCommand = JSON.parse(String(form.get("offlineStopCommand")));
+        assertCommand(offlineStopCommand);
+        if (!mobile || !offlineStopCommand.offlineStop || offlineStopCommand.action !== "installation" ||
+          offlineStopCommand.payload.action !== "stop" || offlineStopCommand.entityId !== workId ||
+          offlineStopCommand.payload.sheetId !== String(form.get("sheetId")) || purpose !== "installation")
+          throw new MobileError("Permisiune de încărcare invalidă.", 403);
+        const command = offlineStopCommand;
+        await adminDb.runTransaction(async tx => {
+          const work = (await tx.get(adminDb.doc(`lucrari/${workId}`))).data();
+          const sheet = (await tx.get(adminDb.doc(`lucrari/${workId}/installationSheets/${command.payload.sheetId}`))).data();
+          if (!work || !sheet) throw new MobileError("Fișă indisponibilă.", 404);
+          await validateOfflineStop(adminDb, tx, a.uid, a.displayName, work, command, sheet);
+        });
+      }
       if (mobile)
         await mobileAccess.requireAccess(
           a.uid,
-          purpose !== "attendance-selfie",
+          purpose !== "attendance-selfie" && !offlineStopCommand,
         );
       if (form.has("privateDraft")) {
         let input: any;
@@ -207,6 +224,7 @@ export function fileHandlers(
           form.has("sheetRevision")
             ? Number(form.get("sheetRevision"))
             : undefined,
+          offlineStopCommand,
         );
         result = { ...meta, sheet: attached.sheet };
       }

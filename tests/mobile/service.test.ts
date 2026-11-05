@@ -376,6 +376,16 @@ test("revision persisted with states, timing and progress in canonical subcollec
     "done",
   );
   assert(rev.qrVerified);
+  const revisionRef = db.doc("lucrari/mobile-test-revision");
+  const endedAt = new Date(Date.now() - 60000).toISOString();
+  await revisionRef.update({
+    "revisionEquipmentTimes.eq1.startIso": new Date(Date.parse(endedAt) - 90000).toISOString(),
+    "revisionEquipmentTimes.eq1.endIso": endedAt,
+  });
+  const later = await svc.command(uid, command("report.later", "mobile-test-revision",
+    { cauzaPrincipalaDefectId: "uzura", products: [] }, saved.version, { attendanceId }));
+  assert.equal(later.work.timpPlecare, endedAt);
+  assert.equal(later.work.durataInterventie, "0h 2m");
 });
 test("reassignment and foreign photos rejected", async () => {
   let v = await work("mobile-test-foreign", { equipmentVerified: true });

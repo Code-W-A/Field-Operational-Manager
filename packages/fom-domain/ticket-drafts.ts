@@ -36,6 +36,7 @@ export type SavedTicketDraft = TicketDraft & {
 export type OfflineTicketGrant = {
   grantId?: string;
   phase2?: boolean;
+  stopForSigning?: boolean;
   sessionId: string;
   confirmedAt: number;
   expiresAt: number;

@@ -51,6 +51,7 @@ export interface Lucrare<TTimestamp = unknown> {
     {
       startIso: string;
       endIso?: string;
+      durationSeconds?: number;
       durationMinutes?: number;
       durationText?: string;
     }

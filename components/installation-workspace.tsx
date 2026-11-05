@@ -73,7 +73,7 @@ export function InstallationWorkspace({
   complete?: boolean;
   ticketDetails?: ReactNode;
   managementDocuments?: ReactNode;
-  pickupAction?: (blockedReason?: string, currentWork?: InstallationListResponse["work"]) => ReactNode;
+  pickupAction?: (blockedReason?: string, currentWork?: InstallationListResponse["work"], eligibility?: NonNullable<InstallationListResponse["managementActions"]>["pickup"]) => ReactNode;
   managementBusy?: boolean;
   managementVersion?: number;
   onEdit?: () => void;
@@ -311,7 +311,7 @@ export function InstallationWorkspace({
                 <Archive className="mr-2 h-4 w-4" /> Arhivează
               </Button>
             </InstallationHeaderAction>
-            {pickupAction?.(pendingReason, data.work)}
+            {pickupAction?.(pendingReason, data.work, data.managementActions?.pickup)}
             <InstallationHeaderAction label="Editează" reason={editReason}>
               {editReason ? (
                 <Button variant="outline" size="icon" aria-label="Editează" disabled><Lock className="h-4 w-4" /></Button>
@@ -336,6 +336,11 @@ export function InstallationWorkspace({
           </Button>
         </InstallationHeaderAction>
       </DashboardHeader>
+      {manager && data?.managementActions?.pickup && !data.managementActions.pickup.eligible && !inactive && Boolean(data.work.tehnicieni?.length) && (
+        <p className="text-sm text-muted-foreground" role="status">
+          {data.managementActions.pickup.reason}
+        </p>
+      )}
       <AlertDialog open={confirmation !== null} onOpenChange={(open) => { if (!open && !terminationPending.current) { setConfirmation(null); setActionError(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>

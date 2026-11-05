@@ -1,3 +1,4 @@
+import type { OfflineStopEvent } from "./offline-stop";
 import type { OfflineWorkEvent } from "./offline-work";
 import type { LocationCapture } from "./location-events";
 import type { CheckInRequest, CheckOutRequest, ExtraTimeType } from "./attendance";
@@ -103,6 +104,7 @@ export type CommandPayloadMap = {
 export type CommandAction = keyof CommandPayloadMap;
 export type CommandEnvelope = {
   offlineWork?: OfflineWorkEvent;
+  offlineStop?: OfflineStopEvent;
   mutationId: string;
   entityId: string;
   baseVersion: string | null;

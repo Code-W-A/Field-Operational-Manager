@@ -1,3 +1,4 @@
+import { assertOfflineStopEvent } from "./offline-stop";
 import { assertOfflineWorkEvent } from "./offline-work";
 import { assertLocationCapture } from "./location-events";
 import { DomainError } from "./errors";
@@ -24,13 +25,17 @@ export function assertPayload(command: Command): void {
     assertLocationCapture(p.locationCapture, Date.parse(command.occurredAt));
     if (command.action === "verify") check(id(p.equipmentId), "Echipament invalid pentru localizare.");
   }
+  if (command.offlineStop) {
+    assertOfflineStopEvent(command.offlineStop);
+    check(!command.offlineWork && (command.action === "work.stop" || (command.action === "installation" && p.action === "stop")), "Acțiune nepermisă pentru oprirea locală.");
+  }
   if (command.offlineWork) {
     assertOfflineWorkEvent(command.offlineWork);
     check((command.offlineWork.event === "start" && (command.action === "verify" || (command.action === "installation" && p.action === "start"))) || (command.offlineWork.event === "stop" && (command.action === "work.stop" || (command.action === "installation" && p.action === "stop"))), "Acțiune offline nepermisă.");
   }
   switch (command.action) {
     case "work.stop":
-      check(!!command.offlineWork && id(p.equipmentId), "Oprire offline invalidă.");
+      check(id(p.equipmentId), "Echipament invalid pentru oprire.");
       break;
     case "verify":
       check(

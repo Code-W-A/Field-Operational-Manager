@@ -89,6 +89,8 @@ export type InstallationSheet = InstallationFields &
     stoppedAt?: string;
     signedByUid?: string;
     signRequestId?: string;
+    /** Server-recorded assignment at signing; -1 means the signer was no longer assigned. */
+    signedAssignmentVersion?: number;
     canSign?: boolean;
   };
 export type InstallationMeta = {
@@ -114,6 +116,10 @@ export const isInstallationV1 = (work: any): boolean =>
   work?.tipLucrare === "Instalare" && work?.installation?.schemaVersion === 1;
 
 export type InstallationListResponse = {
+  managementActions?: {
+    archiveReasons: string[];
+    pickup: { eligible: boolean; reason: string };
+  };
   work: {
     id: string;
     client: string;

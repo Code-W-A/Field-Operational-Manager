@@ -18,7 +18,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { InstallationHeaderAction } from "./header-action";
-import { installationPickupReason } from "@/lib/installations/pickup";
 import { installationApi, installationRequest } from "@/lib/installations/client";
 import type { InstallationListResponse } from "@/types/installation";
 
@@ -33,7 +32,7 @@ function editorProducts(
 }
 
 type InstallationManagementSlots = {
-  pickupAction?: (blockedReason?: string, currentWork?: InstallationListResponse["work"]) => ReactNode;
+  pickupAction?: (blockedReason?: string, currentWork?: InstallationListResponse["work"], eligibility?: NonNullable<InstallationListResponse["managementActions"]>["pickup"]) => ReactNode;
   busy: boolean;
   version: number;
   clientControls: ReactNode;
@@ -120,12 +119,14 @@ export function InstallationManagement({
     }
   }
 
-  const pickupAction = (blockedReason?: string, currentWork: InstallationListResponse["work"] | Lucrare = work) => {
+  const pickupAction = (blockedReason?: string, currentWork: InstallationListResponse["work"] | Lucrare = work, eligibility?: NonNullable<InstallationListResponse["managementActions"]>["pickup"]) => {
+    if (!eligibility?.eligible) return null;
+    if ((currentWork.installation?.assignmentVersion || 0) !== (work.installation?.assignmentVersion || 0)) return null;
     const reason =
       blockedReason ||
       (busy
         ? "O operație este în curs. Așteaptă finalizarea."
-        : installationPickupReason(currentWork));
+        : "");
     const showPickup = !work.preluatDispecer || Boolean(currentWork.tehnicieni?.length);
     return showPickup && !inactive ? (
       <InstallationHeaderAction label="Preia tichetul" reason={reason}>

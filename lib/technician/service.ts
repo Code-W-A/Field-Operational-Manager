@@ -1,6 +1,8 @@
 import { prepareLocationEvent, locationEventReceipt, locationCommandFingerprint } from "../tracking/location-event";
 import { TechnicianError } from "./errors";
 import { revisionReportSnapshot } from "./revision-report-snapshot";
+import { revisionStoppedTime } from "./revision-stopped-time";
+import { validateOfflineStop } from "@/lib/mobile/offline-stop";
 import { prepareOfflineWork } from "@/lib/mobile/offline-work";
 import { offlineDuration, romanianWorkDate, romanianWorkTime } from "@/packages/fom-domain";
 import { overdueConfigFromSettings } from "@/packages/fom-domain/ticket-dashboard";
@@ -325,7 +327,7 @@ export function technicianService(db: Firestore) {
           svc.attachPhoto(a, c.entityId, p.sheetId, { id: p.photoId }, true),
         save: () => svc.save(a, c.entityId, p),
         close: () => svc.save(a, c.entityId, p, true),
-        stop: () => svc.stop(a, c.entityId, p, c.offlineWork ? c : undefined),
+        stop: () => svc.stop(a, c.entityId, p, c.offlineWork || c.offlineStop ? c : undefined),
         sign: () => svc.sign(a, c.entityId, p),
         continue: () => svc.continueWork(a, c.entityId),
         complete: () => svc.complete(a, c.entityId, p),
@@ -407,27 +409,35 @@ export function technicianService(db: Firestore) {
             409,
           );
           if (channel === "mobile" && c.action !== "postpone")
-            await requireAttendance(tx, a, c, occurred);
+            await requireAttendance(tx, a, c, c.action === "work.stop" && !c.offlineWork && !c.offlineStop ? Date.now() : occurred);
+          if (c.offlineStop) await validateOfflineStop(db, tx, uid, a.displayName, { ...w, id: snap.id }, c);
           const offlineCommit = c.offlineWork ? await prepareOfflineWork(db, tx, uid, a.displayName, { ...w, id: snap.id }, c) : undefined;
           const settings = rows(await tx.get(db.collection("settings")));
           const validatedPhotos = await validatePhotos(tx, a, c, w);
           const now = Timestamp.now(),
             patch: RecordData = {};
           if (c.action === "work.stop") {
+            // Explicit online stops use server time. Historical offline events retain their attested moment.
+            const end = c.offlineWork || c.offlineStop ? c.occurredAt : new Date().toISOString();
             const eq = await resolveEquipmentTx(tx, w, c.payload.equipmentId);
             if (w.tipLucrare === "Revizie") {
-              const time = w.revisionEquipmentTimes?.[eq.id];
-              check(time?.startIso, "Pornirea nu este confirmată.", 409);
-              const stopped = { ...time, endIso: c.occurredAt, durationSeconds: (occurred - Date.parse(time.startIso)) / 1000 };
-              Object.assign(patch, { [`revisionEquipmentTimes.${eq.id}`]: stopped });
-              const times = { ...w.revisionEquipmentTimes, [eq.id]: stopped };
+              const ids = c.offlineStop ? [...new Set(c.offlineStop.intervals.map(i => i.equipmentId))] : [eq.id];
+              const times = { ...w.revisionEquipmentTimes };
+              for (const equipmentId of ids) {
+                check(revisionEquipmentIds(w).includes(equipmentId), "Echipament neatribuit reviziei.", 409);
+                const time = times[equipmentId];
+                check(time?.startIso && !time.endIso && Date.parse(time.startIso) <= Date.parse(end), "Intervalul nu mai este activ sau pornirea nu este confirmată.", 409);
+                const stopped = { ...time, endIso: end, durationSeconds: (Date.parse(end) - Date.parse(time.startIso)) / 1000 };
+                patch[`revisionEquipmentTimes.${equipmentId}`] = stopped;
+                times[equipmentId] = stopped;
+              }
               if (revisionEquipmentIds(w).every(id => times[id]?.endIso)) {
                 const end = new Date(Math.max(...revisionEquipmentIds(w).map(id => Date.parse(times[id].endIso)))).toISOString();
                 Object.assign(patch, { timpPlecare: end, dataPlecare: romanianWorkDate(end), oraPlecare: romanianWorkTime(end), durataInterventie: offlineDuration(revisionEquipmentIds(w).reduce((n,id) => n + (Date.parse(times[id].endIso) - Date.parse(times[id].startIso)) / 1000, 0)) });
               }
             } else {
-              check(w.timpSosire && !w.timpPlecare, "Intervalul nu mai este activ.", 409);
-              Object.assign(patch, { timpPlecare: c.occurredAt, dataPlecare: romanianWorkDate(c.occurredAt), oraPlecare: romanianWorkTime(c.occurredAt), durataInterventie: offlineDuration((occurred - Date.parse(w.timpSosire)) / 1000) });
+              check(w.timpSosire && !w.timpPlecare && Date.parse(w.timpSosire) <= Date.parse(end), "Intervalul nu mai este activ.", 409);
+              Object.assign(patch, { timpPlecare: end, dataPlecare: romanianWorkDate(end), oraPlecare: romanianWorkTime(end), durataInterventie: offlineDuration((Date.parse(end) - Date.parse(w.timpSosire)) / 1000) });
             }
           } else if (c.action === "verify") {
             const equipment = await resolveEquipmentTx(
@@ -591,13 +601,15 @@ export function technicianService(db: Firestore) {
                 );
                 patch.mobileRevisionSnapshot = serial(revisionReportSnapshot(rows(revisions)));
               }
+              const revisionTime = revisionStoppedTime(w);
+              const reportEnd = revisionTime?.endedAt || w.timpPlecare || c.occurredAt;
               Object.assign(patch, {
                 products: validateProducts(c.payload.products || []),
-                timpPlecare: w.timpPlecare || c.occurredAt,
-                dataPlecare: romanianWorkDate(w.timpPlecare || c.occurredAt) || w.dataPlecare || "",
-                oraPlecare: romanianWorkTime(w.timpPlecare || c.occurredAt) || w.oraPlecare || "",
+                timpPlecare: reportEnd,
+                dataPlecare: romanianWorkDate(reportEnd) || w.dataPlecare || "",
+                oraPlecare: romanianWorkTime(reportEnd) || w.oraPlecare || "",
                 durataInterventie:
-                  w.durataInterventie ||
+                  revisionTime?.duration || w.durataInterventie ||
                   (w.timpSosire
                     ? calculateDuration(w.timpSosire, c.occurredAt)
                     : "-"),
@@ -848,6 +860,7 @@ export function technicianService(db: Firestore) {
     check(
       s &&
         s.userId === a.uid &&
+        (!(c.action === "work.stop" && !c.offlineWork && !c.offlineStop) || (s.status === "active" && !s.sessionEnd)) &&
         millis(s.sessionStart) <= at &&
         (!s.sessionEnd || millis(s.sessionEnd) >= at),
       "Acțiunea nu se află într-un interval de pontaj valid.",

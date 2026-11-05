@@ -281,3 +281,45 @@ test("installation start survives a response lost between transaction and outer 
   assert.equal(retried.sheet.id,first.sheet.id); assert.equal(retried.version,first.version);
   assert.equal((await ref.collection("installationSheets").get()).size,1);
 });
+
+
+test("explicit online stop needs no phase2 grant, freezes server time, and deduplicates delivery", async () => {
+  await db.doc("settings/mobile-offline-phase2").set({ enabledUserIds: [] });
+  const onlineStart = { ...start, mutationId: "online-start-for-sign", offlineWork: undefined };
+  const begun = await svc.command(uid, onlineStart);
+  const end: Command = { mutationId: "online-stop-for-sign", action: "work.stop", attendanceId: "attendance-test", entityId: "work", baseVersion: begun.version, occurredAt: new Date(Date.now() - 10000).toISOString(), payload: { equipmentId: "eq" } };
+  const earliest = Date.now();
+  const [one, two] = await Promise.all([svc.command(uid, end), svc.command(uid, end)]);
+  assert.deepEqual(one, two);
+  assert.ok(Date.parse(one.work.timpPlecare) >= earliest);
+  assert.ok(one.work.durataInterventie);
+  assert.equal((await db.doc(`mobileOfflineWork/${uid}`).get()).exists, false);
+  await assert.rejects(svc.command(uid, { ...end, mutationId: "online-stop-again", baseVersion: one.version }), /activ/);
+  assert.equal((await db.doc("lucrari/work").get()).data()?.timpPlecare, one.work.timpPlecare);
+});
+test("online stop rejects missing attendance, wrong assignment and wrong equipment", async () => {
+  const begun = await svc.command(uid, { ...start, mutationId: "online-start-validation", offlineWork: undefined });
+  const end: Command = { mutationId: "online-stop-validation", action: "work.stop", attendanceId: "attendance-test", entityId: "work", baseVersion: begun.version, occurredAt: new Date().toISOString(), payload: { equipmentId: "eq" } };
+  await assert.rejects(svc.command(uid, { ...end, payload: { equipmentId: "other-equipment" } }));
+  await db.doc("lucrari/work").update({ technicianIds: ["other"], tehnicieni: ["Other"] });
+  await assert.rejects(svc.command(uid, end), /atribuit/);
+  await db.doc("lucrari/work").update({ technicianIds: [uid], tehnicieni: ["Tech"] });
+  await db.doc("attendance/attendance-test").update({ status: "completed", sessionEnd: Timestamp.now() });
+  await assert.rejects(svc.command(uid, end), /pontaj|Pontează/);
+  assert.equal((await db.doc("lucrari/work").get()).data()?.timpPlecare, undefined);
+});
+test("online revision stop freezes each equipment and rejects stopping it twice", async () => {
+  const at = new Date(Date.now() - 120000).toISOString();
+  await db.doc("lucrari/work").update({ tipLucrare: "Revizie", equipmentIds: ["eq", "eq2"], revisionEquipmentTimes: { eq: { startIso: at }, eq2: { startIso: at } } });
+  const client = (await db.doc("clienti/client").get()).data()!;
+  client.locatii[0].echipamente.push({ id: "eq2", cod: "QR2", nume: "Eq2" });
+  await db.doc("clienti/client").set(client);
+  const version = versionOf((await db.doc("lucrari/work").get()).data()!);
+  const first: Command = { mutationId: "revision-online-stop-one", action: "work.stop", attendanceId: "attendance-test", entityId: "work", baseVersion: version, occurredAt: new Date().toISOString(), payload: { equipmentId: "eq" } };
+  const one = await svc.command(uid, first);
+  assert.equal(one.work.timpPlecare, undefined);
+  await assert.rejects(svc.command(uid, { ...first, mutationId: "revision-online-stop-duplicate", baseVersion: one.version }), /activ/);
+  const two = await svc.command(uid, { ...first, mutationId: "revision-online-stop-two", baseVersion: one.version, payload: { equipmentId: "eq2" } });
+  assert.ok(two.work.timpPlecare);
+  assert.equal(two.work.revisionEquipmentTimes.eq.endIso, one.work.revisionEquipmentTimes.eq.endIso);
+});

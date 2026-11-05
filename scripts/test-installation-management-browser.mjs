@@ -15,7 +15,7 @@ const mocks = {
   "@/components/dashboard-shell": `export const DashboardShell=({children})=><main>{children}</main>;`,
   "@/components/equipment-qr-code": `export const EquipmentQRCode=()=>null;`,
   "@/components/qr-code-scanner": `export const QRCodeScanner=()=>null;`,
-  "@/lib/installations/client": `import{installationArchiveReasons}from'@/lib/installations/archive';export const installationApi=id=>'/installation/'+id;export const installationRequest=async(url,body)=>{if(body){window.calls.requests.push(body);if(body.action==='manage'&&body.work?.preluatDispecer){window.calls.writes.push(body.work);await new Promise(r=>setTimeout(r,window.saveDelay||30));if(window.failSave)throw Error('Salvare indisponibilă');if(body.expectedAssignmentVersion!==(window.work.installation.assignmentVersion||0))throw Error('Echipa a fost modificată');window.work={...window.work,...body.work,preluatDe:'Dispecer test',tehnicieni:[],statusLucrare:window.work.installation.closedReason==='completed'?'Finalizat':'Listată',installation:{...window.work.installation,assignmentVersion:body.expectedAssignmentVersion+1,lastPickupVersion:body.expectedAssignmentVersion}};return{}}if(window.failArchive)throw Error('La verificarea serverului: lipsește factura.');return{}}const work=structuredClone(window.work);const completed=!!work.installation.completionDocumentId;return{work,sheets:[],canStart:false,currentSession:null,completion:completed?{id:'final',documentSnapshot:{technicianName:'Tehnician',beneficiaryName:'Beneficiar'}}:null,managementActions:{archiveReasons:installationArchiveReasons(work,{completionExists:completed,openSheets:false,sessions:false})}}};`,
+  "@/lib/installations/client": `import{installationArchiveReasons}from'@/lib/installations/archive';import{installationPickupState}from'@/lib/installations/pickup';export const installationApi=id=>'/installation/'+id;export const installationRequest=async(url,body)=>{if(body){window.calls.requests.push(body);if(body.action==='manage'&&body.work?.preluatDispecer){window.calls.writes.push(body.work);await new Promise(r=>setTimeout(r,window.saveDelay||30));if(window.failSave)throw Error('Salvare indisponibilă');if(body.expectedAssignmentVersion!==(window.work.installation.assignmentVersion||0))throw Error('Echipa a fost modificată');window.work={...window.work,...body.work,preluatDe:'Dispecer test',tehnicieni:[],statusLucrare:window.work.installation.closedReason==='completed'?'Finalizat':'Listată',installation:{...window.work.installation,assignmentVersion:body.expectedAssignmentVersion+1,lastPickupVersion:body.expectedAssignmentVersion}};return{}}if(window.failArchive)throw Error('La verificarea serverului: lipsește factura.');return{}}if(window.readDelay)await new Promise(r=>setTimeout(r,window.readDelay));const work=structuredClone(window.work);const completed=!!work.installation.completionDocumentId;return{work,sheets:[],canStart:false,currentSession:null,completion:completed?{id:'final',documentSnapshot:{technicianName:'Tehnician',beneficiaryName:'Beneficiar'}}:null,managementActions:{archiveReasons:installationArchiveReasons(work,{completionExists:completed,openSheets:false,sessions:false}),pickup:installationPickupState(work,window.sheets||[]) }}};`,
   "@/lib/pdf/installation": `export const downloadInstallationPdf=async(snapshot,id)=>{window.calls.downloads.push({snapshot,id})};`,
   "@/components/installation/overview": `export {InstallationSummary} from ${JSON.stringify(path.resolve("components/installation/overview.tsx"))};export const InstallationContext=()=>null;export const InstallationEquipmentList=()=> <p>Lista echipamentelor</p>;export const InstallationHistory=()=>null;export const InstallationDocuments=()=>null;`,
   "@/components/installation/forms": `export const InstallationSheetForm=()=>null;export const InstallationCompletionForm=()=>null;`,
@@ -132,6 +132,8 @@ async function fixture(
         downloads: [],
       };
       window.failSave = false;
+      window.sheets = [{id:'signed', state:'closed', signedAssignmentVersion:0,
+        documentSnapshot:{technicianSignature:'png',beneficiarySignature:'png'}}];
     },
     { role, completed, picked, overrides },
   );
@@ -156,7 +158,7 @@ try {
       .locator('xpath=ancestor::div[contains(@class,"md:flex-row")][1]');
     await expect(
       header.getByRole("button", { name: "Preia tichetul", exact: true }),
-    ).toHaveCount(1);
+    ).toHaveCount(0);
     const clientCard = page
       .getByRole("heading", { name: "Informații client", exact: true })
       .locator('xpath=ancestor::div[contains(@class,"shadow-sm")][1]');
@@ -166,7 +168,7 @@ try {
     await expect(page.getByText("Preluare", { exact: true })).toHaveCount(1);
     await expect(
       page.getByRole("button", { name: "Preia tichetul", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Încarcă factură", exact: true }),
     ).toBeDisabled();
@@ -275,13 +277,17 @@ try {
   assert.deepEqual(await handover.evaluate(() => window.work.tehnicieni), []);
   await handover.evaluate(() => window.replaceWork({ statusLucrare: "Atribuită", tehnicieni: ["Echipa nouă"],
     installation: {...window.work.installation, assignmentVersion: 2} }));
-  await expect(handoverButton).toBeEnabled();
+  await expect(handoverButton).toHaveCount(0);
   await expect(handover.getByRole("button", { name: "Încarcă factură", exact: true })).toBeEnabled();
   await handover.evaluate(() => window.replaceWork({ installation: {...window.work.installation, activeSheetByEquipment: {e1: "active"}} }));
-  await expect(handoverButton).toBeDisabled();
+  await expect(handoverButton).toHaveCount(0);
   await handover.evaluate(() => window.replaceWork({ installation: {...window.work.installation, activeSheetByEquipment: {}, awaitingSheetByEquipment: {e2: "unsigned"}} }));
-  await expect(handoverButton).toBeDisabled();
-  await handover.evaluate(() => window.replaceWork({ installation: {...window.work.installation, awaitingSheetByEquipment: {}} }));
+  await expect(handoverButton).toHaveCount(0);
+  await handover.evaluate(() => {
+    window.sheets.push({id:'new-team',state:'closed',signedAssignmentVersion:2,
+      documentSnapshot:{technicianSignature:'png',beneficiarySignature:'png'}});
+    window.replaceWork({ installation: {...window.work.installation, awaitingSheetByEquipment: {}} });
+  });
   await expect(handoverButton).toBeEnabled();
   await handoverButton.click();
   await expect(handoverButton).toHaveCount(0);
@@ -289,6 +295,35 @@ try {
   assert.equal(await handover.evaluate(() => window.work.installation.assignmentVersion), 3);
   checks++;
   await handover.close();
+
+  for (const width of [360, 1440]) {
+    const page = await fixture("dispecer", false, false, width, {
+      statusLucrare: "Atribuită", tehnicieni: ["Echipa nouă"],
+      installation: { schemaVersion: 1, rootWorkId: "installation", equipment: [],
+        equipmentStatus: {}, startedEquipmentIds: ["e1"], activeSheetByEquipment: {},
+        awaitingSheetByEquipment: {}, assignmentVersion: 2 },
+    });
+    const button = page.getByRole("button", { name: "Preia tichetul", exact: true });
+    await expect(page.getByRole("status")).toContainText("atribuirea curentă");
+    await expect(button).toHaveCount(0);
+    await page.evaluate(() => {
+      window.readDelay = 500;
+      window.sheets.push({id:"new-signed",state:"closed",signedAssignmentVersion:2,
+        documentSnapshot:{technicianSignature:"png",beneficiarySignature:"png"}});
+      window.replaceWork({statusLucrare:"În lucru"});
+    });
+    await expect(button).toHaveCount(0); // No optimistic pickup while refreshing eligibility.
+    await expect(button).toBeEnabled();
+    await page.evaluate(() => {
+      window.sheets.at(-1).documentSnapshot.beneficiarySignature = "";
+      window.replaceWork({});
+    });
+    await expect(button).toHaveCount(0);
+    await expect(page.getByRole("status")).toContainText("toate fișele");
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    checks++;
+    await page.close();
+  }
 
   const finalTeam = await fixture("dispecer", true, true, 390, { tehnicieni: ["Ultima echipă"] });
   const finalPickup = finalTeam.getByRole("button", { name: "Preia tichetul", exact: true });
@@ -480,7 +515,6 @@ try {
         "Anulează",
         "Descarcă PV",
         "Arhivează",
-        "Preia tichetul",
         "Editează",
         ...(role === "admin" ? ["Șterge tichetul"] : []),
         "Reîncarcă datele",

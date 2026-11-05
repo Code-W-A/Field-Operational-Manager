@@ -1,4 +1,5 @@
 import { prepareLocationEvent, locationEventReceipt, locationCommandFingerprint } from "../tracking/location-event";
+import { validateOfflineStop } from "@/lib/mobile/offline-stop";
 import { prepareOfflineWork } from "@/lib/mobile/offline-work";
 import { versionOf, type Command } from "@/packages/fom-domain";
 import { startInstallationTime, stopInstallationTime } from "@/packages/fom-domain/installation";
@@ -8,13 +9,14 @@ import {
   type Firestore,
   type Transaction,
   type DocumentReference,
+  type QuerySnapshot,
 } from "firebase-admin/firestore";
 import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
 import { installationDeliveryId, installationDeliveryResult } from "./delivery";
 import { resolveDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot";
 import { installationManagementKeys, type InstallationManagementInput } from "./management";
 import { installationArchiveReasons, installationArchiveSettings } from "./archive";
-import { installationPickupReason } from "./pickup";
+import { installationPickupReason, installationPickupState } from "./pickup";
 import type { ArchiveRulesConfig } from "@/lib/utils/archive-validation";
 import {
   isInstallationV1,
@@ -77,6 +79,25 @@ export function installationService(db: Firestore) {
     db.collection("installationTechnicianSessions").doc(identifier(uid));
   const completionRef = (root: string) =>
     workRef(root).collection("installationCompletion").doc("final");
+
+  async function pickupState(workId: string, work: RecordData, tx?: Transaction, existingSheets?: QuerySnapshot) {
+    const reason = installationPickupReason(work as any);
+    if (reason) return { eligible: false, reason };
+    if (work.installation.closedReason === "completed") {
+      const ref = completionRef(work.installation.rootWorkId);
+      const completion = await (tx ? tx.get(ref) : ref.get());
+      if (!completion.exists) return { eligible: false, reason: "Procesul-verbal de terminare nu este disponibil." };
+    }
+    const snapshot = existingSheets || await (tx ? tx.get(sheetsRef(workId)) : sheetsRef(workId).get());
+    const sheets = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as InstallationSheet);
+    const needsAudit = work.installation.closedReason !== "completed"
+      && !sheets.some(s => s.signedAssignmentVersion === (work.installation.assignmentVersion || 0))
+      && sheets.some(s => s.signedAssignmentVersion === undefined);
+    const audits = needsAudit
+      ? await (tx ? tx.get(workRef(workId).collection("installationAudit")) : workRef(workId).collection("installationAudit").get())
+      : null;
+    return installationPickupState(work as any, sheets, audits?.docs.map(doc => doc.data()) || []);
+  }
 
   async function archiveReasons(workId: string, work: RecordData, tx?: Transaction) {
     const settingKeys = Object.keys(installationArchiveSettings) as (keyof ArchiveRulesConfig)[];
@@ -486,7 +507,7 @@ export function installationService(db: Firestore) {
         notificationReadBy: [],
       };
       tx.update(ref, update);
-      audit(tx, workId, actor, "edit");
+      audit(tx, workId, actor, "edit", { teamChanged, assignmentVersion: meta.assignmentVersion || 0 });
       return { id: workId, ...work, ...update };
     });
   }
@@ -544,6 +565,8 @@ export function installationService(db: Firestore) {
           const sheet = doc.data();
           return sheet.state === "closed" && sheet.documentSnapshot?.technicianSignature && sheet.documentSnapshot?.beneficiarySignature;
         }), "Închide și semnează toate fișele înainte de preluare.", 409);
+        const pickup = await pickupState(workId, work, tx, sheets);
+        check(pickup.eligible, pickup.reason, 409);
         patch.preluatDe = work.preluatDe || String(user.displayName || user.email || "Dispecer");
         patch.tehnicieni = [];
         if (work.technicianIds) patch.technicianIds = [];
@@ -688,6 +711,12 @@ export function installationService(db: Firestore) {
         work.installation.activeSheetByEquipment[equipmentId] || requestId;
       const targetRef = sheetsRef(workId).doc(targetId);
       const targetDoc = await tx.get(targetRef);
+      // Return the exact transaction version for an online start as well. The
+      // client may go offline immediately, before a full bootstrap can refresh it.
+      const onlineUpdatedAt = Timestamp.now();
+      const confirmedVersion = offlineUpdatedAt
+        ? versionOf({updatedAt: offlineUpdatedAt})
+        : targetDoc.exists ? versionOf(work) : versionOf({updatedAt: onlineUpdatedAt});
       check(
         !work.installation.activeSheetByEquipment[equipmentId] ||
           (targetDoc.exists && targetDoc.data()?.state === "draft"),
@@ -828,7 +857,7 @@ export function installationService(db: Firestore) {
           "installation.startedEquipmentIds":
             FieldValue.arrayUnion(equipmentId),
           statusLucrare: "În lucru",
-          updatedAt: offlineUpdatedAt || FieldValue.serverTimestamp(),
+          updatedAt: offlineUpdatedAt || onlineUpdatedAt,
         });
       }
       for (const member of additions)
@@ -845,10 +874,11 @@ export function installationService(db: Firestore) {
         sheetId: targetId,
         equipmentId,
         allocatedUids: additions.map((p) => p.uid),
-        ...(offlineCommand ? { offlineFingerprint: JSON.stringify(offlineCommand), version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}),
+        ...(offlineCommand ? { offlineFingerprint: JSON.stringify(offlineCommand) } : {}),
+        version: confirmedVersion,
         at: FieldValue.serverTimestamp(),
       });
-      return { sheet: visibleSheet(updated, actor.uid), ...(locationEvent ? { locationEvent: locationEventReceipt(locationEvent.event) } : {}), ...(offlineUpdatedAt ? { id: workId, version: versionOf({ updatedAt: offlineUpdatedAt }) } : {}) };
+      return { sheet: visibleSheet(updated, actor.uid), ...(locationEvent ? { locationEvent: locationEventReceipt(locationEvent.event) } : {}), id: workId, version: confirmedVersion };
     });
   }
 
@@ -884,7 +914,7 @@ export function installationService(db: Firestore) {
       const sr = sheetsRef(workId).doc(sheetId);
       const sheet = (await tx.get(sr)).data() as InstallationSheet | undefined;
       if (
-        mode !== "save" &&
+        mode !== "save" && !offlineCommand?.offlineStop &&
         sheet?.principalUid === actor.uid &&
         (sheet.state === "closed" ||
           (mode === "stop" && sheet.state === "awaiting_signature"))
@@ -911,7 +941,8 @@ export function installationService(db: Firestore) {
           "Fișa nu mai este activă.", 409,
         );
       }
-      const offlineCommit = offlineCommand ? await prepareOfflineWork(db, tx, actor.uid, user.displayName, work, offlineCommand) : undefined;
+      if (offlineCommand?.offlineStop) await validateOfflineStop(db, tx, actor.uid, user.displayName, work, offlineCommand, sheet);
+      const offlineCommit = offlineCommand?.offlineWork ? await prepareOfflineWork(db, tx, actor.uid, user.displayName, work, offlineCommand) : undefined;
       const offlineUpdatedAt = offlineCommand ? Timestamp.now() : undefined;
       const now = offlineCommand?.occurredAt || new Date().toISOString();
       const timing = sheet.timeIntervals ? { timeIntervals: stopInstallationTime(sheet.timeIntervals, now) } : {};
@@ -967,7 +998,8 @@ export function installationService(db: Firestore) {
               participantUids: participants.map((p) => p.uid),
               frozenDocument,
               ...(documentSnapshot
-                ? { closedAt: now, documentSnapshot, signedByUid: actor.uid }
+                ? { closedAt: now, documentSnapshot, signedByUid: actor.uid,
+                    signedAssignmentVersion: assigned(work, user) ? work.installation.assignmentVersion || 0 : -1 }
                 : {}),
             }
           : {}),
@@ -1084,6 +1116,7 @@ export function installationService(db: Firestore) {
         documentSnapshot,
         signedByUid: actor.uid,
         signRequestId: requestId,
+        signedAssignmentVersion: assigned(work, user) ? work.installation.assignmentVersion || 0 : -1,
       };
       tx.update(sr, update);
       tx.update(ref, {
@@ -1418,8 +1451,12 @@ export function installationService(db: Firestore) {
       .slice(0, 25)
       .map(sanitize)
       .filter((sheet): sheet is InstallationSheet => sheet !== null);
+    const management = manager ? await Promise.all([archiveReasons(workId, work), pickupState(workId, work)]) : null;
     return {
-      ...(manager ? { managementActions: { archiveReasons: await archiveReasons(workId, work) } } : {}),
+      ...(management ? { managementActions: {
+        archiveReasons: management[0],
+        pickup: management[1],
+      } } : {}),
       work: {
         id: workId,
         client: work.client,
@@ -1567,6 +1604,7 @@ export function installationService(db: Firestore) {
     photo: any,
     remove = false,
     expectedRevision?: number,
+    offlineStopCommand?: Command,
   ) {
     return db.runTransaction(async (tx) => {
       const user = await actorData(tx, actor);
@@ -1576,6 +1614,7 @@ export function installationService(db: Firestore) {
       const ref = sheetsRef(workId).doc(identifier(sheetId));
       const sheet = (await tx.get(ref)).data() as InstallationSheet | undefined;
       assertPrincipal(sheet, actor.uid);
+      if (offlineStopCommand) await validateOfflineStop(db, tx, actor.uid, user.displayName, work, offlineStopCommand, sheet);
       if (remove && !sheet.photos.some((p) => p.id === photo.id))
         return { sheet };
       if (!remove && sheet.photos.some((p) => p.id === photo.id)) {
