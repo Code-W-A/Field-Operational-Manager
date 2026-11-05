@@ -26,7 +26,6 @@ export function validateCrmOfferForIssue(value: unknown): OfferFieldErrors {
   if (!Array.isArray(snapshot.conditions) || !snapshot.conditions.some(hasText)) {
     errors["snapshot.conditions"] = "Condițiile comerciale sunt obligatorii."
   }
-  if (!hasText(snapshot.comments)) errors["snapshot.comments"] = "Comentariile interne sunt obligatorii."
   for (const key of ["vatPercent", "adjustmentPercent"]) {
     if (finiteNumber(snapshot[key]) === null) errors[`snapshot.${key}`] = "Completați o valoare numerică validă."
   }

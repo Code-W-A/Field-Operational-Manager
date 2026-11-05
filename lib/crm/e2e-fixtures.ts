@@ -56,6 +56,14 @@ export const E2E_CRM_USERS = [
   { uid: E2E_CRM_OWNER_ID, displayName: "Administrator", email: "admin@example.com", role: "admin" },
 ]
 
+E2E_CRM_OPPORTUNITIES.push({
+  ...E2E_CRM_OPPORTUNITIES[0],
+  id: "e2e-opp-without-display-title",
+  code: "OP.E2E.002",
+  title: "Înlocuire rulou Equilibrium 1",
+  displayTitle: "",
+})
+
 /** Draft cu opționale deja salvate, ca să testăm reîncărcarea în editor. */
 const seededOffer: CrmOffer = {
   id: "e2e-offer-draft",
@@ -111,12 +119,36 @@ const legacyOffer: CrmOffer = {
  * Store in-memory pentru oferte: salvarea unui draft în E2E scrie aici, iar
  * reîncărcarea listei citește de aici, deci round-trip-ul e testabil fără API.
  */
-let offerStore: CrmOffer[] = [seededOffer, legacyOffer]
+const sentOffer: CrmOffer = {
+  ...seededOffer,
+  id: "e2e-offer-sent",
+  version: 3,
+  status: "SENT",
+  snapshot: {
+    ...seededOffer.snapshot,
+    vatPercent: 19,
+    adjustmentPercent: -10,
+    validityText: "15 zile de la emitere",
+    comments: "Note interne ofertă trimisă",
+    total: 4500,
+  },
+  subject: "Ofertă transmisă V3",
+  message: "Mesaj ofertă transmisă",
+}
+
+let offerStore: CrmOffer[] = [seededOffer, legacyOffer, sentOffer]
 
 export function listE2eCrmOffers(opportunityId: string): CrmOffer[] {
   return offerStore
     .filter((offer) => offer.opportunityId === opportunityId)
     .map((offer) => JSON.parse(JSON.stringify(offer)) as CrmOffer)
+}
+
+export function deleteE2eCrmOfferDraft(opportunityId: string, offerId: string): void {
+  const offer = offerStore.find((row) => row.id === offerId && row.opportunityId === opportunityId)
+  if (!offer) throw new Error("Draftul nu există.")
+  if (offer.status !== "DRAFT") throw new Error("Se pot șterge doar ofertele draft.")
+  offerStore = offerStore.filter((row) => row.id !== offerId)
 }
 
 export function saveE2eCrmOfferDraft(input: {

@@ -26,7 +26,7 @@ test("all text fields are required, whitespace is rejected, and clearing default
   await page.route("**/api/crm/offers/issue", (route) => { issued++; return route.abort() })
   const dialog = await openDraft(page)
   await completeText(page)
-  for (const id of ["offer-email-subject", "offer-email-body", "offer-validity", "offer-conditions", "offer-comments", "offer-adjustment"]) {
+  for (const id of ["offer-email-subject", "offer-email-body", "offer-validity", "offer-conditions", "offer-adjustment"]) {
     const input = dialog.locator(`#${id}`)
     const original = await input.inputValue()
     await input.fill("  ")
@@ -98,9 +98,11 @@ test("mobile product errors open the row editor and focus the missing field", as
   await page.screenshot({ path: "test-results/crm-offer-validation-mobile.png", fullPage: true, animations: "disabled" })
 })
 
-test("complete offer generates a PDF and passes validity to the issue API with simulated storage and email", async ({ page }) => {
+test("offer without internal comments generates a PDF and reaches the issue API with simulated storage and email", async ({ page }) => {
   const dialog = await openDraft(page)
   await completeText(page)
+  await dialog.locator("#offer-comments").fill("")
+  await expect(dialog.getByLabel("Comentarii interne (opțional)")).toBeVisible()
   await page.unroute("https://firebasestorage.googleapis.com/**")
   let uploads = 0
   await page.route("https://firebasestorage.googleapis.com/**", async (route) => {
@@ -120,7 +122,7 @@ test("complete offer generates a PDF and passes validity to the issue API with s
   await dialog.getByRole("button", { name: "Emite ofertă" }).click()
   await expect(page.getByText("Ofertă emisă", { exact: true })).toBeVisible({ timeout: 30_000 })
   expect(payload.snapshot.validityText).toBe("30 de zile de la emitere")
-  expect(payload.snapshot.comments).toBe("Comentariu intern secret")
+  expect(payload.snapshot.comments).toBe("")
   expect(payload.snapshot.total).toBe(5000)
   expect(payload.snapshot.optionalProducts).toHaveLength(2)
   expect(uploads).toBeGreaterThan(0)

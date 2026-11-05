@@ -1,6 +1,6 @@
 import { technicianCrmRequest } from "./technician-client";
 import { auth } from "@/lib/firebase/config"
-import { listE2eCrmOffers, saveE2eCrmOfferDraft } from "@/lib/crm/e2e-fixtures"
+import { deleteE2eCrmOfferDraft, listE2eCrmOffers, saveE2eCrmOfferDraft } from "@/lib/crm/e2e-fixtures"
 import { isE2eTestMode } from "@/lib/utils/environment"
 import type { OfferFieldErrors } from "./offer-validation"
 import type { CrmOffer, IssueCrmOfferInput, SaveCrmOfferDraftInput } from "@/lib/crm/types"
@@ -118,6 +118,19 @@ export async function saveCrmOfferDraft(input: SaveCrmOfferDraftInput) {
   }
 
   return data.offerId
+}
+
+export async function deleteCrmOfferDraft(opportunityId: string, offerId: string): Promise<void> {
+  if (!opportunityId || !offerId) throw new Error("offerId și opportunityId sunt obligatorii.")
+  if (isE2eTestMode()) return deleteE2eCrmOfferDraft(opportunityId, offerId)
+  const response = await fetch("/api/crm/offers", {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...(await firebaseBearerHeader()) },
+    body: JSON.stringify({ opportunityId, offerId }),
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok || !data?.ok) throw new Error(data?.error || "Nu s-a putut șterge draftul.")
 }
 
 export class CrmOfferValidationError extends Error {

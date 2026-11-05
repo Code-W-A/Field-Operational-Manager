@@ -239,6 +239,49 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await requireRole(["admin", "dispecer"], request)
+    if (!session.uid) return NextResponse.json({ error: "Sesiune invalidă sau expirată." }, { status: 401 })
+    const body = await request.json().catch(() => null)
+    const offerId = normalizeString(body?.offerId)
+    const opportunityId = normalizeString(body?.opportunityId)
+    if (!offerId || !opportunityId) {
+      return NextResponse.json({ error: "offerId și opportunityId sunt obligatorii." }, { status: 400 })
+    }
+    const opportunity = await getOpportunityWithPermissions({ opportunityId, userId: session.uid, mode: "edit" })
+    if (!opportunity) {
+      return NextResponse.json({ error: "Oportunitatea nu există sau nu ai acces de editare." }, { status: 404 })
+    }
+    const offerRef = adminDb.collection(CRM_COLLECTIONS.offers).doc(offerId)
+    const result = await adminDb.runTransaction(async (transaction) => {
+      const offerSnap = await transaction.get(offerRef)
+      if (!offerSnap.exists) return { error: "Draftul nu există.", status: 404 } as const
+      const offer = offerSnap.data() as Record<string, unknown>
+      if (normalizeString(offer.opportunityId) !== opportunityId) {
+        return { error: "Draftul nu aparține oportunității.", status: 400 } as const
+      }
+      if (offer.status !== "DRAFT" || offer.sentAt) {
+        return { error: "Se pot șterge doar ofertele draft. Ofertele emise se păstrează în istoric.", status: 409 } as const
+      }
+      transaction.delete(offerRef)
+      return { offer } as const
+    })
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status })
+    await logOfferEvent({
+      type: "OFFER_DRAFT_DELETED", source: "crm", status: "draft_deleted",
+      offerId, opportunityId, actorId: session.uid, actorType: "staff",
+      snapshot: result.offer.snapshot,
+      payload: { version: result.offer.version ?? null },
+    }, request)
+    return NextResponse.json({ ok: true, offerId })
+  } catch (error: unknown) {
+    if (error instanceof RequireRoleError) return NextResponse.json({ error: error.message }, { status: error.status })
+    logFirestoreIndexHintIfPresent(error, "DELETE /api/crm/offers")
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Nu s-a putut șterge draftul." }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await requireRole(["admin", "dispecer"], request)

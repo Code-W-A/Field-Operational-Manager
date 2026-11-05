@@ -1,0 +1,49 @@
+import { test, expect } from "@playwright/test"
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style")
+      style.textContent = '[data-testid="preview-mode-banner"] { display:none !important; }'
+      document.head.appendChild(style)
+    })
+  })
+  await page.route("**/api/crm/offers/issue", (route) => route.abort())
+  await page.route("https://firebasestorage.googleapis.com/**", (route) => route.abort())
+  await page.goto("/crm/opportunities/e2e-opp-offers/offers")
+})
+
+test("draft deletion can be cancelled, then confirmed; issued offers have no delete button", async ({ page }) => {
+  const remove = page.getByTestId("offer-delete-draft-e2e-offer-draft")
+  await expect(remove).toBeVisible()
+  await expect(page.getByTestId("offer-delete-draft-e2e-offer-sent")).toHaveCount(0)
+  page.once("dialog", (dialog) => dialog.dismiss())
+  await remove.click()
+  await expect(page.getByTestId("offer-load-draft-e2e-offer-draft")).toBeVisible()
+  page.once("dialog", (dialog) => dialog.accept())
+  await remove.click()
+  await expect(page.getByText("Draft șters", { exact: true })).toBeVisible()
+  await expect(remove).toHaveCount(0)
+  await expect(page.getByTestId("offer-load-draft-e2e-offer-draft")).toHaveCount(0)
+  await expect(page.getByTestId("offer-load-draft-e2e-offer-legacy")).toBeVisible()
+  await expect(page.getByTestId("offer-reuse-e2e-offer-sent")).toBeVisible()
+})
+
+test("deleting the loaded draft clears the editor before creating another offer", async ({ page }) => {
+  await page.getByTestId("offer-load-draft-e2e-offer-draft").click()
+  const editor = page.getByRole("dialog", { name: "Editor ofertă", exact: true })
+  await expect(editor.locator("#name-p1")).toHaveValue("Barieră automată 6m")
+  await editor.getByRole("button", { name: "Close", exact: true }).click()
+  page.once("dialog", (dialog) => dialog.accept())
+  await page.getByTestId("offer-delete-draft-e2e-offer-draft").click()
+  await expect(page.getByText("Draft șters", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Deschide editor", exact: true }).click()
+  await expect(editor.locator("#offer-email-subject")).toHaveValue("Ofertă OP.E2E.001 — Barieră acces parcare")
+  await expect(editor.getByTestId("offer-products-section").locator("textarea[id^='name-']").first()).toHaveValue("")
+  await expect(editor.locator("#offer-comments")).toHaveValue("")
+  await editor.getByRole("button", { name: "Salvează draft", exact: true }).click()
+  await expect(page.getByText("Draft salvat", { exact: true })).toBeVisible()
+  await editor.getByRole("button", { name: "Close", exact: true }).click()
+  await expect(page.getByTestId("offer-load-draft-e2e-offer-draft")).toHaveCount(0)
+  await expect(page.locator("[data-testid^='offer-load-draft-']")).toHaveCount(2)
+})

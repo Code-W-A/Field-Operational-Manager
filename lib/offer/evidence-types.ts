@@ -2,6 +2,7 @@ import type { OfferResponseCertifiedPdf } from "@/packages/fom-domain/documents"
 export type { OfferResponseCertifiedPdf } from "@/packages/fom-domain/documents";
 export type OfferEventType =
   | "OFFER_PREPARED"
+  | "OFFER_DRAFT_DELETED"
   | "OFFER_TOKEN_MINTED"
   | "OFFER_EMAIL_SENT"
   | "OFFER_LINK_OPENED"
@@ -89,6 +90,7 @@ export interface OfferEvidencePack {
 
 export const OFFER_EVENT_LABELS: Record<string, string> = {
   OFFER_PREPARED: "Ofertă pregătită",
+  OFFER_DRAFT_DELETED: "Draft ofertă șters",
   OFFER_TOKEN_MINTED: "Link acțiune generat",
   OFFER_EMAIL_SENT: "Email ofertă trimis",
   OFFER_LINK_OPENED: "Link ofertă deschis",

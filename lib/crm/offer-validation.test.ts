@@ -13,7 +13,7 @@ test("valid offer, explicit zero, no optionals and blank lines between condition
 })
 
 test("every text field rejects missing, whitespace and non-text values", () => {
-  for (const path of ["subject", "message", "snapshot.validityText", "snapshot.comments", "snapshot.conditions"]) {
+  for (const path of ["subject", "message", "snapshot.validityText", "snapshot.conditions"]) {
     for (const value of [undefined, "", "  \n ", 123, null]) {
       const input: any = completeOffer()
       const [root, key] = path.split(".")
@@ -21,6 +21,14 @@ test("every text field rejects missing, whitespace and non-text values", () => {
       else input[root] = value
       assert.ok(validateCrmOfferForIssue(input)[path], path)
     }
+  }
+})
+
+test("internal comments may be missing, empty or whitespace at issuance", () => {
+  for (const value of [undefined, null, "", " \n "]) {
+    const input = completeOffer()
+    Object.assign(input.snapshot, { comments: value })
+    assert.deepEqual(validateCrmOfferForIssue(input), {})
   }
 })
 

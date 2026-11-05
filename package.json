@@ -69,7 +69,7 @@
     "test:auto-checkout-disabled": "npx tsx --test lib/attendance/auto-pontaj.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:contracte": "playwright test e2e/contracte-filters.spec.ts e2e/contracte-observatii.spec.ts e2e/contracte-revision-calendar.spec.ts",
-    "test:e2e:crm-offers": "playwright test e2e/crm-offer-optionals.spec.ts e2e/crm-offer-validation.spec.ts",
+    "test:e2e:crm-offers": "playwright test e2e/crm-offer-*.spec.ts",
     "test:crm-offer-validation": "tsx --test lib/crm/offer-validation.test.ts lib/crm/offer-routes.test.ts",
     "test:e2e:hr-approvals": "playwright test e2e/hr-approvals-filters.spec.ts",
     "test:e2e:install": "playwright install chromium",

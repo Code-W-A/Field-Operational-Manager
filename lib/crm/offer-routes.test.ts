@@ -10,19 +10,21 @@ import { execFileSync } from "node:child_process"
 import { completeOffer } from "./offer-test-fixture"
 
 // Bundle the real route with in-memory adapters. No Firebase credentials or SMTP are loaded.
-const state = { pdf: null as Buffer | null, reads: 0, writes: [] as any[], mails: [] as any[], stored: {} as Record<string, any> }
+const state = { pdf: null as Buffer | null, reads: 0, writes: [] as any[], mails: [] as any[], stored: {} as Record<string, any>, actorId: "staff-test", roleError: false }
 ;(globalThis as any).__crmOfferRouteTest = state
 const adapters: Record<string, string> = {
   "firebase-admin/storage": 'export function getStorage() { return { bucket() { return { file() { return { async save(buffer) { globalThis.__crmOfferRouteTest.pdf = buffer } } } } } } }',
-  "@/lib/auth/require-role": 'export class RequireRoleError extends Error {} export async function requireRole() { return { uid: "staff-test" } }',
-  "@/lib/firebase/admin": `export const adminApp = {}; export const adminDb = { collection(name) {
+  "@/lib/auth/require-role": 'export class RequireRoleError extends Error { constructor() { super("Acces interzis"); this.status = 403 } } export async function requireRole(roles) { if (globalThis.__crmOfferRouteTest.roleError) { if (roles.includes("tehnician")) throw new Error("DELETE must exclude technicians"); throw new RequireRoleError() } return { uid: globalThis.__crmOfferRouteTest.actorId } }',
+  "@/lib/firebase/admin": `export const adminApp = {}; export const adminDb = {
+    async runTransaction(callback) { return callback({ get: ref => ref.get(), delete: ref => ref.delete() }) },
+    collection(name) {
     const s = globalThis.__crmOfferRouteTest;
     const query = { where() { return query }, limit() { return query }, orderBy() { return query }, async get() { s.reads++; return { empty: true, docs: [] } } };
     return { ...query, doc(id = "offer-test") { return { id, async get() {
       s.reads++;
       const data = name === "users" ? { email: "staff@example.test" } : name === "crm_opportunities" ? { ownerId: "staff-test", pipelineStage: "OFERTA_TRANSMISA", opportunityType: "OFERTE" } : s.stored[id];
       return { exists: !!data, data: () => data };
-    }, async set(value) { s.writes.push({ name, id, value }); s.stored[id] = { ...s.stored[id], ...value } } } },
+    }, delete() { s.writes.push({ name, id, deleted: true }); delete s.stored[id] }, async set(value) { s.writes.push({ name, id, value }); s.stored[id] = { ...s.stored[id], ...value } } } },
     async add(value) { s.writes.push({ name, value }); return { id: "entry" } } };
   } };`,
   "@/lib/email/send-invite-style-email.server": 'export async function sendInviteStyleEmail(input) { globalThis.__crmOfferRouteTest.mails.push(input); return { messageId: "simulated" } }',
@@ -48,14 +50,13 @@ const drafts = loadRoute("app/api/crm/offers/route.ts")
 function request(input: unknown) {
   return new NextRequest("https://example.test/api/crm/offers/issue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) })
 }
-function reset() { state.reads = 0; state.writes = []; state.mails = []; state.stored = {} }
+function reset() { state.reads = 0; state.writes = []; state.mails = []; state.stored = {}; state.actorId = "staff-test"; state.roleError = false }
 
 test("real issue route returns field errors before any data read, write or email", async () => {
   const route = await issue
   const cases: Array<[string, (input: any) => void]> = [
     ["subject", (i) => { i.subject = "  " }], ["message", (i) => { i.message = "" }],
     ["snapshot.validityText", (i) => { delete i.snapshot.validityText }],
-    ["snapshot.comments", (i) => { i.snapshot.comments = "\n" }],
     ["snapshot.conditions", (i) => { i.snapshot.conditions = [" ", ""] }],
     ["snapshot.products", (i) => { i.snapshot.products = [] }],
     ["snapshot.products.0.um", (i) => { i.snapshot.products[0].um = "" }],
@@ -71,6 +72,74 @@ test("real issue route returns field errors before any data read, write or email
     assert.ok((await response.json()).fieldErrors[field], field)
     assert.equal(state.reads, 0); assert.equal(state.writes.length, 0); assert.equal(state.mails.length, 0)
   }
+})
+
+test("real issue route accepts an offer without internal comments", async () => {
+  reset()
+  const input = completeOffer()
+  delete (input.snapshot as any).comments
+  const response = await (await issue).POST(request(input))
+  assert.equal(response.status, 200)
+  assert.equal(state.stored["offer-test"].snapshot.comments, "")
+  assert.equal(state.mails.length, 1)
+})
+
+function deleteRequest(offerId = "draft-test", opportunityId = "opp-test") {
+  return new NextRequest("https://example.test/api/crm/offers", {
+    method: "DELETE", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ offerId, opportunityId }),
+  })
+}
+
+test("real delete route removes only the selected draft", async () => {
+  reset()
+  state.stored["draft-test"] = { status: "DRAFT", opportunityId: "opp-test", version: 2 }
+  state.stored["sent-test"] = { status: "SENT", opportunityId: "opp-test", version: 1 }
+  const response = await (await drafts).DELETE(deleteRequest())
+  assert.equal(response.status, 200)
+  assert.equal(state.stored["draft-test"], undefined)
+  assert.equal(state.stored["sent-test"].status, "SENT")
+  assert.equal(state.mails.length, 0)
+})
+
+test("real delete route rejects issued offers, wrong opportunities and missing drafts", async () => {
+  const route = await drafts
+  for (const status of ["SENT", "ACCEPTED", "REJECTED", "EXPIRED"]) {
+    reset()
+    state.stored["draft-test"] = { status, opportunityId: "opp-test" }
+    assert.equal((await route.DELETE(deleteRequest())).status, 409)
+    assert.equal(state.writes.length, 0)
+  }
+  reset()
+  state.stored["draft-test"] = { status: "DRAFT", sentAt: "2026-11-01", opportunityId: "opp-test" }
+  assert.equal((await route.DELETE(deleteRequest())).status, 409)
+  assert.equal(state.writes.length, 0)
+  reset()
+  state.stored["draft-test"] = { status: "DRAFT", opportunityId: "other-opp" }
+  assert.equal((await route.DELETE(deleteRequest())).status, 400)
+  assert.equal(state.writes.length, 0)
+  reset()
+  assert.equal((await route.DELETE(deleteRequest())).status, 404)
+  assert.equal((await route.DELETE(deleteRequest(""))).status, 400)
+  assert.equal(state.writes.length, 0)
+})
+
+test("real delete route requires an authenticated staff actor with opportunity edit access", async () => {
+  const route = await drafts
+  reset()
+  state.roleError = true
+  assert.equal((await route.DELETE(deleteRequest())).status, 403)
+  assert.equal(state.reads, 0)
+  reset()
+  state.actorId = ""
+  assert.equal((await route.DELETE(deleteRequest())).status, 401)
+  assert.equal(state.reads, 0)
+  reset()
+  state.actorId = "other-user"
+  state.stored["draft-test"] = { status: "DRAFT", opportunityId: "opp-test" }
+  assert.equal((await route.DELETE(deleteRequest())).status, 404)
+  assert.equal(state.writes.length, 0)
+  assert.ok(state.stored["draft-test"])
 })
 
 test("real issue route stores validity and sends escaped HTML + plain text, with unchanged expiry", async () => {
