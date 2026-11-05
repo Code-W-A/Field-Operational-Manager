@@ -32,6 +32,19 @@ test("internal comments may be missing, empty or whitespace at issuance", () => 
   }
 })
 
+test("each commercial term needs actual text after its label", () => {
+  for (const [index, key, prefix] of [[0, "payment", "Plata"], [1, "delivery", "Livrare"], [2, "installation", "Instalare"]] as const) {
+    for (const value of ["", `${prefix}:`, `${prefix}: \n `]) {
+      const input = completeOffer()
+      input.snapshot.conditions[index] = value
+      assert.ok(validateCrmOfferForIssue(input)[`snapshot.conditions.${key}`])
+    }
+    const input = completeOffer()
+    input.snapshot.conditions.splice(index, 1)
+    assert.ok(validateCrmOfferForIssue(input)[`snapshot.conditions.${key}`])
+  }
+})
+
 test("every added product/optional is validated before empty names or units can be normalized", () => {
   for (const group of ["products", "optionalProducts"]) {
     for (const field of ["name", "um", "quantity", "price"]) {

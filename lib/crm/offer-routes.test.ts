@@ -58,6 +58,9 @@ test("real issue route returns field errors before any data read, write or email
     ["subject", (i) => { i.subject = "  " }], ["message", (i) => { i.message = "" }],
     ["snapshot.validityText", (i) => { delete i.snapshot.validityText }],
     ["snapshot.conditions", (i) => { i.snapshot.conditions = [" ", ""] }],
+    ["snapshot.conditions.payment", (i) => { i.snapshot.conditions[0] = "Plata:   " }],
+    ["snapshot.conditions.delivery", (i) => { i.snapshot.conditions[1] = "Livrare:" }],
+    ["snapshot.conditions.installation", (i) => { i.snapshot.conditions[2] = "Instalare: \n " }],
     ["snapshot.products", (i) => { i.snapshot.products = [] }],
     ["snapshot.products.0.um", (i) => { i.snapshot.products[0].um = "" }],
     ["snapshot.products.0.price", (i) => { i.snapshot.products[0].price = null }],
@@ -152,7 +155,7 @@ test("real issue route stores validity and sends escaped HTML + plain text, with
   assert.equal(response.status, 200, JSON.stringify(await response.json()))
   const offer = state.stored["offer-test"]
   assert.equal(offer.snapshot.validityText, input.snapshot.validityText)
-  assert.deepEqual(offer.snapshot.conditions, ["Plata: conform contract"])
+  assert.deepEqual(offer.snapshot.conditions, input.snapshot.conditions.filter((row) => row.trim()))
   assert.ok(offer.actionExpiresAt.getTime() >= before + 30 * 86400000)
   assert.ok(offer.actionExpiresAt.getTime() <= Date.now() + 30 * 86400000)
   assert.equal(state.mails.length, 1)

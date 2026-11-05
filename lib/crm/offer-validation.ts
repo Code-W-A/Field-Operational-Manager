@@ -1,3 +1,5 @@
+import { parseCrmOfferConditions } from "./offer-conditions"
+
 /** Shared by the editor and the issue route, before lossy normalization. */
 export type OfferFieldErrors = Record<string, string>
 
@@ -23,6 +25,10 @@ export function validateCrmOfferForIssue(value: unknown): OfferFieldErrors {
     if (!hasText(input[key])) errors[key] = `${label} este obligatoriu.`
   }
   if (!hasText(snapshot.validityText)) errors["snapshot.validityText"] = "Valabilitatea ofertei este obligatorie."
+  const terms = parseCrmOfferConditions(snapshot.conditions)
+  for (const [key, label] of [["payment", "plată"], ["delivery", "livrare"], ["installation", "instalare"]] as const) {
+    if (!hasText(terms[key])) errors[`snapshot.conditions.${key}`] = `Completați termenul de ${label}.`
+  }
   if (!Array.isArray(snapshot.conditions) || !snapshot.conditions.some(hasText)) {
     errors["snapshot.conditions"] = "Condițiile comerciale sunt obligatorii."
   }

@@ -26,7 +26,7 @@ test("all text fields are required, whitespace is rejected, and clearing default
   await page.route("**/api/crm/offers/issue", (route) => { issued++; return route.abort() })
   const dialog = await openDraft(page)
   await completeText(page)
-  for (const id of ["offer-email-subject", "offer-email-body", "offer-validity", "offer-conditions", "offer-adjustment"]) {
+  for (const id of ["offer-email-subject", "offer-email-body", "offer-validity", "offer-terms-payment", "offer-terms-delivery", "offer-terms-installation", "offer-adjustment"]) {
     const input = dialog.locator(`#${id}`)
     const original = await input.inputValue()
     await input.fill("  ")
@@ -123,6 +123,7 @@ test("offer without internal comments generates a PDF and reaches the issue API 
   await expect(page.getByText("Ofertă emisă", { exact: true })).toBeVisible({ timeout: 30_000 })
   expect(payload.snapshot.validityText).toBe("30 de zile de la emitere")
   expect(payload.snapshot.comments).toBe("")
+  expect(payload.snapshot.conditions).toEqual(["Plata: conform contract", "Livrare: 30 zile lucrătoare", "Instalare: nu este inclusă"])
   expect(payload.snapshot.total).toBe(5000)
   expect(payload.snapshot.optionalProducts).toHaveLength(2)
   expect(uploads).toBeGreaterThan(0)

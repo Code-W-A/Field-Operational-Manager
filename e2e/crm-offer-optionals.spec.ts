@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 async function openOffersPage(page: Page) {
   await page.goto(OFFERS_URL)
-  await expect(page.getByRole("button", { name: "Deschide editor" })).toBeEnabled({ timeout: 60_000 })
+  await expect(page.getByRole("button", { name: "Ofertă nouă", exact: true })).toBeEnabled({ timeout: 60_000 })
 }
 
 /** Încarcă un draft fără navigare, ca store-ul fixture din memorie să nu se reseteze. */

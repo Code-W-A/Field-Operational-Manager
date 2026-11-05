@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { useTargetList } from "@/hooks/use-settings"
 import { downloadTechnicianCrmFile } from "@/lib/crm/technician-client"
 import { useCrmOpportunity } from "@/hooks/use-crm-opportunity"
 import { resolveClientContactsForOpportunity } from "@/lib/crm/opportunity-contacts"
@@ -26,11 +27,12 @@ import { formatDateTime } from "@/lib/crm/presenters"
 import { getDateValue } from "@/lib/crm/activity"
 import { crmStorageProvider } from "@/lib/crm/storage/provider"
 import { generateOfferPdf } from "@/lib/utils/offer-pdf"
-import { blobToBase64, isValidEmail, normalizeEmail } from "@/lib/work-documents/shared"
+import { blobToBase64, buildPricingConditions, isValidEmail, normalizeEmail } from "@/lib/work-documents/shared"
 import { getCrmFileOpenUrl } from "@/lib/crm/file-preview"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 import { applyAdjustment, computeOfferSubtotal, parseAdjustmentPercent } from "@/lib/crm/offer-totals"
 import { validateCrmOfferForIssue, type OfferFieldErrors } from "@/lib/crm/offer-validation"
+import { parseCrmOfferConditions } from "@/lib/crm/offer-conditions"
 import type { CrmClient, CrmClientContact, CrmOffer } from "@/lib/crm/types"
 
 function createEmptyProduct(): ProductItem {
@@ -42,13 +44,6 @@ function createEmptyProduct(): ProductItem {
     price: 0,
     total: 0,
   }
-}
-
-function parseConditions(value: string) {
-  return value
-    .split("\n")
-    .map((row) => row.trim())
-    .filter(Boolean)
 }
 
 function formatOfferStatus(offer: CrmOffer) {
@@ -83,7 +78,10 @@ export default function OpportunityOffersPage() {
   const [optionalProducts, setOptionalProducts] = useState<ProductItem[]>([])
   const [vatPercent, setVatPercent] = useState(String(DEFAULT_OFFER_VAT_PERCENT))
   const [adjustmentPercent, setAdjustmentPercent] = useState("0")
-  const [conditionsInput, setConditionsInput] = useState("Plata: conform contract\nLivrare: conform stoc\nInstalare: conform programare")
+  const [commercialTerms, setCommercialTerms] = useState(() => parseCrmOfferConditions([]))
+  const { items: paymentTermOptions } = useTargetList("offer.paymentTermsOptions")
+  const { items: deliveryTermOptions } = useTargetList("offer.deliveryTermsOptions")
+  const { items: installationTermOptions } = useTargetList("offer.installationTermsOptions")
   const [comments, setComments] = useState("")
   const [validityText, setValidityText] = useState("")
   const [fieldErrors, setFieldErrors] = useState<OfferFieldErrors>({})
@@ -93,6 +91,17 @@ export default function OpportunityOffersPage() {
   const [savingDraft, setSavingDraft] = useState(false)
   const [issuingOffer, setIssuingOffer] = useState(false)
   const [deletingDraftOfferId, setDeletingDraftOfferId] = useState<string | null>(null)
+  const [startingNewOffer, setStartingNewOffer] = useState(false)
+  const editorBaseline = useRef<string | null>(null)
+  const captureEditorBaseline = useRef(false)
+  const editorFingerprint = JSON.stringify({ products, optionalProducts, vatPercent, adjustmentPercent, commercialTerms, comments, validityText, subject, message })
+  // Capture the applied form after all state setters commit, including identical snapshots.
+  useEffect(() => {
+    if (captureEditorBaseline.current) {
+      editorBaseline.current = editorFingerprint
+      captureEditorBaseline.current = false
+    }
+  })
 
   const subtotal = useMemo(() => computeOfferSubtotal(products), [products])
   const adjustment = parseAdjustmentPercent(adjustmentPercent)
@@ -118,7 +127,8 @@ export default function OpportunityOffersPage() {
   )
 
   const editorUnavailable = isTechnician || isTerminalStage
-  const canOpenEditor = !editorUnavailable && !deletingDraftOfferId && Boolean(primaryContact?.email && isValidEmail(primaryRecipientEmail))
+  const editorBusy = savingDraft || issuingOffer || Boolean(deletingDraftOfferId) || startingNewOffer
+  const canOpenEditor = !editorUnavailable && !editorBusy && Boolean(primaryContact?.email && isValidEmail(primaryRecipientEmail))
 
   const load = async () => {
     if (!opportunity || !user?.uid) return
@@ -188,6 +198,11 @@ export default function OpportunityOffersPage() {
     )
   }
 
+  const buildConditions = () => [
+    ...buildPricingConditions(commercialTerms.payment.trim(), commercialTerms.delivery.trim(), commercialTerms.installation.trim()),
+    ...commercialTerms.additional.map((row) => row.trim()).filter(Boolean),
+  ]
+
   const buildSnapshot = () => ({
     products: products.map((row) => ({
       id: row.id,
@@ -201,16 +216,36 @@ export default function OpportunityOffersPage() {
     validityText: validityText.trim(),
     vatPercent: Number(vatPercent.replace(",", ".")) || 0,
     adjustmentPercent: adjustmentPercent.trim() ? Number(adjustmentPercent.replace(",", ".")) : Number.NaN,
-    conditions: parseConditions(conditionsInput),
+    conditions: buildConditions(),
     comments: comments.trim(),
     subtotal,
     total,
   })
 
+  const resetEditor = async () => {
+    loadedOfferVat.current = true
+    const vat = await getDefaultOfferVatPercent()
+    const opportunityName = opportunity.displayTitle?.trim() || [opportunity.code, opportunity.title].filter((part) => part?.trim()).join(" - ")
+    captureEditorBaseline.current = true
+    setEditingDraftOfferId(null)
+    setSourceOfferVersion(null)
+    setProducts([createEmptyProduct()])
+    setOptionalProducts([])
+    setVatPercent(String(vat))
+    setAdjustmentPercent("0")
+    setCommercialTerms(parseCrmOfferConditions([]))
+    setComments("")
+    setValidityText("")
+    setSubject(`Ofertă ${opportunityName}`)
+    setMessage(`Bună ziua,\n\nVă transmitem oferta comercială pentru oportunitatea ${opportunityName}${clientName ? ` — ${clientName}` : ""}.\n\nPuteți accepta sau refuza oferta din acest email, folosind butoanele incluse în mesaj.\n\nCu stimă,`)
+    setFieldErrors({})
+  }
+
   const loadOfferInEditor = (offer: CrmOffer) => {
     if (!canOpenEditor || savingDraft || issuingOffer) return
     const snapshot = offer.snapshot
     if (!snapshot) return
+    captureEditorBaseline.current = true
     loadedOfferVat.current = true
     setVatPercent(snapshot.vatPercent == null || !Number.isFinite(snapshot.vatPercent) ? "" : String(snapshot.vatPercent))
     setProducts(
@@ -220,7 +255,7 @@ export default function OpportunityOffersPage() {
     )
     setOptionalProducts((snapshot.optionalProducts || []).map((row) => ({ ...row })) as ProductItem[])
     setAdjustmentPercent(snapshot.adjustmentPercent == null || !Number.isFinite(snapshot.adjustmentPercent) ? "" : String(snapshot.adjustmentPercent))
-    setConditionsInput((snapshot.conditions || []).join("\n"))
+    setCommercialTerms(parseCrmOfferConditions(snapshot.conditions))
     setComments(snapshot.comments || "")
     setValidityText(snapshot.validityText || "")
     setFieldErrors({})
@@ -232,7 +267,8 @@ export default function OpportunityOffersPage() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const openEditorClick = () => {
+  const openEditorClick = async () => {
+    if (editorBusy) return
     if (editorUnavailable) {
       toast({
         title: "Editor indisponibil",
@@ -251,13 +287,18 @@ export default function OpportunityOffersPage() {
       })
       return
     }
-    setFieldErrors({})
-    if (!editingDraftOfferId) {
-      const opportunityName = opportunity.displayTitle?.trim() || [opportunity.code, opportunity.title].filter((part) => part?.trim()).join(" - ")
-      setSubject((value) => value || `Ofertă ${opportunityName}`)
-      setMessage((value) => value || `Bună ziua,\n\nVă transmitem oferta comercială pentru oportunitatea ${opportunityName}${clientName ? ` — ${clientName}` : ""}.\n\nPuteți accepta sau refuza oferta din acest email, folosind butoanele incluse în mesaj.\n\nCu stimă,`)
+    if (editorBaseline.current !== null && editorBaseline.current !== editorFingerprint &&
+      !window.confirm("Există modificări nesalvate. Renunți la ele și începi o ofertă nouă?")) {
+      setOfferEditorOpen(true)
+      return
     }
-    setOfferEditorOpen(true)
+    setStartingNewOffer(true)
+    try {
+      await resetEditor()
+      setOfferEditorOpen(true)
+    } finally {
+      setStartingNewOffer(false)
+    }
   }
 
   const showFieldErrors = (errors: OfferFieldErrors) => {
@@ -280,7 +321,7 @@ export default function OpportunityOffersPage() {
   ) : null
 
   const handleDeleteDraft = async (offer: CrmOffer) => {
-    if (isTechnician || offer.status !== "DRAFT" || deletingDraftOfferId || savingDraft || issuingOffer) return
+    if (isTechnician || offer.status !== "DRAFT" || editorBusy) return
     if (!window.confirm(`Ștergi draftul V${offer.version}? Această acțiune nu poate fi anulată.`)) return
     setDeletingDraftOfferId(offer.id)
     try {
@@ -288,19 +329,7 @@ export default function OpportunityOffersPage() {
       setOffers((rows) => rows.filter((row) => row.id !== offer.id))
       if (editingDraftOfferId === offer.id) {
         setOfferEditorOpen(false)
-        setEditingDraftOfferId(null)
-        setSourceOfferVersion(null)
-        setProducts([createEmptyProduct()])
-        setOptionalProducts([])
-        setAdjustmentPercent("0")
-        setConditionsInput("Plata: conform contract\nLivrare: conform stoc\nInstalare: conform programare")
-        setComments("")
-        setValidityText("")
-        setSubject("")
-        setMessage("")
-        setFieldErrors({})
-        loadedOfferVat.current = false
-        setVatPercent(String(await getDefaultOfferVatPercent()))
+        await resetEditor()
       }
       toast({ title: "Draft șters", description: `Draftul V${offer.version} a fost șters.` })
       window.dispatchEvent(new CustomEvent("crm:activity-refresh", { detail: { opportunityId } }))
@@ -312,7 +341,7 @@ export default function OpportunityOffersPage() {
   }
 
   const handleSaveDraft = async () => {
-    if (!user?.uid || savingDraft || deletingDraftOfferId) return
+    if (!user?.uid || editorBusy) return
     if (!primaryRecipientEmail || !isValidEmail(primaryRecipientEmail)) {
       toast({
         title: "Nu se poate salva",
@@ -334,6 +363,7 @@ export default function OpportunityOffersPage() {
         actorId: user.uid,
       })
       setEditingDraftOfferId(offerId)
+      editorBaseline.current = editorFingerprint
       toast({ title: "Draft salvat", description: "Oferta a fost salvată ca draft." })
       await load()
     } catch (error) {
@@ -348,7 +378,7 @@ export default function OpportunityOffersPage() {
   }
 
   const handleIssueOffer = async () => {
-    if (!user?.uid || issuingOffer || deletingDraftOfferId) return
+    if (!user?.uid || editorBusy) return
     const email = primaryRecipientEmail
     if (!isValidEmail(email)) {
       toast({
@@ -361,7 +391,7 @@ export default function OpportunityOffersPage() {
 
     const errors = validateCrmOfferForIssue({
       subject, message,
-      snapshot: { products, optionalProducts, validityText, conditions: parseConditions(conditionsInput), comments, vatPercent, adjustmentPercent: adjustmentPercent.replace(",", ".") },
+      snapshot: { products, optionalProducts, validityText, conditions: buildConditions(), comments, vatPercent, adjustmentPercent: adjustmentPercent.replace(",", ".") },
     })
     if (Object.keys(errors).length) {
       showFieldErrors(errors)
@@ -429,8 +459,8 @@ export default function OpportunityOffersPage() {
         attachmentBase64,
       })
 
-      setEditingDraftOfferId(null)
       setOfferEditorOpen(false)
+      await resetEditor()
       toast({
         title: "Ofertă emisă",
         description: "Oferta a fost trimisă pe email către contactul principal.",
@@ -599,18 +629,42 @@ export default function OpportunityOffersPage() {
               <Textarea id="offer-validity" {...fieldProps("snapshot.validityText")} value={validityText} onChange={(event) => setValidityText(event.target.value)} placeholder="Ex.: 30 de zile de la emitere" className="min-h-[72px]" />
               {fieldError("snapshot.validityText")}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="offer-conditions" className="text-sm font-medium text-neutral-800">
-                Condiții comerciale
-              </Label>
-              <Textarea
-                {...fieldProps("snapshot.conditions")}
-                id="offer-conditions"
-                value={conditionsInput}
-                onChange={(event) => setConditionsInput(event.target.value)}
-                placeholder="Câte o condiție pe rând (apar în ofertă)"
-                className="min-h-[100px] resize-y text-sm leading-relaxed"
-              />
+            <div className="grid gap-3">
+              <p className="text-sm font-medium text-neutral-800">Condiții comerciale</p>
+              {([
+                { key: "payment", label: "Termen de plată", placeholder: "ex: 100% în avans", options: paymentTermOptions },
+                { key: "delivery", label: "Termen de livrare", placeholder: "ex: 30 zile lucrătoare de la plată", options: deliveryTermOptions },
+                { key: "installation", label: "Termen de instalare", placeholder: "ex: 1-2 zile lucrătoare de la livrare", options: installationTermOptions },
+              ] as const).map(({ key, label, placeholder, options }) => (
+                <div key={key} className="grid gap-2">
+                  <Label htmlFor={`offer-terms-${key}`}>{label}</Label>
+                  <Input
+                    id={`offer-terms-${key}`}
+                    {...fieldProps(`snapshot.conditions.${key}`)}
+                    value={commercialTerms[key]}
+                    onChange={(event) => setCommercialTerms((terms) => ({ ...terms, [key]: event.target.value }))}
+                    placeholder={placeholder}
+                  />
+                  {options.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {options.map((option) => (
+                        <Button key={option.id} type="button" variant="outline" size="sm" className="h-auto px-2 py-0.5 text-xs" title="Inserează din Setări"
+                          onClick={() => setCommercialTerms((terms) => ({ ...terms, [key]: option.name }))}>
+                          {option.name}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {fieldError(`snapshot.conditions.${key}`)}
+                </div>
+              ))}
+              {commercialTerms.additional.length > 0 ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="offer-additional-conditions">Alte condiții salvate (opțional)</Label>
+                  <Textarea id="offer-additional-conditions" value={commercialTerms.additional.join("\n")}
+                    onChange={(event) => setCommercialTerms((terms) => ({ ...terms, additional: event.target.value.split("\n") }))} />
+                </div>
+              ) : null}
               {fieldError("snapshot.conditions")}
             </div>
             <div className="grid gap-2">
@@ -634,16 +688,30 @@ export default function OpportunityOffersPage() {
 
   const offerEditorFooter = (
     <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
+      {!isTechnician && editingDraftOfferId && offers.some((offer) => offer.id === editingDraftOfferId && offer.status === "DRAFT") ? (
+        <Button
+          variant="outline"
+          className="h-10 w-full text-red-700 hover:text-red-800 sm:mr-auto sm:w-auto"
+          data-testid="offer-delete-current-draft"
+          disabled={editorBusy}
+          onClick={() => {
+            const draft = offers.find((offer) => offer.id === editingDraftOfferId && offer.status === "DRAFT")
+            if (draft) void handleDeleteDraft(draft)
+          }}
+        >
+          {deletingDraftOfferId === editingDraftOfferId ? "Se șterge…" : "Șterge draft"}
+        </Button>
+      ) : null}
       <Button
         variant="outline"
         onClick={handleSaveDraft}
-        disabled={savingDraft || issuingOffer}
+        disabled={editorBusy}
         className="h-10 w-full min-w-0 sm:w-auto"
       >
         <Save className="mr-1.5 h-4 w-4 shrink-0" />
         {savingDraft ? "Se salvează..." : "Salvează draft"}
       </Button>
-      <Button onClick={handleIssueOffer} disabled={issuingOffer || savingDraft} className="h-10 w-full min-w-0 sm:w-auto">
+      <Button onClick={handleIssueOffer} disabled={editorBusy} className="h-10 w-full min-w-0 sm:w-auto">
         <Send className="mr-1.5 h-4 w-4 shrink-0" />
         {issuingOffer ? "Se emite..." : "Emite ofertă"}
       </Button>
@@ -729,7 +797,7 @@ export default function OpportunityOffersPage() {
                         : ""
                     }
                   >
-                    Deschide editor
+                    {startingNewOffer ? "Se pregătește…" : "Ofertă nouă"}
                   </Button>
                 </div>
               </div>
@@ -868,7 +936,7 @@ export default function OpportunityOffersPage() {
                               variant="outline"
                               className="text-red-700 hover:text-red-800"
                               data-testid={`offer-delete-draft-${offer.id}`}
-                              disabled={Boolean(deletingDraftOfferId) || savingDraft || issuingOffer}
+                              disabled={editorBusy}
                               onClick={() => void handleDeleteDraft(offer)}
                             >
                               {deletingDraftOfferId === offer.id ? "Se șterge…" : "Șterge draft"}

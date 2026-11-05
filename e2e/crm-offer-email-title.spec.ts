@@ -18,7 +18,7 @@ for (const [id, name] of [
 ]) {
   test(`email defaults use the full opportunity name: ${id}`, async ({ page }) => {
     await page.goto(`/crm/opportunities/${id}/offers`)
-    await page.getByRole("button", { name: "Deschide editor", exact: true }).click()
+    await page.getByRole("button", { name: "Ofertă nouă", exact: true }).click()
     const dialog = page.getByRole("dialog", { name: "Editor ofertă", exact: true })
     await expect(dialog.locator("#offer-email-subject")).toHaveValue(`Ofertă ${name}`)
     await expect(dialog.locator("#offer-email-body")).toHaveValue(
@@ -27,9 +27,15 @@ for (const [id, name] of [
     await dialog.locator("#offer-email-subject").fill("Subiect personalizat")
     await dialog.locator("#offer-email-body").fill("Mesaj personalizat")
     await dialog.getByRole("button", { name: "Close", exact: true }).click()
-    await page.getByRole("button", { name: "Deschide editor", exact: true }).click()
+    page.once("dialog", (confirmation) => confirmation.dismiss())
+    await page.getByRole("button", { name: "Ofertă nouă", exact: true }).click()
     await expect(dialog.locator("#offer-email-subject")).toHaveValue("Subiect personalizat")
     await expect(dialog.locator("#offer-email-body")).toHaveValue("Mesaj personalizat")
+    await dialog.getByRole("button", { name: "Close", exact: true }).click()
+    page.once("dialog", (confirmation) => confirmation.accept())
+    await page.getByRole("button", { name: "Ofertă nouă", exact: true }).click()
+    await expect(dialog.locator("#offer-email-subject")).toHaveValue(`Ofertă ${name}`)
+    await expect(dialog.locator("#offer-email-body")).not.toHaveValue("Mesaj personalizat")
   })
 }
 
@@ -40,7 +46,7 @@ test("loading a saved draft preserves its subject and message", async ({ page })
   await expect(dialog.locator("#offer-email-subject")).toHaveValue("Ofertă OP.E2E.001")
   await expect(dialog.locator("#offer-email-body")).toHaveValue("Bună ziua,")
   await dialog.getByRole("button", { name: "Close", exact: true }).click()
-  await page.getByRole("button", { name: "Deschide editor", exact: true }).click()
+  await page.getByTestId("offer-load-draft-e2e-offer-draft").click()
   await expect(dialog.locator("#offer-email-subject")).toHaveValue("Ofertă OP.E2E.001")
   await expect(dialog.locator("#offer-email-body")).toHaveValue("Bună ziua,")
 })
