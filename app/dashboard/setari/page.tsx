@@ -51,6 +51,7 @@ import { SettingRow } from "@/components/settings/setting-row"
 import { SettingEditorDialog } from "@/components/settings/setting-editor-dialog"
 import { SettingHistoryDialog } from "@/components/settings/setting-history-dialog"
 import { DocumentatiiTab } from "@/components/settings/documentatii-tab"
+import { MobileAppTab } from "@/components/settings/mobile-app-tab"
 import { 
   PREDEFINED_SETTINGS, 
   ensurePredefinedSettings, 
@@ -152,7 +153,7 @@ export default function SetariPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const TAB_KEYS = ["variabile", "sistem", "documentatii"] as const
+  const TAB_KEYS = ["variabile", "sistem", "documentatii", "aplicatie-mobila"] as const
   type TabKey = (typeof TAB_KEYS)[number]
   const [activeTab, setActiveTab] = useState<TabKey>("variabile")
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
@@ -594,7 +595,7 @@ export default function SetariPage() {
         {/* Tabs pentru Setări Sistem și Variabile - Afișate doar la root level */}
         {!currentParentId ? (
           <Tabs value={activeTab} onValueChange={(value: any) => handleTabChange(value)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 lg:grid-cols-4">
               <TabsTrigger value="sistem" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
                 Setări Sistem
@@ -607,7 +608,11 @@ export default function SetariPage() {
                 <FileText className="h-4 w-4" />
                 Documentații
               </TabsTrigger>
+              <TabsTrigger value="aplicatie-mobila">Aplicație mobilă</TabsTrigger>
             </TabsList>
+            <TabsContent value="aplicatie-mobila" className="mt-6">
+              <MobileAppTab />
+            </TabsContent>
 
             {/* Tab Content: Setări Sistem */}
             <TabsContent value="sistem" className="mt-6 space-y-6">
