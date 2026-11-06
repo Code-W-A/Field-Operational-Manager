@@ -148,6 +148,8 @@ export function assertPayload(command: Command): void {
       break;
     }
     case "installation":
+      if (p.deferFields !== undefined)
+        check(p.deferFields === true && p.action === "stop" && !!command.offlineStop && p.fields === undefined, "Oprire locală invalidă.");
       check(
         [
           "start",

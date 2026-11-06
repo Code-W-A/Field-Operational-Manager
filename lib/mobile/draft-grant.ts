@@ -29,7 +29,7 @@ export async function issueDraftGrant(
       grant = {
         ...((phase2 || stopForSigning) ? { grantId: randomUUID() } : {}),
         ...(phase2 ? { phase2: true } : {}),
-        ...(stopForSigning ? { stopForSigning: true } : {}),
+        ...(stopForSigning ? { stopForSigning: true, installationStopWithoutDraft: true } : {}),
         sessionId,
         confirmedAt,
         expiresAt: confirmedAt + OFFLINE_ACCESS_MS,

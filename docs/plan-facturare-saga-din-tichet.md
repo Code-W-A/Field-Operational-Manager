@@ -1,6 +1,8 @@
 # Plan: facturare SAGA din pagina de detalii a tichetului
 
-Data analizei: **3 noiembrie 2026**. Stare: **propunere pentru implementare; aplicația nu a fost modificată**.
+Data analizei inițiale: **3 noiembrie 2026**. Actualizare implementare: **6 noiembrie 2026**.
+
+**Stare curentă:** ciorna facturii este implementată în pagina tichetului ([detalii](invoice-drafts.md)). Conectorul server pentru consultarea articolelor/stocului și interfața **Setări → SAGA** sunt implementate local ([configurare, verificări și limite](saga-connection.md)); citirile reale sunt dezactivate până la publicarea regulilor de protecție. Importul facturilor, numerotarea, PDF-ul și confirmarea validării/descărcării mărfii rămân de implementat/verificat. Analiza și etapele de mai jos reprezintă planul general, nu dovada că toate funcționalitățile sunt livrate.
 
 ## 1. Rezultatul urmărit și decizia principală
 
@@ -61,7 +63,7 @@ Manualul SAGA C descrie importul intrărilor/ieșirilor ca nevalidat și un pas 
 
 API-ul public consultat nu documentează: listarea tuturor clienților/articolelor/gestiunilor, rezervarea numerelor, citirea unei facturi după ID pentru verificarea stării, validarea/devalidarea, scăderea directă a stocului, stornarea, descărcarea PDF-ului facturii sau transmiterea e-Facturii. Absența lor din documentație este o limită a planului, nu o afirmație că SAGA nu le poate oferi prin alt mecanism oficial. [API public consultat](https://web.sagasoft.ro/DocumentatieAPI).
 
-## 3. Situația actuală în FOM, verificată în cod
+## 3. Inventarul FOM din analiza inițială
 
 Referințele locale sunt relative la acest document.
 
@@ -79,9 +81,9 @@ Referințele locale sunt relative la acest document.
 | [Arhivare](../lib/utils/archive-validation.ts), [arhivare instalări](../lib/installations/archive.ts) | Verificările existente bazate pe document trebuie completate cu starea definitivă și eventualele operațiuni SAGA în așteptare. |
 | [Autorizare](../lib/auth/require-role.ts), [reguli Firestore](../firestore.rules) | Există `requireVerifiedRole`. Regulile au și permisiuni generale care trebuie să excludă explicit noile date de facturare și câmpurile protejate. |
 
-Nu a fost găsit un conector SAGA în directoarele API/lib inspectate. Contorul existent pentru rapoarte din `lib/firebase/firestore.ts` este separat și are inclusiv fallback bazat pe timp; nu va fi reutilizat pentru numerotarea facturilor.
+La analiza inițială nu exista un conector SAGA. Actualizarea din 6 noiembrie adaugă conectorul pentru citiri, descris mai sus. Contorul existent pentru rapoarte din `lib/firebase/firestore.ts` rămâne separat și nu va fi reutilizat pentru numerotarea facturilor.
 
-Există modificări locale preexistente, inclusiv în regulile Firestore și serviciile mobile. Implementarea viitoare trebuie să le păstreze și să reconcilieze starea curentă înainte de editare. În această analiză se adaugă exclusiv prezentul fișier.
+Analiza inițială a identificat modificări locale preexistente, inclusiv în regulile Firestore și serviciile mobile, care trebuie păstrate. La redactarea inițială s-a adăugat exclusiv prezentul fișier; implementările ulterioare sunt descrise în actualizarea de la începutul documentului.
 
 ## 4. Experiența în pagina tichetului
 
@@ -307,7 +309,7 @@ Confirmări definitive, PDF, sumar pe tichet, nefacturate, dashboard, arhivare, 
 
 Pilot într-un mediu autorizat, cu dovada documentului în SAGA, numerotării, totalurilor și stocului. Activare inițială pentru un emitent și utilizatori desemnați. Dezactivarea integrării oprește comenzile noi, păstrând documentele și coada de reconciliere; nu șterge facturi din SAGA.
 
-Nu se includ în această sarcină implementarea, conectarea cheilor, importurile reale, modificarea datelor contabile sau publicarea în producție.
+La redactarea inițială s-a realizat numai planul. Implementările ulterioare autorizate și verificările lor sunt documentate separat în `invoice-drafts.md` și `saga-connection.md`; importurile contabile reale și publicarea în producție nu au fost efectuate în aceste etape.
 
 ## 13. Verificări și criterii de acceptare
 

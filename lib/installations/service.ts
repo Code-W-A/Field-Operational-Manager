@@ -890,7 +890,9 @@ export function installationService(db: Firestore) {
     offlineCommand?: Command,
   ) {
     const sheetId = identifier(input.sheetId);
-    const content = fields(input.fields, mode !== "save");
+    const deferred = input.deferFields === true && mode === "stop" && !!offlineCommand?.offlineStop;
+    check(input.deferFields === undefined || deferred, "Oprire locală invalidă.");
+    const suppliedContent = deferred ? undefined : fields(input.fields, mode !== "save");
     return db.runTransaction(async (tx) => {
       const user = await actorData(tx, actor);
       const receipt = input.requestId
@@ -913,6 +915,7 @@ export function installationService(db: Firestore) {
       assertWork(work);
       const sr = sheetsRef(workId).doc(sheetId);
       const sheet = (await tx.get(sr)).data() as InstallationSheet | undefined;
+      const content = suppliedContent || fields(sheet, false);
       if (
         mode !== "save" && !offlineCommand?.offlineStop &&
         sheet?.principalUid === actor.uid &&

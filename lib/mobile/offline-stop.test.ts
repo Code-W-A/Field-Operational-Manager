@@ -284,3 +284,83 @@ test("installation uploads before stop, preserves photo and freezes official int
   assert.equal(done.sheet.photos[0].id, photo.id);
   assert.equal(done.sheet.timeIntervals[0].endedAt, c.occurredAt);
 });
+
+test("installation stop records only timing; official sign later attaches photo and local fields", async () => {
+  const made = await installs.create(
+    { uid: "admin", role: "admin" },
+    {
+      client: "Test",
+      clientId: "client",
+      locationId: "loc",
+      locatie: "Loc",
+      contactId: "contact",
+      persoanaContact: "Test",
+      telefon: "0700000000",
+      persoanaContactEmail: "test@example.invalid",
+      equipmentIds: ["eq"],
+      tehnicieni: ["Tech"],
+      nrLucrare: "#2",
+      dataInterventie: "05.11.2026 10:00",
+    },
+    "create-signing-test",
+  );
+  const ref = db.doc(`lucrari/${made.id}`);
+  await ref.update({ technicianIds: [uid] });
+  const begin: Command = {
+    mutationId: "online-installation-start",
+    entityId: made.id,
+    baseVersion: versionOf((await ref.get()).data()!),
+    occurredAt: new Date().toISOString(),
+    attendanceId: "attendance-test",
+    action: "installation",
+    payload: { action: "start", equipmentId: "eq", qrRaw: "QR1" },
+  };
+  const started = await svc.command(uid, begin);
+  assert.equal(started.version, versionOf((await ref.get()).data()!));
+  assert.equal((await svc.command(uid, begin)).version, started.version);
+  const g = await issueDraftGrant(db, uid, "attendance-test", [made.id]);
+  const w = (await ref.get()).data()!;
+  const c: Command = {
+    mutationId: "offline-installation-stop",
+    entityId: made.id,
+    baseVersion: versionOf(w),
+    occurredAt: new Date().toISOString(),
+    attendanceId: "attendance-test",
+    action: "installation",
+    payload: {
+      action: "stop",
+      sheetId: started.sheet.id,
+      revision: started.sheet.revision,
+      fields: {
+        finding: "Test",
+        operations: "Montaj",
+        installationStatus: "completed",
+        blockReason: "",
+        internalNote: "",
+      },
+    },
+    offlineStop: {
+      grantId: g.grantId!,
+      deviceId: "device-signing-test",
+      clockDriftMs: 0,
+      intervals: stopIntervals(w, started.sheet),
+    },
+  };
+  assert.equal(g.installationStopWithoutDraft, true);
+  c.payload = { action: "stop", sheetId: started.sheet.id, revision: started.sheet.revision, deferFields: true };
+  const done = await svc.command(uid, c);
+  assert.equal((await svc.command(uid, c)).sheet.revision, done.sheet.revision);
+  assert.equal(done.sheet.stoppedAt, c.occurredAt);
+  assert.equal(done.sheet.finding, "");
+  assert.equal(done.sheet.photos.length, 0);
+  const photo = { id: "photo-local-only", path: "test/photo.jpg", name: "photo.jpg", contentType: "image/jpeg" };
+  const added = await installs.attachPhoto(actor, made.id, started.sheet.id, photo, false, done.sheet.revision);
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAKCAYAAACjd+4vAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAIElEQVR4nGMQsQj6PxCYYdRikVGLLUYtDhq1+D85FgMAZd7kDNae2IoAAAAASUVORK5CYII=";
+  const signCommand: Command = { action: "installation", entityId: made.id, mutationId: "sign-after-local-only", baseVersion: versionOf((await ref.get()).data()!), occurredAt: new Date().toISOString(), attendanceId: "attendance-test", payload: { action: "sign", sheetId: started.sheet.id, revision: added.sheet.revision, fields: { finding: "Local finding", operations: "Local operations", installationStatus: "completed", blockReason: "", internalNote: "Local note" }, signatures: { beneficiaryName: "Beneficiar", technicianSignature: png, beneficiarySignature: png } } };
+  const signed = await svc.command(uid, signCommand);
+  assert.deepEqual(await svc.command(uid, signCommand), signed);
+  assert.equal(signed.sheet.documentSnapshot!.finding, "Local finding");
+  assert.equal(signed.sheet.documentSnapshot!.operations, "Local operations");
+  assert.equal(signed.sheet.documentSnapshot!.photos[0].id, photo.id);
+  assert.equal(signed.sheet.timeIntervals![0].endedAt, c.occurredAt);
+});

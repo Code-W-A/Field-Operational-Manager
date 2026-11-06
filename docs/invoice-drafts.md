@@ -1,5 +1,7 @@
 # Ciorna facturii din tichet — etapa 1
 
+Actualizare 6 noiembrie 2026: conectorul separat pentru citiri SAGA este descris în [saga-connection.md](saga-connection.md). Salvarea ciornei continuă să nu apeleze SAGA; conectarea la articole și gestiuni în editor rămâne o etapă ulterioară.
+
 Blocul **Facturare** apare imediat după **Deviz** pentru admin/dispecer. Tichetul trebuie preluat; raportul final nu este obligatoriu. Desktop: editor nemodal, deplasabil cu antetul sau săgețile tastaturii, minimizabil. Sub 768 px: formular în fluxul paginii.
 
 ## Date și salvare

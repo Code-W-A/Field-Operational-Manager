@@ -42,6 +42,7 @@ export async function validateOfflineStop(
   ).data();
   check(
     grant?.stopForSigning === true &&
+      (c.payload.deferFields !== true || grant.installationStopWithoutDraft === true) &&
       grant.sessionId === c.attendanceId &&
       grant.workIds?.includes(c.entityId),
     "Confirmarea offline nu permite oprirea acestei lucrări.",

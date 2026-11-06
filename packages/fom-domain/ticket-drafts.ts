@@ -37,6 +37,7 @@ export type OfflineTicketGrant = {
   grantId?: string;
   phase2?: boolean;
   stopForSigning?: boolean;
+  installationStopWithoutDraft?: boolean;
   sessionId: string;
   confirmedAt: number;
   expiresAt: number;

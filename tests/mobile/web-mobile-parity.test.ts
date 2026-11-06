@@ -114,7 +114,13 @@ test("postponement and per-user notifications have the same atomic effects", asy
     await work(id, { technicianIds: [uid], dataInterventie: "2026-10-07", notificationReadBy: ["other-user"] });
     await execute(channel, "notification.read", id);
     assert.deepEqual((await db.doc(`lucrari/${id}`).get()).data()?.notificationReadBy, ["other-user", uid]);
-    const result = await execute(channel, "postpone", id, { motivAmanare: "Piesa necesară lipsește" });
+    const postpone = command("postpone", id, { motivAmanare: "Piesa necesară lipsește" }, {
+      baseVersion: versionOf((await db.doc(`lucrari/${id}`).get()).data()!),
+    });
+    const result = await svc.command(uid, postpone, channel);
+    // Lost acknowledgement: the same operation must recover its receipt even
+    // though the technician has already been removed from the assignment.
+    assert.deepEqual(await svc.command(uid, postpone, channel), result);
     assert.equal(result.work.statusLucrare, "Amânată");
     assert.deepEqual(result.work.tehnicieni, []);
     assert.deepEqual(result.work.technicianIds, []);
