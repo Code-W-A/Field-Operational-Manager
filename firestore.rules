@@ -11,7 +11,7 @@ service cloud.firestore {
         || data.get('parentId', '') in ['equipment-manufacturers', 'equipment-models'];
     }
     function serverOnlyCollection(name) {
-      return name in ['sagaConnections', 'invoiceDrafts', 'mobileDrafts', 'mobileUpdatePolicies'] || name in ['mobileOfflineGrants', 'mobileOfflineWork', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'trackingEvents', 'crm_command_receipts', 'crm_equipment_uploads'];
+      return name in ['sagaCatalogs', 'sagaConnections', 'invoiceDrafts', 'mobileDrafts', 'mobileUpdatePolicies'] || name in ['mobileOfflineGrants', 'mobileOfflineWork', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'trackingEvents', 'crm_command_receipts', 'crm_equipment_uploads'];
     }
     function draftOwner(uid) {
       return request.auth != null && request.auth.uid == uid

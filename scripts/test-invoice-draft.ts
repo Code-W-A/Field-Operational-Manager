@@ -364,6 +364,18 @@ async function main() {
     );
     server = createServer(async (req, res) => {
       try {
+        // Empty catalog fixture: invoice regression tests never consult SAGA.
+        if (req.url === "/api/integrations/saga/catalog") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              fiscalCode: "123456",
+              products: [],
+              warehouses: [],
+            }),
+          );
+          return;
+        }
         if (req.url?.startsWith("/api/lucrari/w/invoice-draft")) {
           const chunks = [];
           for await (const chunk of req) chunks.push(chunk);

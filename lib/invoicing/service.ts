@@ -1,3 +1,5 @@
+import { createSagaCatalogService } from "@/lib/saga/catalog.server";
+import type { InvoiceLine } from "./draft";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   calculateInvoiceTotals,
@@ -14,6 +16,9 @@ export type InvoiceActor = { uid: string; role: string };
 export function createInvoiceDraftService(
   db: Firestore,
   now = () => new Date(),
+  catalog = createSagaCatalogService(db, async () => {
+    throw new Error("Catalog resolution does not call SAGA");
+  }),
 ) {
   const workRef = (id: string) => {
     if (!id || id.includes("/") || id.length > 200)
@@ -151,9 +156,18 @@ export function createInvoiceDraftService(
           409,
         );
       const at = now().toISOString();
+      const lines: InvoiceLine[] = [];
+      for (const line of content.lines) {
+        lines.push(
+          line.saga
+            ? { ...line, saga: await catalog.resolve(tx, line.saga) }
+            : line,
+        );
+      }
       const draft: InvoiceDraft = {
         ...source,
         ...content,
+        lines,
         workId: id,
         schemaVersion: 1,
         revision: (previous?.revision || 0) + 1,

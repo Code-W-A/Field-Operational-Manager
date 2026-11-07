@@ -2,7 +2,7 @@
 
 Data analizei inițiale: **3 noiembrie 2026**. Actualizare implementare: **6 noiembrie 2026**.
 
-**Stare curentă:** ciorna facturii este implementată în pagina tichetului ([detalii](invoice-drafts.md)). Conectorul server pentru consultarea articolelor/stocului și interfața **Setări → SAGA** sunt implementate local ([configurare, verificări și limite](saga-connection.md)); citirile reale sunt dezactivate până la publicarea regulilor de protecție. Importul facturilor, numerotarea, PDF-ul și confirmarea validării/descărcării mărfii rămân de implementat/verificat. Analiza și etapele de mai jos reprezintă planul general, nu dovada că toate funcționalitățile sunt livrate.
+**Stare curentă (7 noiembrie 2026):** ciorna facturii este implementată în pagina tichetului ([detalii](invoice-drafts.md)). Conectorul pentru citiri și interfața Setări → SAGA sunt implementate local; sunt adăugate catalogul reutilizabil de produse/gestiuni, asocierile în ciornă și consultarea stocului de către admin/dispecer ([detalii și verificări](saga-connection.md)). Activarea reală depinde de publicarea regulilor de protecție și configurarea mediului. Urmează asocierea clienților, numerotarea, XML-ul și importul de probă; validarea/descărcarea mărfii rămân de confirmat separat. Analiza și etapele de mai jos reprezintă planul general, nu dovada livrării integrale în producție.
 
 ## 1. Rezultatul urmărit și decizia principală
 

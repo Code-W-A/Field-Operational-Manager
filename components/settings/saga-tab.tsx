@@ -1,4 +1,5 @@
 "use client";
+import { SagaCatalogSettings } from "./saga-catalog";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -117,6 +118,7 @@ export function SagaTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        <SagaCatalogSettings />
         <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-slate-50 p-4">
           <div>
             <p className="font-medium" role="status">

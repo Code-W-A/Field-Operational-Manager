@@ -38,15 +38,16 @@ export function createSagaService(
     now = dependencies.now || Date.now;
   const ref = (config: SagaConfig) =>
     db.collection("sagaConnections").doc(config.fiscalCode);
-  async function authorize(actor: Actor) {
-    if (!actor?.uid || actor.role !== "admin")
+  async function authorize(actor: Actor, invoice = false) {
+    const roles = invoice ? ["admin", "dispecer"] : ["admin"];
+    if (!actor?.uid || !roles.includes(actor.role))
       throw new SagaError(
         "FORBIDDEN",
         "Doar administratorul poate consulta integrarea SAGA.",
         403,
       );
     const user = (await db.doc(`users/${actor.uid}`).get()).data();
-    if (user?.role !== "admin" || user.disabled === true)
+    if (!user || user.role !== actor.role || user.disabled === true)
       throw new SagaError("FORBIDDEN", "Nu ai acces la integrarea SAGA.", 403);
   }
   async function status(actor: Actor): Promise<SagaStatus> {
@@ -75,7 +76,8 @@ export function createSagaService(
         lastError: null,
       };
     const connection = (await ref(config).get()).data() as
-      SagaConnection | undefined;
+      | SagaConnection
+      | undefined;
     let state: SagaStatus["state"] = !connection
       ? "ready"
       : connection.state === "processing"
@@ -113,8 +115,8 @@ export function createSagaService(
       lastError: connection?.lastError || null,
     };
   }
-  async function read(actor: Actor, body: unknown) {
-    await authorize(actor);
+  async function readWithRoles(actor: Actor, body: unknown, invoice = false) {
+    await authorize(actor, invoice);
     if (!getConfig().readsEnabled)
       throw new SagaError(
         "READS_DISABLED",
@@ -175,7 +177,8 @@ export function createSagaService(
     async function updateOwned(patch: Partial<SagaConnection>) {
       await db.runTransaction(async (tx) => {
         const current = (await tx.get(connectionRef)).data() as
-          SagaConnection | undefined;
+          | SagaConnection
+          | undefined;
         if (current?.owner !== owner || current.state !== "processing")
           throw new SagaError(
             "LEASE_LOST",
@@ -329,5 +332,10 @@ export function createSagaService(
       clearTimeout(timer);
     }
   }
-  return { status, read };
+  return {
+    status,
+    read: (actor: Actor, body: unknown) => readWithRoles(actor, body),
+    readForInvoice: (actor: Actor, body: unknown) =>
+      readWithRoles(actor, body, true),
+  };
 }

@@ -1,3 +1,4 @@
+import { parseInvoiceSagaLink, type InvoiceSagaLink } from "@/lib/saga/catalog";
 import { resolveTicketLiveDisplay } from "@/lib/work-documents/ticket-live-display";
 import { getTicketEmitent } from "@/lib/utils/ticket-emitent";
 import { resolveTicketLocation } from "@/firebase-functions/src/client-ticket-sync";
@@ -5,6 +6,7 @@ import { equipmentFor } from "@/packages/fom-domain";
 
 type RecordData = Record<string, any>;
 export type InvoiceLine = {
+  saga?: InvoiceSagaLink;
   id: string;
   name: string;
   um: string;
@@ -233,12 +235,14 @@ export function parseInvoiceContent(input: unknown): InvoiceContent {
     if (!id || ids.has(id))
       throw new InvoiceDraftError("Identificator de linie lipsă sau duplicat.");
     ids.add(id);
+    const saga = parseInvoiceSagaLink(line.saga);
     return {
       id,
       name: bounded(line.name, "Denumire"),
       um: bounded(line.um, "UM", 40),
       quantity: decimal(line.quantity, `Cantitate ${index + 1}`),
       price: decimal(line.price, `Preț ${index + 1}`),
+      ...(saga ? { saga } : {}),
     };
   });
   const date = calendarDate(v.date, true),

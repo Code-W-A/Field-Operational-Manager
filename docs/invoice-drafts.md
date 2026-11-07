@@ -1,6 +1,6 @@
 # Ciorna facturii din tichet — etapa 1
 
-Actualizare 6 noiembrie 2026: conectorul separat pentru citiri SAGA este descris în [saga-connection.md](saga-connection.md). Salvarea ciornei continuă să nu apeleze SAGA; conectarea la articole și gestiuni în editor rămâne o etapă ulterioară.
+Actualizare 7 noiembrie 2026: catalogul reutilizabil de produse/gestiuni și consultarea stocului în editor sunt implementate local; detalii în [saga-connection.md](saga-connection.md#catalog-si-ciorna-facturii--7-noiembrie-2026). Salvarea ciornei rezolvă asocierile pe server, fără apel SAGA. Consultarea stocului pornește numai prin buton.
 
 Blocul **Facturare** apare imediat după **Deviz** pentru admin/dispecer. Tichetul trebuie preluat; raportul final nu este obligatoriu. Desktop: editor nemodal, deplasabil cu antetul sau săgețile tastaturii, minimizabil. Sub 768 px: formular în fluxul paginii.
 
@@ -13,6 +13,7 @@ Blocul **Facturare** apare imediat după **Deviz** pentru admin/dispecer. Tichet
 - Prioritate linii: ciorna salvată → deviz salvat → raport tehnic, inclusiv lista goală → produse din tichet. Nu se adaugă automat manoperă/deplasare. Nu se asociază automat clienți cu nume ambiguu.
 - TVA zero se păstrează; fără deviz se folosește `predefinedSettings/offers_default_vat_percent`. Totaluri în bani, cu aritmetică zecimală și rotunjire half-up pe linie, apoi reducere globală și TVA.
 - Se acceptă valori lipsă, semnalate în formular; numerele nevalide se resping. Maximum 100 de poziții, 4 zecimale la cantitate/preț/procente. Sursele cu peste 100 de linii au avertisment explicit.
+- Liniile pot avea o asociere opțională `saga`: firma, produsul stabil din catalog, revizia produsului, gestiunea și revizia ei. Snapshotul articolului/gestiunii este completat exclusiv de server. Ciornele vechi funcționează fără migrare. O asociere modificată/inactivă produce `409 CATALOG_CONFLICT`; operatorul poate actualiza ori elimina asocierea, păstrând editările.
 - Editarea ciornei nu modifică tichetul/clientul/devizul. Reimportarea și renunțarea la modificări au confirmări în editor.
 - Arhivat/anulat/facturat/„Nu se facturează”: nu se creează o ciornă nouă, iar ciorna existentă este doar pentru citire.
 
@@ -30,3 +31,5 @@ Acoperă precompletarea, TVA/discount/zecimale, permisiuni, acces Firestore dire
 Separat au fost verificate compilarea locală a rutei Next.js și refuzul autentificării numai cu cookie-ul `userRole`. Typecheck-ul global are erori preexistente; comparația înainte/după nu a identificat diagnostice noi pentru această implementare.
 
 Etapa nu emite facturi fiscale, nu alocă numere, nu generează PDF, nu trimite la SAGA și nu descarcă stoc. Nu schimbă `statusFacturare`, `numarFactura`, `facturaDocument` sau regulile raportului de nefacturate. Publicarea aplicației și a regulilor Firestore nu a fost efectuată; regulile trebuie livrate împreună cu funcționalitatea. Testarea pe telefon fizic rămâne separată de verificarea în browser.
+
+Verificare 7 noiembrie 2026: `test:invoice-draft` (10 teste), `test:invoice-draft:integration` și `test:saga:catalog` au trecut local. Ultimul acoperă selecția din catalog de către dispecer, cantitățile cumulate, UM, invalidarea rezultatelor, conflictele de asociere și păstrarea datelor la salvare/redeschidere. Transportul SAGA este simulat; Auth/Firestore și browserul sunt reale, izolate de producție.

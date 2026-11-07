@@ -18,6 +18,9 @@ import { decryptToken } from "../lib/saga/crypto.server";
 import { sagaHandlers } from "../lib/saga/http";
 import { SagaError } from "../lib/saga/contracts";
 
+import { createSagaCatalogService } from "../lib/saga/catalog.server";
+import { sagaCatalogHandlers } from "../lib/saga/catalog-http";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   projectId = "demo-fom-saga-read",
   firestoreHost = "127.0.0.1:8397",
@@ -145,6 +148,10 @@ async function main() {
       };
     };
     const handlers = sagaHandlers(service, authenticate);
+    const catalogs = sagaCatalogHandlers(
+      createSagaCatalogService(db, service.readForInvoice, () => config),
+      authenticate,
+    );
     const call = (kind: "status" | "read", role = "admin", body?: unknown) =>
       handlers[kind](
         new Request(`http://localhost/api/integrations/saga/${kind}`, {
@@ -426,7 +433,7 @@ async function main() {
       tailwind({
         ...tailwindConfig,
         content: [
-          path.join(root, "components/settings/saga-tab.tsx"),
+          path.join(root, "components/settings/saga*.tsx"),
           path.join(root, "components/ui/{card,input,button}.tsx"),
         ],
       }),
@@ -446,10 +453,11 @@ async function main() {
                 ? Buffer.concat(chunks).toString()
                 : undefined,
           });
-          const response =
-            await handlers[req.url.endsWith("/read") ? "read" : "status"](
-              request,
-            );
+          const response = req.url.endsWith("/catalog")
+            ? await catalogs.list(request)
+            : await handlers[req.url.endsWith("/read") ? "read" : "status"](
+                request,
+              );
           res.writeHead(response.status, Object.fromEntries(response.headers));
           res.end(await response.text());
           return;

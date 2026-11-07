@@ -81,7 +81,8 @@
     "verify:mobile:real:readonly": "node --import tsx scripts/verify-mobile-real-readonly.ts",
     "test:domain": "tsx --test packages/fom-domain/contracts.test.ts",
     "typecheck:domain": "tsc -p packages/fom-domain/tsconfig.json",
-    "test:saga": "tsx --test lib/saga/saga.test.ts",
+    "test:saga": "tsx --test lib/saga/saga.test.ts lib/saga/catalog.test.ts",
+    "test:saga:catalog": "tsx scripts/test-saga-catalog.ts",
     "test:saga:integration": "tsx scripts/test-saga.ts"
   },
   "dependencies": {

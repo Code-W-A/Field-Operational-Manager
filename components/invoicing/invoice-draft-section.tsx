@@ -6,6 +6,8 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { InvoiceSagaFields } from "./invoice-saga-fields";
+import { stockKey, type SagaCatalog } from "@/lib/saga/catalog";
 import { createPortal } from "react-dom";
 import {
   FilePenLine,
@@ -717,6 +719,32 @@ function DraftForm({
   onChange: (patch: Partial<InvoiceContent>) => void;
   prefix: string;
 }) {
+  const { user } = useAuth();
+  const [catalog, setCatalog] = useState<SagaCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  async function reloadCatalog() {
+    setCatalogError("");
+    try {
+      const token = await user?.getIdToken();
+      const r = await fetch("/api/integrations/saga/catalog", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token || ""}` },
+      });
+      const data = await r.json();
+      if (
+        !r.ok ||
+        !Array.isArray(data.products) ||
+        !Array.isArray(data.warehouses)
+      )
+        throw new Error(data.error || "Catalog SAGA indisponibil.");
+      setCatalog(data);
+    } catch (e) {
+      setCatalogError((e as Error).message);
+    }
+  }
+  useEffect(() => {
+    if (!readOnly) void reloadCatalog();
+  }, [user?.uid, draft.workId, readOnly]);
   return (
     <fieldset disabled={readOnly} className="space-y-4">
       <legend className="mb-2 font-semibold">Beneficiar fiscal</legend>
@@ -772,6 +800,25 @@ function DraftForm({
         <h4 className="font-semibold">Produse și servicii</h4>
         <span className="text-xs text-slate-500">RON · prețuri fără TVA</span>
       </div>
+      {prefix !== "comparison" && (
+        <div className="space-y-2">
+          {catalogError && (
+            <p role="alert" className="text-sm text-amber-800">
+              {catalogError} Ciorna rămâne disponibilă.
+            </p>
+          )}
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void reloadCatalog()}
+            >
+              Actualizează asocierile SAGA
+            </Button>
+          )}
+        </div>
+      )}
       {!draft.lines.length && (
         <p className="rounded-md border border-dashed p-3 text-sm text-slate-500">
           Nu există produse precompletate. Adaugă pozițiile necesare.
@@ -837,6 +884,22 @@ function DraftForm({
               </label>
             ))}
           </div>
+          <InvoiceSagaFields
+            key={`${line.id}:${stockKey(line.saga)}:${catalog?.products.map((p) => `${p.id}:${p.revision}`).join(",") || ""}:${catalog?.warehouses.map((w) => `${w.id}:${w.revision}`).join(",") || ""}`}
+            line={line}
+            lines={draft.lines}
+            catalog={catalog}
+            workId={draft.workId}
+            readOnly={readOnly}
+            index={index}
+            onChange={(saga) =>
+              onChange({
+                lines: draft.lines.map((l) =>
+                  l.id === line.id ? { ...l, saga } : l,
+                ),
+              })
+            }
+          />
         </div>
       ))}
       <Button
