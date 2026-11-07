@@ -82,6 +82,8 @@
     "test:domain": "tsx --test packages/fom-domain/contracts.test.ts",
     "typecheck:domain": "tsc -p packages/fom-domain/tsconfig.json",
     "test:saga": "tsx --test lib/saga/saga.test.ts lib/saga/catalog.test.ts",
+    "test:saga:clients": "tsx --test lib/saga/clients.test.ts",
+    "test:saga:clients:integration": "tsx scripts/test-saga-clients.ts",
     "test:saga:catalog": "tsx scripts/test-saga-catalog.ts",
     "test:saga:integration": "tsx scripts/test-saga.ts"
   },

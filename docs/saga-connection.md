@@ -56,7 +56,7 @@ Verificare reală din 6 noiembrie 2026: pentru firma `34272913`, articolul `WIFI
 
 SAGA a transmis o cheie reînnoită la citirea stocului; ea a fost salvată criptat local și actualizată în `.env.local` înaintea următorului apel. Verificarea a fost făcută prin apeluri directe locale către API, nu prin interfața FOM; nu s-a scris în Firestore, citirile FOM rămân dezactivate și regulile nu au fost publicate. Starea locală de verificare este în `.env.saga-verification.local`, ignorat de Git.
 
-Aplicația și regulile nu au fost publicate. Următoarele etape sunt asocierea clienților, seria/numerotarea, XML și import de probă într-o firmă de test, apoi dovada validării și a descărcării stocului.
+Aplicația și regulile nu au fost publicate. Asocierea locală a clienților este implementată și descrisă în [saga-clients.md](saga-clients.md). Următoarele etape sunt seria/numerotarea, XML și import de probă într-o firmă de test, apoi dovada validării și a descărcării stocului.
 
 
 ## Catalog si ciorna facturii — 7 noiembrie 2026
@@ -82,3 +82,8 @@ Implementat local, fără migrarea ciornelor existente:
 - Typecheck global: aceleași diagnostice preexistente ca înaintea modificărilor; niciun diagnostic nou în comparația locală.
 
 Nu au fost efectuate apeluri către firma SAGA reală în această etapă. Nu au fost publicate aplicația sau regulile și nu au fost schimbate datele din SAGA. Testarea pe telefon fizic și activarea în producție rămân separate.
+
+
+## Asocierea clienților existenți — 7 noiembrie 2026
+
+Este implementată local lista de referință CSV/XLSX, asocierea explicită în pagina clientului FOM și afișarea în ciorna facturii. Detalii de utilizare, API, reluare a importului și dovezi: [saga-clients.md](saga-clients.md). Lista rămâne separată de registrul `clienti`. Această etapă nu efectuează apeluri către SAGA; configurarea și publicarea rămân separate.

@@ -25,6 +25,7 @@ import { EquipmentQRCode } from "@/components/equipment-qr-code"
 import { formatDate, formatDateTimeSafe, formatUiDate, toDateSafe } from "@/lib/utils/time-format"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { DashboardHeader } from "@/components/dashboard-header"
+import { SagaClientAssociation } from "@/components/clients/saga-client-association"
 import { ClientForm } from "@/components/client-form"
 import { EquipmentMigrateWizardDialog } from "@/components/equipment/equipment-migrate-wizard-dialog"
 
@@ -294,6 +295,9 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
         </DashboardHeader>
 
         <div className="space-y-4 pb-12">
+          {(userData?.role === "admin" || userData?.role === "dispecer") && (
+            <SagaClientAssociation key={id} clientId={id} canEdit={userData?.role === "admin"} />
+          )}
           {/* 1. Zona superioară */}
           <section className="grid items-stretch gap-3 lg:grid-cols-12">
             <Card className="flex h-full flex-col lg:col-span-4">

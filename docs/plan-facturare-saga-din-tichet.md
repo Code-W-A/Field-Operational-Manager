@@ -2,7 +2,7 @@
 
 Data analizei inițiale: **3 noiembrie 2026**. Actualizare implementare: **6 noiembrie 2026**.
 
-**Stare curentă (7 noiembrie 2026):** ciorna facturii este implementată în pagina tichetului ([detalii](invoice-drafts.md)). Conectorul pentru citiri și interfața Setări → SAGA sunt implementate local; sunt adăugate catalogul reutilizabil de produse/gestiuni, asocierile în ciornă și consultarea stocului de către admin/dispecer ([detalii și verificări](saga-connection.md)). Activarea reală depinde de publicarea regulilor de protecție și configurarea mediului. Urmează asocierea clienților, numerotarea, XML-ul și importul de probă; validarea/descărcarea mărfii rămân de confirmat separat. Analiza și etapele de mai jos reprezintă planul general, nu dovada livrării integrale în producție.
+**Stare curentă (7 noiembrie 2026):** ciorna facturii este implementată în pagina tichetului ([detalii](invoice-drafts.md)). Conectorul pentru citiri și interfața Setări → SAGA sunt implementate local; sunt adăugate catalogul reutilizabil de produse/gestiuni, asocierile în ciornă și consultarea stocului de către admin/dispecer ([detalii și verificări](saga-connection.md)). Activarea reală depinde de publicarea regulilor de protecție și configurarea mediului. Este implementată local și asocierea clienților existenți printr-o listă de referință CSV/XLSX, fără crearea clienților în registrul FOM și fără apeluri SAGA ([detalii](saga-clients.md)). Urmează numerotarea, XML-ul și importul de probă; validarea/descărcarea mărfii rămân de confirmat separat. Analiza și etapele de mai jos reprezintă planul general, nu dovada livrării integrale în producție.
 
 ## 1. Rezultatul urmărit și decizia principală
 
@@ -113,6 +113,8 @@ Sursa inițială este devizul salvat. Fără deviz, utilizatorul poate pregăti 
 ## 5. Asocierea clienților și articolelor
 
 ### 5.1. Clienți FOM–SAGA
+
+**Actualizare 7 noiembrie 2026:** lista locală de referință, asocierile explicite și afișarea în ciornă sunt implementate; [utilizare, contracte și verificări](saga-clients.md). Operațiunile XML și importurile contabile de mai jos rămân etape ulterioare.
 
 1. Se identifică sigur clientul FOM după `clientId`; tichetul cu asociere ambiguă trebuie corectat înainte de validare.
 2. Pentru clienții existenți în SAGA, se pregătește un nomenclator dintr-un export acceptat de contabilitate sau printr-un mecanism oficial confirmat ulterior. API-ul public nu oferă acum o listare documentată a clienților.

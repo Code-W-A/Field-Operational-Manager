@@ -376,6 +376,22 @@ async function main() {
           );
           return;
         }
+        if (req.url === "/api/lucrari/w/invoice-draft/client-association") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              fiscalCode: "123456",
+              clientId: "c",
+              clientName: "Client test",
+              taxId: "",
+              revision: 0,
+              link: null,
+              entry: null,
+              issues: ["Clientul FOM nu este asociat cu SAGA."],
+            }),
+          );
+          return;
+        }
         if (req.url?.startsWith("/api/lucrari/w/invoice-draft")) {
           const chunks = [];
           for await (const chunk of req) chunks.push(chunk);

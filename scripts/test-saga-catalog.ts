@@ -162,6 +162,17 @@ async function main() {
           ? handlers.list(r)
           : handlers.save(r, parts[0], parts[1]);
       }
+      if (path.endsWith("/client-association"))
+        return Response.json({
+          fiscalCode: "123456",
+          clientId: null,
+          clientName: "",
+          taxId: "",
+          revision: 0,
+          link: null,
+          entry: null,
+          issues: ["Clientul tichetului lipsește sau este ambiguu."],
+        });
       if (path.endsWith("/stock")) return handlers.stock(r, "w");
       return drafts[r.method === "PUT" ? "PUT" : "GET"](r, {
         params: Promise.resolve({ id: "w" }),

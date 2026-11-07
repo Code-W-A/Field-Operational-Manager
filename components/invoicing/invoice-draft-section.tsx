@@ -6,6 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { InvoiceClientAssociation } from "./invoice-client-association";
 import { InvoiceSagaFields } from "./invoice-saga-fields";
 import { stockKey, type SagaCatalog } from "@/lib/saga/catalog";
 import { createPortal } from "react-dom";
@@ -575,6 +576,11 @@ export function InvoiceDraftSection({
               ))}
             </div>
           )}
+          <InvoiceClientAssociation
+            key={`${workId}:${user?.uid}`}
+            workId={workId}
+            beneficiaryCui={draft.beneficiary.cui}
+          />
           <DraftForm
             draft={draft}
             readOnly={readOnly || saving || busyAction}

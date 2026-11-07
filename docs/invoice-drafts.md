@@ -33,3 +33,7 @@ Separat au fost verificate compilarea locală a rutei Next.js și refuzul autent
 Etapa nu emite facturi fiscale, nu alocă numere, nu generează PDF, nu trimite la SAGA și nu descarcă stoc. Nu schimbă `statusFacturare`, `numarFactura`, `facturaDocument` sau regulile raportului de nefacturate. Publicarea aplicației și a regulilor Firestore nu a fost efectuată; regulile trebuie livrate împreună cu funcționalitatea. Testarea pe telefon fizic rămâne separată de verificarea în browser.
 
 Verificare 7 noiembrie 2026: `test:invoice-draft` (10 teste), `test:invoice-draft:integration` și `test:saga:catalog` au trecut local. Ultimul acoperă selecția din catalog de către dispecer, cantitățile cumulate, UM, invalidarea rezultatelor, conflictele de asociere și păstrarea datelor la salvare/redeschidere. Transportul SAGA este simulat; Auth/Firestore și browserul sunt reale, izolate de producție.
+
+## Clientul SAGA al facturii — 7 noiembrie 2026
+
+Editorul consultă `GET /api/lucrari/{id}/invoice-draft/client-association` pentru legătura clientului tichetului cu lista SAGA importată în FOM. Afișează codul, denumirea, țara, CUI-ul și eventualele lipsuri/neconcordanțe, cu actualizare explicită și link spre clientul FOM. Datele beneficiarului deja editate nu sunt înlocuite; un CUI diferit este semnalat fără blocarea salvării unei ciorne incomplete. Nu sunt necesare modificări sau migrări ale documentelor `invoiceDrafts`. Implementare și verificări: [saga-clients.md](saga-clients.md).
