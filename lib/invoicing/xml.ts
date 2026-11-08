@@ -1,3 +1,4 @@
+import { eurReferenceText, type EurReference } from "./eur-rate";
 import {
   commercialAmounts,
   scaledCommercial,
@@ -125,7 +126,8 @@ export type InvoiceXmlSnapshot = {
   };
   numbering?: import("./numbering").UserNumberingIdentity;
   schemaVersion: 1;
-  generatorVersion: 1 | 2 | 3;
+  generatorVersion: 1 | 2 | 3 | 4;
+  eurReference?: EurReference;
   fiscalCode: string;
   workId: string;
   ticketNumber: string;
@@ -279,6 +281,13 @@ export function calculateXmlLines(content: InvoiceContent): XmlLine[] {
     };
   });
 }
+export function invoiceSupplementaryText(snapshot: InvoiceXmlSnapshot) {
+  const c = snapshot.content;
+  const base = `Tichet ${snapshot.ticketNumber}; referință FOM ${snapshot.workId}${c.commercial && c.extraInfo ? "; " + c.extraInfo : ""}`;
+  return snapshot.generatorVersion === 4 && snapshot.eurReference
+    ? `${base}; ${eurReferenceText(snapshot.eurReference)}`
+    : base;
+}
 export function invoiceXml(
   snapshot: InvoiceXmlSnapshot,
   number: string,
@@ -336,10 +345,7 @@ export function invoiceXml(
       tag("FacturaTaxareInversa", "Nu"),
       tag("FacturaTVAIncasare", p.vatCashAccounting ? "Da" : "Nu"),
       tag("FacturaMoneda", "RON"),
-      tag(
-        "FacturaInformatiiSuplimentare",
-        `Tichet ${snapshot.ticketNumber}; referință FOM ${snapshot.workId}${c.commercial && c.extraInfo ? "; " + c.extraInfo : ""}`,
-      ),
+      tag("FacturaInformatiiSuplimentare", invoiceSupplementaryText(snapshot)),
       ...(snapshot.agent ? [tag("FacturaAgent", snapshot.agent.code)] : []),
       tag("Cod", snapshot.clientCode),
     ],

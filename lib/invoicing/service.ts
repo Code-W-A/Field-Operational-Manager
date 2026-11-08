@@ -1,3 +1,4 @@
+import { createEurRateService } from "./eur-rate.server";
 import { createCommercialService } from "./commercial.server";
 import { sagaConfig, type SagaConfig } from "@/lib/saga/config.server";
 import { randomUUID } from "node:crypto";
@@ -26,6 +27,7 @@ export function createInvoiceDraftService(
   config: () => SagaConfig = sagaConfig,
 ) {
   const commercial = createCommercialService(db, config, now);
+  const eur = createEurRateService(db, { now });
   const workRef = (id: string) => {
     if (!id || id.includes("/") || id.length > 200)
       throw new InvoiceDraftError("Tichet invalid.");
@@ -124,6 +126,8 @@ export function createInvoiceDraftService(
         totals: calculateInvoiceTotals(proposal.content),
       };
     }
+    if (d.data()?.eurReference?.requestedDate === draft.date)
+      draft.eurReference = d.data()!.eurReference;
     draft.revision = d.exists ? d.data()!.revision : 0;
     return {
       draft,
@@ -240,6 +244,14 @@ export function createInvoiceDraftService(
         false,
         body.approveDiscount === true,
       );
+      const eurReference = await eur.resolveIn(
+        tx,
+        content.eurReference,
+        content.date,
+        actor,
+        previous?.eurReference,
+      );
+      content = { ...content, ...(eurReference ? { eurReference } : {}) };
       const at = now().toISOString();
       const lines: InvoiceLine[] = [];
       for (const line of content.lines) {
@@ -253,6 +265,7 @@ export function createInvoiceDraftService(
       const {
         commercial: _sourceCommercial,
         extraInfo: _sourceInfo,
+        eurReference: _sourceEur,
         ...baseSource
       } = source;
       const draft: InvoiceDraft = {

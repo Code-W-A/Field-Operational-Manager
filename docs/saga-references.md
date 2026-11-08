@@ -76,11 +76,11 @@ Executate local, cu date fictive și transport SAGA injectat; testele refuză tr
 
 Nu s-au verificat date reale SAGA și nu s-au folosit exporturile clientului. Recitirea API a fost simulată, nu o dovadă a prețurilor existente în firma reală. Nu au fost configurate cele trei conturi reale și nu a fost publicat nimic.
 
-Etapa 2 adaugă activarea explicită a alocării pe utilizator, documentată mai jos. Etapele comerciale următoare conectează referințele la editor și aplică regulile de preț/TVA/scadență/agent. Comportamentul curent al ciornelor, XML-urilor istorice, importului facturilor și numerotării existente rămâne același în această livrare.
+Etapele 2 și 3 adaugă activarea explicită a numerotării pe utilizator și a regulilor de preț/TVA/scadență/agent, documentate mai jos. Salvarea/importarea referințelor nu activează automat aceste funcții. Comportamentul curent al ciornelor, XML-urilor istorice, importului facturilor și numerotării existente rămâne același în această livrare.
 
 ## Continuare implementată — etapa 2
 
-Profilurile pot fi activate pentru numerotarea pe utilizator. Activarea este explicită și separată de salvarea profilului; după activare, prefixul și seed-ul sunt blocate. [Numerotare pe utilizator](invoice-user-numbering.md). Referințele comerciale rămân separate de editor până la etapa următoare.
+Profilurile pot fi activate pentru numerotarea pe utilizator. Activarea este explicită și separată de salvarea profilului; după activare, prefixul și seed-ul sunt blocate. [Numerotare pe utilizator](invoice-user-numbering.md). Legăturile comerciale și conectarea la editor sunt descrise în actualizarea etapei 3 de mai jos.
 
 ## Continuare implementată — etapa 3
 

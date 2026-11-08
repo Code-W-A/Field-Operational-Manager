@@ -59,3 +59,7 @@ Peste documentul XML înghețat este implementată finalizarea cu import automat
 ## Generator comercial v3
 
 Versiunea 3 adaugă TVA pe linii, agentul utilizatorului emitent și notele de antet/linie. Versiunile istorice nu sunt regenerate. Verificarea artefactelor pentru transmitere acceptă noile câmpuri. [Reguli comerciale și dovezi](invoice-commercial-rules.md).
+
+## Generator v4 — curs EUR informativ
+
+Documentele noi păstrează referința BNR sau omiterea confirmată și o includ în informațiile suplimentare. Pregătirea cere alegerea salvată, fără conversie RON. Versiunile istorice nu sunt regenerate. [Contracte și verificări](invoice-eur-reference.md).

@@ -1,3 +1,7 @@
+import {
+  withEurOmitted,
+  eurFixtureHandlers,
+} from "../lib/invoicing/eur-rate.fixtures";
 import { createInvoiceSagaService } from "../lib/invoicing/saga-transfer.server";
 import { importPolicy } from "../lib/saga/import";
 import { createSagaClientsService } from "../lib/saga/clients.server";
@@ -242,7 +246,7 @@ async function main() {
       await db.doc(`lucrari/${id}`).set(work);
       return draftService.put(
         id,
-        { expectedRevision: 0, content: contentFixture() },
+        { expectedRevision: 0, content: withEurOmitted(contentFixture()) },
         actor,
       );
     }
@@ -435,9 +439,11 @@ async function main() {
       ...activation,
       confirmationHash: activationPreview.confirmationHash,
     });
+    const eurHttp = eurFixtureHandlers(db, authenticate);
     async function dispatch(r: Request) {
       const p = new URL(r.url).pathname,
         id = p.split("/")[3];
+      if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
       if (p.endsWith("/clients")) return clients.search(r);
       if (p.endsWith("/commercial-policy"))
         return r.method === "PUT" ? commerce.activate(r) : commerce.policy(r);
@@ -846,7 +852,7 @@ async function main() {
       () =>
         draftService.put(
           "new",
-          { expectedRevision: 0, content: contentFixture() },
+          { expectedRevision: 0, content: withEurOmitted(contentFixture()) },
           actor,
         ),
       (e) => (e as { status: number }).status === 409,
@@ -1076,6 +1082,20 @@ async function main() {
     await expect(
       page.getByLabel("invoice: Scadență", { exact: true }),
     ).toHaveValue("2026-11-23");
+    const eurPanel = page.getByRole("region", {
+      name: "Curs EUR informativ",
+      exact: true,
+    });
+    await expect(eurPanel.getByRole("alert")).toContainText("viitoare");
+    await eurPanel
+      .getByRole("button", { name: "Continuă fără curs EUR", exact: true })
+      .click();
+    await eurPanel
+      .getByRole("button", {
+        name: "Confirmă continuarea fără curs EUR",
+        exact: true,
+      })
+      .click();
     await page
       .getByRole("button", { name: "Salvează ciorna", exact: true })
       .click();
@@ -1096,7 +1116,7 @@ async function main() {
     ).toBeVisible();
     const doc = (await service.document(dispatcher, "browser")).document!,
       artifact = await service.download(dispatcher, "browser");
-    assert.equal(doc.snapshot.generatorVersion, 3);
+    assert.equal(doc.snapshot.generatorVersion, 4);
     assert.equal(doc.snapshot.lines[1].vatPercent, "0");
     assert.match(artifact.xml, /<FacturaAgent>0004<\/FacturaAgent>/);
     assert.match(artifact.xml, /Factură &amp; detalii client/);

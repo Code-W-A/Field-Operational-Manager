@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { normalizeTaxId } from "@/lib/saga/clients";
 import { calculateInvoiceTotals, parseInvoiceContent } from "./draft";
-import { calculateXmlLines, type PreparedInvoice } from "./xml";
+import {
+  invoiceSupplementaryText,
+  calculateXmlLines,
+  type PreparedInvoice,
+} from "./xml";
 import { TransferError, decimalSum, stockGroups } from "./saga-transfer";
 export const digest = (v: string) =>
   createHash("sha256").update(v, "utf8").digest("hex");
@@ -28,6 +32,13 @@ export function verifyInvoiceArtifact(
   )
     throw fail();
   const content = parseInvoiceContent(doc.snapshot.content);
+  if (
+    doc.snapshot.generatorVersion === 4 &&
+    (!doc.snapshot.eurReference ||
+      !isDeepStrictEqual(content.eurReference, doc.snapshot.eurReference) ||
+      doc.snapshot.eurReference.requestedDate !== content.date)
+  )
+    throw fail();
   content.lines.forEach((line, i) => {
     if (!line.saga || !doc.snapshot.content.lines[i]?.saga?.snapshot)
       throw fail();
@@ -66,7 +77,10 @@ export function verifyInvoiceArtifact(
         header.FacturaScadenta !==
           content.dueDate.split("-").reverse().join(".") ||
         header.FacturaInformatiiSuplimentare !==
-          `Tichet ${doc.snapshot.ticketNumber}; referință FOM ${doc.workId}${content.extraInfo ? "; " + content.extraInfo : ""}`)) ||
+          invoiceSupplementaryText(doc.snapshot))) ||
+    (doc.snapshot.generatorVersion === 4 &&
+      header.FacturaInformatiiSuplimentare !==
+        invoiceSupplementaryText(doc.snapshot)) ||
     header.Cod !== doc.snapshot.clientCode ||
     header.GUID_cod_client !== doc.snapshot.clientId ||
     invoice.GUID_factura !== doc.workId ||

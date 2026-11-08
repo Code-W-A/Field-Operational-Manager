@@ -10,7 +10,7 @@ Data analizei: **8 noiembrie 2026**. Sursă: mesajele clientului din 6 noiembrie
 2. Cursul EUR este **doar referință informativă pe facturi în RON**. Nu conversie de prețuri și nu emitere în EUR.
 3. Seriile NRGV, NRGA și NRG sunt folosite **exclusiv prin FOM** după activare.
 
-Rămân date de configurare și acceptare: UID-urile/permisiunile conturilor, ultimul număr verificat pe fiecare serie, exporturile complete, sursa exactă Infovalutar și clarificările secundare de mai jos. Aceste lipsuri nu sunt prezentate ca funcții API disponibile.
+Rămân date de configurare și acceptare: UID-urile/permisiunile conturilor, ultimul număr verificat pe fiecare serie, exporturile complete, clarificările secundare de mai jos (sursa cursului a fost ulterior confirmată: BNR direct). Aceste lipsuri nu sunt prezentate ca funcții API disponibile.
 
 ## Starea implementării — 8 noiembrie 2026
 
@@ -21,6 +21,8 @@ Referințele sunt separate de asocierile și facturile existente. Salvarea profi
 **Etapa 2 — numerotare pe utilizator: implementată local**, cu activare administrativă, contoare pe serie, alegerea UID-ului emitentului pe server și păstrarea documentelor istorice. [Comportament, API și verificări](invoice-user-numbering.md). Activarea pe conturile reale și publicarea nu au fost executate.
 
 **Etapa 3 — editor și reguli comerciale: implementată local**, cu activare explicită, conversia confirmată a ciornelor, surse API protejate, TVA pe linii, scadență și note. [Contracte, utilizare și verificări](invoice-commercial-rules.md). Nu au fost activate reguli pe conturile reale și nu s-a publicat nimic.
+
+**Etapa 4 — curs EUR informativ: implementată local**, cu sursă **BNR direct**, conform alegerii ulterioare a utilizatorului. Se folosește ultima publicare cel târziu la data facturii; lipsa unui curs permite omiterea confirmată. [Implementare, API, cache, XML v4 și verificări](invoice-eur-reference.md). Nu se face conversie și nu s-a publicat nimic.
 
 ## 1. Ce arată imaginile
 
@@ -142,7 +144,7 @@ XML-ul `ART_...` permite importul articolelor cu `Cod`, `Tip`, `Pret`, `Pret_TVA
 
 - **Scop confirmat:** indicator informativ pentru o factură în RON. Cursul nu intră în calculul prețului, TVA-ului, discountului sau totalului.
 - Manualul descrie „Curs ref.” ca multiplicator al prețului articolelor marcate în valută, inclusiv la Ieșiri–lei. Așadar, existența câmpului nu înseamnă automat factură în EUR.
-- Sursa cerută este Infovalutar. În această analiză site-ul nu a putut fi accesat și nu am confirmat un API/feed oficial. Nu inventăm un URL de integrare și nu schimbăm sursa în BNR fără acord. Avem nevoie de URL-ul exact ori de acceptarea unei surse oficiale alternative.
+- Cerința inițială era Infovalutar, al cărui serviciu nu a putut fi confirmat la analiză. **Ulterior, utilizatorul a acceptat BNR direct**, sursă folosită în etapa 4. Comportamentul livrat este descris în [invoice-eur-reference.md](invoice-eur-reference.md).
 - După confirmarea sursei de date, păstrăm sursa, data cursului, momentul citirii și valoarea zecimală; cursul folosit se îngheață odată cu factura. Pentru zile nelucrătoare afișăm data reală a ultimului curs disponibil, fără a-l eticheta fals ca publicat azi.
 - Chiar fără conversie, trebuie confirmat că prețul articolului folosit la factura RON este un preț RON. Un articol cu preț de bază în valută nu este tratat tacit ca RON; dacă sursa/regula prețului este neclară, articolul nu devine eligibil până la clarificare. Funcția SAGA „valută” nu este reprodusă automat.
 - Nu adăugăm un tag `FacturaCurs` nedocumentat. XML-ul primește valorile RON ale facturii, fără conversie; referința cursului se păstrează în snapshot și, dacă este necesară în document, în informațiile suplimentare și viitorul PDF. Conversia EUR → RON și facturarea în EUR rămân în afara acestui plan.
@@ -159,7 +161,7 @@ XML-ul `ART_...` permite importul articolelor cu `Cod`, `Tip`, `Pret`, `Pret_TVA
 1. **Configurare și mostre:** identificarea UID-urilor/rolurilor celor trei conturi FOM, verificarea ultimelor numere și formatului acceptat de SAGA, a prețului de vânzare folosit și a regulii pentru valoarea zero. Exporturi complete de referință și răspunsuri anonimizate pentru articole RON/valută și clienți cu/fără termen.
 2. **Cataloage + profiluri:** importuri/revizii/proveniență, tipuri, gestiuni, agenți, termene și serii pe UID.
 3. **Editor + reguli server:** căutare după CUI/cod/denumire, câmpuri automate, agent/note/scadență, preț protejat și TVA pe linie.
-4. **Curs EUR informativ**, după confirmarea sursei; fără conversie sau schimbarea monedei RON.
+4. **Curs EUR informativ** — implementat local în etapa 4, cu sursă BNR confirmată; fără conversie sau schimbarea monedei RON.
 5. **Regresii + test în firma SAGA de test**, apoi completarea finalizării/PDF-ului și activarea controlată.
 
 Criterii de verificare:

@@ -1,3 +1,4 @@
+import { EurRateError } from "./eur-rate";
 import { InvoiceXmlError } from "./xml";
 import { InvoiceNumberingError } from "./numbering";
 import { InvoiceDraftError } from "./draft";
@@ -26,6 +27,7 @@ export function invoiceXmlHandlers(
       });
     } catch (e) {
       const known =
+        e instanceof EurRateError ||
         e instanceof InvoiceXmlError ||
         e instanceof InvoiceNumberingError ||
         e instanceof InvoiceDraftError ||

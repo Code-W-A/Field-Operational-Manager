@@ -1,3 +1,4 @@
+import { createEurRateService } from "./eur-rate.server";
 import { createCommercialService } from "./commercial.server";
 import { createHash } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
@@ -41,6 +42,7 @@ export function createInvoiceXmlService(
     db.collection("invoiceIssuerProfiles").doc(config().fiscalCode);
   const numbering = createInvoiceNumberingService(db, config, now);
   const commercial = createCommercialService(db, config, now);
+  const eur = createEurRateService(db, { now });
   const catalog = createSagaCatalogService(
     db,
     async () => {
@@ -180,6 +182,15 @@ export function createInvoiceXmlService(
       draft,
       true,
     );
+    const eurReference = await eur.resolveIn(
+      tx,
+      content.eurReference,
+      content.date,
+      actor,
+      draft.eurReference,
+      true,
+    );
+    content.eurReference = eurReference;
     const commercialContext = content.commercial
       ? await commercial.contextIn(tx, actor, w.data()!)
       : null;
@@ -271,7 +282,8 @@ export function createInvoiceXmlService(
       lines = calculateXmlLines(content);
     const snapshot: InvoiceXmlSnapshot = {
       schemaVersion: 1,
-      generatorVersion: content.commercial ? 3 : 2,
+      generatorVersion: 4,
+      eurReference,
       ...(commercialContext?.agent ? { agent: commercialContext.agent } : {}),
       fiscalCode: config().fiscalCode,
       workId,

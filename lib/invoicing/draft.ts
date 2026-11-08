@@ -1,3 +1,4 @@
+import { parseEurReference, type EurReference } from "./eur-rate";
 import {
   commercialAmounts,
   commercialDecimal,
@@ -39,6 +40,7 @@ export type InvoiceBeneficiary = {
   email: string;
 };
 export type InvoiceContent = {
+  eurReference?: EurReference;
   commercial?: CommercialRules;
   extraInfo?: string;
   beneficiary: InvoiceBeneficiary;
@@ -295,7 +297,9 @@ export function parseInvoiceContent(input: unknown): InvoiceContent {
     throw new InvoiceDraftError(
       "Scadența nu poate fi anterioară datei documentului.",
     );
+  const eurReference = parseEurReference(v.eurReference);
   const content: InvoiceContent = {
+    ...(eurReference ? { eurReference } : {}),
     ...(commercial
       ? { commercial, extraInfo: commercialText(v.extraInfo) }
       : {}),
@@ -321,8 +325,10 @@ export function invoiceContent(draft: InvoiceDraft): InvoiceContent {
     discountPercent,
     commercial,
     extraInfo,
+    eurReference,
   } = draft;
   return {
+    ...(eurReference ? { eurReference } : {}),
     ...(commercial ? { commercial, extraInfo: extraInfo || "" } : {}),
     beneficiary,
     date,

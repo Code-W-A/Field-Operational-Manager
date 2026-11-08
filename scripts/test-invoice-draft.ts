@@ -1,3 +1,4 @@
+import { eurFixtureHandlers } from "../lib/invoicing/eur-rate.fixtures";
 /** Isolated Auth + Firestore emulators, real HTTP handlers/service and editor.
  * No production credentials, SAGA calls, invoice numbers or email delivery. */
 import assert from "node:assert/strict";
@@ -153,7 +154,7 @@ async function main() {
       .doc("predefinedSettings/offers_default_vat_percent")
       .set({ value: 19 });
     const service = createInvoiceDraftService(db);
-    const handlers = invoiceDraftHandlers(service, async (request) => {
+    const authenticate = async (request: Request) => {
       const bearer = request.headers
         .get("authorization")
         ?.replace(/^Bearer /, "");
@@ -161,7 +162,9 @@ async function main() {
       const verified = await auth.verifyIdToken(bearer);
       const user = (await db.doc(`users/${verified.uid}`).get()).data();
       return { uid: verified.uid, role: user?.role || "" };
-    });
+    };
+    const handlers = invoiceDraftHandlers(service, authenticate),
+      eurHttp = eurFixtureHandlers(db, authenticate);
     const call = (
       method: "GET" | "PUT",
       role = "admin",
@@ -364,6 +367,17 @@ async function main() {
     );
     server = createServer(async (req, res) => {
       try {
+        if (req.url?.startsWith("/api/lucrari/w/invoice-draft/eur-rate")) {
+          const response = await eurHttp.get(
+            new Request("http://localhost" + req.url, {
+              headers: req.headers as Record<string, string>,
+            }),
+            "w",
+          );
+          res.writeHead(response.status, Object.fromEntries(response.headers));
+          res.end(await response.text());
+          return;
+        }
         // Empty catalog fixture: invoice regression tests never consult SAGA.
         if (req.url === "/api/integrations/saga/catalog") {
           res.setHeader("Content-Type", "application/json");

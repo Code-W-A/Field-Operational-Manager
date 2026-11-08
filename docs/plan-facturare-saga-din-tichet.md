@@ -338,3 +338,11 @@ La redactarea inițială s-a realizat numai planul. Implementările ulterioare a
 | Acces neautorizat | Clientul/tehnicianul/neautentificatul nu pot emite, modifica contoare, confirma contabilitatea sau citi cheia/rapoarte private, inclusiv prin acces Firestore direct. |
 
 Verificarea viitoare se raportează separat: teste de domeniu, emulator, browser, firmă SAGA de test, pilot și producție. Pentru prezentul document au fost realizate numai cercetarea documentației publice, inspecția codului și verificarea fișierului Markdown; nu există dovadă de integrare funcțională sau de descărcare reală a stocului.
+
+## Actualizare locală — Planul 2, etapa 3
+
+Editorul și regulile comerciale sunt implementate cu activare explicită, migrarea confirmată a ciornelor, surse API protejate, TVA pe linii, scadență și note. Documentele istorice și numerotarea lor sunt păstrate. [Implementare, contracte și verificări](invoice-commercial-rules.md). Nu s-au configurat date reale și nu s-a publicat nimic.
+
+## Actualizare locală — Planul 2, etapa 4
+
+Cursul EUR informativ din BNR este implementat, conform sursei confirmate ulterior. Se păstrează în ciornă și XML v4 fără modificarea totalurilor RON. [Implementare și teste](invoice-eur-reference.md). Publicarea regulilor pentru cache și folosirea în cloud rămân separate.

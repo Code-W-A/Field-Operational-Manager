@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:invoice-eur": "tsx --test lib/invoicing/eur-rate.test.ts",
+    "test:invoice-eur:integration": "tsx scripts/test-invoice-eur.ts",
     "test:invoice-commercial": "tsx --test lib/invoicing/commercial.test.ts",
     "test:invoice-commercial:integration": "tsx scripts/test-invoice-commercial.ts",
     "test:invoice-draft": "tsx --test lib/invoicing/draft.test.ts",

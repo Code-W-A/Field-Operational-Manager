@@ -1,3 +1,4 @@
+import { eurFixtureHandlers } from "../lib/invoicing/eur-rate.fixtures";
 /** Isolated Auth + Firestore emulators, real HTTP handlers/service and editor.
  * No production credentials or live SAGA calls. Upstream transport is injected; Auth/Firestore and UI are real. */
 import assert from "node:assert/strict";
@@ -164,8 +165,10 @@ async function main() {
         authenticate,
       );
     const base = "/api/integrations/saga/numbering";
+    const eurHttp = eurFixtureHandlers(db, authenticate);
     async function dispatch(r: Request) {
       const p = new URL(r.url).pathname;
+      if (p.endsWith("/eur-rate")) return eurHttp.get(r, "w");
       if (p === base)
         return r.method === "GET"
           ? handlers.get(r)

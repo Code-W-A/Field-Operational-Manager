@@ -1,4 +1,6 @@
-"use client";
+import { InvoiceEurRate } from "./invoice-eur-rate";
+import type { EurReference } from "@/lib/invoicing/eur-rate";
+("use client");
 
 import {
   useEffect,
@@ -104,6 +106,7 @@ export function InvoiceDraftSection({
   const [comparison, setComparison] = useState<InvoiceDraft | null>(null);
   const [refreshSource, setRefreshSource] = useState(false);
   const [approveDiscount, setApproveDiscount] = useState(false);
+  const [eurProposal, setEurProposal] = useState<EurReference | undefined>();
   const [narrow, setNarrow] = useState(true),
     [position, setPosition] = useState<Position>({ x: 16, y: 80 });
   const drag = useRef<(Position & { startX: number; startY: number }) | null>(
@@ -156,6 +159,7 @@ export function InvoiceDraftSection({
       setDraft(data.draft);
       setBaseline(data.draft);
       setApproveDiscount(false);
+      setEurProposal(undefined);
       setRefreshSource(false);
       setComparison(null);
       setNotice("");
@@ -228,7 +232,12 @@ export function InvoiceDraftSection({
     setNotice("");
     try {
       const data = await request("PUT", {
-        content: invoiceContent(draft),
+        content: {
+          ...invoiceContent(draft),
+          ...(!draft.eurReference && eurProposal?.requestedDate === draft.date
+            ? { eurReference: eurProposal }
+            : {}),
+        },
         expectedRevision: draft.revision,
         refreshSource,
         approveDiscount,
@@ -237,6 +246,7 @@ export function InvoiceDraftSection({
       setDraft(data.draft);
       setBaseline(data.draft);
       setApproveDiscount(false);
+      setEurProposal(undefined);
       setRefreshSource(false);
       setComparison(null);
       setConfirm(null);
@@ -302,6 +312,7 @@ export function InvoiceDraftSection({
       } else {
         setBaseline(data.draft);
         setApproveDiscount(false);
+        setEurProposal(undefined);
         setRefreshSource(false);
         setNotice("Versiunea salvată a fost încărcată.");
       }
@@ -319,7 +330,17 @@ export function InvoiceDraftSection({
     e.preventDefault();
   }
   const patch = (content: Partial<InvoiceContent>) => {
-    setDraft((d) => (d ? { ...d, ...content } : null));
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            ...content,
+            ...(content.date !== undefined && content.date !== d.date
+              ? { eurReference: undefined }
+              : {}),
+          }
+        : null,
+    );
     setNotice("");
   };
   let totals = draft?.totals,
@@ -622,11 +643,19 @@ export function InvoiceDraftSection({
             onChange={patch}
             prefix="invoice"
           />
+          <InvoiceEurRate
+            workId={workId}
+            date={draft.date}
+            reference={draft.eurReference}
+            readOnly={readOnly || saving}
+            onProposal={setEurProposal}
+            onSelect={(eurReference) => patch({ eurReference })}
+          />
           <InvoiceXmlPanel
             key={`xml:${workId}:${user?.uid}`}
             workId={workId}
             revision={draft.revision}
-            dirty={dirty}
+            dirty={dirty || !draft.eurReference}
             readOnly={readOnly || saving}
             onBusy={setBusyAction}
             onFrozen={() =>

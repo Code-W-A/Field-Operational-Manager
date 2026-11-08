@@ -49,3 +49,7 @@ Etapa 3 este implementată local: profil fiscal confirmat, câmpuri structurate 
 ## Planul 2 — reguli comerciale
 
 Etapa 3 adaugă versiunea comercială 2 a ciornei, cu activare pe firmă și conversie explicită a ciornelor existente. Prețul/UM/TVA provin din verificarea API salvată, TVA-ul este pe linii, iar scadența și notele sunt păstrate separat. [Utilizare, protecții și teste](invoice-commercial-rules.md).
+
+## Planul 2 — curs EUR informativ
+
+Etapa 4 adaugă propunerea BNR pentru data facturii și păstrarea explicită în ciornă/document. Totalurile RON rămân identice. [API, cache, omiterea confirmată și teste](invoice-eur-reference.md).

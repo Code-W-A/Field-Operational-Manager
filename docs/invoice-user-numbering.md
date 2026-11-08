@@ -69,3 +69,7 @@ Comenzi:
 - TypeScript: 212 diagnostice preexistente înainte și după; fără diagnostice noi la compararea mesajelor fără poziții.
 
 Testele folosesc numai date fictive. Nu dovedesc configurarea seriilor/conturilor clientului sau compatibilitatea importului într-o firmă SAGA reală. Publicarea și activarea efectivă sunt pași separați. Regulile comerciale, prețul/TVA pe linie, scadența și agentul fiscal rămân în etapa următoare.
+
+## Continuare — etapa 3
+
+Editorul și regulile comerciale sunt implementate local, cu activare separată pe firmă. [Autocompletare, preț protejat, TVA pe linii, scadență și note](invoice-commercial-rules.md).

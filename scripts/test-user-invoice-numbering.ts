@@ -1,3 +1,7 @@
+import {
+  withEurOmitted,
+  eurFixtureHandlers,
+} from "../lib/invoicing/eur-rate.fixtures";
 import { numberingHandlers } from "../lib/invoicing/numbering-http";
 import { createSagaReferencesService } from "../lib/saga/references.server";
 /** Isolated Auth + Firestore emulators, real HTTP handlers/service and editor.
@@ -230,15 +234,17 @@ async function main() {
       await db.doc(`lucrari/${id}`).set(work);
       return draftService.put(
         id,
-        { expectedRevision: 0, content: contentFixture() },
+        { expectedRevision: 0, content: withEurOmitted(contentFixture()) },
         actor,
       );
     }
     const numbers = numberingHandlers(numbering, authenticate);
+    const eurHttp = eurFixtureHandlers(db, authenticate);
     async function dispatch(r: Request) {
       const url = new URL(r.url),
         p = url.pathname,
         id = p.split("/")[3];
+      if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
       if (p.endsWith("/numbering/users/preview"))
         return numbers.usersPreview(r);
       if (p.endsWith("/numbering/users/activate"))
@@ -450,7 +456,7 @@ async function main() {
     ).docs.map((d) => d.data());
     await draftService.put(
       "a",
-      { expectedRevision: 1, content: contentFixture() },
+      { expectedRevision: 1, content: withEurOmitted(contentFixture()) },
       actor,
     );
     assert.deepEqual(

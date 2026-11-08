@@ -1,3 +1,4 @@
+import { eurFixtureHandlers } from "../lib/invoicing/eur-rate.fixtures";
 /** Isolated Auth + Firestore emulators, real HTTP handlers/service and editor.
  * No production credentials or live SAGA calls. Upstream transport is injected; Auth/Firestore and UI are real. */
 import assert from "node:assert/strict";
@@ -150,9 +151,11 @@ async function main() {
       createInvoiceDraftService(db),
       authenticate,
     );
+    const eurHttp = eurFixtureHandlers(db, authenticate);
     async function dispatch(r: Request) {
       const url = new URL(r.url),
         p = url.pathname;
+      if (p.endsWith("/eur-rate")) return eurHttp.get(r, "w");
       if (p.endsWith("/saga-link")) {
         const clientId = p.split("/")[3];
         return r.method === "PUT"

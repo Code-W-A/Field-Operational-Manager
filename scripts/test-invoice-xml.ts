@@ -1,3 +1,7 @@
+import {
+  withEurOmitted,
+  eurFixtureHandlers,
+} from "../lib/invoicing/eur-rate.fixtures";
 /** Isolated Auth + Firestore emulators, real HTTP handlers/service and editor.
  * No production credentials or live SAGA calls. Upstream transport is injected; Auth/Firestore and UI are real. */
 import assert from "node:assert/strict";
@@ -228,7 +232,7 @@ async function main() {
       await db.doc(`lucrari/${id}`).set(work);
       return draftService.put(
         id,
-        { expectedRevision: 0, content: contentFixture() },
+        { expectedRevision: 0, content: withEurOmitted(contentFixture()) },
         actor,
       );
     }
@@ -249,9 +253,11 @@ async function main() {
       ...numberInput,
       confirmationHash: np.confirmationHash,
     });
+    const eurHttp = eurFixtureHandlers(db, authenticate);
     async function dispatch(r: Request) {
       const p = new URL(r.url).pathname,
         id = p.split("/")[3];
+      if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
       if (p === "/api/integrations/saga/issuer")
         return r.method === "PUT"
           ? handlers.saveProfile(r)
@@ -536,7 +542,7 @@ async function main() {
     await assert.rejects(
       draftService.put(
         "w",
-        { expectedRevision: 1, content: contentFixture() },
+        { expectedRevision: 1, content: withEurOmitted(contentFixture()) },
         actor,
       ),
       (e: any) => e.code === "DRAFT_READ_ONLY",

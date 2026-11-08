@@ -1,4 +1,5 @@
-"use client";
+import { eurReferenceText } from "@/lib/invoicing/eur-rate";
+("use client");
 import { InvoiceSagaPanel } from "./invoice-saga-panel";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -171,6 +172,9 @@ export function InvoiceXmlPanel({
             Document XML pregătit în FOM
           </p>
           <p className="break-words">Număr: {doc.number}</p>
+          {doc.snapshot.eurReference && (
+            <p>{eurReferenceText(doc.snapshot.eurReference)}</p>
+          )}
           {doc.snapshot.numbering && (
             <p>
               Utilizator emitent: {doc.snapshot.numbering.name} · Serie:{" "}
@@ -288,6 +292,9 @@ export function InvoiceXmlPanel({
               Agent SAGA: {preview.snapshot.agent.code} —{" "}
               {preview.snapshot.agent.name}
             </p>
+          )}
+          {preview.snapshot.eurReference && (
+            <p>{eurReferenceText(preview.snapshot.eurReference)}</p>
           )}
           <p>Număr estimat — nerezervat: {preview.estimatedNumber}</p>
           <div className="space-y-1">

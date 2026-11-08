@@ -80,7 +80,7 @@ Prețul net după discount are maximum 8 zecimale și trebuie să reproducă val
 
 Principalele fișiere noi: `lib/invoicing/commercial.ts`, `commercial.server.ts`, `commercial-http.ts`, `commercial-runtime.server.ts`, rutele descrise mai sus, `components/settings/invoice-commercial-settings.tsx`, `components/invoicing/invoice-commercial.tsx`, `lib/invoicing/commercial.test.ts` și `scripts/test-invoice-commercial.ts`. Integrarea extinde serviciul/modelul ciornei, editorul, generatorul/verificarea XML și tabul SAGA, fără rescrierea conectorului sau workerului.
 
-Verificări locale, cu date fictive:
+Verificări locale, cu date fictive: **toate cele 35 de teste unitare și cele șase suite API/emulator/browser de mai jos au trecut**.
 
 - `npm run test:invoice-commercial`: **8 teste** — TVA mixt/zero, repartizări exacte, zecimale, termen zero/necunoscut și calendar, limitele notelor, refuzul aprobării falsificate, XML escapate/agent/note, verificarea artefactului nou și compatibilitatea istoricului.
 - `npm run test:invoice-commercial:integration`: Auth/Firestore izolate pe proiectul demo `demo-fom-commercial`. Acoperă activarea, conversia explicită, câmpuri și discount protejate, preferarea API față de export, surse schimbate, termene, CUI neconcordant, downgrade/refacere surse, acces Firestore refuzat și rollback fără număr consumat. În browser verifică activarea și legătura gestiunii, căutarea clientului, migrarea, selecția articolului din tastatură, TVA mixt, scadență automată/manuală, note, pregătire și redeschidere la 320/390 px. Documentul comercial nou trece și intrarea în fluxul de transmitere **dry-run**, cu gateway care refuză orice apel extern. Captura locală este `/tmp/fom-commercial-ticket-mobile.png`.
