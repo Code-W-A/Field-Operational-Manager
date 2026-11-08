@@ -1,8 +1,12 @@
+import { createCommercialService } from "./commercial.server";
+import { sagaConfig, type SagaConfig } from "@/lib/saga/config.server";
+import { randomUUID } from "node:crypto";
 import { createSagaCatalogService } from "@/lib/saga/catalog.server";
 import type { InvoiceLine } from "./draft";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   calculateInvoiceTotals,
+  invoiceContent,
   InvoiceDraftError,
   invoiceEditReason,
   parseInvoiceContent,
@@ -19,7 +23,9 @@ export function createInvoiceDraftService(
   catalog = createSagaCatalogService(db, async () => {
     throw new Error("Catalog resolution does not call SAGA");
   }),
+  config: () => SagaConfig = sagaConfig,
 ) {
+  const commercial = createCommercialService(db, config, now);
   const workRef = (id: string) => {
     if (!id || id.includes("/") || id.length > 200)
       throw new InvoiceDraftError("Tichet invalid.");
@@ -77,14 +83,19 @@ export function createInvoiceDraftService(
   ): Promise<InvoiceDraftResponse> {
     const ref = workRef(id);
     await actorProfile(actor);
-    const [w, d] = await Promise.all([
+    const [w, d, preparedDocument] = await Promise.all([
       ref.get(),
       db.collection("invoiceDrafts").doc(id).get(),
+      db.collection("invoices").doc(id).get(),
     ]);
     if (!w.exists) throw new InvoiceDraftError("Tichetul nu mai există.", 404);
-    const reason = invoiceEditReason(w.data()!);
+    const policy = await commercial.policyIn();
+    const reason = preparedDocument.exists
+      ? "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată."
+      : invoiceEditReason(w.data()!);
     if (d.exists && !refreshSource)
       return {
+        commercialPolicy: policy.enabled,
         draft: d.data() as InvoiceDraft,
         saved: true,
         canEdit: !reason,
@@ -92,14 +103,35 @@ export function createInvoiceDraftService(
       };
     if (reason)
       return {
+        commercialPolicy: policy.enabled,
         draft: d.exists ? (d.data() as InvoiceDraft) : null,
         saved: d.exists,
         canEdit: false,
         reason,
       };
-    const draft = await seed(id, w.data()!);
+    let draft = await seed(id, w.data()!);
+    if ((await commercial.policyIn()).enabled) {
+      const proposal = await db.runTransaction((tx) =>
+        commercial.proposeIn(tx, actor, w.data()!, {
+          ...invoiceContent(draft),
+          discountPercent: !d.exists ? "0" : draft.discountPercent,
+        }),
+      );
+      draft = {
+        ...draft,
+        ...proposal.content,
+        schemaVersion: 2,
+        totals: calculateInvoiceTotals(proposal.content),
+      };
+    }
     draft.revision = d.exists ? d.data()!.revision : 0;
-    return { draft, saved: d.exists, canEdit: true, reason: "" };
+    return {
+      draft,
+      saved: d.exists,
+      canEdit: true,
+      reason: "",
+      commercialPolicy: policy.enabled,
+    };
   }
   async function put(
     id: string,
@@ -112,6 +144,8 @@ export function createInvoiceDraftService(
       expectedRevision?: unknown;
       content?: unknown;
       refreshSource?: unknown;
+      commercialHash?: string;
+      approveDiscount?: boolean;
     } | null;
     if (
       !body ||
@@ -121,15 +155,16 @@ export function createInvoiceDraftService(
         typeof body.refreshSource !== "boolean")
     )
       throw new InvoiceDraftError("Revizia ciornei nu este validă.");
-    const content = parseInvoiceContent(body.content);
+    let content = parseInvoiceContent(body.content);
     // Source data is read on the server, never trusted from the submitted JSON.
     const prepared = await get(id, actor, true);
     return db.runTransaction(async (tx) => {
       const draftRef = db.collection("invoiceDrafts").doc(id);
-      const [w, d, u] = await Promise.all([
+      const [w, d, u, frozen] = await Promise.all([
         tx.get(ref),
         tx.get(draftRef),
         tx.get(db.collection("users").doc(actor.uid)),
+        tx.get(db.collection("invoices").doc(id)),
       ]);
       if (
         !u.exists ||
@@ -139,7 +174,9 @@ export function createInvoiceDraftService(
         throw new InvoiceDraftError("Nu ai acces la facturare.", 403);
       if (!w.exists)
         throw new InvoiceDraftError("Tichetul nu mai există.", 404);
-      const reason = invoiceEditReason(w.data()!);
+      const reason = frozen.exists
+        ? "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată."
+        : invoiceEditReason(w.data()!);
       if (reason) throw new InvoiceDraftError(reason, 409, "DRAFT_READ_ONLY");
       const previous = d.exists ? (d.data() as InvoiceDraft) : null;
       if ((previous?.revision || 0) !== body.expectedRevision)
@@ -155,6 +192,54 @@ export function createInvoiceDraftService(
           "Datele sursă nu mai sunt disponibile.",
           409,
         );
+      if (
+        !previous &&
+        !content.commercial &&
+        (await commercial.policyIn(tx)).enabled
+      )
+        throw new InvoiceDraftError(
+          "Aplică regulile SAGA pentru ciorna nouă.",
+          409,
+          "COMMERCIAL_REQUIRED",
+        );
+      if (previous?.commercial && !content.commercial)
+        throw new InvoiceDraftError(
+          "Nu poți reveni la regulile comerciale vechi.",
+          409,
+        );
+      if (
+        content.commercial &&
+        previous &&
+        !previous.commercial &&
+        !body.commercialHash
+      )
+        throw new InvoiceDraftError(
+          "Previzualizează și confirmă aplicarea regulilor SAGA.",
+          409,
+        );
+      if (content.commercial && body.commercialHash) {
+        const preview = await commercial.proposeIn(
+          tx,
+          actor,
+          w.data()!,
+          content,
+        );
+        if (preview.confirmationHash !== body.commercialHash)
+          throw new InvoiceDraftError(
+            "Previzualizarea comercială s-a modificat.",
+            409,
+            "COMMERCIAL_CONFLICT",
+          );
+      }
+      content = await commercial.validateIn(
+        tx,
+        actor,
+        w.data()!,
+        content,
+        previous,
+        false,
+        body.approveDiscount === true,
+      );
       const at = now().toISOString();
       const lines: InvoiceLine[] = [];
       for (const line of content.lines) {
@@ -164,20 +249,54 @@ export function createInvoiceDraftService(
             : line,
         );
       }
+      // Only the validated content may opt into the commercial schema.
+      const {
+        commercial: _sourceCommercial,
+        extraInfo: _sourceInfo,
+        ...baseSource
+      } = source;
       const draft: InvoiceDraft = {
-        ...source,
+        ...baseSource,
         ...content,
         lines,
         workId: id,
-        schemaVersion: 1,
+        schemaVersion: content.commercial ? 2 : 1,
         revision: (previous?.revision || 0) + 1,
         totals: calculateInvoiceTotals(content),
         createdAt: previous?.createdAt || at,
         updatedAt: at,
         updatedBy: { uid: actor.uid, name: u.data()!.displayName || actor.uid },
       };
+      const commercialPolicy = (await commercial.policyIn(tx)).enabled;
       tx.set(draftRef, draft);
-      return { draft, saved: true, canEdit: true, reason: "" };
+      if (
+        actor.role === "admin" &&
+        (body.approveDiscount === true ||
+          previous?.discountPercent !== content.discountPercent) &&
+        content.commercial
+      )
+        tx.set(
+          db
+            .collection("sagaCatalogs")
+            .doc(config().fiscalCode)
+            .collection("commercialDiscountAudit")
+            .doc(randomUUID()),
+          {
+            workId: id,
+            percent: content.discountPercent,
+            previousPercent: previous?.discountPercent || "0",
+            uid: actor.uid,
+            at,
+            revision: draft.revision,
+          },
+        );
+      return {
+        draft,
+        saved: true,
+        canEdit: true,
+        reason: "",
+        commercialPolicy,
+      };
     });
   }
   return { get, put };

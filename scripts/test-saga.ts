@@ -21,6 +21,9 @@ import { SagaError } from "../lib/saga/contracts";
 import { createSagaCatalogService } from "../lib/saga/catalog.server";
 import { sagaCatalogHandlers } from "../lib/saga/catalog-http";
 
+import { createInvoiceNumberingService } from "../lib/invoicing/numbering.server";
+import { numberingHandlers } from "../lib/invoicing/numbering-http";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   projectId = "demo-fom-saga-read",
   firestoreHost = "127.0.0.1:8397",
@@ -148,6 +151,10 @@ async function main() {
       };
     };
     const handlers = sagaHandlers(service, authenticate);
+    const numbering = numberingHandlers(
+      createInvoiceNumberingService(db, () => config),
+      authenticate,
+    );
     const catalogs = sagaCatalogHandlers(
       createSagaCatalogService(db, service.readForInvoice, () => config),
       authenticate,
@@ -433,7 +440,10 @@ async function main() {
       tailwind({
         ...tailwindConfig,
         content: [
-          path.join(root, "components/settings/saga*.tsx"),
+          path.join(
+            root,
+            "components/settings/{saga*,invoice-numbering-settings}.tsx",
+          ),
           path.join(root, "components/ui/{card,input,button}.tsx"),
         ],
       }),
@@ -453,11 +463,29 @@ async function main() {
                 ? Buffer.concat(chunks).toString()
                 : undefined,
           });
-          const response = req.url.endsWith("/catalog")
-            ? await catalogs.list(request)
-            : await handlers[req.url.endsWith("/read") ? "read" : "status"](
-                request,
-              );
+          const response = req.url.endsWith("/commercial-policy")
+            ? Response.json({enabled:false,revision:0,writesEnabled:false})
+            : req.url.endsWith("/numbering/users")
+            ? Response.json({entries:[],nextCursor:null,mode:"legacy",revision:0,writesEnabled:false})
+            : req.url.includes("/references/")
+            ? Response.json(req.url.includes("/imports") ? {job:null} : {fiscalCode:"123456",writesEnabled:false,entries:[],nextCursor:null})
+            : req.url.endsWith("/issuers/users")
+            ? Response.json({users:[],nextCursor:null})
+            : req.url.endsWith("/issuer")
+            ? Response.json({
+                fiscalCode: "123456",
+                profile: null,
+                writesEnabled: false,
+              })
+            : req.url.endsWith("/numbering")
+              ? await numbering.get(request)
+              : req.url.endsWith("/clients/imports")
+                ? Response.json({ job: null })
+                : req.url.endsWith("/catalog")
+                  ? await catalogs.list(request)
+                  : await handlers[
+                      req.url.endsWith("/read") ? "read" : "status"
+                    ](request);
           res.writeHead(response.status, Object.fromEntries(response.headers));
           res.end(await response.text());
           return;

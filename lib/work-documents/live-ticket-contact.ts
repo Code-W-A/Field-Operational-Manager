@@ -5,7 +5,9 @@ import { db } from "@/lib/firebase/firebase"
 import { getClientById } from "@/lib/firebase/firestore"
 import { ContactAssociationError, freshReinterventionContact, type SyncRecord } from "@/firebase-functions/src/client-ticket-sync"
 
-export async function loadReinterventionContact(work: SyncRecord) {
+import { ReinterventionEquipmentError, prepareRevisionReinterventionEquipment, validateRevisionReinterventionEquipment } from "./reintervention-equipment"
+
+export async function loadReinterventionContact(work: SyncRecord, prepareEquipment = false) {
   const id = work.clientId || work.clientInfo?.id
   let client: SyncRecord | null = id ? await getClientById(String(id), { serverOnly: true }) : null
   if (!id) {
@@ -13,14 +15,18 @@ export async function loadReinterventionContact(work: SyncRecord) {
     if (matches.size === 1) client = { ...matches.docs[0].data(), id: matches.docs[0].id }
   }
   if (!client) throw new ContactAssociationError("Clientul nu poate fi identificat. Selectați clientul actual.")
-  return freshReinterventionContact(client, work)
+  const contact = freshReinterventionContact(client, work)
+  if (prepareEquipment && work.tipLucrare === "Revizie") return { ...contact, ...prepareRevisionReinterventionEquipment(client, work) }
+  if (Array.isArray(work.reinterventionEquipmentIds)) return { ...contact, ...validateRevisionReinterventionEquipment(client, work) }
+  return contact
 }
 
 export async function prepareReinterventionContact(work: SyncRecord) {
-  try { return await loadReinterventionContact(work) } catch (error) {
+  try { return await loadReinterventionContact(work, true) } catch (error) {
     if (!(error instanceof ContactAssociationError)) throw new Error("Datele clientului nu au putut fi citite. Reîncercați înainte de a crea reintervenția.")
     return { client: work.client || "", clientId: work.clientId || work.clientInfo?.id || "",
       locatie: "", locationId: "", contactId: "", persoanaContact: "", telefon: "", persoanaContactEmail: "",
+      ...(work.tipLucrare === "Revizie" ? { reinterventionEquipmentIds: Array.isArray(work.equipmentIds) ? work.equipmentIds : [], equipmentIds: [], echipamentId: "", echipament: "", echipamentCod: "" } : {}),
       persoaneContact: [], contactSelectionRequired: true, contactSelectionMessage: error.message }
   }
 }
@@ -31,7 +37,7 @@ export async function refreshReinterventionContact(work: SyncRecord) {
   }
   let fresh: SyncRecord
   try { fresh = await loadReinterventionContact(work) } catch (error) {
-    if (error instanceof ContactAssociationError) throw error
+    if (error instanceof ContactAssociationError || error instanceof ReinterventionEquipmentError) throw error
     throw new Error("Datele actuale ale clientului nu au putut fi citite. Reintervenția nu a fost creată. Reîncercați.")
   }
   const oldValues = work.contactSync?.values || {}

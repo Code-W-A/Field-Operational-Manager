@@ -1,3 +1,12 @@
+import {
+  commercialAmounts,
+  commercialDecimal,
+  commercialText,
+  parseCommercial,
+  parseCommercialSource,
+  type CommercialRules,
+  type CommercialLineSource,
+} from "./commercial";
 import { parseInvoiceSagaLink, type InvoiceSagaLink } from "@/lib/saga/catalog";
 import { resolveTicketLiveDisplay } from "@/lib/work-documents/ticket-live-display";
 import { getTicketEmitent } from "@/lib/utils/ticket-emitent";
@@ -6,6 +15,9 @@ import { equipmentFor } from "@/packages/fom-domain";
 
 type RecordData = Record<string, any>;
 export type InvoiceLine = {
+  commercial?: CommercialLineSource;
+  vatPercent?: string;
+  extraInfo?: string;
   saga?: InvoiceSagaLink;
   id: string;
   name: string;
@@ -14,6 +26,9 @@ export type InvoiceLine = {
   price: string;
 };
 export type InvoiceBeneficiary = {
+  country?: string;
+  county?: string;
+  city?: string;
   name: string;
   cui: string;
   registration: string;
@@ -24,6 +39,8 @@ export type InvoiceBeneficiary = {
   email: string;
 };
 export type InvoiceContent = {
+  commercial?: CommercialRules;
+  extraInfo?: string;
   beneficiary: InvoiceBeneficiary;
   date: string;
   dueDate: string;
@@ -33,6 +50,7 @@ export type InvoiceContent = {
   discountPercent: string;
 };
 export type InvoiceTotals = {
+  vatGroups?: { rate: string; baseCents: number; vatCents: number }[];
   subtotalCents: number;
   discountCents: number;
   baseCents: number;
@@ -41,7 +59,7 @@ export type InvoiceTotals = {
   incomplete: boolean;
 };
 export type InvoiceDraft = InvoiceContent & {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   workId: string;
   revision: number;
   references: {
@@ -69,6 +87,7 @@ export type InvoiceDraft = InvoiceContent & {
   updatedBy: { uid: string; name: string } | null;
 };
 export type InvoiceDraftResponse = {
+  commercialPolicy?: boolean;
   draft: InvoiceDraft | null;
   saved: boolean;
   canEdit: boolean;
@@ -143,8 +162,13 @@ const scaled = (s: string) => {
 };
 const round = (n: bigint, d: bigint) => (n + d / BigInt(2)) / d;
 export function calculateInvoiceTotals(
-  content: Pick<InvoiceContent, "lines" | "vatPercent" | "discountPercent">,
+  content: Pick<
+    InvoiceContent,
+    "lines" | "vatPercent" | "discountPercent" | "commercial"
+  >,
 ): InvoiceTotals {
+  if (content.commercial?.version === 2)
+    return commercialAmounts(content).totals;
   let subtotal = BigInt(0);
   let incomplete =
     !content.lines.length ||
@@ -221,12 +245,21 @@ export function parseInvoiceContent(input: unknown): InvoiceContent {
     v.currency !== "RON"
   )
     throw new InvoiceDraftError("Datele ciornei nu sunt valide.");
+  const commercial = parseCommercial(v.commercial);
   const beneficiary = Object.fromEntries(
     beneficiaryKeys.map((key) => [
       key,
       bounded(v.beneficiary![key], "Beneficiar"),
     ]),
   ) as InvoiceBeneficiary;
+  for (const key of ["country", "county", "city"] as const) {
+    if (v.beneficiary[key] !== undefined)
+      beneficiary[key] = bounded(
+        v.beneficiary[key],
+        "Adresă fiscală",
+        key === "country" ? 2 : 100,
+      );
+  }
   const ids = new Set<string>();
   const lines = v.lines.map((line, index) => {
     if (!line || typeof line !== "object")
@@ -241,7 +274,18 @@ export function parseInvoiceContent(input: unknown): InvoiceContent {
       name: bounded(line.name, "Denumire"),
       um: bounded(line.um, "UM", 40),
       quantity: decimal(line.quantity, `Cantitate ${index + 1}`),
-      price: decimal(line.price, `Preț ${index + 1}`),
+      price: commercial
+        ? commercialDecimal(line.price)
+        : decimal(line.price, `Preț ${index + 1}`),
+      ...(commercial
+        ? {
+            vatPercent: commercialDecimal(line.vatPercent, 100, 4),
+            extraInfo: commercialText(line.extraInfo),
+            ...(line.commercial
+              ? { commercial: parseCommercialSource(line.commercial) }
+              : {}),
+          }
+        : {}),
       ...(saga ? { saga } : {}),
     };
   });
@@ -252,12 +296,15 @@ export function parseInvoiceContent(input: unknown): InvoiceContent {
       "Scadența nu poate fi anterioară datei documentului.",
     );
   const content: InvoiceContent = {
+    ...(commercial
+      ? { commercial, extraInfo: commercialText(v.extraInfo) }
+      : {}),
     beneficiary,
     date,
     dueDate,
     currency: "RON",
     lines,
-    vatPercent: decimal(v.vatPercent, "TVA", 100),
+    vatPercent: commercial ? "" : decimal(v.vatPercent, "TVA", 100),
     discountPercent: decimal(v.discountPercent, "Reducere", 100),
   };
   calculateInvoiceTotals(content);
@@ -272,8 +319,11 @@ export function invoiceContent(draft: InvoiceDraft): InvoiceContent {
     lines,
     vatPercent,
     discountPercent,
+    commercial,
+    extraInfo,
   } = draft;
   return {
+    ...(commercial ? { commercial, extraInfo: extraInfo || "" } : {}),
     beneficiary,
     date,
     dueDate,

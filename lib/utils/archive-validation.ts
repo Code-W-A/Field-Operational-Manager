@@ -14,6 +14,7 @@ export interface ArchiveRulesConfig {
   requireNoInvoicingReason: boolean
   offerRequireOfferSentWhenNeeded: boolean
   offerBlockWhenAccepted: boolean
+  // Numele istoric este păstrat pentru compatibilitate cu setarea salvată.
   offerWait30DaysWhenNoResponse: boolean
 }
 
@@ -33,18 +34,45 @@ export interface ArchiveValidationDetails {
   ignoredRules: string[] // reguli dezactivate din Setări Sistem (informativ)
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+const OFFER_ARCHIVE_WAIT_DAYS = 10
+
 const toDateSafe = (v: any): Date | null => {
   try {
-    if (!v) return null
-    if (typeof v?.toDate === "function") return v.toDate()
-    if (typeof v?.seconds === "number") return new Date(v.seconds * 1000)
-    if (typeof v === "string" || typeof v === "number") {
-      const d = new Date(v)
-      return isNaN(d.getTime()) ? null : d
-    }
-    return null
+    if (v === null || v === undefined || v === "") return null
+    const date = v instanceof Date ? v
+      : typeof v?.toDate === "function" ? v.toDate()
+      : typeof v?.seconds === "number" ? new Date(v.seconds * 1000)
+      : typeof v === "string" || typeof v === "number" ? new Date(v)
+      : null
+    return date instanceof Date && Number.isFinite(date.getTime()) ? date : null
   } catch {
     return null
+  }
+}
+
+function offerArchiveDeadline(lucrare: any): Date | null {
+  const sentAt = toDateSafe(lucrare?.offerArchiveSentAt) ||
+    (lucrare?.lastOfferEmail?.status !== "failed" ? toDateSafe(lucrare?.lastOfferEmail?.sentAt) : null)
+  if (sentAt) return new Date(sentAt.getTime() + OFFER_ARCHIVE_WAIT_DAYS * DAY_MS)
+
+  // Oferte vechi: tokenul inițial era emis pentru 30 de zile.
+  // După regenerare, expirarea tokenului nu mai indică data trimiterii.
+  const legacyExpiry = toDateSafe(lucrare?.offerActionExpiresAt)
+  if (legacyExpiry && !lucrare?.offerActionReissuedAt && !lucrare?.offerActionReissueCount) {
+    return new Date(legacyExpiry.getTime() - (30 - OFFER_ARCHIVE_WAIT_DAYS) * DAY_MS)
+  }
+  return null
+}
+
+function offerWaitingReason(lucrare: any): string | undefined {
+  const deadline = offerArchiveDeadline(lucrare)
+  if (!deadline) {
+    return "Oferta a fost transmisă, dar nu există data trimiterii. Retrimite oferta pentru a seta perioada de așteptare de 10 zile."
+  }
+  const remaining = deadline.getTime() - Date.now()
+  if (remaining > 0) {
+    return `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 10 zile de la trimitere (mai rămân ${Math.ceil(remaining / DAY_MS)} zile)`
   }
 }
 
@@ -131,27 +159,13 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
     ignoredRules.push("Blocare când oferta este acceptată")
   }
 
-  // Dacă oferta este refuzată, nu blocăm niciodată (rămâne permis).
-  // Dacă oferta a fost trimisă fără răspuns, aplicăm regula de 30 zile (sau excepția) dacă e activată.
+  // Răspunsul accept/refuz anulează așteptarea pentru lipsa răspunsului.
   if (hasOfferSent && !lucrare?.offerResponse) {
-    // Regula nouă: fără răspuns => se poate arhiva doar după 30 zile de la trimitere.
-    // Dacă răspunsul vine mai devreme (accept/refuz), regula de 30 zile se anulează automat (nu mai intrăm aici).
     if (rules.offerWait30DaysWhenNoResponse) {
-      const expirationDate = toDateSafe(lucrare?.offerActionExpiresAt)
-      if (expirationDate) {
-        const now = new Date()
-        if (now < expirationDate) {
-          const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-          blockingReasons.push(
-            `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
-          )
-        }
-      } else {
-        // Backward compatibility: dacă nu avem data, blocăm cu instrucțiune clară.
-        blockingReasons.push("Oferta a fost transmisă, dar nu există data de expirare (30 zile). Retrimite oferta pentru a seta perioada de așteptare.")
-      }
+      const reason = offerWaitingReason(lucrare)
+      if (reason) blockingReasons.push(reason)
     } else {
-      ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
+      ignoredRules.push("Așteptare 10 zile fără răspuns la ofertă")
     }
   }
 
@@ -169,7 +183,7 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
  * 2. Nu se poate arhiva dacă are o ofertă transmisă și acceptată. 
  *    Următoarea acțiune trebuie să fie reintervenție și abia apoi se activează butonul de arhivare
  * 3. Se activează butonul de arhivare dacă refuză oferta
- * 4. Se activează butonul de arhivare la 30 de zile de la transmiterea ofertei care nu are un răspuns accept/refuz
+ * 4. Se activează butonul de arhivare la 10 zile de la transmiterea ofertei care nu are un răspuns accept/refuz
  */
 export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
   // Regulă 1: Nu se poate arhiva dacă necesită ofertă și nu are ofertă transmisă
@@ -207,7 +221,7 @@ export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
     }
   }
 
-  // Regulă 4: Se poate arhiva după 30 de zile de la transmiterea ofertei fără răspuns
+  // Regulă 4: Se poate arhiva după 10 zile de la transmiterea ofertei fără răspuns
   const hasOfferSent = (lucrare.offerSendCount && lucrare.offerSendCount > 0) || 
                       (lucrare.offerVersions && lucrare.offerVersions.length > 0)
   
@@ -222,29 +236,9 @@ export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
       return { canArchive: true }
     }
 
-    // Verificăm dacă au trecut 30 de zile de la expirarea tokenului
-    // offerActionExpiresAt este deja setat la 30 de zile după trimitere
-    if (lucrare.offerActionExpiresAt) {
-      const expirationDate = lucrare.offerActionExpiresAt.toDate 
-        ? lucrare.offerActionExpiresAt.toDate() 
-        : new Date(lucrare.offerActionExpiresAt)
-      
-      const now = new Date()
-      
-      if (now >= expirationDate) {
-        // Au trecut 30 de zile, se poate arhiva
-        return {
-          canArchive: true
-        }
-      } else {
-        // Nu au trecut încă 30 de zile
-        const daysRemaining = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        return {
-          canArchive: false,
-          reason: `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile (mai rămân ${daysRemaining} zile)`
-        }
-      }
-    }
+    const reason = offerWaitingReason(lucrare)
+    return reason ? { canArchive: false, reason } : { canArchive: true }
+
   }
 
   // Dacă nu intră în niciuna din regulile de ofertă, verificăm regulile standard existente

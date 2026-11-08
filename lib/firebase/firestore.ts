@@ -808,6 +808,7 @@ export const addLucrare = async (lucrare: Lucrare) => {
     // Read from the server at the last creation boundary, for every entry point.
     const { refreshReinterventionContact } = await import("@/lib/work-documents/live-ticket-contact")
     lucrare = { ...lucrare, ...await refreshReinterventionContact(lucrare) }
+    delete (lucrare as any).reinterventionEquipmentIds
     delete (lucrare as any).contactSelectionRequired
     delete (lucrare as any).contactSelectionMessage
   }

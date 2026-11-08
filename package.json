@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:invoice-commercial": "tsx --test lib/invoicing/commercial.test.ts",
+    "test:invoice-commercial:integration": "tsx scripts/test-invoice-commercial.ts",
     "test:invoice-draft": "tsx --test lib/invoicing/draft.test.ts",
     "test:invoice-draft:integration": "tsx scripts/test-invoice-draft.ts",
     "test:intervention-recovery": "tsx --test lib/technician/intervention-merge.test.ts",
@@ -81,11 +83,21 @@
     "verify:mobile:real:readonly": "node --import tsx scripts/verify-mobile-real-readonly.ts",
     "test:domain": "tsx --test packages/fom-domain/contracts.test.ts",
     "typecheck:domain": "tsc -p packages/fom-domain/tsconfig.json",
+    "test:saga:references": "tsx --test lib/saga/references.test.ts",
+    "test:saga:references:integration": "tsx scripts/test-saga-references.ts",
     "test:saga": "tsx --test lib/saga/saga.test.ts lib/saga/catalog.test.ts",
+    "test:invoice-user-numbering:integration": "tsx scripts/test-user-invoice-numbering.ts",
+    "test:invoice-numbering": "tsx --test lib/invoicing/numbering.test.ts",
+    "test:invoice-numbering:integration": "tsx scripts/test-invoice-numbering.ts",
     "test:saga:clients": "tsx --test lib/saga/clients.test.ts",
     "test:saga:clients:integration": "tsx scripts/test-saga-clients.ts",
     "test:saga:catalog": "tsx scripts/test-saga-catalog.ts",
-    "test:saga:integration": "tsx scripts/test-saga.ts"
+    "test:saga:integration": "tsx scripts/test-saga.ts",
+    "test:invoice-xml": "tsx --test lib/invoicing/xml.test.ts",
+    "test:invoice-xml:integration": "tsx scripts/test-invoice-xml.ts",
+    "test:invoice-saga": "tsx --test lib/invoicing/saga-transfer.test.ts firebase-functions/src/saga-dispatch.test.ts",
+    "test:invoice-saga:integration": "tsx scripts/test-invoice-saga.ts",
+    "test:invoice-saga:live": "tsx scripts/test-saga-live-import.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

@@ -57,7 +57,7 @@ export function installationArchiveReasons(
       "Trimite oferta necesară.",
     "Oferta a fost acceptată. Se poate arhiva doar după lansarea reintervenției (crearea reintervenției în sistem)":
       "Oferta acceptată necesită lansarea reintervenției.",
-    "Oferta a fost transmisă, dar nu există data de expirare (30 zile). Retrimite oferta pentru a seta perioada de așteptare.":
+    "Oferta a fost transmisă, dar nu există data trimiterii. Retrimite oferta pentru a seta perioada de așteptare de 10 zile.":
       "Retrimite oferta pentru a stabili termenul de răspuns.",
   };
   for (const reason of getArchiveValidationDetails(work, config)
@@ -65,7 +65,7 @@ export function installationArchiveReasons(
     reasons.push(
       messages[reason] ||
         reason.replace(
-          "Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 de zile",
+          "Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 10 zile de la trimitere",
           "Așteaptă răspunsul la ofertă sau expirarea termenului",
         ),
     );

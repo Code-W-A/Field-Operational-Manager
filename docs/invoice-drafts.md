@@ -37,3 +37,15 @@ Verificare 7 noiembrie 2026: `test:invoice-draft` (10 teste), `test:invoice-draf
 ## Clientul SAGA al facturii — 7 noiembrie 2026
 
 Editorul consultă `GET /api/lucrari/{id}/invoice-draft/client-association` pentru legătura clientului tichetului cu lista SAGA importată în FOM. Afișează codul, denumirea, țara, CUI-ul și eventualele lipsuri/neconcordanțe, cu actualizare explicită și link spre clientul FOM. Datele beneficiarului deja editate nu sunt înlocuite; un CUI diferit este semnalat fără blocarea salvării unei ciorne incomplete. Nu sunt necesare modificări sau migrări ale documentelor `invoiceDrafts`. Implementare și verificări: [saga-clients.md](saga-clients.md).
+
+## Numărul estimat al facturii — 7 noiembrie 2026
+
+Editorul afișează „Număr estimat — nerezervat”, din `GET /api/lucrari/{id}/invoice-draft/number`. Ciorna nu apelează alocatorul și nu consumă numere la deschidere, editare, salvare sau redeschidere. Configurarea și serviciul intern tranzacțional sunt descrise în [invoice-numbering.md](invoice-numbering.md). Nu se modifică schema ciornei sau câmpurile legacy de facturare.
+
+## XML numerotat pregătit în FOM
+
+Etapa 3 este implementată local: profil fiscal confirmat, câmpuri structurate opționale pentru beneficiar, previzualizare și confirmare explicită pentru rezervarea atomică a numărului, snapshot/XML privat și înghețarea ciornei. Fără apeluri SAGA și fără schimbarea statusurilor contabile. Compatibilitatea SAGA rămâne neverificată. [Utilizare, protecții și verificări](invoice-xml.md).
+
+## Planul 2 — reguli comerciale
+
+Etapa 3 adaugă versiunea comercială 2 a ciornei, cu activare pe firmă și conversie explicită a ciornelor existente. Prețul/UM/TVA provin din verificarea API salvată, TVA-ul este pe linii, iar scadența și notele sunt păstrate separat. [Utilizare, protecții și teste](invoice-commercial-rules.md).

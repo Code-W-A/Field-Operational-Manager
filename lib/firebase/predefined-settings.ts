@@ -310,8 +310,8 @@ export const PREDEFINED_SETTINGS: PredefinedSetting[] = [
   },
   {
     id: "archive_offer_wait_30_days_when_no_response",
-    name: "Arhivare: așteaptă 30 zile dacă nu există răspuns la ofertă",
-    description: "Dacă este activ, după trimiterea ofertei fără răspuns, arhivarea e permisă doar după expirarea perioadei (30 zile). Dacă răspunsul vine mai devreme (accept/refuz), regula de 30 zile se anulează.",
+    name: "Arhivare: așteaptă 10 zile dacă nu există răspuns la ofertă",
+    description: "Dacă este activ, după trimiterea ofertei fără răspuns, arhivarea e permisă doar după 10 zile de la trimitere. Dacă răspunsul vine mai devreme (accept/refuz), regula de așteptare se anulează.",
     defaultValue: true,
     valueType: "boolean",
   },

@@ -1,4 +1,10 @@
 "use client";
+import {InvoiceCommercialSettings} from "./invoice-commercial-settings";
+import { InvoiceIssuerSettings } from "./invoice-issuer-settings";
+import { InvoiceNumberingSettings } from "./invoice-numbering-settings";
+import { SagaReferences } from "./saga-references";
+import {UserInvoiceNumberingSettings} from "./user-invoice-numbering-settings";
+import { SagaIssuerProfiles } from "./saga-issuer-profiles";
 import { SagaClientsImport } from "./saga-clients-import";
 import { SagaCatalogSettings } from "./saga-catalog";
 
@@ -121,6 +127,11 @@ export function SagaTab() {
       <CardContent className="space-y-5">
         <SagaCatalogSettings />
         <SagaClientsImport />
+        <SagaReferences />
+        <SagaIssuerProfiles />
+        <UserInvoiceNumberingSettings/>
+        <InvoiceNumberingSettings />
+        <InvoiceIssuerSettings />
         <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-slate-50 p-4">
           <div>
             <p className="font-medium" role="status">

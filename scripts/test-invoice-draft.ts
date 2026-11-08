@@ -376,6 +376,23 @@ async function main() {
           );
           return;
         }
+        if (req.url === "/api/lucrari/w/invoice-xml") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ document: null }));
+          return;
+        }
+        if (req.url === "/api/lucrari/w/invoice-draft/number") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              fiscalCode: "123456",
+              number: null,
+              reserved: false,
+              reason: "",
+            }),
+          );
+          return;
+        }
         if (req.url === "/api/lucrari/w/invoice-draft/client-association") {
           res.setHeader("Content-Type", "application/json");
           res.end(

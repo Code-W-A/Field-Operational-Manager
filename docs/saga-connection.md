@@ -56,7 +56,7 @@ Verificare reală din 6 noiembrie 2026: pentru firma `34272913`, articolul `WIFI
 
 SAGA a transmis o cheie reînnoită la citirea stocului; ea a fost salvată criptat local și actualizată în `.env.local` înaintea următorului apel. Verificarea a fost făcută prin apeluri directe locale către API, nu prin interfața FOM; nu s-a scris în Firestore, citirile FOM rămân dezactivate și regulile nu au fost publicate. Starea locală de verificare este în `.env.saga-verification.local`, ignorat de Git.
 
-Aplicația și regulile nu au fost publicate. Asocierea locală a clienților este implementată și descrisă în [saga-clients.md](saga-clients.md). Următoarele etape sunt seria/numerotarea, XML și import de probă într-o firmă de test, apoi dovada validării și a descărcării stocului.
+Aplicația și regulile nu au fost publicate. Asocierea locală a clienților este implementată și descrisă în [saga-clients.md](saga-clients.md). Seria și contorul FOM sunt implementate local, fără citirea numerotării din SAGA ([detalii](invoice-numbering.md)). Următoarele etape sunt XML și import de probă într-o firmă de test, apoi dovada validării și a descărcării stocului.
 
 
 ## Catalog si ciorna facturii — 7 noiembrie 2026
@@ -87,3 +87,20 @@ Nu au fost efectuate apeluri către firma SAGA reală în această etapă. Nu au
 ## Asocierea clienților existenți — 7 noiembrie 2026
 
 Este implementată local lista de referință CSV/XLSX, asocierea explicită în pagina clientului FOM și afișarea în ciorna facturii. Detalii de utilizare, API, reluare a importului și dovezi: [saga-clients.md](saga-clients.md). Lista rămâne separată de registrul `clienti`. Această etapă nu efectuează apeluri către SAGA; configurarea și publicarea rămân separate.
+
+
+## Numerotarea facturilor — 7 noiembrie 2026
+
+Setări → SAGA include configurarea seriei și a ultimului număr verificat manual în SAGA, cu previzualizare și confirmare. Ciorna afișează numai o estimare; alocatorul tranzacțional rămâne intern pentru etapa viitoare de finalizare. Numerotarea nu face apeluri SAGA. Sunt necesare și regulile de protecție pentru noile colecții înaintea activării. Contracte, limite și verificări: [invoice-numbering.md](invoice-numbering.md).
+
+## XML numerotat pregătit în FOM
+
+Etapa 3 este implementată local: profil fiscal confirmat, câmpuri structurate opționale pentru beneficiar, previzualizare și confirmare explicită pentru rezervarea atomică a numărului, snapshot/XML privat și înghețarea ciornei. Fără apeluri SAGA și fără schimbarea statusurilor contabile. Compatibilitatea SAGA rămâne neverificată. [Utilizare, protecții și verificări](invoice-xml.md).
+
+## Finalizare și import — actualizare 8 noiembrie 2026
+
+Peste documentul XML înghețat este implementată finalizarea cu import automat și verificarea separată a stocului, implicit dry-run. Generatorul nou folosește XMLBuilder, versiunea 2; documentele existente nu sunt regenerate. Workerul persistent, configurarea și dovezile sunt descrise în [invoice-saga-transfer.md](invoice-saga-transfer.md). Nu au fost efectuate importuri reale sau publicări; scăderea efectivă în SAGA rămâne neconfirmată practic.
+
+## Planul 2 — referințe și profiluri
+
+Etapa 1 este implementată local: cataloage separate, import CSV/XLSX, verificare comercială explicită prin `GetArticol` și profiluri pregătitoare utilizator–serie–agent. Nu schimbă contoarele sau facturile existente. [Utilizare, API-uri, indecși și teste](saga-references.md).

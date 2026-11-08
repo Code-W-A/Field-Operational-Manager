@@ -42,7 +42,7 @@ export function invoiceDraftHandlers(
         const actor = await authenticate(request);
         const { id } = await context.params;
         const raw = await request.text();
-        if (raw.length > 200000)
+        if (raw.length > 512 * 1024)
           throw new InvoiceDraftError(
             "Ciorna depășește dimensiunea acceptată.",
           );

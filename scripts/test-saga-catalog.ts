@@ -162,6 +162,15 @@ async function main() {
           ? handlers.list(r)
           : handlers.save(r, parts[0], parts[1]);
       }
+      if (path.endsWith("/invoice-xml"))
+        return Response.json({ document: null });
+      if (path.endsWith("/number"))
+        return Response.json({
+          fiscalCode: "123456",
+          number: null,
+          reserved: false,
+          reason: "",
+        });
       if (path.endsWith("/client-association"))
         return Response.json({
           fiscalCode: "123456",

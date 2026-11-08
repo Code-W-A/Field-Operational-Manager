@@ -60,6 +60,7 @@ test("archive explains invoicing, required offers, accepted offers and response 
   const unanswered = {
     ...work,
     offerSendCount: 1,
+    lastOfferEmail: { status: "sent", sentAt: new Date().toISOString() },
     offerActionExpiresAt: new Date(Date.now() + 2 * 86400000).toISOString(),
   };
   assert.match(

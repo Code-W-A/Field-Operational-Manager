@@ -20,6 +20,7 @@ export function InvoiceSagaFields({
   readOnly,
   onChange,
   index,
+  commercial = false,
 }: {
   line: InvoiceLine;
   lines: InvoiceLine[];
@@ -28,6 +29,7 @@ export function InvoiceSagaFields({
   readOnly: boolean;
   onChange: (saga?: InvoiceSagaLink) => void;
   index: number;
+  commercial?: boolean;
 }) {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -135,7 +137,7 @@ export function InvoiceSagaFields({
       className="mt-3 space-y-2 rounded border bg-slate-50 p-3 text-sm"
       aria-label={`Asociere SAGA poziția ${index + 1}`}
     >
-      {!readOnly && catalog && (
+      {!readOnly && catalog && !commercial && (
         <>
           <label className="block">
             Caută articol asociat

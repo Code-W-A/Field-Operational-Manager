@@ -2,7 +2,19 @@ import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { sagaConfig, type SagaConfig } from "./config.server";
 import { decryptToken, encryptToken } from "./crypto.server";
-import { parseReadInput, SagaError, type SagaStatus } from "./contracts";
+import {
+  parseReadInput,
+  SagaError,
+  type SagaStatus,
+  type SagaReadResult,
+} from "./contracts";
+import {
+  importPolicy,
+  requireLiveImports,
+  parseImportResult,
+  type ImportPolicy,
+  type SagaImportResult,
+} from "./import";
 import { parseSagaResponse } from "./response.server";
 
 type Actor = { uid: string; role: string };
@@ -28,6 +40,7 @@ type Dependencies = {
   fetch?: typeof fetch;
   now?: () => number;
   timeoutMs?: number;
+  importPolicy?: () => ImportPolicy;
 };
 export function createSagaService(
   db: Firestore,
@@ -115,7 +128,12 @@ export function createSagaService(
       lastError: connection?.lastError || null,
     };
   }
-  async function readWithRoles(actor: Actor, body: unknown, invoice = false) {
+  async function execute(
+    actor: Actor,
+    body: unknown,
+    invoice = false,
+    upload?: { xml: string; filename: string; beforeSend: () => Promise<void> },
+  ): Promise<SagaReadResult | SagaImportResult> {
     await authorize(actor, invoice);
     if (!getConfig().readsEnabled)
       throw new SagaError(
@@ -123,7 +141,7 @@ export function createSagaService(
         "Citirile SAGA sunt dezactivate. Activează integrarea după publicarea regulilor de protecție a conexiunii.",
         409,
       );
-    const input = parseReadInput(body),
+    const input = upload ? null : parseReadInput(body),
       config = getConfig(),
       connectionRef = ref(config),
       owner = randomUUID();
@@ -201,20 +219,43 @@ export function createSagaService(
       persistenceFailed = false;
     try {
       const url = new URL(
-        `${config.baseUrl}/Situatii/${input.kind === "article" ? "GetArticol" : "GetStocArticol"}`,
+        upload
+          ? `${config.baseUrl}/Import`
+          : `${config.baseUrl}/Situatii/${input!.kind === "article" ? "GetArticol" : "GetStocArticol"}`,
       );
-      url.searchParams.set("codArticol", input.code);
-      if (input.warehouse) url.searchParams.set("gestiune", input.warehouse);
-      if (input.date)
-        url.searchParams.set("data", input.date.split("-").reverse().join("."));
+      let form: FormData | undefined;
+      if (upload) {
+        form = new FormData();
+        form.append(
+          "file",
+          new Blob([upload.xml], { type: "application/xml" }),
+          upload.filename,
+        );
+        form.append("importAutomat", "true");
+        // This callback persists the irreversible send boundary AFTER acquiring the shared token lease.
+        await upload.beforeSend();
+      } else {
+        url.searchParams.set("codArticol", input!.code);
+        if (input!.warehouse)
+          url.searchParams.set("gestiune", input!.warehouse);
+        if (input!.date)
+          url.searchParams.set(
+            "data",
+            input!.date.split("-").reverse().join("."),
+          );
+      }
       const response = await send(url, {
-        method: "GET",
+        method: upload ? "POST" : "GET",
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Saga-Cod-Fiscal": config.fiscalCode,
-          Accept:
-            input.kind === "article" ? "application/xml" : "application/json",
+          Accept: upload
+            ? "application/json, text/plain"
+            : input!.kind === "article"
+              ? "application/xml"
+              : "application/json",
         },
+        ...(form ? { body: form } : {}),
         redirect: "manual",
         cache: "no-store",
         signal: controller.signal,
@@ -246,7 +287,7 @@ export function createSagaService(
           );
         }
       }
-      if (!response.ok) {
+      if (!response.ok && (!upload || [401, 403].includes(response.status))) {
         await response.body?.cancel();
         if ([401, 403].includes(response.status))
           throw new SagaError(
@@ -268,13 +309,20 @@ export function createSagaService(
           502,
         );
       const chunks: Uint8Array[] = [];
-      let size = 0;
+      let size = 0,
+        truncated = false;
       try {
         for (;;) {
           const item = await reader.read();
           if (item.done) break;
           size += item.value.byteLength;
-          if (size > 262144)
+          if (upload && size > 1048576) {
+            const prior = size - item.value.byteLength;
+            chunks.push(item.value.subarray(0, Math.max(0, 1048576 - prior)));
+            truncated = true;
+            break;
+          }
+          if (!upload && size > 262144)
             throw new SagaError(
               "INVALID_RESPONSE",
               "Răspunsul SAGA depășește dimensiunea acceptată.",
@@ -285,18 +333,23 @@ export function createSagaService(
       } finally {
         await reader.cancel().catch(() => {});
       }
-      const result = parseSagaResponse(
-        input,
-        Buffer.concat(chunks).toString("utf8"),
-        new Date(now()).toISOString(),
-        [config.apiKey, token, rotation],
-      );
+      const raw = Buffer.concat(chunks).toString("utf8"),
+        at = new Date(now()).toISOString();
+      const result = upload
+        ? parseImportResult(
+            response.status,
+            raw,
+            at,
+            [config.apiKey, token, rotation],
+            truncated,
+          )
+        : parseSagaResponse(input!, raw, at, [config.apiKey, token, rotation]);
       await updateOwned({
         state: "connected",
         owner: null,
         leaseUntil: 0,
         lastError: null,
-        lastReadAt: result.checkedAt,
+        ...(!upload ? { lastReadAt: result.checkedAt } : {}),
       });
       return result;
     } catch (error) {
@@ -333,9 +386,35 @@ export function createSagaService(
     }
   }
   return {
+    importForInvoice: async (
+      actor: Actor,
+      upload: { xml: string; filename: string },
+      beforeSend: () => Promise<void>,
+    ) => {
+      const config = getConfig();
+      requireLiveImports(
+        (dependencies.importPolicy || importPolicy)(),
+        config.fiscalCode,
+        config.readsEnabled,
+      );
+      if (
+        typeof upload.xml !== "string" ||
+        Buffer.byteLength(upload.xml, "utf8") > 512 * 1024 ||
+        !/^F_[^/\\\r\n]{1,200}\.xml$/u.test(upload.filename)
+      )
+        throw new SagaError(
+          "INVALID_IMPORT",
+          "Fișierul facturii nu este valid.",
+        );
+      return execute(actor, null, true, {
+        ...upload,
+        beforeSend,
+      }) as Promise<SagaImportResult>;
+    },
     status,
-    read: (actor: Actor, body: unknown) => readWithRoles(actor, body),
+    read: (actor: Actor, body: unknown) =>
+      execute(actor, body) as Promise<SagaReadResult>,
     readForInvoice: (actor: Actor, body: unknown) =>
-      readWithRoles(actor, body, true),
+      execute(actor, body, true) as Promise<SagaReadResult>,
   };
 }

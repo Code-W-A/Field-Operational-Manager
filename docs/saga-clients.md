@@ -51,4 +51,4 @@ npm run test:saga:clients:integration
 - Regresii trecute: `test:saga`, `test:invoice-draft`, `test:saga:integration`, `test:saga:catalog` și `test:invoice-draft:integration`.
 - Typecheck global: diagnosticele preexistente persistă; comparația nu a identificat diagnostice noi, doar deplasarea liniilor în pagina clientului modificată.
 
-Nu a fost utilizat un export real, nu au fost efectuate apeluri către SAGA și nu au fost publicate aplicația sau regulile. Verificarea pe telefon fizic și utilizarea în producție rămân pași separați. Următoarea etapă funcțională este seria/numerotarea și generarea XML, urmate de importul într-o firmă de test și confirmarea separată a validării/descărcării stocului.
+Nu a fost utilizat un export real, nu au fost efectuate apeluri către SAGA și nu au fost publicate aplicația sau regulile. Verificarea pe telefon fizic și utilizarea în producție rămân pași separați. Numerotarea este acum implementată local, cu alocator intern și fără consum în ciornă ([detalii](invoice-numbering.md)). Următoarea etapă funcțională este generarea XML, urmate de importul într-o firmă de test și confirmarea separată a validării/descărcării stocului.

@@ -159,6 +159,14 @@ async function main() {
           ? handlers.link(r, clientId)
           : handlers.association(r, clientId);
       }
+      if (p.endsWith("/invoice-xml")) return Response.json({ document: null });
+      if (p.endsWith("/number"))
+        return Response.json({
+          fiscalCode: "123456",
+          number: null,
+          reserved: false,
+          reason: "",
+        });
       if (p.endsWith("/client-association")) return handlers.forWork(r, "w");
       if (p.endsWith("/invoice-draft"))
         return invoices[r.method === "PUT" ? "PUT" : "GET"](r, {

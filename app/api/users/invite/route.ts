@@ -63,6 +63,8 @@ export async function POST(request: NextRequest) {
           const workSnap = await adminDb.collection("lucrari").doc(String(lucrareId)).get()
           const currentCount = Number((workSnap.data() as any)?.offerSendCount || 0)
           patch.offerSendCount = currentCount + 1
+          // Arhivarea urmărește trimiterea reușită, independent de regenerarea linkului.
+          patch.offerArchiveSentAt = (patch[emailStatusField] as { sentAt: string }).sentAt
         }
         await adminDb.collection("lucrari").doc(String(lucrareId)).set(patch, { merge: true })
       }

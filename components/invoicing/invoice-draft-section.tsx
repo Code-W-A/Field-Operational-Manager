@@ -6,6 +6,14 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import {
+  InvoiceCommercialApply,
+  InvoiceCommercialSelector,
+  useCommercialTicketRequest,
+} from "./invoice-commercial";
+import { dueFromTerm } from "@/lib/invoicing/commercial";
+import { InvoiceXmlPanel } from "./invoice-xml-panel";
+import { InvoiceNumberEstimate } from "./invoice-number-estimate";
 import { InvoiceClientAssociation } from "./invoice-client-association";
 import { InvoiceSagaFields } from "./invoice-saga-fields";
 import { stockKey, type SagaCatalog } from "@/lib/saga/catalog";
@@ -95,6 +103,7 @@ export function InvoiceDraftSection({
   );
   const [comparison, setComparison] = useState<InvoiceDraft | null>(null);
   const [refreshSource, setRefreshSource] = useState(false);
+  const [approveDiscount, setApproveDiscount] = useState(false);
   const [narrow, setNarrow] = useState(true),
     [position, setPosition] = useState<Position>({ x: 16, y: 80 });
   const drag = useRef<(Position & { startX: number; startY: number }) | null>(
@@ -146,6 +155,7 @@ export function InvoiceDraftSection({
       setResponse(data);
       setDraft(data.draft);
       setBaseline(data.draft);
+      setApproveDiscount(false);
       setRefreshSource(false);
       setComparison(null);
       setNotice("");
@@ -221,10 +231,12 @@ export function InvoiceDraftSection({
         content: invoiceContent(draft),
         expectedRevision: draft.revision,
         refreshSource,
+        approveDiscount,
       });
       setResponse(data);
       setDraft(data.draft);
       setBaseline(data.draft);
+      setApproveDiscount(false);
       setRefreshSource(false);
       setComparison(null);
       setConfirm(null);
@@ -289,6 +301,7 @@ export function InvoiceDraftSection({
         );
       } else {
         setBaseline(data.draft);
+        setApproveDiscount(false);
         setRefreshSource(false);
         setNotice("Versiunea salvată a fost încărcată.");
       }
@@ -576,16 +589,71 @@ export function InvoiceDraftSection({
               ))}
             </div>
           )}
+          <InvoiceNumberEstimate
+            key={`number:${workId}:${user?.uid}:${readOnly}`}
+            workId={workId}
+          />
           <InvoiceClientAssociation
+            commercial={!!draft.commercial || response?.commercialPolicy}
             key={`${workId}:${user?.uid}`}
             workId={workId}
             beneficiaryCui={draft.beneficiary.cui}
+            beneficiaryCountry={draft.beneficiary.country}
+            onCountryProposal={
+              readOnly || saving || busyAction
+                ? undefined
+                : (country) =>
+                    patch({ beneficiary: { ...draft.beneficiary, country } })
+            }
           />
+          {(response?.commercialPolicy || draft.commercial) && (
+            <InvoiceCommercialApply
+              draft={draft}
+              readOnly={readOnly || saving || busyAction}
+              onApplied={load}
+              onBusy={setBusyAction}
+            />
+          )}
           <DraftForm
+            approveDiscount={approveDiscount}
+            onApproveDiscount={setApproveDiscount}
             draft={draft}
             readOnly={readOnly || saving || busyAction}
             onChange={patch}
             prefix="invoice"
+          />
+          <InvoiceXmlPanel
+            key={`xml:${workId}:${user?.uid}`}
+            workId={workId}
+            revision={draft.revision}
+            dirty={dirty}
+            readOnly={readOnly || saving}
+            onBusy={setBusyAction}
+            onFrozen={() =>
+              setResponse((r) =>
+                r
+                  ? {
+                      ...r,
+                      canEdit: false,
+                      reason:
+                        "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată.",
+                    }
+                  : r,
+              )
+            }
+            onPrepared={async () => {
+              setResponse((r) =>
+                r
+                  ? {
+                      ...r,
+                      canEdit: false,
+                      reason:
+                        "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată.",
+                    }
+                  : r,
+              );
+              return load();
+            }}
           />
           {numericError && (
             <p role="alert" className="text-sm text-red-700">
@@ -613,6 +681,12 @@ export function InvoiceDraftSection({
                 <span>TVA</span>
                 <span>{money(totals.vatCents)}</span>
               </p>
+              {totals.vatGroups?.map((g) => (
+                <p key={g.rate}>
+                  TVA {g.rate}% · bază {money(g.baseCents)} · TVA{" "}
+                  {money(g.vatCents)}
+                </p>
+              ))}
               <p className="flex justify-between gap-3 border-t pt-2 text-base">
                 <span>Total ciornă</span>
                 <strong data-testid="invoice-total">
@@ -677,7 +751,7 @@ export function InvoiceDraftSection({
                 : "Începe factura"}
           </Button>
           <span className="text-xs text-slate-600">
-            Pregătire ciornă · fără număr fiscal
+            Ciornă și document XML în FOM
           </span>
         </div>
         {reason && <p className="mt-2 text-sm text-slate-600">{reason}</p>}
@@ -719,13 +793,34 @@ function DraftForm({
   readOnly,
   onChange,
   prefix,
+  approveDiscount = false,
+  onApproveDiscount,
 }: {
+  approveDiscount?: boolean;
+  onApproveDiscount?: (v: boolean) => void;
   draft: InvoiceDraft;
   readOnly: boolean;
   onChange: (patch: Partial<InvoiceContent>) => void;
   prefix: string;
 }) {
   const { user } = useAuth();
+  const commercialRequest = useCommercialTicketRequest(draft.workId);
+  const [commercialContext, setCommercialContext] = useState<any>(null);
+  const commercial = !!draft.commercial;
+  useEffect(() => {
+    if (!commercial || prefix === "comparison") return;
+    let active = true;
+    void commercialRequest("/commercial-context")
+      .then((v) => {
+        if (active) setCommercialContext(v);
+      })
+      .catch(() => {
+        if (active) setCommercialContext(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [commercial, draft.workId, draft.revision, user?.uid]);
   const [catalog, setCatalog] = useState<SagaCatalog | null>(null);
   const [catalogError, setCatalogError] = useState("");
   async function reloadCatalog() {
@@ -776,6 +871,35 @@ function DraftForm({
           </label>
         ))}
       </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {(
+          [
+            ["country", "Țara beneficiarului"],
+            ["county", "Județ beneficiar (cod, ex. IF)"],
+            ["city", "Localitate beneficiar"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="text-sm">
+            {label}
+            <Input
+              aria-label={`${prefix}: ${label}`}
+              value={draft.beneficiary[key] || ""}
+              maxLength={key === "country" ? 2 : 100}
+              onChange={(e) =>
+                onChange({
+                  beneficiary: {
+                    ...draft.beneficiary,
+                    [key]:
+                      key === "country" || key === "county"
+                        ? e.target.value.toUpperCase()
+                        : e.target.value,
+                  },
+                })
+              }
+            />
+          </label>
+        ))}
+      </div>
       {(!draft.beneficiary.cui.trim() || !draft.beneficiary.address.trim()) && (
         <p className="text-sm text-amber-800">
           Date fiscale incomplete. Ciorna poate fi salvată pentru completare
@@ -789,19 +913,79 @@ function DraftForm({
             aria-label={`${prefix}: Data documentului`}
             type="date"
             value={draft.date}
-            onChange={(e) => onChange({ date: e.target.value })}
+            onChange={(e) =>
+              onChange({
+                date: e.target.value,
+                ...(draft.commercial?.dueMode === "auto"
+                  ? {
+                      dueDate: dueFromTerm(
+                        e.target.value,
+                        draft.commercial.termDays,
+                      ),
+                    }
+                  : {}),
+              })
+            }
           />
         </label>
         <label className="space-y-1 text-sm">
-          <span>Scadență (opțional)</span>
+          <span>{commercial ? "Scadență" : "Scadență (opțional)"}</span>
           <Input
             aria-label={`${prefix}: Scadență`}
             type="date"
             value={draft.dueDate}
-            onChange={(e) => onChange({ dueDate: e.target.value })}
+            onChange={(e) =>
+              onChange({
+                dueDate: e.target.value,
+                ...(draft.commercial
+                  ? { commercial: { ...draft.commercial, dueMode: "manual" } }
+                  : {}),
+              })
+            }
           />
         </label>
       </div>
+      {draft.commercial && (
+        <div className="space-y-2 text-sm">
+          <p>
+            Scadență{" "}
+            {draft.commercial.dueMode === "auto" ? "automată" : "manuală"} ·{" "}
+            {draft.commercial.termDays === null
+              ? "termen necunoscut; completează manual"
+              : `${draft.commercial.termDays} zile confirmate`}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              onChange({
+                commercial: { ...draft.commercial!, dueMode: "auto" },
+                dueDate: dueFromTerm(draft.date, draft.commercial!.termDays),
+              })
+            }
+          >
+            Revino la scadență automată
+          </Button>
+          <p>
+            Cod client SAGA:{" "}
+            {commercialContext?.entry?.code || "asociere lipsă"} · Agent
+            emitent:{" "}
+            {commercialContext?.agent
+              ? `${commercialContext.agent.code} — ${commercialContext.agent.name}`
+              : "neconfirmat"}
+          </p>
+          <label className="block">
+            Informații suplimentare factură
+            <textarea
+              aria-label="Informații suplimentare factură"
+              className="block w-full rounded border p-2"
+              value={draft.extraInfo || ""}
+              maxLength={2000}
+              onChange={(e) => onChange({ extraInfo: e.target.value })}
+            />
+          </label>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h4 className="font-semibold">Produse și servicii</h4>
         <span className="text-xs text-slate-500">RON · prețuri fără TVA</span>
@@ -846,6 +1030,20 @@ function DraftForm({
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
+          {commercial && (
+            <InvoiceCommercialSelector
+              line={line}
+              index={index}
+              readOnly={readOnly}
+              onChange={(updated) =>
+                onChange({
+                  lines: draft.lines.map((l) =>
+                    l.id === line.id ? updated : l,
+                  ),
+                })
+              }
+            />
+          )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
             <label className="col-span-2 space-y-1 text-sm sm:col-span-3">
               <span>Denumire{!line.name.trim() ? " · lipsește" : ""}</span>
@@ -877,6 +1075,7 @@ function DraftForm({
                 <Input
                   aria-label={`${prefix}: ${label} ${index + 1}`}
                   inputMode={key === "um" ? "text" : "decimal"}
+                  readOnly={commercial && key !== "quantity"}
                   value={line[key]}
                   maxLength={key === "um" ? 40 : 20}
                   onChange={(e) =>
@@ -890,7 +1089,38 @@ function DraftForm({
               </label>
             ))}
           </div>
+          {commercial && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-sm">
+                TVA linie (%)
+                <Input
+                  aria-label={`TVA linie ${index + 1}`}
+                  readOnly
+                  value={line.vatPercent || ""}
+                />
+              </label>
+              <label className="text-sm">
+                Informații suplimentare linie
+                <textarea
+                  aria-label={`Informații suplimentare linie ${index + 1}`}
+                  className="w-full rounded border p-2"
+                  value={line.extraInfo || ""}
+                  maxLength={2000}
+                  onChange={(e) =>
+                    onChange({
+                      lines: draft.lines.map((l) =>
+                        l.id === line.id
+                          ? { ...l, extraInfo: e.target.value }
+                          : l,
+                      ),
+                    })
+                  }
+                />
+              </label>
+            </div>
+          )}
           <InvoiceSagaFields
+            commercial={commercial}
             key={`${line.id}:${stockKey(line.saga)}:${catalog?.products.map((p) => `${p.id}:${p.revision}`).join(",") || ""}:${catalog?.warehouses.map((w) => `${w.id}:${w.revision}`).join(",") || ""}`}
             line={line}
             lines={draft.lines}
@@ -901,7 +1131,20 @@ function DraftForm({
             onChange={(saga) =>
               onChange({
                 lines: draft.lines.map((l) =>
-                  l.id === line.id ? { ...l, saga } : l,
+                  l.id === line.id
+                    ? {
+                        ...l,
+                        saga,
+                        ...(commercial && !saga
+                          ? {
+                              commercial: undefined,
+                              price: "",
+                              um: "",
+                              vatPercent: "",
+                            }
+                          : {}),
+                      }
+                    : l,
                 ),
               })
             }
@@ -932,25 +1175,50 @@ function DraftForm({
         Adaugă poziție
       </Button>
       <div className="grid grid-cols-2 gap-3">
-        <label className="space-y-1 text-sm">
-          <span>TVA (%)</span>
-          <Input
-            aria-label={`${prefix}: TVA (%)`}
-            inputMode="decimal"
-            value={draft.vatPercent}
-            onChange={(e) => onChange({ vatPercent: e.target.value })}
-          />
-        </label>
+        {!commercial && (
+          <label className="space-y-1 text-sm">
+            <span>TVA (%)</span>
+            <Input
+              aria-label={`${prefix}: TVA (%)`}
+              inputMode="decimal"
+              value={draft.vatPercent}
+              onChange={(e) => onChange({ vatPercent: e.target.value })}
+            />
+          </label>
+        )}
         <label className="space-y-1 text-sm">
           <span>Reducere (%)</span>
           <Input
             aria-label={`${prefix}: Reducere (%)`}
             inputMode="decimal"
+            readOnly={commercial && commercialContext?.canAdmin !== true}
             value={draft.discountPercent}
             onChange={(e) => onChange({ discountPercent: e.target.value })}
           />
         </label>
       </div>
+      {commercial && (
+        <div className="text-sm">
+          {commercialContext?.canAdmin === true && onApproveDiscount && (
+            <label>
+              <input
+                type="checkbox"
+                checked={approveDiscount}
+                onChange={(e) => onApproveDiscount(e.target.checked)}
+              />{" "}
+              Aprob explicit discountul la salvare
+            </label>
+          )}
+          {Number(draft.discountPercent) > 0 &&
+            draft.commercial?.discountApproval?.percent !==
+              draft.discountPercent && (
+              <p>
+                Discountul nenul necesită aprobarea adminului înainte de
+                pregătirea XML.
+              </p>
+            )}
+        </div>
+      )}
     </fieldset>
   );
 }

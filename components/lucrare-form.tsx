@@ -1,4 +1,5 @@
 "use client"
+import { revisionReinterventionEquipment } from "@/lib/work-documents/reintervention-equipment"
 import { isInstallationV1 } from "@/types/installation"
 
 import type React from "react"
@@ -99,6 +100,7 @@ interface Lucrare {
   contactSync?: { clientId: string; values: Record<string, string>; conflicts: string[] }
   contactSelectionRequired?: boolean
   contactSelectionMessage?: string
+  reinterventionEquipmentIds?: string[]
   // Cached recipient email used for offer/report sending (optional)
   persoanaContactEmail?: string
   statusLucrare: string
@@ -181,6 +183,7 @@ interface LucrareFormProps {
     contactSync?: { clientId: string; values: Record<string, string>; conflicts: string[] }
     contactSelectionRequired?: boolean
     contactSelectionMessage?: string
+    reinterventionEquipmentIds?: string[]
     clientInfo?: Record<string, any>
     persoanaContactEmail?: string
   }
@@ -1108,8 +1111,15 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
 
     // Adăugăm funcție pentru selectarea echipamentului
     // Înlocuim funcția handleEquipmentSelect existentă cu această versiune actualizată:
+    const revisionEquipmentState = isReintervention && Array.isArray(formData.reinterventionEquipmentIds)
+      ? revisionReinterventionEquipment(selectedClient || {}, formData) : null
+    const equipmentLocked = revisionEquipmentState
+      ? Boolean(revisionEquipmentState.message) || (revisionEquipmentState.ids.length === 1 && revisionEquipmentState.equipments.some(e => e.id === formData.echipamentId))
+      : associationLocked
+    const selectableEquipments = revisionEquipmentState ? revisionEquipmentState.equipments as Echipament[] : availableEquipments
+
     const handleEquipmentSelect = async (equipmentId: string, equipment: Echipament) => {
-      if (associationLocked) return // Asocierea validă a reintervenției este păstrată
+      if (equipmentLocked || !selectableEquipments.some(e => e.id === equipmentId)) return
       console.log("Echipament selectat în TichetForm:", equipment)
 
       // Actualizăm toate câmpurile relevante (ordine: ID -> cod -> nume)
@@ -2455,16 +2465,23 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
               </label>
               <CustomEquipmentSelect
                 key={`equipment-select-${formData.locatie}-${availableEquipments.length}`}
-                equipments={availableEquipments}
+                equipments={selectableEquipments}
                 value={formData.echipamentId || ""}
                 onSelect={handleEquipmentSelect}
-                disabled={!formData.locatie || associationLocked}
+                disabled={!formData.locatie || equipmentLocked}
                 placeholder={formData.locatie ? "Selectați echipamentul" : "Selectați mai întâi o locație"}
                 emptyMessage={
                   formData.locatie ? "Nu există echipamente pentru această locație" : "Selectați mai întâi o locație"
                 }
                 fallbackName={formData.echipament}
               />
+              {revisionEquipmentState && (
+                <p role={revisionEquipmentState.message ? "alert" : "status"} className="text-xs text-amber-700">
+                  {revisionEquipmentState.message || (revisionEquipmentState.ids.length > 1
+                    ? "Selectați echipamentul din revizia originală pentru care solicitați reintervenția."
+                    : "Echipamentul a fost preluat din revizia originală.")}
+                </p>
+              )}
               {availableEquipments.length === 0 && formData.locatie && equipmentsLoaded && (
                 <div>
                   <p className="text-xs text-amber-600">
@@ -2474,9 +2491,9 @@ export const LucrareForm = forwardRef<LucrareFormRef, LucrareFormProps>(
                   <p className="text-xs text-gray-500 mt-1">Locație selectată: {formData.locatie}</p>
                 </div>
               )}
-              {availableEquipments.length > 0 && (
+              {selectableEquipments.length > 0 && (
                 <p className="text-xs text-green-600">
-                  {availableEquipments.length} echipamente disponibile pentru această locație
+                  {selectableEquipments.length} echipamente disponibile pentru această locație
                 </p>
               )}
 
