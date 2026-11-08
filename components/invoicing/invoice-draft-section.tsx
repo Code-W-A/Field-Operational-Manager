@@ -1,6 +1,7 @@
+"use client";
+
 import { InvoiceEurRate } from "./invoice-eur-rate";
 import type { EurReference } from "@/lib/invoicing/eur-rate";
-("use client");
 
 import {
   useEffect,

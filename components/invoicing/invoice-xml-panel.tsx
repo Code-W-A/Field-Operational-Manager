@@ -1,5 +1,6 @@
+"use client";
+
 import { eurReferenceText } from "@/lib/invoicing/eur-rate";
-("use client");
 import { InvoiceSagaPanel } from "./invoice-saga-panel";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
