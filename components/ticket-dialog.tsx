@@ -18,6 +18,7 @@ import {
 } from "@/components/lucrare-form";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { Loader2, Plus } from "lucide-react";
+import { useFloatingDialog } from "@/components/ui/floating-dialog";
 
 type LucrareFormProps = React.ComponentProps<typeof LucrareForm>;
 
@@ -101,6 +102,7 @@ export const TicketDialog: React.FC<TicketDialogProps> = ({
   };
   const internalFormRef = React.useRef<LucrareFormRef | null>(null);
   const [confirmClose, setConfirmClose] = React.useState(false);
+  const floating = useFloatingDialog(open);
   const close = () => {
     if (busy) return;
     if (internalFormRef.current?.hasUnsavedChanges()) setConfirmClose(true);
@@ -113,6 +115,7 @@ export const TicketDialog: React.FC<TicketDialogProps> = ({
     <>
       <Dialog
         open={open}
+        modal={!floating.enabled}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             close();
@@ -130,12 +133,14 @@ export const TicketDialog: React.FC<TicketDialogProps> = ({
           </DialogTrigger>
         )}
         <DialogContent
+          {...floating.contentProps}
           className="w-[calc(100%-2rem)] max-w-4xl max-h-[90dvh] overflow-y-auto"
           onPointerDownOutside={(event) => {
             const target = event.detail.originalEvent.target;
             // The shared primitive intentionally prevents outside dismissal. Only our
             // own overlay starts a guarded close; nested pickers/dialogs stay open.
             if (
+              !floating.enabled &&
               target instanceof Element &&
               target.matches('[data-state="open"].fixed.inset-0') &&
               document.querySelectorAll(

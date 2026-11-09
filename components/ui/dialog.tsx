@@ -31,14 +31,14 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { floating?: boolean }
 >(
   (
-    { className, children, onPointerDownOutside, onInteractOutside, onEscapeKeyDown, ...props },
+    { className, children, floating = false, onPointerDownOutside, onInteractOutside, onEscapeKeyDown, ...props },
     ref
   ) => (
   <DialogPortal>
-    <DialogOverlay />
+    {!floating && <DialogOverlay />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

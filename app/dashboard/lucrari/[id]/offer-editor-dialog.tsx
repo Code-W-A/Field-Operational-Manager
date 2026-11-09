@@ -3,6 +3,7 @@
 import { workArrayUnion as arrayUnion } from "@/lib/installations/management-client"
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useFloatingDialog } from "@/components/ui/floating-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Download, XCircle } from "lucide-react"
@@ -52,6 +53,7 @@ type OfferVersion = {
 }
 
 export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProducts = [], presetLocationLabel }: OfferEditorDialogProps) {
+  const floating = useFloatingDialog(open)
   const { userData } = useAuth()
   const canPrepareBeforePickup = userData?.role === "admin" || userData?.role === "dispecer"
   const [products, setProducts] = useState<ProductItem[]>(initialProducts)
@@ -673,7 +675,7 @@ useEffect(() => {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
+    <Dialog open={open} modal={!floating.enabled} onOpenChange={(isOpen) => {
       if (!isOpen) {
         resetEditorForm()
       }
@@ -682,7 +684,7 @@ useEffect(() => {
       <DialogHeader >
         {/* <DialogTitle className="my-4">Editor ofertă</DialogTitle> */}
       </DialogHeader>
-      <DialogContent className="max-w-[1600px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
+      <DialogContent {...floating.contentProps} className="max-w-[1600px] w-[calc(100%-2rem)] max-h-[95vh] p-0">
         {/* Fix pentru warning Radix Dialog: asigurăm aria-describedby */}
         <DialogDescription className="sr-only">
           Editor ofertă: salvează versiuni și trimite oferta pe email către persoana de contact a locației.
