@@ -256,6 +256,9 @@ export function createSagaReferencesService(
           nameSearch: normalizeReference(name),
           exportData: row,
           apiSnapshot: previous?.apiSnapshot || null,
+          ...(previous?.operatorConfirmation
+            ? { operatorConfirmation: previous.operatorConfirmation }
+            : {}),
           revision: (previous?.revision || 0) + (changed ? 1 : 0),
           source: job.source,
           importedAt: stamp(),

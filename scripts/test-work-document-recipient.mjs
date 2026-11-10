@@ -16,9 +16,15 @@ const mocks = {
     };
     export const getLucrareById = (id, options) => read('work', id, options);
     export const getClientById = (id, options) => read('client', id, options);
-    export const updateLucrare = async (...args) => { window.fixture.writes.push(args); };
+    export const updateLucrare = async (...args) => {
+      window.fixture.writes.push(args);
+      for (const [key, value] of Object.entries(args[1])) {
+        window.fixture.work[key] = value?.__append ? [...(window.fixture.work[key] || []), ...value.__append] : value;
+      }
+    };
     export const addUserLogEntry = async () => {};
   `,
+  '@/lib/installations/management-client': `export const workArrayUnion = (...values) => ({ __append: values });`,
   '@/contexts/AuthContext': `export const useAuth = () => ({ userData: { uid: 'test', displayName: 'Test' } });`,
   '@/hooks/use-toast': `export const toast = (value) => { window.fixture.toasts.push(value); };`,
   '@/hooks/use-settings': `const items = []; export const useTargetList = () => ({ items }); export const useTargetValue = () => ({ value: 1 });`,
@@ -32,7 +38,6 @@ const mocks = {
     };
     export const generateDevizPdf = generateOfferPdf;
   `,
-  '@/components/product-table-form': `export const ProductTableForm = () => null;`,
 }
 const result = await build({
   stdin: { contents: `
@@ -49,12 +54,13 @@ const result = await build({
         persoanaContact: 'Marf Admin', persoanaContactEmail: 'support@marf.ro', email: 'support@marf.ro',
         clientInfo: legacy, locatie: 'Avangarde', preluatDispecer: true, preluatDe: 'Liliana Ionescu',
         offerPreparedBy: 'Autor ofertă anterior', products, devizProducts: products,
+        conditiiOferta: ['Plata: 100% avans', 'Livrare: 30 zile', 'Instalare: 2 zile'],
         offerVersions: [version], devizVersions: [version] },
       client: { id: 'client', nume: 'MARF ACTUAL', cui: 'RO-CURRENT', locatii: [{ id: 'location', nume: 'Avangarde', persoaneContact: [{ nume: 'Marf Admin', email: 'suport@marf.ro' }] }] },
       reads: [], writes: [], toasts: [], generatedInputs: [], pdfDelay: 0, pdfFailure: false
     };
     const Component = new URLSearchParams(location.search).get('kind') === 'deviz' ? DevizEditorDialog : OfferEditorDialog;
-    createRoot(document.getElementById('root')).render(<Component lucrareId="ticket" open={true} onOpenChange={() => {}} initialProducts={products} />);
+    createRoot(document.getElementById('root')).render(<Component lucrareId="ticket" open={true} onOpenChange={() => {}} initialProducts={Component === OfferEditorDialog ? versionProducts : products} />);
   `, resolveDir: root, loader: 'tsx' },
   bundle: true, write: false, platform: 'browser', format: 'iife', jsx: 'automatic',
   tsconfig: path.join(root, 'tsconfig.json'), define: { 'process.env.NODE_ENV': '"test"' },
@@ -73,11 +79,11 @@ const url = `http://127.0.0.1:${server.address().port}`
 if (process.argv.includes('--serve')) {
   console.log(url)
 } else {
-  const browser = await chromium.launch({ headless: true })
+  const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined })
   try {
     let count = 0
     for (const kind of ['offer', 'deviz']) {
-      for (const scenario of ['current', 'changed', 'client-read-error', 'work-read-error', 'client-missing', 'work-missing', 'client-id-missing', 'invalid-email', 'legacy-client-id']) {
+      for (const scenario of ['current', 'changed', 'client-read-error', 'work-read-error', 'client-missing', 'work-missing', 'client-id-missing', 'invalid-email', 'legacy-client-id', ...(kind === 'offer' ? ['ticket-label', 'ticket-label-empty', 'ticket-label-partial'] : [])]) {
         const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
         const requests = []
         await page.route('**/api/**', async route => {
@@ -98,13 +104,29 @@ if (process.argv.includes('--serve')) {
           if (scenario === 'client-id-missing') delete f.work.clientId
           if (scenario === 'invalid-email') f.client.locatii[0].persoaneContact[0].email = 'invalid'
           if (scenario === 'legacy-client-id') { delete f.work.clientId; f.work.clientInfo.id = 'client' }
+          if (scenario === 'ticket-label') {
+            f.work.nrLucrare = '  #00123  '
+            f.work.echipament = '  Barieră   <acces> & "auto"  '
+            f.work.locatie = " Sediu\n București 'Nord' "
+          }
+          if (scenario === 'ticket-label-empty') {
+            f.work.nrLucrare = '  '
+            f.work.numarRaport = ' '
+            f.work.locatie = ''
+          }
+          if (scenario === 'ticket-label-partial') {
+            f.work.nrLucrare = ' '
+            f.work.numarRaport = ''
+            f.work.echipament = 'Barieră acces'
+            f.work.locatie = ' '
+          }
         }, scenario)
         await page.getByRole('button', { name: kind === 'offer' ? 'Trimite ofertă' : 'Trimite deviz', exact: true }).click()
         await page.waitForFunction(() => window.fixture.toasts.some(t => t.title === 'Eroare trimitere' || t.title === 'Ofertă trimisă' || t.title === 'Deviz trimis'))
         const state = await page.evaluate(() => window.fixture)
         assert.ok(state.reads.length > 0)
         assert.ok(state.reads.every(r => r.options?.serverOnly === true), 'send must bypass Firestore cache')
-        const blocked = !['current', 'changed', 'legacy-client-id'].includes(scenario)
+        const blocked = !['current', 'changed', 'legacy-client-id', 'ticket-label', 'ticket-label-empty', 'ticket-label-partial'].includes(scenario)
         if (blocked) {
           assert.equal(requests.length, 0, `${kind}/${scenario}: no token or email requests`)
           assert.equal(state.writes.length, 0)
@@ -113,6 +135,20 @@ if (process.argv.includes('--serve')) {
           const email = requests.find(r => r.url === '/api/users/invite')
           assert.deepEqual(email?.body.to, [scenario === 'changed' ? 'actualizat@marf.ro' : 'suport@marf.ro'])
           assert.equal(email.body.type, kind === 'offer' ? 'OFFER' : 'DEVIZ')
+          if (kind === 'offer') {
+            const label = scenario === 'ticket-label' ? `#00123 — Barieră <acces> & "auto" — Sediu București 'Nord'`
+              : scenario === 'ticket-label-empty' ? ''
+              : scenario === 'ticket-label-partial' ? 'Barieră acces' : '001 — Avangarde'
+            const expectedSubject = label ? `Ofertă pentru tichetul ${label}` : 'Ofertă pentru tichet'
+            assert.equal(email.body.subject, expectedSubject)
+            const content = await page.evaluate(html => {
+              const doc = new DOMParser().parseFromString(html, 'text/html')
+              return { heading: doc.querySelector('h2').textContent, intro: doc.querySelector('p').textContent, injected: !!doc.querySelector('acces') }
+            }, email.body.html)
+            assert.equal(content.heading, expectedSubject)
+            assert.equal(content.intro, `În vederea finalizării tichetului${label ? ` ${label}` : ''} am constatat că sunt necesare următoarele echipamente și servicii:`)
+            assert.equal(content.injected, false)
+          }
           assert.equal(state.generatedInputs.at(-1).beneficiar.cui, 'RO-HISTORIC', 'Resending a legacy version must not replace its identity with live data')
           if (kind === 'offer') assert.equal(state.generatedInputs.at(-1).preparedBy, 'Test')
           assert.ok(state.toasts.some(t => t.title === (kind === 'offer' ? 'Ofertă trimisă' : 'Deviz trimis')))
@@ -121,6 +157,50 @@ if (process.argv.includes('--serve')) {
         count++
         await page.close()
       }
+    }
+
+    for (const [label, empty] of [
+      ['Termen de plată', '  '], ['Termen de livrare', ''], ['Termen de instalare', ' '],
+      ['Denumire 1', '  '], ['UM 1', ''], ['Cantitate 1', ''], ['PU (lei) 1', ''], ['Discount (%)', ''],
+    ]) {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+      const calls = []
+      await page.route('**/api/**', async route => {
+        calls.push(new URL(route.request().url()).pathname)
+        await route.fulfill({ json: { success: true } })
+      })
+      await page.goto(`${url}/?kind=offer`)
+      await page.getByText('suport@marf.ro', { exact: true }).waitFor()
+      const send = page.getByRole('button', { name: 'Trimite ofertă', exact: true })
+      assert.equal(await send.isEnabled(), true)
+      await page.getByLabel(label, { exact: true }).fill(empty)
+      await page.getByLabel(label, { exact: true }).blur()
+      assert.equal(await send.isEnabled(), false, label)
+      assert.equal(await page.getByLabel(label, { exact: true }).getAttribute('aria-invalid'), 'true', label)
+      assert.equal(await page.evaluate(() => window.fixture.writes.length), 0)
+      assert.deepEqual(calls, [])
+      if (label === 'Termen de plată') {
+        await page.getByRole('button', { name: 'Salvează', exact: true }).click()
+        await page.waitForFunction(() => window.fixture.work.offerVersions.length === 2)
+        assert.equal(await send.isEnabled(), false, 'saving an incomplete draft must not enable sending')
+        assert.ok(calls.every(url => url.endsWith('/offer-prepared')))
+        await page.getByLabel(label, { exact: true }).fill('100% avans')
+        assert.equal(await send.isEnabled(), false, 'corrected terms must be saved first')
+        await page.getByRole('button', { name: 'Salvează', exact: true }).click()
+        await page.waitForFunction(() => window.fixture.work.offerVersions.length === 3)
+        await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Trimite ofertă' && !b.disabled))
+        const state = await page.evaluate(() => window.fixture)
+        assert.equal(state.work.offerVersions.at(-1).conditions[0], 'Plata: 100% avans')
+      } else {
+        await page.getByRole('button', { name: 'Salvează', exact: true }).click()
+        await page.waitForFunction(() => window.fixture.work.offerVersions.length === 2)
+        await page.getByRole('button', { name: 'Salvează', exact: true }).waitFor()
+        assert.equal(await send.isEnabled(), false, `${label}: saving an incomplete draft must not enable sending`)
+        assert.ok(calls.every(url => url.endsWith('/offer-prepared')))
+      }
+      console.log(`PASS offer validation: ${label}; no email sent`)
+      count++
+      await page.close()
     }
 
     const downloadPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } })

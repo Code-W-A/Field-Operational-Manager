@@ -1,5 +1,7 @@
 # Planul 2 — etapa 3: editor și reguli comerciale
 
+**Completare locală — 10 noiembrie 2026:** articolele pot fi preluate direct după cod în editor, fără import. Confirmarea explicită și auditată a monedei RON în FOM este acceptată când moneda lipsește din export. [Fluxul, API-urile și verificările](invoice-saga-direct-articles.md). Pașii de configurare din export de mai jos rămân disponibili ca alternativă.
+
 Implementare locală, **8 noiembrie 2026**. Nicio conectare la firma SAGA reală, nicio configurare a conturilor reale și nicio publicare.
 
 ## Configurare și activare
@@ -8,7 +10,7 @@ Implementare locală, **8 noiembrie 2026**. Nicio conectare la firma SAGA reală
 
 Din „Legături explicite între referințe și asocierile FOM”, adminul alege articolul sau gestiunea din export și asocierea FOM existentă cu **exact același cod SAGA**. Articolele și gestiunile sunt legate separat. Nu se creează produse sau gestiuni noi și nu se potrivește după nume. Dacă UM a produsului diferă de ultima verificare API, actualizarea ei necesită confirmare explicită; crește revizia produsului, astfel încât ciornele vechi să semnaleze conflictul.
 
-Pentru facturare, articolul trebuie să aibă ultima verificare API salvată (`GetArticol`) și **moneda RON în referința importată**. Datele de preț din export nu înlocuiesc verificarea API. Fără RON confirmat nu se presupune că prețul este în lei. Adminul modifică prețul în SAGA, apoi folosește recitirea existentă din catalogul de referință.
+Pentru facturare, articolul trebuie să aibă ultima verificare API salvată (`GetArticol`) și **moneda RON în referința importată sau confirmată explicit de operator prin fluxul direct**. Datele de preț din export nu înlocuiesc verificarea API. Fără RON confirmat nu se presupune că prețul este în lei. Adminul modifică prețul în SAGA, apoi folosește recitirea existentă din catalogul de referință.
 
 După activare, fiecare pregătire nouă de XML trebuie să respecte politica, inclusiv pentru ciorne create anterior. Facturile deja înghețate rămân intacte și pot fi redeschise, descărcate sau procesate prin fluxul existent cu aceiași octeți XML.
 

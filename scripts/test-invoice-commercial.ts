@@ -1,3 +1,5 @@
+import { createInvoiceSagaArticleService } from "../lib/invoicing/saga-article.server";
+import { invoiceSagaArticleHandlers } from "../lib/invoicing/saga-article-http";
 import {
   withEurOmitted,
   eurFixtureHandlers,
@@ -270,6 +272,61 @@ async function main() {
       "0009": { name: "Serviciu API", unit: "ora", vat: "0", price: "9.99" },
       "0099": { name: "Produs fără preț", unit: "buc", vat: "21", price: "0" },
     };
+    let inlineClock = Date.now(),
+      inlineStock = "10",
+      inlineStockError = false;
+    const inlinePrices: Record<
+      string,
+      { name: string; unit: string; vat: string; price: string }
+    > = {
+      ...prices,
+      "00077": {
+        name: "Produs direct API",
+        unit: "buc",
+        vat: "21",
+        price: "12.50",
+      },
+      "00078": {
+        name: "Serviciu direct API",
+        unit: "ora",
+        vat: "0",
+        price: "9.99",
+      },
+      "00079": { name: "Fără preț API", unit: "buc", vat: "21", price: "" },
+      "00080": { name: "Fără TVA API", unit: "buc", vat: "", price: "12.50" },
+      "00082": {
+        name: "Produs nou din editor",
+        unit: "buc",
+        vat: "21",
+        price: "12.50",
+      },
+      "00081": { name: "Preț zero API", unit: "buc", vat: "21", price: "0" },
+    };
+    const inlineService = createInvoiceSagaArticleService(
+      db,
+      async (_actor, raw) => {
+        const v = raw as {
+          kind: "article" | "stock";
+          code: string;
+          warehouse?: string;
+        };
+        if (v.kind === "stock" && inlineStockError)
+          throw Error("Simulated stock failure");
+        return {
+          kind: v.kind,
+          code: v.code,
+          warehouse: v.warehouse || null,
+          date: null,
+          checkedAt: new Date(inlineClock).toISOString(),
+          ...(v.kind === "article"
+            ? { article: inlinePrices[v.code] }
+            : { quantity: inlineStock }),
+        };
+      },
+      () => config,
+      () => inlineClock,
+    );
+    const inlineHttp = invoiceSagaArticleHandlers(inlineService, authenticate);
     const refs = createSagaReferencesService(
         db,
         async (_actor, input) => {
@@ -424,6 +481,8 @@ async function main() {
       "unknown",
       "staleApply",
       "legacyRefresh",
+      "inline",
+      "inlineBrowser",
     ])
       await seed(id);
     const users = await numbering.users.list(actor),
@@ -443,6 +502,9 @@ async function main() {
     async function dispatch(r: Request) {
       const p = new URL(r.url).pathname,
         id = p.split("/")[3];
+      if (p.endsWith("/saga-article/preview")) return inlineHttp.preview(r, id);
+      if (p.endsWith("/saga-article/apply")) return inlineHttp.apply(r, id);
+      if (p.endsWith("/stock")) return inlineHttp.stock(r, id);
       if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
       if (p.endsWith("/clients")) return clients.search(r);
       if (p.endsWith("/commercial-policy"))
@@ -528,7 +590,7 @@ async function main() {
       stdin: {
         resolveDir: root,
         loader: "tsx",
-        contents: `import React from'react';import{createRoot}from'react-dom/client';import{InvoiceCommercialSettings}from'./components/settings/invoice-commercial-settings';import{InvoiceDraftSection}from'./components/invoicing/invoice-draft-section';createRoot(document.getElementById('root')).render(<main style={{padding:16,minHeight:1500}}>{location.pathname==='/ticket'?<InvoiceDraftSection workId="browser" work={window.testWork}/>:<InvoiceCommercialSettings/>}</main>);`,
+        contents: `import React from'react';import{createRoot}from'react-dom/client';import{InvoiceCommercialSettings}from'./components/settings/invoice-commercial-settings';import{InvoiceDraftSection}from'./components/invoicing/invoice-draft-section';createRoot(document.getElementById('root')).render(<main style={{padding:16,minHeight:1500}}>{location.pathname==='/ticket'?<InvoiceDraftSection workId={new URLSearchParams(location.search).get('work')||'browser'} work={window.testWork}/>:<InvoiceCommercialSettings/>}</main>);`,
       },
       bundle: true,
       write: false,
@@ -593,7 +655,10 @@ async function main() {
           res.end(bundle.outputFiles[0].text);
           return;
         }
-        const role = req.url === "/ticket" ? "dispecer" : "admin";
+        const role =
+          req.url?.startsWith("/ticket") && !req.url.includes("role=admin")
+            ? "dispecer"
+            : "admin";
         res.setHeader("Content-Type", "text/html");
         res.end(
           `<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css.css} html,body{height:auto;overflow-x:visible}</style><div id="root"></div><script>window.testRole=${JSON.stringify(role)};window.testToken=${JSON.stringify(tokens[role])};window.testWork=${JSON.stringify(work)};</script><script src="/app.js"></script>`,
@@ -629,6 +694,38 @@ async function main() {
       if (r.url().includes("/api/") && !r.ok())
         console.log("HTTP ERROR", r.url(), r.status(), await r.text());
     });
+    const activationCounterBefore = (await numbering.get(actor)).counter!
+      .allocationCount;
+    await page.goto(`${url}/ticket?work=old&role=admin`);
+    await page
+      .getByRole("button", { name: "Continuă ciorna", exact: true })
+      .click();
+    const activateInline = page.getByRole("region", {
+      name: "Activare facturare cu date SAGA",
+    });
+    await expect(
+      activateInline.getByRole("button", {
+        name: "Activează facturarea cu date SAGA",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await activateInline.getByRole("checkbox").check();
+    await activateInline
+      .getByRole("button", {
+        name: "Activează facturarea cu date SAGA",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole("region", { name: "Aplicare reguli SAGA" }),
+    ).toBeVisible();
+    assert.equal((await commercial.policy(actor)).enabled, true);
+    assert.equal(
+      (await numbering.get(actor)).counter!.allocationCount,
+      activationCounterBefore,
+    );
+    // Reset only this isolated policy fixture so the existing Settings activation scenario remains covered.
+    await rootCatalog.collection("commercialPolicy").doc("current").delete();
     await page.goto(url);
     const settings = page.getByRole("region", {
       name: "Reguli comerciale SAGA",
@@ -1170,6 +1267,482 @@ async function main() {
       path: "/tmp/fom-commercial-ticket-mobile.png",
       fullPage: true,
     });
+    // Direct article flow, with no article/warehouse-reference import.
+    let inlineDraft = (await apply("inline", actor, true)).draft!;
+    inlineDraft = (
+      await draftService.put(
+        "inline",
+        {
+          expectedRevision: inlineDraft.revision,
+          content: {
+            ...invoiceContent(inlineDraft),
+            lines: [],
+            discountPercent: "0",
+          },
+        },
+        actor,
+      )
+    ).draft!;
+    const inlinePath = "/api/lucrari/inline/invoice-draft/saga-article";
+    const lookupInline = async (code: string, role = "dispecer") => {
+      const r = await request(inlinePath + "/preview", role, {
+        code,
+        expectedRevision: inlineDraft.revision,
+      });
+      assert.equal(r.status, 200, await r.clone().text());
+      return r.json();
+    };
+    const selection = (p: any) => ({
+      previewId: p.previewId,
+      quantity: "2",
+      warehouseId: "g",
+      kind: "goods",
+      confirmRON: true,
+    });
+    assert.equal(
+      (
+        await request(inlinePath + "/preview", "", {
+          code: "00077",
+          expectedRevision: inlineDraft.revision,
+        })
+      ).status,
+      401,
+    );
+    await db.doc("users/tehnician").set({ role: "tehnician" });
+    await assert.rejects(
+      () =>
+        inlineService.preview(
+          { uid: "tehnician", role: "tehnician" },
+          "inline",
+          { code: "00077", expectedRevision: inlineDraft.revision },
+        ),
+      (e: any) => e.status === 403,
+    );
+    await assert.rejects(
+      () =>
+        inlineService.preview(dispatcher, "browser", {
+          code: "00077",
+          expectedRevision: 1,
+        }),
+      (e: any) => e.status === 409,
+    );
+    let p = await lookupInline("00077");
+    assert.equal(p.code, "00077");
+    assert.equal(p.kind, null);
+    assert.equal(p.currencyConfirmed, false);
+    assert.equal(
+      (
+        await rootCatalog
+          .collection("products")
+          .where("code", "==", "00077")
+          .get()
+      ).size,
+      0,
+    );
+    assert.equal(
+      (
+        await request(inlinePath + "/apply", "dispecer", {
+          ...selection(p),
+          confirmRON: false,
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(inlinePath + "/apply", "dispecer", {
+          ...selection(p),
+          warehouseId: "other",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(inlinePath + "/apply", "dispecer", {
+          ...selection(p),
+          price: "0.01",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(inlinePath + "/apply", "dispecer", {
+          ...selection(p),
+          quantity: "-1",
+        })
+      ).status,
+      400,
+    );
+    await assert.rejects(
+      () =>
+        inlineService.stock(actor, "inline", {
+          previewId: p.previewId,
+          warehouseId: "g",
+        }),
+      (e: any) => e.status === 404,
+    );
+    let st = await inlineService.stock(dispatcher, "inline", {
+      previewId: p.previewId,
+      warehouseId: "g",
+      kind: "goods",
+    });
+    assert.equal(st.quantity, "10");
+    const rival = await lookupInline("00077", "admin");
+    const raced = await Promise.all([
+      request(inlinePath + "/apply", "dispecer", selection(p)),
+      request(inlinePath + "/apply", "admin", selection(rival)),
+    ]);
+    assert.deepEqual(raced.map((r) => r.status).sort(), [200, 409]);
+    assert.equal(
+      (
+        await rootCatalog
+          .collection("products")
+          .where("code", "==", "00077")
+          .get()
+      ).size,
+      1,
+    );
+    assert.deepEqual(
+      (await db.doc("invoiceDrafts/inline").get()).data()!.lines,
+      [],
+    );
+    p = await lookupInline("00077");
+    assert.equal(p.kind, "goods");
+    assert.equal(p.currencyConfirmed, true);
+    const applied = await request(
+      inlinePath + "/apply",
+      "dispecer",
+      selection(p),
+    );
+    assert.equal(applied.status, 200, await applied.clone().text());
+    const directLine = (await applied.json()).line;
+    const retryLine = (
+      await (
+        await request(inlinePath + "/apply", "dispecer", selection(p))
+      ).json()
+    ).line;
+    assert.deepEqual(retryLine, directLine);
+    assert.equal(directLine.saga.snapshot.code, "00077");
+    assert.equal(directLine.price, "12.50");
+    const entryDirect = (
+      await rootCatalog
+        .collection("referenceItems")
+        .doc(commercialReferenceId("articles", "00077"))
+        .get()
+    ).data()!;
+    assert.equal(entryDirect.exportData.currency, undefined);
+    assert.equal(entryDirect.operatorConfirmation.currency, "RON");
+    assert.equal(
+      entryDirect.operatorConfirmation.uid === "admin" ||
+        entryDirect.operatorConfirmation.uid === "dispecer",
+      true,
+    );
+    const inlineStale = await lookupInline("00077");
+    await rootCatalog
+      .collection("products")
+      .doc(directLine.saga.productId)
+      .update({ revision: 2 });
+    assert.equal(
+      (await request(inlinePath + "/apply", "dispecer", selection(inlineStale)))
+        .status,
+      409,
+    );
+    await rootCatalog
+      .collection("products")
+      .doc(directLine.saga.productId)
+      .update({ revision: 1 });
+    const expiring = await lookupInline("00077");
+    inlineClock += 600001;
+    assert.equal(
+      (await request(inlinePath + "/apply", "dispecer", selection(expiring)))
+        .status,
+      409,
+    );
+    for (const code of ["00079", "00080", "00081"]) {
+      const invalid = await lookupInline(code);
+      assert.ok(invalid.issues.length > 0);
+      assert.equal(
+        (await request(inlinePath + "/apply", "dispecer", selection(invalid)))
+          .status,
+        409,
+      );
+      assert.equal(
+        (
+          await rootCatalog
+            .collection("products")
+            .where("code", "==", code)
+            .get()
+        ).size,
+        0,
+      );
+    }
+    const knownForeign = await rootCatalog
+      .collection("referenceItems")
+      .doc(commercialReferenceId("articles", "00077"))
+      .get();
+    await knownForeign.ref.update({ "exportData.currency": "EUR" });
+    const foreign = await lookupInline("00077");
+    assert.ok(foreign.issues.some((s: string) => s.includes("RON")));
+    assert.equal(
+      (await request(inlinePath + "/apply", "dispecer", selection(foreign)))
+        .status,
+      409,
+    );
+    await knownForeign.ref.set(knownForeign.data()!);
+    const invalidUnit = { ...inlinePrices["00077"] };
+    inlinePrices["00077"].unit = "kg";
+    const unitMismatch = await lookupInline("00077");
+    assert.ok(unitMismatch.issues.length);
+    assert.equal(
+      (
+        await request(
+          inlinePath + "/apply",
+          "dispecer",
+          selection(unitMismatch),
+        )
+      ).status,
+      409,
+    );
+    inlinePrices["00077"] = invalidUnit;
+    const whRef = rootCatalog.collection("warehouses").doc("g");
+    const otherWh = rootCatalog.collection("warehouses").doc("g2");
+    await otherWh.set({
+      ...(await whRef.get()).data()!,
+      id: "g2",
+      code: "02",
+      name: "Alt depozit",
+    });
+    const permitted = await lookupInline("00077");
+    assert.deepEqual(
+      permitted.warehouses.map((w: any) => w.id),
+      ["g"],
+    );
+    assert.equal(
+      (
+        await request(inlinePath + "/apply", "dispecer", {
+          ...selection(permitted),
+          warehouseId: "g2",
+        })
+      ).status,
+      400,
+    );
+    const svc = await lookupInline("00078");
+    const serviceResult = await request(inlinePath + "/apply", "dispecer", {
+      ...selection(svc),
+      kind: "service",
+      warehouseId: "",
+    });
+    assert.equal(serviceResult.status, 200);
+    const serviceLine = (await serviceResult.json()).line;
+    assert.equal(serviceLine.vatPercent, "0");
+    assert.equal(serviceLine.saga.warehouseId, "");
+    const quoteDoc = rootCatalog
+      .collection("articleLookups")
+      .doc(svc.previewId);
+    const directUrl = `http://${firestoreHost}/v1/projects/${projectId}/databases/(default)/documents/${quoteDoc.path}`;
+    assert.equal(
+      (
+        await fetch(directUrl, {
+          headers: { Authorization: `Bearer ${tokens.admin}` },
+        })
+      ).status,
+      403,
+    );
+    // Save two lines of the same article; the second unchanged lookup must not invalidate the first.
+    const repeated = await lookupInline("00077");
+    const secondLine = (
+      await (
+        await request(inlinePath + "/apply", "dispecer", {
+          ...selection(repeated),
+          quantity: "0.5",
+        })
+      ).json()
+    ).line;
+    inlineDraft = (
+      await draftService.put(
+        "inline",
+        {
+          expectedRevision: inlineDraft.revision,
+          content: {
+            ...invoiceContent(inlineDraft),
+            lines: [directLine, secondLine, serviceLine],
+          },
+        },
+        dispatcher,
+      )
+    ).draft!;
+    const inlinePreview = await service.preview(dispatcher, "inline", {
+      expectedRevision: inlineDraft.revision,
+    });
+    assert.ok("previewHash" in inlinePreview);
+    assert.equal((await db.doc("invoices/inline").get()).exists, false);
+    const unsavedQuote = await inlineService.preview(dispatcher, "new", {
+      code: "00077",
+      expectedRevision: 0,
+    });
+    await inlineService.apply(dispatcher, "new", selection(unsavedQuote));
+    assert.equal((await db.doc("invoiceDrafts/new").get()).exists, false);
+    console.log(
+      "PASS direct article API: no import, both roles, owner isolation, TTL, conflicts, atomic dedupe, retry, protected fields, permissioned warehouses, services/VAT zero, source provenance, repeated rows save and XML preview.",
+    );
+    await importRows("articles", [
+      { code: "00077", name: entryDirect.name, currency: "RON" },
+    ]);
+    const afterLaterImport = (
+      await rootCatalog
+        .collection("referenceItems")
+        .doc(commercialReferenceId("articles", "00077"))
+        .get()
+    ).data()!;
+    assert.deepEqual(
+      afterLaterImport.operatorConfirmation,
+      entryDirect.operatorConfirmation,
+    );
+    assert.deepEqual(afterLaterImport.apiSnapshot, entryDirect.apiSnapshot);
+    // A fresh browser draft starts with no lines and does not require reference import.
+    let browserInline = (await apply("inlineBrowser", actor, true)).draft!;
+    browserInline = (
+      await draftService.put(
+        "inlineBrowser",
+        {
+          expectedRevision: browserInline.revision,
+          content: {
+            ...invoiceContent(browserInline),
+            lines: [],
+            discountPercent: "0",
+          },
+        },
+        actor,
+      )
+    ).draft!;
+    await page.goto(`${url}/ticket?work=inlineBrowser`);
+    await page
+      .getByRole("button", { name: /Continuă ciorna|Începe factura/ })
+      .click();
+    const directUi = page.getByRole("region", {
+      name: "Produs direct din SAGA",
+    });
+    await directUi
+      .getByRole("button", { name: "Adaugă produs din SAGA", exact: true })
+      .click();
+    await directUi
+      .getByLabel("Cod articol SAGA", { exact: true })
+      .fill("00082");
+    await directUi
+      .getByLabel("Cod articol SAGA", { exact: true })
+      .press("Enter");
+    await expect(
+      directUi.getByText("00082 · Produs nou din editor", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      directUi.getByRole("button", { name: "Adaugă în factură", exact: true }),
+    ).toBeDisabled();
+    await directUi.getByLabel("Tip articol direct SAGA").selectOption("goods");
+    await directUi
+      .getByRole("checkbox", { name: /Am verificat că prețul/ })
+      .check();
+    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("g");
+    await expect(directUi.getByText(/Stoc: 10/)).toBeVisible();
+    await directUi
+      .getByLabel("Cantitate de adăugat", { exact: true })
+      .fill("11");
+    await expect(directUi.getByText(/Stoc insuficient/)).toBeVisible();
+    await directUi
+      .getByLabel("Cantitate de adăugat", { exact: true })
+      .fill("2");
+    await expect(directUi.getByText(/Stoc insuficient/)).toHaveCount(0);
+    inlineStockError = true;
+    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("");
+    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("g");
+    await expect(directUi.getByText(/Stoc neconfirmat/)).toBeVisible();
+    inlineStockError = false;
+    inlineStock = "0";
+    await directUi
+      .getByRole("button", { name: "Reîncearcă citirea stocului" })
+      .click();
+    await expect(directUi.getByText(/Stoc: 0/)).toBeVisible();
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+    }
+    await page.screenshot({
+      path: "/tmp/fom-saga-direct-mobile.png",
+      fullPage: true,
+    });
+    await directUi
+      .getByRole("button", { name: "Adaugă în factură", exact: true })
+      .click();
+    await expect(
+      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
+    ).toHaveValue("12.50");
+    await expect(
+      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
+    ).toHaveAttribute("readonly", "");
+    inlineStock = "10";
+    await directUi
+      .getByRole("button", { name: "Adaugă produs din SAGA", exact: true })
+      .click();
+    await directUi
+      .getByLabel("Cod articol SAGA", { exact: true })
+      .fill("00082");
+    await directUi
+      .getByRole("button", { name: "Preia din SAGA", exact: true })
+      .click();
+    await expect(directUi.getByLabel("Tip articol direct SAGA")).toBeDisabled();
+    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("g");
+    await expect(directUi.getByText(/Stoc: 10/)).toBeVisible();
+    await directUi
+      .getByLabel("Cantitate de adăugat", { exact: true })
+      .fill("9");
+    await expect(directUi.getByText(/Stoc insuficient/)).toBeVisible();
+    await directUi
+      .getByLabel("Cantitate de adăugat", { exact: true })
+      .fill("8");
+    await expect(directUi.getByText(/Stoc insuficient/)).toHaveCount(0);
+    await directUi
+      .getByRole("button", { name: "Adaugă în factură", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Salvează ciorna", exact: true })
+      .click();
+    await expect(
+      page.getByText("Ciornă salvată.", { exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await page.getByRole("button", { name: /Continuă ciorna/ }).click();
+    await expect(
+      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
+    ).toHaveValue("12.50");
+    await expect(
+      page.getByLabel("Gestiune SAGA 1", { exact: true }),
+    ).toHaveValue("g");
+    const savedInline = (
+      await db.doc("invoiceDrafts/inlineBrowser").get()
+    ).data()!;
+    const previewInline = await service.preview(dispatcher, "inlineBrowser", {
+      expectedRevision: savedInline.revision,
+    });
+    assert.ok("previewHash" in previewInline);
+    if (!("previewHash" in previewInline)) throw Error();
+    const preparedInline = await service.prepare(dispatcher, "inlineBrowser", {
+      expectedRevision: savedInline.revision,
+      previewHash: previewInline.previewHash,
+      operationId: "inline-final",
+    });
+    assert.equal(preparedInline.document.snapshot.lines[0].code, "00082");
+    assert.equal(
+      (await db.doc("lucrari/inlineBrowser").get()).data()!.statusFacturare,
+      "Nefacturat",
+    );
+    console.log(
+      "PASS direct article browser: Enter lookup, warehouse auto-stock, insufficiency, stock error vs zero/retry, protected price, 320/390px, save/reopen and XML preparation. No external traffic.",
+    );
     assert.equal(sagaCalls, callsBeforeBrowser);
     assert.deepEqual(errors, []);
     assert.deepEqual(

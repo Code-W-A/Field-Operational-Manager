@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
 import { logEmailEventServer } from "@/lib/email/email-events.server"
+import { validateTicketOfferForSend } from "@/lib/work-documents/ticket-offer-validation"
 import {
   InviteStyleEmailSendError,
   sendInviteStyleEmail,
@@ -27,6 +28,17 @@ export async function POST(request: NextRequest) {
     const explicitLucrareId = typeof body?.lucrareId === "string" ? body.lucrareId.trim() : ""
     if (!to || !Array.isArray(to) || to.length === 0) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
+    }
+    // Recheck the persisted sending snapshot, including requests bypassing the editor.
+    if (String(type || "").toUpperCase() === "OFFER") {
+      const workId = explicitLucrareId || (Array.isArray(attachments) && attachments[0]?.lucrareId)
+      if (!workId || typeof workId !== "string") return NextResponse.json({ error: "Tichetul ofertei lipsește." }, { status: 400 })
+      const work = await adminDb.collection("lucrari").doc(workId).get()
+      if (!work.exists) return NextResponse.json({ error: "Tichetul nu există." }, { status: 404 })
+      const fieldErrors = validateTicketOfferForSend(work.data()?.offerActionSnapshot)
+      if (Object.keys(fieldErrors).length) {
+        return NextResponse.json({ error: "Completați toate câmpurile ofertei și regenerați oferta înainte de trimitere.", fieldErrors }, { status: 400 })
+      }
     }
 
     const { messageId, emailEventId } = await sendInviteStyleEmail({

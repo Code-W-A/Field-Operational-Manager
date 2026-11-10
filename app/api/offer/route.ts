@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
+import { validateTicketOfferForSend } from "@/lib/work-documents/ticket-offer-validation"
 
 function toDate(value: any): Date | null {
   if (!value) return null
@@ -157,6 +158,10 @@ export async function POST(req: NextRequest) {
   try {
     const { lucrareId, snapshot } = await req.json()
     if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
+    const fieldErrors = validateTicketOfferForSend(snapshot)
+    if (Object.keys(fieldErrors).length) {
+      return NextResponse.json({ error: "Completați toate câmpurile ofertei înainte de trimitere.", fieldErrors }, { status: 400 })
+    }
 
     const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
     const workSnap = await workRef.get()

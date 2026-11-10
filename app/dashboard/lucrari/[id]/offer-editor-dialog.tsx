@@ -28,6 +28,8 @@ import {
   offerPdfVersionFileName,
 } from "@/lib/work-documents/offer-pdf-input"
 import { loadWorkDocumentRecipient } from "@/lib/work-documents/recipient"
+import { buildOfferEmailContent } from "@/lib/work-documents/offer-email-content"
+import { validateTicketOfferForSend } from "@/lib/work-documents/ticket-offer-validation"
 import { loadDocumentClientSnapshot } from "@/lib/work-documents/load-document-client"
 import type { DocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
@@ -49,6 +51,7 @@ type OfferVersion = {
   products: ProductItem[]
   vatPercent?: number
   adjustmentPercent?: number
+  adjustmentInput?: string
   conditions?: string[]
 }
 
@@ -163,7 +166,8 @@ useEffect(() => {
         const rawAdj = (current as any)?.offerAdjustmentPercent
         const nextAdj = (typeof rawAdj === 'number') ? Number(rawAdj) : 0
         setAdjustmentPercent(nextAdj)
-        setAdjustmentInput(String(nextAdj))
+        const savedAdjustmentInput = loadedVersions[loadedVersions.length - 1]?.adjustmentInput
+        setAdjustmentInput(typeof savedAdjustmentInput === 'string' ? savedAdjustmentInput : String(nextAdj))
       }
       // Initialize dynamic terms from existing conditiiOferta if present
       try {
@@ -172,9 +176,9 @@ useEffect(() => {
         const p = findByPrefix('plata:')
         const l = findByPrefix('livrare:')
         const i = findByPrefix('instalare:')
-        if (p) setTermsPayment(p.replace(/^plata:\s*/i, '').trim() || termsPayment)
-        if (l) setTermsDelivery(l.replace(/^livrare:\s*/i, '').trim() || termsDelivery)
-        if (i) setTermsInstallation(i.replace(/^instalare:\s*/i, '').trim() || termsInstallation)
+        setTermsPayment(p ? p.replace(/^plata:\s*/i, '').trim() : '')
+        setTermsDelivery(l ? l.replace(/^livrare:\s*/i, '').trim() : '')
+        setTermsInstallation(i ? i.replace(/^instalare:\s*/i, '').trim() : '')
       } catch {}
 
       // Permit "Trimite ofertă" doar dacă există o versiune salvată și nu suntem în editare de versiune nouă
@@ -249,31 +253,39 @@ useEffect(() => {
       const baseline = last?.products?.length ? last.products : baselineProducts
       const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       const versionTotal = total * (1 - adjToSave / 100)
+      const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
       const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== versionTotal
+        || JSON.stringify(conditiiOferta) !== JSON.stringify(last?.conditions || currentWork?.conditiiOferta || [])
+        || last?.vatPercent !== vatPercent || last?.adjustmentPercent !== adjToSave
+        || (last?.adjustmentInput !== undefined && last.adjustmentInput !== adjustmentInput)
       if (!changed && !editingNewVersion) {
         // Nu activăm trimiterea fără o salvare explicită a modificărilor
         setCanSendOffer((versions?.length || 0) > 0 && !editingNewVersion)
         return
       }
       // Keep the commercial settings with each new version so its PDF remains reproducible.
-      const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
       const current = await getLucrareById(lucrareId, { serverOnly: true })
       if (!current) throw new Error("Tichetul nu mai este disponibil.")
       const clientSnapshot = await loadDocumentClientSnapshot(current)
+      // Firestore cannot store undefined; omitted numeric inputs stay missing in drafts.
+      const savedProducts = products.map(product => Object.fromEntries(
+        Object.entries(product).filter(([, value]) => value !== undefined),
+      )) as ProductItem[]
       const version: OfferVersion = {
         clientSnapshot,
         savedAt: new Date().toISOString(),
         savedBy: userData?.displayName || userData?.email || "Unknown",
         total: versionTotal,
-        products,
+        products: savedProducts,
         vatPercent: Number(vatPercent) || 0,
         adjustmentPercent: adjToSave,
+        adjustmentInput,
         conditions: conditiiOferta,
       }
       const existing = (current as any)?.offerVersions || []
       const newVersions = [...existing, version]
       await updateLucrare(lucrareId, {
-        products,
+        products: savedProducts,
         // Save discounted total as the effective offer total
         offerTotal: versionTotal,
         offerVAT: Number(vatPercent) || 0,
@@ -323,6 +335,18 @@ useEffect(() => {
 
   const canEditOffer = (isPickedUp || canPrepareBeforePickup) && statusOferta !== "OFERTAT"
   const effectiveDisabled = !canEditOffer && !editingNewVersion
+  const sendFieldErrors = validateTicketOfferForSend({
+    products, conditions: buildPricingConditions(termsPayment, termsDelivery, termsInstallation),
+    vat: vatPercent, adjustmentPercent: adjustmentInput,
+  })
+  const hasSendErrors = Object.keys(sendFieldErrors).length > 0
+  const savedOffer = versions[versions.length - 1]
+  const hasUnsavedOfferChanges = !!savedOffer && (
+    JSON.stringify(products) !== JSON.stringify(savedOffer.products)
+    || JSON.stringify(buildPricingConditions(termsPayment, termsDelivery, termsInstallation)) !== JSON.stringify(savedOffer.conditions || currentWork?.conditiiOferta || [])
+    || vatPercent !== (savedOffer.vatPercent ?? vatPercent)
+    || Number(adjustmentInput.replace(',', '.')) !== (savedOffer.adjustmentPercent ?? currentWork?.offerAdjustmentPercent ?? 0)
+  )
   const canPreviewOfferPdf =
     (isPickedUp || canPrepareBeforePickup) && (statusOferta !== "OFERTAT" || editingNewVersion) && products.length > 0
   const startNewVersion = () => {
@@ -421,6 +445,14 @@ useEffect(() => {
   }
 
   const handleSendOffer = async () => {
+    if (hasSendErrors) {
+      toast({ title: "Oferta este incompletă", description: Object.values(sendFieldErrors).join(" "), variant: "destructive" })
+      return
+    }
+    if (hasUnsavedOfferChanges) {
+      toast({ title: "Salvați oferta", description: "Salvați modificările înainte de trimitere.", variant: "destructive" })
+      return
+    }
     try {
       setSaving(true)
       // generează token și link-uri
@@ -435,6 +467,8 @@ useEffect(() => {
         products: (lastVersion?.products && Array.isArray(lastVersion.products)) ? lastVersion.products : products,
         total: typeof lastVersion?.total === 'number' ? lastVersion.total : computedTotal,
         vat: Number(vatPercent) || 0,
+        adjustmentPercent: Number(adjustmentInput.replace(',', '.')),
+        conditions: buildPricingConditions(termsPayment, termsDelivery, termsInstallation),
         savedAt: String(lastVersion?.savedAt || new Date().toISOString()),
       }
       setCurrentWork(freshWork)
@@ -445,7 +479,10 @@ useEffect(() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lucrareId, snapshot: currentSnapshot })
       })
-      if (!tokenResp.ok) throw new Error('Nu s-a putut genera link-ul de ofertă')
+      if (!tokenResp.ok) {
+        const error = await tokenResp.json().catch(() => ({}))
+        throw new Error(error.error || 'Nu s-a putut genera link-ul de ofertă')
+      }
       const { acceptUrl, rejectUrl } = await tokenResp.json()
 
       setLastEmailDebug({
@@ -477,7 +514,7 @@ useEffect(() => {
       toast({ title: 'Se trimite ofertă', description: `Către: ${recipient}` })
   
       // construiește tabelul cu produse
-      const subject = `Ofertă pentru tichetul ${currentWork?.numarRaport || currentWork?.id}`
+      const { subject, headingHtml, introductionHtml } = buildOfferEmailContent(freshWork)
       const rows = (products || []).map((p: any) => `
         <tr>
           <td style="padding:6px;border:1px solid #e5e7eb">${p.name || ''}</td>
@@ -493,9 +530,9 @@ useEffect(() => {
       const bullets = (products || []).map((p: any) => `<li>${p?.name || ''}${p?.quantity ? ` — ${Number(p.quantity)} buc.` : ''}${p?.price ? ` @ ${Number(p.price).toFixed(2)} lei` : ''}</li>`).join('')
       const html = `
         <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b1220"> 
-          <h2 style="margin:0 0 12px;color:#0f56b3">Ofertă tichetul ${currentWork?.numarRaport || currentWork?.id}</h2>
+          <h2 style="margin:0 0 12px;color:#0f56b3">${headingHtml}</h2>
 
-          <p style="margin:8px 0 6px;color:#0b1220">În vederea finalizării tichetului ${currentWork?.numarRaport || currentWork?.id} am constatat că sunt necesare următoarele echipamente și servicii:</p>
+          <p style="margin:8px 0 6px;color:#0b1220">${introductionHtml}</p>
  
 
           <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px">
@@ -691,7 +728,14 @@ useEffect(() => {
         </DialogDescription>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
           <div className="lg:col-span-2 space-y-4 overflow-y-auto max-h-[calc(95vh-8rem)] p-6">
-            <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} />
+            <ProductTableForm products={products} onProductsChange={setProducts} disabled={effectiveDisabled} requireCompleteRows fieldErrors={sendFieldErrors} />
+            {hasSendErrors && (
+              <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <p className="font-medium">Completați toate câmpurile înainte de trimiterea ofertei:</p>
+                <ul className="list-disc pl-5">{Object.entries(sendFieldErrors).map(([field, message]) => <li key={field}>{message}</li>)}</ul>
+              </div>
+            )}
+            {hasUnsavedOfferChanges && <p className="text-sm text-amber-700">Salvați modificările înainte de trimiterea ofertei.</p>}
 
             {/* Termeni ofertă (dinamici) */}
             <div className="space-y-3">
@@ -701,6 +745,7 @@ useEffect(() => {
                   <input
                     type="text"
                     value={termsPayment}
+                    aria-label="Termen de plată" aria-required="true" aria-invalid={!!sendFieldErrors['conditions.payment']}
                     onChange={(e) => setTermsPayment(e.target.value)}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
@@ -728,6 +773,7 @@ useEffect(() => {
                   <input
                     type="text"
                     value={termsDelivery}
+                    aria-label="Termen de livrare" aria-required="true" aria-invalid={!!sendFieldErrors['conditions.delivery']}
                     onChange={(e) => setTermsDelivery(e.target.value)}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
@@ -755,6 +801,7 @@ useEffect(() => {
                   <input
                     type="text"
                     value={termsInstallation}
+                    aria-label="Termen de instalare" aria-required="true" aria-invalid={!!sendFieldErrors['conditions.installation']}
                     onChange={(e) => setTermsInstallation(e.target.value)}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
@@ -795,12 +842,14 @@ useEffect(() => {
                     type="text"
                     inputMode="decimal"
                     value={adjustmentInput}
+                    aria-label="Discount (%)" aria-required="true" aria-invalid={!!sendFieldErrors.adjustmentPercent}
                     onChange={(e) => setAdjustmentInput(e.target.value)}
                     onBlur={() => {
-                      const n = parseFloat(String(adjustmentInput).replace(',', '.'))
-                      const safe = isNaN(n) ? 0 : n
-                      setAdjustmentPercent(safe)
-                      setAdjustmentInput(String(safe))
+                      const n = Number(adjustmentInput.replace(',', '.'))
+                      if (adjustmentInput.trim() && Number.isFinite(n)) {
+                        setAdjustmentPercent(n)
+                        setAdjustmentInput(String(n))
+                      }
                     }}
                     className="w-full border rounded px-2 py-1 text-sm"
                     disabled={effectiveDisabled}
@@ -885,7 +934,7 @@ useEffect(() => {
                   {previewingPdf ? "Se generează..." : "Descarcă previzualizare PDF"}
                 </Button>
               )}
-              <Button onClick={handleSendOffer} disabled={saving || previewingPdf || !canSendOffer}>Trimite ofertă</Button>
+              <Button onClick={handleSendOffer} disabled={saving || previewingPdf || !canSendOffer || hasSendErrors || hasUnsavedOfferChanges}>Trimite ofertă</Button>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || previewingPdf} className="ml-2">Închide</Button>
               </div>
             </div>

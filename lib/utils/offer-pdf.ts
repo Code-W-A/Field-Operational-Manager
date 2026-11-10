@@ -242,7 +242,7 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   const equip = input.equipmentName ? `, echipament ${input.equipmentName}` : ""
   const loc = input.locationName ? `, la locația ${input.locationName}` : ""
   const intro = normalizeForPdf(
-    `Referitor la lucrarea ${displayWorkId}${equip}${loc} vă facem cunoscute costurile aferente pieselor de schimb și serviciilor necesare remedierii, după cum urmează:`,
+    `Referitor la tichetul ${displayWorkId}${equip}${loc} vă facem cunoscute costurile aferente pieselor de schimb și serviciilor necesare remedierii, după cum urmează:`,
   )
   const introLines = doc.splitTextToSize(intro, W)
   introLines.forEach((line: string) => {

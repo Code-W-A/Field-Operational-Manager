@@ -253,7 +253,10 @@ export function createCommercialService(
       issues.push("Prețul trebuie să fie mai mare decât zero.");
     if (api?.vat === null || api?.vat === undefined)
       issues.push("TVA lipsește.");
-    if (entry.exportData.currency !== "RON")
+    if (
+      (entry.exportData.currency || entry.operatorConfirmation?.currency) !==
+      "RON"
+    )
       issues.push("Moneda prețului nu este confirmată RON.");
     if (api && p.unit !== api.unit)
       issues.push("UM a asocierii necesită reconfirmare administrativă.");

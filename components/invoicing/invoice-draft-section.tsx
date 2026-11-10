@@ -1,4 +1,8 @@
 "use client";
+import {
+  InvoiceSagaArticle,
+  InvoiceCommercialActivation,
+} from "./invoice-saga-article";
 
 import { InvoiceEurRate } from "./invoice-eur-rate";
 import type { EurReference } from "@/lib/invoicing/eur-rate";
@@ -628,6 +632,15 @@ export function InvoiceDraftSection({
                     patch({ beneficiary: { ...draft.beneficiary, country } })
             }
           />
+          {!readOnly && (
+            <InvoiceCommercialActivation
+              readOnly={saving || busyAction}
+              onBusy={setBusyAction}
+              onActivated={() =>
+                setResponse((r) => (r ? { ...r, commercialPolicy: true } : r))
+              }
+            />
+          )}
           {(response?.commercialPolicy || draft.commercial) && (
             <InvoiceCommercialApply
               draft={draft}
@@ -637,6 +650,7 @@ export function InvoiceDraftSection({
             />
           )}
           <DraftForm
+            onBusy={setBusyAction}
             approveDiscount={approveDiscount}
             onApproveDiscount={setApproveDiscount}
             draft={draft}
@@ -825,7 +839,9 @@ function DraftForm({
   prefix,
   approveDiscount = false,
   onApproveDiscount,
+  onBusy,
 }: {
+  onBusy?: (v: boolean) => void;
   approveDiscount?: boolean;
   onApproveDiscount?: (v: boolean) => void;
   draft: InvoiceDraft;
@@ -1181,6 +1197,17 @@ function DraftForm({
           />
         </div>
       ))}
+      {prefix === "invoice" && (
+        <InvoiceSagaArticle
+          draft={draft}
+          readOnly={readOnly}
+          onBusy={onBusy}
+          onAdd={(line) => {
+            onChange({ lines: [...draft.lines, line] });
+            void reloadCatalog();
+          }}
+        />
+      )}
       <Button
         type="button"
         size="sm"
