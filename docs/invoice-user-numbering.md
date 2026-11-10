@@ -1,5 +1,7 @@
 # Planul 2 — etapa 2: numerotare pe utilizator
 
+Actualizare **10 noiembrie 2026**: [configurarea facturării din utilizator](invoice-user-setup.md) salvează profilul și activează contorul dintr-o singură acțiune. Datele comune lipsă se pot completa din factură, iar instrumentele SAGA sunt grupate în administrare avansată. Livrare locală, cu teste simulate, fără configurarea seriilor reale sau publicare.
+
 Implementare locală, 8 noiembrie 2026. Niciun apel SAGA, cont real configurat sau publicare.
 
 ## Comportament

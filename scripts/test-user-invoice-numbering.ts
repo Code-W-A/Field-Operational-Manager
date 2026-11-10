@@ -27,6 +27,9 @@ import { randomUUID, createHash } from "node:crypto";
 import { createInvoiceNumberingService } from "../lib/invoicing/numbering.server";
 import { InvoiceNumberingError } from "../lib/invoicing/numbering";
 import { createInvoiceXmlService } from "../lib/invoicing/xml.server";
+import { createInvoiceFinalizationService } from "../lib/invoicing/finalization.server";
+import { invoiceFinalizationHandlers } from "../lib/invoicing/finalization-http";
+import { importPolicy } from "../lib/saga/import";
 import { invoiceXmlHandlers } from "../lib/invoicing/xml-http";
 import { issuerFixture, contentFixture } from "../lib/invoicing/xml.fixtures";
 import { isUninvoicedWork } from "../lib/reports/uninvoiced";
@@ -167,6 +170,13 @@ async function main() {
     };
     const handlers = invoiceXmlHandlers(service, authenticate),
       drafts = invoiceDraftHandlers(draftService, authenticate);
+    const finalHttp = invoiceFinalizationHandlers(
+      createInvoiceFinalizationService(db, {
+        config: () => config,
+        policy: () => importPolicy({}),
+      }),
+      authenticate,
+    );
     const work = {
       clientId: "c",
       client: "Client",
@@ -252,6 +262,16 @@ async function main() {
       if (p.includes("/numbering/users")) return numbers.usersList(r);
       if (p.endsWith("/numbering")) return numbers.get(r);
       if (p.endsWith("/number")) return numbers.estimate(r, id);
+      if (p.endsWith("/invoice-finalization/preview"))
+        return finalHttp.preview(r, id);
+      if (p.endsWith("/invoice-finalization")) return finalHttp.confirm(r, id);
+      if (p.endsWith("/invoice-saga"))
+        return Response.json({
+          mode: "dry-run",
+          canStart: true,
+          reason: "",
+          transfer: null,
+        });
       if (p.endsWith("/invoice-xml/preview")) return handlers.preview(r, id);
       if (p.endsWith("/invoice-xml"))
         return r.method === "POST"
@@ -849,28 +869,38 @@ async function main() {
       page.getByRole("region", { name: "Numărul facturii" }),
     ).toContainText("dispecer");
     await page
-      .getByRole("button", { name: "Pregătește XML", exact: true })
+      .getByRole("button", {
+        name: "Simulează emiterea și trimiterea",
+        exact: true,
+      })
       .click();
     await expect(
-      page.getByRole("group", { name: "Confirmare XML" }),
-    ).toContainText("Serie: NRGV F26");
+      page.getByRole("group", { name: "Confirmare emitere și trimitere" }),
+    ).toContainText("serie: NRGV F26");
     await page
-      .getByRole("button", { name: "Confirmă pregătirea XML", exact: true })
+      .getByRole("button", {
+        name: "Confirmă simularea emiterii și trimiterii",
+        exact: true,
+      })
       .click();
     await expect(
-      page.getByText("Document XML pregătit în FOM", { exact: true }),
+      page.getByText("Document pregătit în FOM:", { exact: false }),
     ).toBeVisible();
     await page.reload();
     await page
       .getByRole("button", { name: /Continuă ciorna|Vezi ciorna/ })
       .click();
     await expect(
-      page.getByText("Număr: NRGV F260002", { exact: true }),
+      page
+        .getByRole("region", { name: "Emiterea facturii" })
+        .getByText("NRGV F260002", { exact: true }),
     ).toBeVisible();
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(
-        page.getByText("Număr: NRGV F260002", { exact: true }),
+        page
+          .getByRole("region", { name: "Emiterea facturii" })
+          .getByText("NRGV F260002", { exact: true }),
       ).toBeVisible();
       assert.ok(
         await page.evaluate(

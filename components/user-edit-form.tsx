@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast"
 import { updateUserEmail } from "@/lib/firebase/auth"
 import { Key, ChevronsUpDown, Check, Mail, Trash2 } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { UserInvoiceSetup } from "./invoicing/user-invoice-setup"
 import { PasswordResetDialog } from "./password-reset-dialog"
 import { doc, updateDoc, collection, getDocs, deleteField } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
@@ -53,10 +55,11 @@ const formSchema = z.object({
 interface UserEditFormProps {
   user: any
   onSuccess?: () => void
+  onSavedInPlace?: () => void
   onCancel?: () => void
 }
 
-const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProps, ref: any) => {
+const UserEditForm = forwardRef(({ user, onSuccess, onSavedInPlace, onCancel }: UserEditFormProps, ref: any) => {
   const router = useRouter()
   const { userData: currentUser } = useAuth()
   const canManageMailCredentials =
@@ -64,6 +67,10 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false)
   const [formModified, setFormModified] = useState(false)
+  const [billingDirty, setBillingDirty] = useState(false)
+  const [billingBusy, setBillingBusy] = useState(false)
+  const [userSection, setUserSection] = useState("account")
+  const [billingOpened, setBillingOpened] = useState(false)
   const [clientsForSelect, setClientsForSelect] = useState<Array<{ id: string; nume: string; locatii?: any[]; email?: string }>>([])
   const [isClientPickerOpen, setIsClientPickerOpen] = useState(false)
   const [clientAccess, setClientAccess] = useState<Array<{ clientId: string; locationNames: string[] }>>(Array.isArray((user as any)?.clientAccess) ? ((user as any).clientAccess as any) : [])
@@ -109,27 +116,8 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
   }, [clientsForSelect, clientAccess, tempClientId])
 
   useImperativeHandle(ref, () => ({
-    hasUnsavedChanges: () => formModified || mailDirty,
+    hasUnsavedChanges: () => formModified || mailDirty || billingDirty || billingBusy,
   }))
-
-  useEffect(() => {
-    const handleFormChange = () => {
-      setFormModified(true)
-    }
-
-    const formElements = document.querySelectorAll("input, textarea, select")
-    formElements.forEach((element) => {
-      element.addEventListener("change", handleFormChange)
-      element.addEventListener("input", handleFormChange)
-    })
-
-    return () => {
-      formElements.forEach((element) => {
-        element.removeEventListener("change", handleFormChange)
-        element.removeEventListener("input", handleFormChange)
-      })
-    }
-  }, [])
 
   // Inițializăm formularul cu valorile utilizatorului
   const form = useForm<z.infer<typeof formSchema>>({
@@ -430,8 +418,10 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
       })
 
       setFormModified(false) // Reset form modified state after successful submission
-      if (onSuccess) {
-        onSuccess()
+      if (billingDirty) {
+        onSavedInPlace?.()
+      } else {
+        onSuccess?.()
       }
     } catch (error: any) {
       console.error("Eroare la actualizarea utilizatorului:", error)
@@ -452,9 +442,16 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
 
   return (
     <div className="space-y-6">
+      <Tabs value={userSection} onValueChange={(value) => {setUserSection(value); if(value === "billing")setBillingOpened(true)}}>
+        {currentUser?.role === "admin" && ["admin", "dispecer"].includes(user.role) && <TabsList>
+          <TabsTrigger value="account">Date utilizator</TabsTrigger>
+          <TabsTrigger value="billing">Facturare SAGA{billingDirty ? " •" : ""}</TabsTrigger>
+        </TabsList>}
+        <TabsContent value="account" forceMount className="data-[state=inactive]:hidden">
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
+          onChange={() => setFormModified(true)}
           className={`py-0 grid gap-6 ${useWideTwoColumnLayout ? "lg:grid-cols-2" : ""}`}
         >
           {/* Câmpuri dinamice (legate la Dialog: Utilizator Nou) */}
@@ -652,8 +649,9 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
             </div>
           ) : null}
 
+          {billingDirty && <p className="text-sm text-amber-800">Ai modificări nesalvate în Facturare SAGA. Salvarea datelor utilizatorului păstrează formularul deschis și aceste editări.</p>}
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || billingBusy}>
               {isSubmitting ? "Se salvează..." : "Salvează modificările"}
             </Button>
 
@@ -980,6 +978,11 @@ const UserEditForm = forwardRef(({ user, onSuccess, onCancel }: UserEditFormProp
           ) : null}
         </form>
       </Form>
+        </TabsContent>
+        {currentUser?.role === "admin" && ["admin", "dispecer"].includes(user.role) && <TabsContent value="billing" forceMount className="data-[state=inactive]:hidden">
+          {billingOpened && <UserInvoiceSetup key={user.uid} uid={user.uid} onDirty={setBillingDirty} onBusy={setBillingBusy} />}
+        </TabsContent>}
+      </Tabs>
 
       <PasswordResetDialog
         user={user}

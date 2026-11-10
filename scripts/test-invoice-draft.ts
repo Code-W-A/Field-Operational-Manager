@@ -378,6 +378,18 @@ async function main() {
           res.end(await response.text());
           return;
         }
+        if (req.url === "/api/integrations/saga/commercial-policy") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              enabled: false,
+              revision: 0,
+              canAdmin: false,
+              writesEnabled: false,
+            }),
+          );
+          return;
+        }
         // Empty catalog fixture: invoice regression tests never consult SAGA.
         if (req.url === "/api/integrations/saga/catalog") {
           res.setHeader("Content-Type", "application/json");
@@ -386,6 +398,18 @@ async function main() {
               fiscalCode: "123456",
               products: [],
               warehouses: [],
+            }),
+          );
+          return;
+        }
+        if (req.url === "/api/lucrari/w/invoice-saga") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              mode: "dry-run",
+              canStart: true,
+              reason: "",
+              transfer: null,
             }),
           );
           return;
@@ -588,7 +612,9 @@ async function main() {
     await page
       .getByRole("button", { name: "Salvează ciorna", exact: true })
       .click();
-    await expect(page.getByRole("alert")).toContainText("alt operator");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "alt operator" }),
+    ).toContainText("alt operator");
     await expect(
       page.getByLabel("Denumire beneficiar", { exact: true }),
     ).toHaveValue("Modificarea mea");
@@ -598,7 +624,9 @@ async function main() {
     await page
       .getByRole("button", { name: "Înlocuiește datele", exact: true })
       .click();
-    await expect(page.getByRole("alert")).toContainText("alt operator");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "alt operator" }),
+    ).toContainText("alt operator");
     await expect(
       page.getByLabel("Denumire beneficiar", { exact: true }),
     ).toHaveValue("Modificarea mea");

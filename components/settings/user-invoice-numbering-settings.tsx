@@ -31,7 +31,9 @@ type Preview = {
     nextNumber: string;
   }[];
 };
-export function UserInvoiceNumberingSettings() {
+export function UserInvoiceNumberingSettings({
+  correctionsOnly = false,
+}: { correctionsOnly?: boolean } = {}) {
   const request = useSagaReferenceRequest(),
     { user } = useAuth();
   const [entries, setEntries] = useState<Entry[]>([]),
@@ -134,9 +136,11 @@ export function UserInvoiceNumberingSettings() {
         ciorne, dar nu pot pregăti XML după trecerea la numerotarea pe
         utilizator.
       </p>
-      <p>
-        Selectează maximum 20 de profiluri configurate pentru admin/dispecer.
-      </p>
+      {!correctionsOnly && (
+        <p>
+          Selectează maximum 20 de profiluri configurate pentru admin/dispecer.
+        </p>
+      )}
       <div className="space-y-2">
         {entries.map((e) => (
           <div
@@ -144,25 +148,27 @@ export function UserInvoiceNumberingSettings() {
             className="min-w-0 rounded border p-2 [overflow-wrap:anywhere]"
           >
             <label>
-              <input
-                type="checkbox"
-                checked={selected.includes(e.user.uid)}
-                disabled={
-                  busy ||
-                  !enabled ||
-                  !!e.profile.numbering ||
-                  e.user.disabled ||
-                  !["admin", "dispecer"].includes(e.user.role)
-                }
-                onChange={(ev) => {
-                  setSelected((v) =>
-                    ev.target.checked
-                      ? [...v, e.user.uid]
-                      : v.filter((x) => x !== e.user.uid),
-                  );
-                  setPreview(null);
-                }}
-              />{" "}
+              {!correctionsOnly && (
+                <input
+                  type="checkbox"
+                  checked={selected.includes(e.user.uid)}
+                  disabled={
+                    busy ||
+                    !enabled ||
+                    !!e.profile.numbering ||
+                    e.user.disabled ||
+                    !["admin", "dispecer"].includes(e.user.role)
+                  }
+                  onChange={(ev) => {
+                    setSelected((v) =>
+                      ev.target.checked
+                        ? [...v, e.user.uid]
+                        : v.filter((x) => x !== e.user.uid),
+                    );
+                    setPreview(null);
+                  }}
+                />
+              )}{" "}
               {e.user.name} · {e.user.uid} · {e.profile.prefix}
             </label>
             <p>
@@ -184,15 +190,17 @@ export function UserInvoiceNumberingSettings() {
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          disabled={
-            busy || !enabled || !selected.length || selected.length > 20
-          }
-          onClick={() => inspect()}
-        >
-          Previzualizează activarea
-        </Button>
+        {!correctionsOnly && (
+          <Button
+            type="button"
+            disabled={
+              busy || !enabled || !selected.length || selected.length > 20
+            }
+            onClick={() => inspect()}
+          >
+            Previzualizează activarea
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"

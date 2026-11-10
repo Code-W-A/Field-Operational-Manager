@@ -67,6 +67,7 @@ export type ApiArticleSnapshot = {
   checkedAt: string;
 };
 export type ReferenceEntry = {
+  adminConfirmation?: { uid: string; at: string };
   operatorConfirmation?: {
     currency: "RON";
     kind: "goods" | "service";

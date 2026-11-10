@@ -219,6 +219,101 @@ export function createInvoiceSagaService(
       transfer: publicTransfer(t || null),
     };
   }
+  function buildTransfer(
+    actor: Actor,
+    doc: PreparedInvoice,
+    operationId: string,
+    recordId: string,
+    p: ImportPolicy,
+    old?: SagaTransfer,
+  ) {
+    const groups = stockGroups(doc),
+      saved: SagaTransfer = {
+        schemaVersion: 1,
+        id: recordId,
+        workId: doc.workId,
+        fiscalCode: cfg().fiscalCode,
+        sha256: doc.sha256,
+        number: doc.number,
+        mode: p.mode,
+        operationId,
+        phase: groups.length ? "baseline" : "ready",
+        importStatus: "pending",
+        stockStatus: groups.length ? "pending" : "not_applicable",
+        groups,
+        cursor: 0,
+        attempts: 0,
+        maxAttempts: p.checks,
+        intervalMs: p.intervalMs,
+        nextAt: now(),
+        leaseOwner: null,
+        leaseUntil: 0,
+        createdAt: old?.createdAt || at(),
+        updatedAt: at(),
+        createdBy: actor.uid,
+        actorRole: actor.role,
+        revision: (old?.revision || 0) + 1,
+        error: null,
+        httpStatus: null,
+        reportAvailable: false,
+        reportChunks: 0,
+        reportTruncated: false,
+        reportSha256: null,
+      };
+    return saved;
+  }
+  // All reads happen while staging; enqueue is synchronous and writes only.
+  async function stageIn(
+    tx: Transaction,
+    actor: Actor,
+    workId: string,
+    operationId: string,
+    doc: PreparedInvoice | null,
+  ) {
+    await authorize(actor, tx);
+    id(workId);
+    id(operationId);
+    const p = activation(),
+      ref = records(p.mode === "dry-run").doc(jobId(workId));
+    const old = (await tx.get(ref)).data() as SagaTransfer | undefined;
+    if (old && (!doc || old.sha256 !== doc.sha256 || old.mode !== p.mode))
+      throw new TransferError(
+        "TRANSFER_CONFLICT",
+        "Operațiunea existentă necesită reconciliere.",
+        409,
+      );
+    const reusable =
+      old &&
+      (old.phase !== "blocked" ||
+        old.importStatus !== "pending" ||
+        old.operationId === operationId);
+    if (doc && !reusable) await frozen(tx, workId, true);
+    return {
+      existing: old || null,
+      enqueue(prepared: PreparedInvoice) {
+        if (
+          prepared.fiscalCode !== cfg().fiscalCode ||
+          prepared.workId !== workId
+        )
+          throw new TransferError(
+            "COMPANY_CONFLICT",
+            "Firma documentului diferă.",
+            409,
+          );
+        if (reusable) return old!;
+        const saved = buildTransfer(
+          actor,
+          prepared,
+          operationId,
+          ref.id,
+          p,
+          old,
+        );
+        tx.set(ref, saved);
+        return saved;
+      },
+    };
+  }
   async function start(actor: Actor, workId: string, body: unknown) {
     await authorize(actor);
     const p = activation(),
@@ -253,39 +348,7 @@ export function createInvoiceSagaService(
           "Documentul s-a modificat.",
           409,
         );
-      const groups = stockGroups(doc),
-        saved: SagaTransfer = {
-          schemaVersion: 1,
-          id: ref.id,
-          workId,
-          fiscalCode: cfg().fiscalCode,
-          sha256: doc.sha256,
-          number: doc.number,
-          mode: p.mode,
-          operationId: v.operationId,
-          phase: groups.length ? "baseline" : "ready",
-          importStatus: "pending",
-          stockStatus: groups.length ? "pending" : "not_applicable",
-          groups,
-          cursor: 0,
-          attempts: 0,
-          maxAttempts: p.checks,
-          intervalMs: p.intervalMs,
-          nextAt: now(),
-          leaseOwner: null,
-          leaseUntil: 0,
-          createdAt: old?.createdAt || at(),
-          updatedAt: at(),
-          createdBy: actor.uid,
-          actorRole: actor.role,
-          revision: (old?.revision || 0) + 1,
-          error: null,
-          httpStatus: null,
-          reportAvailable: false,
-          reportChunks: 0,
-          reportTruncated: false,
-          reportSha256: null,
-        };
+      const saved = buildTransfer(actor, doc, v.operationId, ref.id, p, old);
       tx.set(ref, saved);
       return saved;
     });
@@ -696,5 +759,5 @@ export function createInvoiceSagaService(
       nextAt: final.nextAt,
     };
   }
-  return { state, start, recheck, report, process };
+  return { state, start, recheck, report, process, stageIn };
 }

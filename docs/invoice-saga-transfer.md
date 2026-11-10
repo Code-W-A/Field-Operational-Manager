@@ -4,9 +4,9 @@ Implementare locală: **8 noiembrie 2026**. Extinde ciorna, XML-ul numerotat, ca
 
 ## Fluxul operatorului
 
-1. Pregătește XML-ul prin fluxul existent. Numărul și documentul înghețat sunt reutilizate integral; finalizarea nu creează altă factură și nu consumă alt număr.
-2. În același editor apare **Finalizează și trimite în SAGA** pentru modul test/producție. În dry-run acțiunea este **Simulează trimiterea în SAGA**, cu avertizare permanentă că rezultatele/cantitățile sunt simulate.
-3. Confirmă în interiorul panoului. Serverul creează atomic o singură operațiune pentru firma și tichetul respectiv. Reîncărcarea paginii sau repetarea cererii returnează aceeași operațiune.
+1. Apasă **Emite și trimite în SAGA** (în dry-run: **Simulează emiterea și trimiterea**). Ciorna se salvează automat, apoi se afișează rezumatul și stocul. [Fluxul unificat — 10 noiembrie 2026](invoice-finalization.md).
+2. Confirmă o singură dată în editor. Numerotarea, XML-ul și operațiunea persistentă se salvează în aceeași tranzacție. Renunțarea la rezumat nu consumă număr.
+3. Dacă există deja un document pregătit, numărul și XML-ul sunt reutilizate integral. Reîncărcarea paginii și repetarea cererii returnează aceeași operațiune.
 4. Workerul citește stocul curent pe cod articol + gestiune, cumulând liniile repetate. Serviciile nu au stoc. Stocul insuficient sau o citire eșuată opresc transmiterea; o eroare nu devine zero.
 5. Workerul transmite exact XML-ul înghețat, apoi citește din nou aceleași grupuri. Interfața arată separat rezultatul importului și rezultatul verificării, cu momentele/cantitățile înainte/după.
 6. **Reverifică stocul (fără retrimitere)** reia numai GET-urile, folosind citirea inițială salvată. Reluarea este permisă după terminarea procesării, când există o bază completă de comparație. O operațiune oprită înainte de orice trimitere poate relua verificarea inițială prin confirmare explicită.

@@ -23,10 +23,16 @@ export function InvoiceSagaPanel({
   workId,
   sha256,
   onBusy,
+  allowStart = true,
+  refreshKey = 0,
+  onStatus,
 }: {
   workId: string;
   sha256: string;
   onBusy: (busy: boolean) => void;
+  allowStart?: boolean;
+  refreshKey?: number;
+  onStatus?: (state: State) => void;
 }) {
   const { user } = useAuth();
   const [state, setState] = useState<State | null>(null),
@@ -34,6 +40,8 @@ export function InvoiceSagaPanel({
     [busy, setBusy] = useState(false),
     [confirm, setConfirm] = useState(false);
   const lock = useRef(false);
+  const statusCallback = useRef(onStatus);
+  statusCallback.current = onStatus;
   const pending =
     !!state?.transfer && transferPending(state.transfer as SagaTransfer);
   async function request(suffix = "", method = "GET", body?: unknown) {
@@ -67,6 +75,7 @@ export function InvoiceSagaPanel({
         const data = await request();
         if (!active) return;
         setState(data);
+        statusCallback.current?.(data);
         setError("");
         if (data.transfer && transferPending(data.transfer))
           timer = setTimeout(() => void load(), 2000);
@@ -82,7 +91,7 @@ export function InvoiceSagaPanel({
       active = false;
       clearTimeout(timer);
     };
-  }, [workId, user?.uid, pending]);
+  }, [workId, user?.uid, pending, refreshKey]);
   async function act(kind: "start" | "recheck" | "report") {
     if (lock.current) return;
     lock.current = true;
@@ -122,7 +131,7 @@ export function InvoiceSagaPanel({
   return (
     <section
       aria-label="Transmitere și stoc SAGA"
-      className="space-y-3 rounded-lg border border-blue-200 bg-white p-3 text-sm"
+      className="min-w-0 break-words space-y-3 rounded-lg border border-blue-200 bg-white p-3 text-sm"
     >
       <h4 className="font-semibold">Transmitere factură și stoc SAGA</h4>
       {sim && (
@@ -223,6 +232,7 @@ export function InvoiceSagaPanel({
                 size="sm"
                 variant="outline"
                 disabled={busy}
+                className="h-auto max-w-full whitespace-normal py-2 text-left"
                 onClick={() => void act("report")}
               >
                 Descarcă raportul importului
@@ -238,6 +248,7 @@ export function InvoiceSagaPanel({
                   size="sm"
                   variant="outline"
                   disabled={busy || !state?.canStart}
+                  className="h-auto max-w-full whitespace-normal py-2 text-left"
                   onClick={() => void act("recheck")}
                 >
                   Reverifică stocul (fără retrimitere)
@@ -246,7 +257,8 @@ export function InvoiceSagaPanel({
           </div>
         </>
       )}
-      {state &&
+      {allowStart &&
+        state &&
         (!t || (t.phase === "blocked" && t.importStatus === "pending")) && (
           <Button
             type="button"

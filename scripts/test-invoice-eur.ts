@@ -35,6 +35,9 @@ import { createHash } from "node:crypto";
 import { createInvoiceNumberingService } from "../lib/invoicing/numbering.server";
 import { InvoiceNumberingError } from "../lib/invoicing/numbering";
 import { createInvoiceXmlService } from "../lib/invoicing/xml.server";
+import { importPolicy } from "../lib/saga/import";
+import { createInvoiceFinalizationService } from "../lib/invoicing/finalization.server";
+import { invoiceFinalizationHandlers } from "../lib/invoicing/finalization-http";
 import { invoiceXmlHandlers } from "../lib/invoicing/xml-http";
 import { issuerFixture, contentFixture } from "../lib/invoicing/xml.fixtures";
 import { isUninvoicedWork } from "../lib/reports/uninvoiced";
@@ -175,6 +178,13 @@ async function main() {
     };
     const handlers = invoiceXmlHandlers(service, authenticate),
       drafts = invoiceDraftHandlers(draftService, authenticate);
+    const finalHttp = invoiceFinalizationHandlers(
+      createInvoiceFinalizationService(db, {
+        config: () => config,
+        policy: () => importPolicy({}),
+      }),
+      authenticate,
+    );
     const work = {
       clientId: "c",
       client: "Client",
@@ -323,6 +333,16 @@ async function main() {
       const p = new URL(r.url).pathname,
         id = p.split("/")[3];
       if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
+      if (p.endsWith("/invoice-finalization/preview"))
+        return finalHttp.preview(r, id);
+      if (p.endsWith("/invoice-finalization")) return finalHttp.confirm(r, id);
+      if (p.endsWith("/invoice-saga"))
+        return Response.json({
+          mode: "dry-run",
+          canStart: true,
+          reason: "",
+          transfer: null,
+        });
       if (p.endsWith("/invoice-xml/preview")) return handlers.preview(r, id);
       if (p.endsWith("/invoice-xml/download")) return handlers.download(r, id);
       if (p.endsWith("/invoice-xml"))
@@ -618,15 +638,13 @@ async function main() {
     };
     await db.doc("lucrari/historical").set(work);
     await db.doc("invoices/historical").set(histDoc);
-    await db
-      .doc("invoiceArtifacts/historical")
-      .set({
-        workId: "historical",
-        fiscalCode: config.fiscalCode,
-        xml: hist.xml,
-        sha256: histDoc.sha256,
-        filename: hist.filename,
-      });
+    await db.doc("invoiceArtifacts/historical").set({
+      workId: "historical",
+      fiscalCode: config.fiscalCode,
+      xml: hist.xml,
+      sha256: histDoc.sha256,
+      filename: hist.filename,
+    });
     const count = calls.length;
     assert.equal((await eur.get(actor, "historical", c.date)).reference, null);
     assert.equal(calls.length, count);
@@ -862,16 +880,22 @@ async function main() {
       page.getByText("Ciornă salvată.", { exact: true }),
     ).toBeVisible();
     await page
-      .getByRole("button", { name: "Pregătește XML", exact: true })
+      .getByRole("button", {
+        name: "Simulează emiterea și trimiterea",
+        exact: true,
+      })
       .click();
     await expect(
-      page.getByRole("group", { name: "Confirmare XML" }),
+      page.getByRole("group", { name: "Confirmare emitere și trimitere" }),
     ).toContainText("omitere confirmată");
     await page
-      .getByRole("button", { name: "Confirmă pregătirea XML", exact: true })
+      .getByRole("button", {
+        name: "Confirmă simularea emiterii și trimiterii",
+        exact: true,
+      })
       .click();
     await expect(
-      page.getByText("Document XML pregătit în FOM", { exact: true }),
+      page.getByText("Document pregătit în FOM:", { exact: false }),
     ).toBeVisible();
     const callsBeforeFrozen = calls.length;
     await page.reload();

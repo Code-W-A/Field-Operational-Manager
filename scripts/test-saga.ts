@@ -426,7 +426,7 @@ async function main() {
               namespace: "fixture",
             }));
             b.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
-              contents: `export const useAuth=()=>({user:{uid:'admin',getIdToken:async()=>window.testToken}})`,
+              contents: `export const useAuth=()=>({user:{uid:'admin',getIdToken:async()=>window.testToken},userData:{role:'admin'}})`,
               loader: "tsx",
             }));
           },
@@ -464,28 +464,47 @@ async function main() {
                 : undefined,
           });
           const response = req.url.endsWith("/commercial-policy")
-            ? Response.json({enabled:false,revision:0,writesEnabled:false})
-            : req.url.endsWith("/numbering/users")
-            ? Response.json({entries:[],nextCursor:null,mode:"legacy",revision:0,writesEnabled:false})
-            : req.url.includes("/references/")
-            ? Response.json(req.url.includes("/imports") ? {job:null} : {fiscalCode:"123456",writesEnabled:false,entries:[],nextCursor:null})
-            : req.url.endsWith("/issuers/users")
-            ? Response.json({users:[],nextCursor:null})
-            : req.url.endsWith("/issuer")
             ? Response.json({
-                fiscalCode: "123456",
-                profile: null,
+                enabled: false,
+                revision: 0,
                 writesEnabled: false,
               })
-            : req.url.endsWith("/numbering")
-              ? await numbering.get(request)
-              : req.url.endsWith("/clients/imports")
-                ? Response.json({ job: null })
-                : req.url.endsWith("/catalog")
-                  ? await catalogs.list(request)
-                  : await handlers[
-                      req.url.endsWith("/read") ? "read" : "status"
-                    ](request);
+            : req.url.endsWith("/numbering/users")
+              ? Response.json({
+                  entries: [],
+                  nextCursor: null,
+                  mode: "legacy",
+                  revision: 0,
+                  writesEnabled: false,
+                })
+              : req.url.includes("/references/")
+                ? Response.json(
+                    req.url.includes("/imports")
+                      ? { job: null }
+                      : {
+                          fiscalCode: "123456",
+                          writesEnabled: false,
+                          entries: [],
+                          nextCursor: null,
+                        },
+                  )
+                : req.url.endsWith("/issuers/users")
+                  ? Response.json({ users: [], nextCursor: null })
+                  : req.url.endsWith("/issuer")
+                    ? Response.json({
+                        fiscalCode: "123456",
+                        profile: null,
+                        writesEnabled: false,
+                      })
+                    : req.url.endsWith("/numbering")
+                      ? await numbering.get(request)
+                      : req.url.endsWith("/clients/imports")
+                        ? Response.json({ job: null })
+                        : req.url.endsWith("/catalog")
+                          ? await catalogs.list(request)
+                          : await handlers[
+                              req.url.endsWith("/read") ? "read" : "status"
+                            ](request);
           res.writeHead(response.status, Object.fromEntries(response.headers));
           res.end(await response.text());
           return;
@@ -524,6 +543,7 @@ async function main() {
       .click();
     await expect(page.getByRole("status")).toContainText("Pregătită");
     assert.equal(browserReads, 0);
+    await page.getByText("Administrare avansată", { exact: true }).click();
     await page.getByLabel("Cod articol SAGA", { exact: true }).fill("0001");
     await page
       .getByRole("button", { name: "Consultă articolul", exact: true })

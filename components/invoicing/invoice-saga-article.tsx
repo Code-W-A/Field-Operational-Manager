@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { InvoiceWarehouseSetup } from "./invoice-warehouse-setup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSagaReferenceRequest } from "@/components/settings/saga-references";
@@ -186,7 +187,7 @@ export function InvoiceSagaArticle({
       onBusy?.(false);
     }
   }
-  function lookup() {
+  function lookup(preserveQuantity = false) {
     if (readOnly || !code.trim()) return;
     void run(async () => {
       setPreview(null);
@@ -199,7 +200,7 @@ export function InvoiceSagaArticle({
       setKind(p.kind || "");
       setRon(p.currencyConfirmed);
       setWarehouseId("");
-      setQuantity("1");
+      if (!preserveQuantity) setQuantity("1");
     });
   }
   const warehouse = preview?.warehouses.find((w) => w.id === warehouseId);
@@ -262,7 +263,7 @@ export function InvoiceSagaArticle({
               <Button
                 type="button"
                 disabled={readOnly || busy || !code.trim()}
-                onClick={lookup}
+                onClick={() => lookup()}
               >
                 Preia din SAGA
               </Button>
@@ -343,10 +344,14 @@ export function InvoiceSagaArticle({
                       </select>
                     </label>
                     {!preview.warehouses.length && (
-                      <p>
-                        Nu există gestiuni active permise. Administratorul
-                        trebuie să configureze gestiunile o singură dată.
-                      </p>
+                      <InvoiceWarehouseSetup
+                        readOnly={readOnly || busy}
+                        onBusy={onBusy}
+                        onSaved={() => {
+                          setPreview(null);
+                          lookup(true);
+                        }}
+                      />
                     )}
                   </>
                 )}

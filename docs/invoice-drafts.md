@@ -1,5 +1,7 @@
 # Ciorna facturii din tichet — etapa 1
 
+Actualizare **10 noiembrie 2026**: editorul principal folosește acum [finalizarea printr-o singură confirmare](invoice-finalization.md), cu autosalvare, rezumat și commit atomic număr + XML + transfer. Implementare/teste locale, fără publicare sau apeluri SAGA reale în această livrare. Pașii tehnici descriși mai jos se păstrează ca referință pentru serviciile reutilizate.
+
 Actualizare 7 noiembrie 2026: catalogul reutilizabil de produse/gestiuni și consultarea stocului în editor sunt implementate local; detalii în [saga-connection.md](saga-connection.md#catalog-si-ciorna-facturii--7-noiembrie-2026). Salvarea ciornei rezolvă asocierile pe server, fără apel SAGA. Consultarea stocului pornește numai prin buton.
 
 Blocul **Facturare** apare imediat după **Deviz** pentru admin/dispecer. Tichetul trebuie preluat; raportul final nu este obligatoriu. Desktop: editor nemodal, deplasabil cu antetul sau săgețile tastaturii, minimizabil. Sub 768 px: formular în fluxul paginii.

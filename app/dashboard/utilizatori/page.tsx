@@ -1396,6 +1396,7 @@ export default function Utilizatori() {
                 ref={editFormRef}
                 user={selectedUser}
                 onSuccess={handleEditSuccess}
+                onSavedInPlace={() => { void fetchUtilizatori() }}
                 onCancel={handleCloseEditDialog}
               />
             </div>

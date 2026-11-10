@@ -1,5 +1,7 @@
 # XML numerotat, pregătit exclusiv în FOM
 
+Actualizare **10 noiembrie 2026**: editorul principal folosește acum [finalizarea printr-o singură confirmare](invoice-finalization.md), cu autosalvare, rezumat și commit atomic număr + XML + transfer. Implementare/teste locale, fără publicare sau apeluri SAGA reale în această livrare. Pașii tehnici descriși mai jos se păstrează ca referință pentru serviciile reutilizate.
+
 Implementare locală: **7 noiembrie 2026**. Nu există transmitere către SAGA, verificare online a stocului, import, emitere PDF sau modificare contabilă a tichetului în această etapă.
 
 ## Utilizare

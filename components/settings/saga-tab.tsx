@@ -1,12 +1,6 @@
 "use client";
-import {InvoiceCommercialSettings} from "./invoice-commercial-settings";
-import { InvoiceIssuerSettings } from "./invoice-issuer-settings";
-import { InvoiceNumberingSettings } from "./invoice-numbering-settings";
-import { SagaReferences } from "./saga-references";
-import {UserInvoiceNumberingSettings} from "./user-invoice-numbering-settings";
-import { SagaIssuerProfiles } from "./saga-issuer-profiles";
-import { SagaClientsImport } from "./saga-clients-import";
-import { SagaCatalogSettings } from "./saga-catalog";
+import { lazy, Suspense } from "react";
+const SagaAdvanced = lazy(() => import("./saga-advanced"));
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,7 +25,8 @@ const stateLabels: Record<SagaStatus["state"], string> = {
   authorization_error: "Autentificare respinsă de SAGA",
 };
 export function SagaTab() {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
+  const [advancedLoaded, setAdvancedLoaded] = useState(false);
   const [status, setStatus] = useState<SagaStatus | null>(null),
     [loading, setLoading] = useState(true);
   const [kind, setKind] = useState<"article" | "stock">("article"),
@@ -125,13 +120,6 @@ export function SagaTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <SagaCatalogSettings />
-        <SagaClientsImport />
-        <SagaReferences />
-        <SagaIssuerProfiles />
-        <UserInvoiceNumberingSettings/>
-        <InvoiceNumberingSettings />
-        <InvoiceIssuerSettings />
         <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-slate-50 p-4">
           <div>
             <p className="font-medium" role="status">
@@ -193,144 +181,170 @@ export function SagaTab() {
             {error}
           </p>
         )}
-        <form onSubmit={submit} className="space-y-4">
-          <fieldset
-            disabled={busy || loading || !canRead}
-            className="space-y-4"
+        <p className="text-sm text-muted-foreground">
+          Seriile se configurează în Utilizatori. Clienții și produsele se
+          pregătesc direct din paginile lor și din factură.
+        </p>
+        {userData?.role === "admin" && (
+          <details
+            onToggle={(e) => {
+              if (e.currentTarget.open) setAdvancedLoaded(true);
+            }}
           >
-            <legend className="mb-2 font-semibold">Consultare SAGA</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span>Ce consulți</span>
-                <select
-                  aria-label="Ce consulți"
-                  className="h-10 w-full rounded-md border bg-background px-3"
-                  value={kind}
-                  onChange={(e) => {
-                    setKind(e.target.value as typeof kind);
-                    setResult(null);
-                    setError("");
-                  }}
-                >
-                  <option value="article">Articol</option>
-                  <option value="stock">Stoc articol</option>
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span>Cod articol SAGA</span>
-                <Input
-                  aria-label="Cod articol SAGA"
-                  required
-                  maxLength={100}
-                  value={code}
-                  onChange={(e) => {
-                    setCode(e.target.value);
-                    setResult(null);
-                  }}
-                  autoComplete="off"
-                  placeholder="Codul exact din SAGA"
-                />
-              </label>
-              {kind === "stock" && (
-                <>
-                  <label className="space-y-1 text-sm">
-                    <span>Cod gestiune (opțional)</span>
-                    <Input
-                      aria-label="Cod gestiune"
-                      maxLength={100}
-                      value={warehouse}
-                      onChange={(e) => {
-                        setWarehouse(e.target.value);
-                        setResult(null);
-                      }}
-                      autoComplete="off"
-                    />
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span>Data stocului (opțional)</span>
-                    <Input
-                      aria-label="Data stocului"
-                      type="date"
-                      value={date}
-                      onChange={(e) => {
-                        setDate(e.target.value);
-                        setResult(null);
-                      }}
-                    />
-                  </label>
-                </>
-              )}
-            </div>
-            {kind === "stock" && (
-              <p className="text-sm text-muted-foreground">
-                {warehouse.trim()
-                  ? `Gestiunea selectată: ${warehouse.trim()}.`
-                  : "Fără gestiune selectată: stocul privește toate gestiunile."}{" "}
-                {date
-                  ? "Se folosește data selectată."
-                  : "Se folosește data curentă din SAGA."}
-              </p>
+            <summary className="cursor-pointer font-medium">
+              Administrare avansată
+            </summary>
+            {advancedLoaded && (
+              <div className="mt-4 space-y-5">
+                <Suspense fallback={<p>Se încarcă instrumentele…</p>}>
+                  <SagaAdvanced />
+                </Suspense>
+                <form onSubmit={submit} className="space-y-4">
+                  <fieldset
+                    disabled={busy || loading || !canRead}
+                    className="space-y-4"
+                  >
+                    <legend className="mb-2 font-semibold">
+                      Consultare SAGA
+                    </legend>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="space-y-1 text-sm">
+                        <span>Ce consulți</span>
+                        <select
+                          aria-label="Ce consulți"
+                          className="h-10 w-full rounded-md border bg-background px-3"
+                          value={kind}
+                          onChange={(e) => {
+                            setKind(e.target.value as typeof kind);
+                            setResult(null);
+                            setError("");
+                          }}
+                        >
+                          <option value="article">Articol</option>
+                          <option value="stock">Stoc articol</option>
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span>Cod articol SAGA</span>
+                        <Input
+                          aria-label="Cod articol SAGA"
+                          required
+                          maxLength={100}
+                          value={code}
+                          onChange={(e) => {
+                            setCode(e.target.value);
+                            setResult(null);
+                          }}
+                          autoComplete="off"
+                          placeholder="Codul exact din SAGA"
+                        />
+                      </label>
+                      {kind === "stock" && (
+                        <>
+                          <label className="space-y-1 text-sm">
+                            <span>Cod gestiune (opțional)</span>
+                            <Input
+                              aria-label="Cod gestiune"
+                              maxLength={100}
+                              value={warehouse}
+                              onChange={(e) => {
+                                setWarehouse(e.target.value);
+                                setResult(null);
+                              }}
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="space-y-1 text-sm">
+                            <span>Data stocului (opțional)</span>
+                            <Input
+                              aria-label="Data stocului"
+                              type="date"
+                              value={date}
+                              onChange={(e) => {
+                                setDate(e.target.value);
+                                setResult(null);
+                              }}
+                            />
+                          </label>
+                        </>
+                      )}
+                    </div>
+                    {kind === "stock" && (
+                      <p className="text-sm text-muted-foreground">
+                        {warehouse.trim()
+                          ? `Gestiunea selectată: ${warehouse.trim()}.`
+                          : "Fără gestiune selectată: stocul privește toate gestiunile."}{" "}
+                        {date
+                          ? "Se folosește data selectată."
+                          : "Se folosește data curentă din SAGA."}
+                      </p>
+                    )}
+                    <Button type="submit" disabled={!code.trim()}>
+                      {busy
+                        ? "Se consultă SAGA…"
+                        : kind === "article"
+                          ? "Consultă articolul"
+                          : "Consultă stocul"}
+                    </Button>
+                  </fieldset>
+                </form>
+                {result && (
+                  <section
+                    aria-label="Rezultat SAGA"
+                    className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm"
+                  >
+                    <h3 className="font-semibold">
+                      {result.kind === "article"
+                        ? "Articol preluat din SAGA"
+                        : "Stoc preluat din SAGA"}
+                    </h3>
+                    <p>Cod articol: {result.code}</p>
+                    {result.article && (
+                      <dl className="grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <dt>Denumire</dt>
+                          <dd className="font-medium break-words">
+                            {result.article.name}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>UM</dt>
+                          <dd>{result.article.unit}</dd>
+                        </div>
+                        <div>
+                          <dt>TVA (%)</dt>
+                          <dd>{result.article.vat || "Nefurnizat"}</dd>
+                        </div>
+                        <div>
+                          <dt>Preț vânzare 1</dt>
+                          <dd>{result.article.price || "Nefurnizat"}</dd>
+                        </div>
+                      </dl>
+                    )}
+                    {result.kind === "stock" && (
+                      <>
+                        <p>
+                          {result.warehouse
+                            ? `Gestiune: ${result.warehouse}`
+                            : "Toate gestiunile"}
+                        </p>
+                        <p className="text-lg font-semibold">
+                          Stoc: {result.quantity}
+                        </p>
+                        <p>Data: {result.date || "Data curentă din SAGA"}</p>
+                      </>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Consultat la{" "}
+                      {new Date(result.checkedAt).toLocaleString("ro-RO", {
+                        timeZone: "Europe/Bucharest",
+                      })}
+                    </p>
+                  </section>
+                )}
+              </div>
             )}
-            <Button type="submit" disabled={!code.trim()}>
-              {busy
-                ? "Se consultă SAGA…"
-                : kind === "article"
-                  ? "Consultă articolul"
-                  : "Consultă stocul"}
-            </Button>
-          </fieldset>
-        </form>
-        {result && (
-          <section
-            aria-label="Rezultat SAGA"
-            className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm"
-          >
-            <h3 className="font-semibold">
-              {result.kind === "article"
-                ? "Articol preluat din SAGA"
-                : "Stoc preluat din SAGA"}
-            </h3>
-            <p>Cod articol: {result.code}</p>
-            {result.article && (
-              <dl className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <dt>Denumire</dt>
-                  <dd className="font-medium break-words">
-                    {result.article.name}
-                  </dd>
-                </div>
-                <div>
-                  <dt>UM</dt>
-                  <dd>{result.article.unit}</dd>
-                </div>
-                <div>
-                  <dt>TVA (%)</dt>
-                  <dd>{result.article.vat || "Nefurnizat"}</dd>
-                </div>
-                <div>
-                  <dt>Preț vânzare 1</dt>
-                  <dd>{result.article.price || "Nefurnizat"}</dd>
-                </div>
-              </dl>
-            )}
-            {result.kind === "stock" && (
-              <>
-                <p>
-                  {result.warehouse
-                    ? `Gestiune: ${result.warehouse}`
-                    : "Toate gestiunile"}
-                </p>
-                <p className="text-lg font-semibold">Stoc: {result.quantity}</p>
-                <p>Data: {result.date || "Data curentă din SAGA"}</p>
-              </>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Consultat la{" "}
-              {new Date(result.checkedAt).toLocaleString("ro-RO", {
-                timeZone: "Europe/Bucharest",
-              })}
-            </p>
-          </section>
+          </details>
         )}
       </CardContent>
     </Card>

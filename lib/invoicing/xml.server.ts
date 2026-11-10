@@ -167,7 +167,8 @@ export function createInvoiceXmlService(
     if (reason) throw fail(reason, "DRAFT_READ_ONLY", 409);
     const draft = d.data() as InvoiceDraft;
     if (draft.revision !== revision) throw conflict();
-    if (!p.exists) throw fail("Configurează firma emitentă în Setări → SAGA.");
+    if (!p.exists)
+      throw fail("Completează datele firmei emitente în editorul facturii.");
     const issuer = {
       ...parseIssuer(p.data(), config().fiscalCode),
       revision: p.data()!.revision,
@@ -305,6 +306,8 @@ export function createInvoiceXmlService(
     const previewHash = hash({
       snapshot,
       numberingRevision: numbers.config.revision,
+      numberingCounterRevision: numbers.counter?.revision,
+      estimatedNumber: numbers.estimatedNumber,
       prefix: numbers.config.prefix,
       width: numbers.config.width,
     });
@@ -328,16 +331,22 @@ export function createInvoiceXmlService(
       throw fail("Revizia ciornei nu este validă.");
     return v;
   }
-  async function preview(actor: Actor, workId: string, input: unknown) {
-    await authorize(actor);
+  async function previewIn(
+    tx: Transaction,
+    actor: Actor,
+    workId: string,
+    input: unknown,
+  ) {
+    await authorize(actor, tx);
     id(workId);
     const v = request(input);
-    return db.runTransaction(async (tx) => {
-      await authorize(actor, tx);
-      const existing = await readPrepared(tx, workId);
-      if (existing) return { document: existing };
-      return sources(tx, workId, v.expectedRevision, actor);
-    });
+    const existing = await readPrepared(tx, workId);
+    if (existing) return { document: existing };
+    return sources(tx, workId, v.expectedRevision, actor);
+  }
+  async function preview(actor: Actor, workId: string, input: unknown) {
+    await authorize(actor);
+    return db.runTransaction((tx) => previewIn(tx, actor, workId, input));
   }
   function boundedSize(data: unknown) {
     if (Buffer.byteLength(JSON.stringify(data), "utf8") > 512 * 1024)
@@ -346,69 +355,85 @@ export function createInvoiceXmlService(
         "DOCUMENT_TOO_LARGE",
       );
   }
-  async function prepare(actor: Actor, workId: string, input: unknown) {
-    await authorize(actor, undefined, false, true);
+  // Internal composition point: stage performs reads before reserveIn writes;
+  // its returned callback may only write, so document + transfer commit together.
+  async function prepareIn(
+    tx: Transaction,
+    actor: Actor,
+    workId: string,
+    input: unknown,
+    stage?: (
+      tx: Transaction,
+      existing: PreparedInvoice | null,
+    ) => Promise<(doc: PreparedInvoice) => void>,
+  ) {
     id(workId);
     const v = request(input);
     id(v.operationId);
     if (typeof v.previewHash !== "string" || v.previewHash.length !== 64)
       throw conflict();
-    return db.runTransaction(async (tx) => {
-      await authorize(actor, tx, false, true);
-      const existing = await readPrepared(tx, workId);
-      if (existing) return { document: existing };
-      const p = await sources(tx, workId, v.expectedRevision, actor);
-      if (p.previewHash !== v.previewHash) throw conflict();
-      // All source reads precede the allocator's writes; XML generation remains pure.
-      const reservation = await numbering.reserveIn(tx, actor, {
-        workId,
-        operationId: v.operationId!,
-        expectedDraftRevision: v.expectedRevision,
-      });
-      if (reservation.draftRevision !== v.expectedRevision) throw conflict();
-      if (
-        p.snapshot.numbering &&
-        (reservation.allocatedBy !== actor.uid ||
-          reservation.prefix !== p.snapshot.numbering.prefix ||
-          JSON.stringify(reservation.userNumbering) !==
-            JSON.stringify(p.snapshot.numbering))
-      )
-        throw fail(
-          "Rezervarea existentă necesită reconciliere. Nu a fost alocat alt număr.",
-          "RESERVATION_RECONCILIATION",
-          409,
-        );
-      const artifact = invoiceXml(p.snapshot, reservation.fullNumber),
-        sha256 = createHash("sha256")
-          .update(artifact.xml, "utf8")
-          .digest("hex");
-      const doc: PreparedInvoice = {
-        workId,
-        fiscalCode: config().fiscalCode,
-        number: reservation.fullNumber,
-        state: "prepared_local",
-        compatibility: "unverified",
-        stock: "not_checked",
-        snapshot: p.snapshot,
-        sha256,
-        filename: artifact.filename,
-        operationId: reservation.operationId,
-        preparedAt: now().toISOString(),
-        preparedBy: actor.uid,
-      };
-      const storedArtifact = {
-        workId,
-        fiscalCode: config().fiscalCode,
-        xml: artifact.xml,
-        sha256,
-        filename: artifact.filename,
-      };
-      boundedSize(doc);
-      boundedSize(storedArtifact);
-      tx.set(db.collection("invoices").doc(workId), doc);
-      tx.set(db.collection("invoiceArtifacts").doc(workId), storedArtifact);
-      return { document: doc };
+    await authorize(actor, tx, false, true);
+    const existing = await readPrepared(tx, workId);
+    if (existing) {
+      const commit = await stage?.(tx, existing);
+      commit?.(existing);
+      return { document: existing };
+    }
+    const p = await sources(tx, workId, v.expectedRevision, actor);
+    if (p.previewHash !== v.previewHash) throw conflict();
+    const commit = await stage?.(tx, null);
+    // All source reads precede the allocator's writes; XML generation remains pure.
+    const reservation = await numbering.reserveIn(tx, actor, {
+      workId,
+      operationId: v.operationId!,
+      expectedDraftRevision: v.expectedRevision,
     });
+    if (reservation.draftRevision !== v.expectedRevision) throw conflict();
+    if (
+      p.snapshot.numbering &&
+      (reservation.allocatedBy !== actor.uid ||
+        reservation.prefix !== p.snapshot.numbering.prefix ||
+        JSON.stringify(reservation.userNumbering) !==
+          JSON.stringify(p.snapshot.numbering))
+    )
+      throw fail(
+        "Rezervarea existentă necesită reconciliere. Nu a fost alocat alt număr.",
+        "RESERVATION_RECONCILIATION",
+        409,
+      );
+    const artifact = invoiceXml(p.snapshot, reservation.fullNumber),
+      sha256 = createHash("sha256").update(artifact.xml, "utf8").digest("hex");
+    const doc: PreparedInvoice = {
+      workId,
+      fiscalCode: config().fiscalCode,
+      number: reservation.fullNumber,
+      state: "prepared_local",
+      compatibility: "unverified",
+      stock: "not_checked",
+      snapshot: p.snapshot,
+      sha256,
+      filename: artifact.filename,
+      operationId: reservation.operationId,
+      preparedAt: now().toISOString(),
+      preparedBy: actor.uid,
+    };
+    const storedArtifact = {
+      workId,
+      fiscalCode: config().fiscalCode,
+      xml: artifact.xml,
+      sha256,
+      filename: artifact.filename,
+    };
+    boundedSize(doc);
+    boundedSize(storedArtifact);
+    tx.set(db.collection("invoices").doc(workId), doc);
+    tx.set(db.collection("invoiceArtifacts").doc(workId), storedArtifact);
+    commit?.(doc);
+    return { document: doc };
+  }
+  async function prepare(actor: Actor, workId: string, input: unknown) {
+    await authorize(actor, undefined, false, true);
+    return db.runTransaction((tx) => prepareIn(tx, actor, workId, input));
   }
   async function download(actor: Actor, workId: string) {
     await authorize(actor);
@@ -435,5 +460,15 @@ export function createInvoiceXmlService(
       return { xml: a.xml as string, filename: doc.filename };
     });
   }
-  return { profile, saveProfile, document, preview, prepare, download };
+  return {
+    profile,
+    saveProfile,
+    document,
+    preview,
+    prepare,
+    download,
+    authorizeIn: (tx: Transaction, actor: Actor) => authorize(actor, tx),
+    previewIn,
+    prepareIn,
+  };
 }

@@ -96,6 +96,8 @@
     "test:saga:catalog": "tsx scripts/test-saga-catalog.ts",
     "test:saga:integration": "tsx scripts/test-saga.ts",
     "test:invoice-xml": "tsx --test lib/invoicing/xml.test.ts",
+    "test:issuer-setup:integration": "tsx scripts/test-issuer-setup.ts",
+    "test:invoice-finalization:integration": "tsx scripts/test-invoice-xml.ts",
     "test:invoice-xml:integration": "tsx scripts/test-invoice-xml.ts",
     "test:invoice-saga": "tsx --test lib/invoicing/saga-transfer.test.ts firebase-functions/src/saga-dispatch.test.ts",
     "test:invoice-saga:integration": "tsx scripts/test-invoice-saga.ts",

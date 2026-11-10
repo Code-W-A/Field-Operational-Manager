@@ -87,8 +87,7 @@ export function createUserNumberingService(
       counter: null,
       estimatedNumber: null,
       mode: "per_user",
-      reason:
-        "Configurează și activează profilul de numerotare pentru acest utilizator.",
+      reason: `Lipsește profilul de facturare pentru ${String(u.data()?.displayName || u.data()?.name || actor.uid)}. Un administrator îl configurează din Utilizatori → Editează utilizatorul → Facturare SAGA.`,
     };
     if (
       !u.exists ||

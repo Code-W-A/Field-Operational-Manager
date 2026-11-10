@@ -1,5 +1,9 @@
 # Plan 2 — completarea facturării după precizările clientului
 
+Actualizare **10 noiembrie 2026**: [configurarea facturării din utilizator](invoice-user-setup.md) salvează profilul și activează contorul dintr-o singură acțiune. Datele comune lipsă se pot completa din factură, iar instrumentele SAGA sunt grupate în administrare avansată. Livrare locală, cu teste simulate, fără configurarea seriilor reale sau publicare.
+
+Actualizare **10 noiembrie 2026**: editorul principal folosește acum [finalizarea printr-o singură confirmare](invoice-finalization.md), cu autosalvare, rezumat și commit atomic număr + XML + transfer. Implementare/teste locale, fără publicare sau apeluri SAGA reale în această livrare. Pașii tehnici descriși mai jos se păstrează ca referință pentru serviciile reutilizate.
+
 Data analizei: **8 noiembrie 2026**. Sursă: mesajele clientului din 6 noiembrie și cele trei capturi anexate. Document de analiză și propunere; **nu autorizează implementarea și nu schimbă aplicația/SAGA**.
 
 **Concluzie:** este necesar un plan de completare. Integrarea existentă rămâne baza tehnică, dar precizările schimbă regulile comerciale ale primei versiuni: serii pe utilizator, preț și TVA din SAGA, preț protejat pentru dispecer, agent, scadență automată și catalog complet de referință. Unele funcții vizibile în interfața SAGA nu sunt expuse prin API-ul public.

@@ -19,7 +19,8 @@ import {
   useCommercialTicketRequest,
 } from "./invoice-commercial";
 import { dueFromTerm } from "@/lib/invoicing/commercial";
-import { InvoiceXmlPanel } from "./invoice-xml-panel";
+import { InvoiceIssuerSettings } from "@/components/settings/invoice-issuer-settings";
+import { InvoiceFinalizationPanel } from "./invoice-finalization-panel";
 import { InvoiceNumberEstimate } from "./invoice-number-estimate";
 import { InvoiceClientAssociation } from "./invoice-client-association";
 import { InvoiceSagaFields } from "./invoice-saga-fields";
@@ -94,7 +95,7 @@ export function InvoiceDraftSection({
   workId: string;
   work: Record<string, any>;
 }) {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
   const [response, setResponse] = useState<InvoiceDraftResponse | null>(null);
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
   const [baseline, setBaseline] = useState<InvoiceDraft | null>(null);
@@ -260,6 +261,7 @@ export function InvoiceDraftSection({
         setOpen(false);
         setMinimized(false);
       }
+      return data.draft as InvoiceDraft;
     } catch (e) {
       setError((e as Error).message);
       if ((e as { code?: string }).code === "REVISION_CONFLICT") {
@@ -662,15 +664,28 @@ export function InvoiceDraftSection({
             workId={workId}
             date={draft.date}
             reference={draft.eurReference}
-            readOnly={readOnly || saving}
+            readOnly={readOnly || saving || busyAction}
             onProposal={setEurProposal}
             onSelect={(eurReference) => patch({ eurReference })}
           />
-          <InvoiceXmlPanel
-            key={`xml:${workId}:${user?.uid}`}
+          {!readOnly && (
+            <InvoiceIssuerSettings
+              inline
+              canEdit={userData?.role === "admin"}
+              readOnly={saving || busyAction}
+              onBusy={setBusyAction}
+            />
+          )}
+          <InvoiceFinalizationPanel
+            key={`finalization:${workId}:${user?.uid}`}
             workId={workId}
-            revision={draft.revision}
-            dirty={dirty || !draft.eurReference}
+            draft={draft}
+            onSaveBeforePreview={async () => {
+              if (dirty || draft.revision === 0 || !draft.eurReference)
+                return save();
+              return draft;
+            }}
+            dirty={dirty}
             readOnly={readOnly || saving}
             onBusy={setBusyAction}
             onFrozen={() =>
@@ -757,6 +772,7 @@ export function InvoiceDraftSection({
           </Button>
           <Button
             size="sm"
+            variant="outline"
             disabled={readOnly || saving || busyAction || !!numericError}
             onClick={() => void save()}
           >

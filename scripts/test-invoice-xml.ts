@@ -27,6 +27,12 @@ import { InvoiceNumberingError } from "../lib/invoicing/numbering";
 import { createSagaClientsService } from "../lib/saga/clients.server";
 import { invoiceXml } from "../lib/invoicing/xml";
 import { createInvoiceXmlService } from "../lib/invoicing/xml.server";
+import { createInvoiceFinalizationService } from "../lib/invoicing/finalization.server";
+import { invoiceFinalizationHandlers } from "../lib/invoicing/finalization-http";
+import { createInvoiceSagaService } from "../lib/invoicing/saga-transfer.server";
+import { invoiceSagaHandlers } from "../lib/invoicing/saga-transfer-http";
+import { importPolicy } from "../lib/saga/import";
+import { finalizationCases } from "./test-invoice-finalization.cases";
 import { invoiceXmlHandlers } from "../lib/invoicing/xml-http";
 import { issuerFixture, contentFixture } from "../lib/invoicing/xml.fixtures";
 import { isUninvoicedWork } from "../lib/reports/uninvoiced";
@@ -167,6 +173,22 @@ async function main() {
     };
     const handlers = invoiceXmlHandlers(service, authenticate),
       drafts = invoiceDraftHandlers(draftService, authenticate);
+    const transferDeps = {
+      config: () => config,
+      policy: () => importPolicy({}),
+      gateway: {
+        readForInvoice: async () => {
+          throw new Error("NO SAGA IN DRY RUN");
+        },
+        importForInvoice: async () => {
+          throw new Error("NO SAGA IN DRY RUN");
+        },
+      },
+    };
+    const finalization = createInvoiceFinalizationService(db, transferDeps);
+    const finalHttp = invoiceFinalizationHandlers(finalization, authenticate);
+    const transferService = createInvoiceSagaService(db, transferDeps);
+    const transferHttp = invoiceSagaHandlers(transferService, authenticate);
     const work = {
       clientId: "c",
       client: "Client",
@@ -260,17 +282,16 @@ async function main() {
       const p = new URL(r.url).pathname,
         id = p.split("/")[3];
       if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
+      if (p === "/api/integrations/saga/commercial-policy")
+        return Response.json({ enabled: false, revision: 0 });
       if (p === "/api/integrations/saga/issuer")
         return r.method === "PUT"
           ? handlers.saveProfile(r)
           : handlers.profile(r);
-      if (p.endsWith("/invoice-saga"))
-        return Response.json({
-          mode: "dry-run",
-          canStart: true,
-          reason: "",
-          transfer: null,
-        });
+      if (p.endsWith("/invoice-finalization/preview"))
+        return finalHttp.preview(r, id);
+      if (p.endsWith("/invoice-finalization")) return finalHttp.confirm(r, id);
+      if (p.endsWith("/invoice-saga")) return transferHttp.get(r, id);
       if (p.endsWith("/invoice-xml/preview")) return handlers.preview(r, id);
       if (p.endsWith("/invoice-xml/download")) return handlers.download(r, id);
       if (p.endsWith("/invoice-xml"))
@@ -752,40 +773,94 @@ async function main() {
         throw e;
       });
     const panel = page.getByRole("dialog", { name: "Ciorna facturii" }),
-      xmlPanel = page.getByRole("region", { name: "Pregătire XML" });
+      xmlPanel = page.getByRole("region", { name: "Emiterea facturii" });
     await page
-      .getByRole("button", { name: "Pregătește XML", exact: true })
+      .getByRole("button", {
+        name: "Simulează emiterea și trimiterea",
+        exact: true,
+      })
       .click();
     await expect(
-      page.getByRole("group", { name: "Confirmare XML" }),
+      page.getByRole("group", { name: "Confirmare emitere și trimitere" }),
     ).toContainText("NRG000127");
     assert.equal((await numbering.get(actor)).counter!.allocationCount, 1);
+    await expect(
+      page.getByRole("group", { name: "Confirmare emitere și trimitere" }),
+    ).toBeFocused();
     await page
-      .getByRole("button", { name: "Renunță la pregătire", exact: true })
+      .getByRole("button", { name: "Înapoi la ciornă", exact: true })
       .click();
     assert.equal((await db.doc("invoices/browser").get()).exists, false);
     await panel
       .getByLabel("Denumire beneficiar", { exact: true })
       .fill("Client editat");
-    await expect(
-      page.getByRole("button", { name: "Pregătește XML", exact: true }),
-    ).toBeDisabled();
+    // A concurrent save stops autosave without discarding the local form or allocating a number.
+    await db.doc("invoiceDrafts/browser").update({ revision: 2 });
     await page
-      .getByRole("button", { name: "Salvează ciorna", exact: true })
+      .getByRole("button", {
+        name: "Simulează emiterea și trimiterea",
+        exact: true,
+      })
       .click();
     await expect(
-      panel.getByText("Ciornă salvată.", { exact: true }),
+      panel.getByText("Ciorna a fost salvată de alt operator.", {
+        exact: false,
+      }),
     ).toBeVisible();
+    await expect(
+      panel.getByLabel("Denumire beneficiar", { exact: true }),
+    ).toHaveValue("Client editat");
+    await expect(
+      page.getByRole("group", { name: "Confirmare emitere și trimitere" }),
+    ).toHaveCount(0);
+    assert.equal((await db.doc("invoices/browser").get()).exists, false);
     await page
-      .getByRole("button", { name: "Pregătește XML", exact: true })
+      .getByText("Compară versiunea salvată de", { exact: false })
       .click();
     await page
-      .getByRole("button", { name: "Confirmă pregătirea XML", exact: true })
+      .getByRole("button", { name: "Folosește versiunea salvată", exact: true })
       .click();
-    await expect(xmlPanel).toContainText("Document XML pregătit în FOM");
+    await page
+      .getByRole("button", { name: "Înlocuiește datele", exact: true })
+      .click();
+    await expect(
+      panel.getByLabel("Denumire beneficiar", { exact: true }),
+    ).toHaveValue("Client");
+    await panel
+      .getByLabel("Denumire beneficiar", { exact: true })
+      .fill("Client editat");
+    // No separate save: first action persists unsaved edits before the summary.
+    await page
+      .getByRole("button", {
+        name: "Simulează emiterea și trimiterea",
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole("group", { name: "Confirmare emitere și trimitere" }),
+    ).toContainText("Client editat");
+    assert.equal(
+      (await db.doc("invoiceDrafts/browser").get()).data()!.beneficiary.name,
+      "Client editat",
+    );
+    assert.equal((await numbering.get(actor)).counter!.allocationCount, 1);
+    // Drop the response AFTER the server commits; GET recovery must reveal the same invoice/job.
+    await page.route("**/invoice-finalization", async (route) => {
+      await route.fetch();
+      await route.abort("failed");
+      await page.unroute("**/invoice-finalization");
+    });
+    await page
+      .getByRole("button", {
+        name: "Confirmă simularea emiterii și trimiterii",
+        exact: true,
+      })
+      .click();
+    await expect(xmlPanel).toContainText("Document pregătit în FOM");
     await expect(
       panel.getByLabel("Denumire beneficiar", { exact: true }),
     ).toBeDisabled();
+    await page.getByText("Detaliile documentului", { exact: true }).click();
     const downloadEvent = page.waitForEvent("download");
     await page
       .getByRole("button", { name: "Descarcă XML", exact: true })
@@ -796,6 +871,19 @@ async function main() {
       await readFile((await dl.path())!, "utf8"),
       (await service.download(actor, "browser")).xml,
     );
+    const queued = (await transferService.state(dispatcher, "browser"))
+      .transfer!;
+    assert.equal(queued.mode, "dry-run");
+    assert.equal(queued.importStatus, "pending");
+    // Processing happens without a browser request; reopening recovers the persisted result.
+    for (let i = 0; i < 8; i++) {
+      await transferService.process(queued.id, true);
+      if (
+        (await transferService.state(dispatcher, "browser")).transfer!.phase ===
+        "done"
+      )
+        break;
+    }
     const artifacts = path.join(root, "test-results/invoice-xml");
     await (
       await import("node:fs/promises")
@@ -813,12 +901,13 @@ async function main() {
         throw e;
       });
     await expect(xmlPanel).toContainText("NRG000127");
+    await expect(xmlPanel).toContainText("Simulare: Importată");
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await expect
         .poll(() => panel.evaluate((el) => getComputedStyle(el).position))
         .not.toBe("fixed");
-      await expect(xmlPanel).toContainText("Document XML pregătit în FOM");
+      await expect(xmlPanel).toContainText("Document pregătit în FOM");
       await xmlPanel.scrollIntoViewIfNeeded();
       assert.equal(
         await page.evaluate(
@@ -840,8 +929,25 @@ async function main() {
       (await db.doc("lucrari/browser").get()).data(),
       beforeWork,
     );
+    await rootCatalog.collection("products").doc("p").set(product);
+    await rootCatalog.collection("clients").doc("s").set(entry);
+    await finalizationCases({
+      db,
+      config,
+      actor,
+      dispatcher,
+      seed,
+      numbering,
+      xml: service,
+      finalization,
+      request,
+      tokens,
+      projectId,
+      firestoreHost,
+      work,
+    });
     console.log(
-      "PASS XML browser: issuer profile, preview/cancel, unsaved changes/save, explicit prepare, freeze/reopen, private download bytes, responsive 320/390px; no external traffic.",
+      "PASS XML browser: issuer profile, preview/cancel, unsaved changes/autosave, unified confirmation+atomic enqueue+worker, freeze/reopen, private download bytes, responsive 320/390px; no external traffic.",
     );
   } finally {
     await browser?.close();

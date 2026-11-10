@@ -65,7 +65,10 @@ export function InvoiceNumberEstimate({ workId }: { workId: string }) {
       )}
       {data?.reason && <p className="text-amber-800">{data.reason}</p>}
       {data && !data.number && !data.reason && (
-        <p>Numerotarea se configurează de admin în Setări → SAGA.</p>
+        <p>
+          Numerotarea se configurează de admin din Utilizatori → Editează
+          utilizatorul → Facturare SAGA.
+        </p>
       )}
       {error && (
         <p className="text-amber-800">{error} Ciorna poate fi salvată.</p>

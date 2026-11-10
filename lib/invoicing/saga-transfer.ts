@@ -92,7 +92,9 @@ export function decimalSum(a: string, b: string, subtract = false) {
 }
 export const decimalLess = (a: string, b: string) =>
   decimalSum(a, b, true).startsWith("-");
-export function stockGroups(doc: PreparedInvoice): StockGroup[] {
+export function stockGroups(
+  doc: Pick<PreparedInvoice, "snapshot">,
+): StockGroup[] {
   const groups = new Map<string, StockGroup>();
   for (const line of doc.snapshot.lines) {
     if (line.kind === "service") continue;

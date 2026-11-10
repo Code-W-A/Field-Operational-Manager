@@ -29,7 +29,7 @@ Regulile comerciale trebuie să fie active. Adminul le poate activa explicit din
 
 Stocul insuficient este avertizare în ciornă, fără rezervare. Eroarea este afișată distinct ca **Stoc neconfirmat**, cu reîncercare, niciodată ca zero. Schimbarea articolului/gestiunii elimină rezultatul anterior; schimbarea cantității recalculează avertizarea fără apel nou. Serviciile nu folosesc gestiune sau stoc.
 
-Păstrăm **Pregătește XML**, apoi **Finalizează și trimite în SAGA**. Workerul existent citește stocul înainte, transmite XML-ul unic și recitește după import. Importul și citirile înainte/după/diferența observată sunt afișate separat. Reverificarea nu retransmite factura. Nu introducem endpointuri de descărcare/validare și nu marcăm automat „Validată contabil”. Statusurile contabile ale tichetului rămân neschimbate.
+Fluxul principal folosește [**Emite și trimite în SAGA**, cu o singură confirmare](invoice-finalization.md). Workerul existent citește stocul înainte, transmite XML-ul unic și recitește după import. Importul și citirile înainte/după/diferența observată sunt afișate separat. Reverificarea nu retransmite factura. Nu introducem endpointuri de descărcare/validare și nu marcăm automat „Validată contabil”. Statusurile contabile ale tichetului rămân neschimbate.
 
 **Scăderea efectivă a stocului și mecanismul validării în SAGA rămân neconfirmate practic.** Pilotul real rămâne un pas separat, controlat și autorizat.
 
@@ -50,3 +50,5 @@ Păstrăm **Pregătește XML**, apoi **Finalizează și trimite în SAGA**. Work
 - `scripts/test-invoice-commercial.ts`: scenariile noi.
 
 Modul dry-run și activarea separată a importurilor nu au fost schimbate. Nu au fost atinse modificările paralele din zona ofertelor sau invitațiilor de utilizatori.
+
+Actualizare 10 noiembrie: dacă nu există gestiuni active permise, adminul poate introduce gestiunea în același editor. Nu se extind permisiunile produselor existente; cantitatea locală se păstrează la recitirea articolului. [Configurarea simplificată](invoice-user-setup.md).
