@@ -164,8 +164,8 @@ export function InvoiceClientAssociation({
         </Button>
       </div>
       <p className="text-xs text-slate-500">
-        Referință din export. Datele beneficiarului din ciornă se editează
-        separat.
+        Asociere confirmată în FOM, fără verificare online a clientului în SAGA.
+        Datele beneficiarului din ciornă se editează separat.
       </p>
     </section>
   );

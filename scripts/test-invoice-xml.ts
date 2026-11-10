@@ -24,6 +24,8 @@ import { invoiceDraftHandlers } from "../lib/invoicing/http";
 import { createHash } from "node:crypto";
 import { createInvoiceNumberingService } from "../lib/invoicing/numbering.server";
 import { InvoiceNumberingError } from "../lib/invoicing/numbering";
+import { createSagaClientsService } from "../lib/saga/clients.server";
+import { invoiceXml } from "../lib/invoicing/xml";
 import { createInvoiceXmlService } from "../lib/invoicing/xml.server";
 import { invoiceXmlHandlers } from "../lib/invoicing/xml-http";
 import { issuerFixture, contentFixture } from "../lib/invoicing/xml.fixtures";
@@ -391,6 +393,32 @@ async function main() {
         previewHash: p.previewHash,
         operationId,
       });
+    const manualClients = createSagaClientsService(db, () => config);
+    const manualAssociation = await manualClients.link(actor, "c", {
+      expectedRevision: 1,
+      country: "RO",
+      manualClient: {
+        code: "00973",
+        name: "Client",
+        taxId: "RO123",
+        country: "RO",
+      },
+      manualConfirmed: true,
+    });
+    assert.equal(manualAssociation.link!.confirmationMethod, "manual");
+    const manualPreview = await preview();
+    assert.equal(manualPreview.snapshot.clientCode, "00973");
+    assert.ok(
+      invoiceXml(
+        manualPreview.snapshot,
+        manualPreview.estimatedNumber,
+      ).xml.includes("<Cod>00973</Cod>"),
+    );
+    assert.equal((await numbering.get(actor)).counter!.allocationCount, 0);
+    await rootCatalog.collection("clientLinks").doc("c").set(link);
+    console.log(
+      "PASS manual association resolves into invoice XML client code without allocating a number or calling SAGA.",
+    );
     const first = await preview();
     assert.equal(first.estimatedNumber, "NRG000126");
     assert.equal((await db.collection("invoices").get()).size, 0);

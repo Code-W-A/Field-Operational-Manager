@@ -4,6 +4,22 @@ Implementare locală: **7 noiembrie 2026**. Lista SAGA este o referință separa
 
 ## Utilizare
 
+### Asociere rapidă prin cod — 10 noiembrie 2026
+
+Pentru un client nou în SAGA nu mai este obligatoriu exportul/importul. În pagina clientului FOM, deschide **Asociază/Reasociază clientul SAGA → Asociază prin cod SAGA**, copiază codul exact (de exemplu `00973`), verifică denumirea, CUI-ul și țara precompletate din FOM, bifează confirmarea și apasă **Salvează asocierea**. Dacă lipsește CUI-ul, confirmarea precizează explicit și această situație. Modificarea unui câmp anulează bifa, pentru o nouă verificare.
+
+Panoul afișează apoi **Confirmat manual de [operator], la [dată] — Neverificat online**. Nu există validare prin API SAGA și nu se creează sau modifică un client în SAGA. Este responsabilitatea operatorului să compare identitatea cu clientul real din SAGA.
+
+Opțiunea este exclusiv pentru admin. Căutarea existentă rămâne disponibilă ca **Caută în lista importată**, cu mesaje distincte înainte de căutare și când nu există rezultate. Dispecerul poate consulta legătura, inclusiv originea manuală, fără să o modifice.
+
+Persistența reutilizează tranzacția și API-ul `PUT /api/clienti/[id]/saga-link`. Varianta nouă transmite `{ expectedRevision, country, manualClient: { code, name, taxId, country }, manualConfirmed: true, missingTaxConfirmed }`, în locul referinței `sagaClientId/sagaRevision`. Crearea referinței și a legăturii este atomică. Referința folosește același ID `sha256(codSAGA)` din `sagaCatalogs/{codFiscal}/clients`, cu `origin: manual`; legătura păstrează `confirmationMethod`, autorul și numele operatorului rezolvat pe server. Contul, firma și bariera de activare existente sunt reverificate pe server.
+
+CUI/țară diferite, confirmarea absentă, un import în curs sau o revizie veche blochează salvarea. Un cod deja înregistrat cu alte date produce `409`, fără suprascriere; operatorul trebuie să consulte intrarea existentă. Un export ulterior poate actualiza referința după regulile existente, iar schimbarea datelor cere reconfirmarea legăturilor. Codurile rămân text, cu zerourile inițiale.
+
+Asocierea manuală este utilizabilă de mecanismul existent al ciornei și al XML-ului: codul clientului este rezolvat din aceeași referință privată. Nu se modifică registrul FOM `clienti`, nu se alocă numere prin asociere și nu se efectuează apeluri SAGA.
+
+Verificări locale executate: `test:saga:clients` **5/5**, `test:invoice-xml` **8/8**, `test:saga:clients:integration` și `test:invoice-xml:integration` **trecute**, cu emulatoare și browser. Testele noi acoperă roluri, lipsa confirmării, CUI/țară diferite, cod numeric respins, zerouri inițiale, concurență, cod existent cu date contradictorii, import în curs, CUI absent și izolarea firmelor. Browserul verifică precompletarea, bifa anulată la editare, salvarea fără import, redeschiderea, proveniența manuală și afișarea în ciornă, inclusiv captura `test-results/saga-clients/manual-association-mobile.png`. Previzualizarea XML cu asociere creată prin serviciul real produce `<Cod>00973</Cod>` fără alocarea unui număr. Suitele refuză traficul extern și confirmă registrul clienților FOM și tichetul neschimbate. Nu s-au publicat modificările și nu s-au făcut apeluri SAGA.
+
 ### Dialog lateral — 10 noiembrie 2026
 
 Pagina clientului afișează compact starea asocierii, codul și denumirea, plus un singur buton: **Asociază clientul SAGA** sau **Reasociază clientul SAGA** pentru admin, **Vezi asocierea** pentru dispecer. Formularul, datele fiscale, sursa, data confirmării, reîncărcarea și eliminarea sunt într-un `Sheet` din dreapta: 540 px pe desktop și lățime completă pe mobil, cu scroll interior.

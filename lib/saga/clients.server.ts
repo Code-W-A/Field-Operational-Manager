@@ -64,6 +64,7 @@ export function createSagaClientsService(
         "Integrarea SAGA nu este activată. Administratorul trebuie să finalizeze configurarea.",
         409,
       );
+    return u;
   }
   async function preview(actor: Actor, input: unknown) {
     await checkUser(actor, true);
@@ -236,6 +237,7 @@ export function createSagaClientsService(
           id: refs[i].id,
           revision: (old?.revision || 0) + (changed ? 1 : 0),
           source: job.source,
+          origin: "export",
           importedAt: now,
           updatedBy: actor.uid,
         });
@@ -320,6 +322,8 @@ export function createSagaClientsService(
       sagaRevision?: number;
       country?: string;
       missingTaxConfirmed?: boolean;
+      manualClient?: SagaClientRow;
+      manualConfirmed?: boolean;
     };
     if (
       !v ||
@@ -327,10 +331,18 @@ export function createSagaClientsService(
       v.expectedRevision < 0
     )
       throw invalid("Revizie invalidă.");
+    const manual =
+      v.manualClient === undefined
+        ? null
+        : validateClientRows([v.manualClient])[0];
+    if (manual && (v.manualConfirmed !== true || v.sagaClientId !== undefined))
+      throw invalid(
+        "Confirmă că ai verificat codul, denumirea și CUI-ul în SAGA.",
+      );
     const r = root(),
       ref = r.collection("clientLinks").doc(id(clientId));
     await db.runTransaction(async (tx) => {
-      await checkUser(actor, true, tx);
+      const operator = await checkUser(actor, true, tx);
       const [client, previous, importing] = await Promise.all([
         tx.get(db.collection("clienti").doc(clientId)),
         tx.get(ref),
@@ -351,6 +363,9 @@ export function createSagaClientsService(
         revision: v.expectedRevision + 1,
         updatedAt: new Date().toISOString(),
         updatedBy: actor.uid,
+        confirmedByName: String(
+          operator.displayName || operator.nume || operator.name || actor.uid,
+        ).slice(0, 200),
       };
       if (v.sagaClientId === null) {
         tx.set(ref, { ...common, active: false });
@@ -361,10 +376,39 @@ export function createSagaClientsService(
         .toUpperCase();
       if (!/^[A-Z]{2}$/.test(country))
         throw invalid("Confirmă țara fiscală a clientului FOM.");
-      const entry = (
-        await tx.get(r.collection("clients").doc(id(v.sagaClientId)))
-      ).data() as SagaClientEntry | undefined;
-      if (!entry || entry.revision !== v.sagaRevision) throw conflict();
+      const entryRef = r
+        .collection("clients")
+        .doc(manual ? hash(manual.code) : id(v.sagaClientId));
+      const existing = (await tx.get(entryRef)).data() as
+        | SagaClientEntry
+        | undefined;
+      if (
+        manual &&
+        existing &&
+        (existing.name.trim().toLocaleLowerCase("ro") !==
+          manual.name.toLocaleLowerCase("ro") ||
+          existing.country !== manual.country ||
+          normalizeTaxId(existing.taxId, existing.country) !==
+            normalizeTaxId(manual.taxId, manual.country))
+      )
+        throw new SagaError(
+          "CLIENT_CONFLICT",
+          "Codul există deja în lista FOM cu alte date. Caută-l în listă și verifică datele înainte de asociere.",
+          409,
+        );
+      const entry: SagaClientEntry | undefined = manual
+        ? existing || {
+            ...manual,
+            id: entryRef.id,
+            revision: 1,
+            source: "Introducere manuală — neverificată online",
+            origin: "manual",
+            importedAt: common.updatedAt,
+            updatedBy: actor.uid,
+          }
+        : existing;
+      if (!entry || (!manual && entry.revision !== v.sagaRevision))
+        throw conflict();
       const mismatch = sameFiscalIdentity(client.data()!, entry, country);
       if (mismatch) throw invalid(mismatch);
       const tax = clientTaxId(client.data()!, country).normalized;
@@ -373,6 +417,7 @@ export function createSagaClientsService(
         throw invalid(
           "Confirmă explicit asocierea fără identificator fiscal complet.",
         );
+      if (manual && !existing) tx.set(entryRef, entry);
       tx.set(ref, {
         ...common,
         active: true,
@@ -381,6 +426,8 @@ export function createSagaClientsService(
         country,
         fomTaxId: tax,
         missingTaxConfirmed: missing,
+        confirmationMethod:
+          manual || entry.origin === "manual" ? "manual" : "export",
       });
     });
     return association(actor, clientId);

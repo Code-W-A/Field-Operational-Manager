@@ -225,6 +225,7 @@ async function main() {
         locatii: [{ nume: "Locația A" }, { nume: "Locația B" }],
       },
       same: { nume: "Altă locație FOM", cif: "123" },
+      manual: { nume: "Client manual", cui: "RO973" },
       missing: { nume: "Fără CUI" },
       conflict: { nume: "Alias conflict", cui: "123", cif: "124" },
     };
@@ -590,6 +591,187 @@ async function main() {
       originalClients,
     );
     assert.equal((await db.collection("sagaConnections").get()).size, 0);
+    // Manual association uses the same private catalog and link transaction, no upstream API.
+    const manualPath = "/api/clienti/manual/saga-link";
+    const manualInput = {
+      expectedRevision: 0,
+      country: "RO",
+      manualClient: {
+        code: "00973",
+        name: "Client manual",
+        taxId: "RO973",
+        country: "RO",
+      },
+      manualConfirmed: true,
+    };
+    assert.equal(
+      (await request(manualPath, "dispecer", manualInput, "PUT")).status,
+      403,
+    );
+    assert.equal(
+      (await request(manualPath, "", manualInput, "PUT")).status,
+      401,
+    );
+    assert.equal(
+      (
+        await request(
+          manualPath,
+          "admin",
+          { ...manualInput, manualConfirmed: false },
+          "PUT",
+        )
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(
+          manualPath,
+          "admin",
+          {
+            ...manualInput,
+            manualClient: { ...manualInput.manualClient, taxId: "RO999" },
+          },
+          "PUT",
+        )
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(
+          manualPath,
+          "admin",
+          {
+            ...manualInput,
+            manualClient: { ...manualInput.manualClient, code: 973 },
+          },
+          "PUT",
+        )
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(
+          manualPath,
+          "admin",
+          {
+            ...manualInput,
+            manualClient: { ...manualInput.manualClient, country: "DE" },
+          },
+          "PUT",
+        )
+      ).status,
+      400,
+    );
+    await db
+      .doc("sagaCatalogs/123456/clientImports/control")
+      .set({ active: "manual-block" });
+    assert.equal(
+      (await request(manualPath, "admin", manualInput, "PUT")).status,
+      409,
+    );
+    await db
+      .doc("sagaCatalogs/123456/clientImports/control")
+      .set({ active: null });
+    const manualRace = await Promise.all(
+      [1, 2].map(() => request(manualPath, "admin", manualInput, "PUT")),
+    );
+    assert.deepEqual(manualRace.map((r) => r.status).sort(), [200, 409]);
+    const manualSaved = await manualRace.find((r) => r.status === 200)!.json();
+    assert.equal(manualSaved.entry.code, "00973");
+    assert.equal(manualSaved.entry.origin, "manual");
+    assert.equal(manualSaved.link.confirmationMethod, "manual");
+    assert.equal(manualSaved.link.confirmedByName, "admin");
+    assert.deepEqual(manualSaved.issues, []);
+    const manualEntryId = createHash("sha256").update("00973").digest("hex");
+    assert.equal(manualSaved.entry.id, manualEntryId);
+    assert.equal(
+      (
+        await db.doc(`sagaCatalogs/123456/clients/${manualEntryId}`).get()
+      ).data()!.code,
+      "00973",
+    );
+    assert.equal(
+      (
+        await request(
+          manualPath,
+          "admin",
+          {
+            ...manualInput,
+            expectedRevision: 1,
+            manualClient: { ...manualInput.manualClient, name: "Alt client" },
+          },
+          "PUT",
+        )
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await db.doc(`sagaCatalogs/123456/clients/${manualEntryId}`).get()
+      ).data()!.name,
+      "Client manual",
+    );
+    assert.equal(
+      (await db.doc("sagaCatalogs/654321/clients/" + manualEntryId).get())
+        .exists,
+      false,
+    );
+    await db.doc("lucrari/manual").set({ clientId: "manual" });
+    assert.equal(
+      (await service.forWork({ uid: "dispecer", role: "dispecer" }, "manual"))
+        .entry!.code,
+      "00973",
+    );
+    const missingRevision = (
+      await (await request("/api/clienti/missing/saga-link")).json()
+    ).revision;
+    assert.equal(
+      (
+        await request(
+          "/api/clienti/missing/saga-link",
+          "admin",
+          {
+            ...manualInput,
+            expectedRevision: missingRevision,
+            manualClient: {
+              code: "00976",
+              name: "Fără CUI",
+              taxId: "",
+              country: "RO",
+            },
+          },
+          "PUT",
+        )
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request(
+          "/api/clienti/missing/saga-link",
+          "admin",
+          {
+            ...manualInput,
+            expectedRevision: missingRevision,
+            manualClient: {
+              code: "00976",
+              name: "Fără CUI",
+              taxId: "",
+              country: "RO",
+            },
+            missingTaxConfirmed: true,
+          },
+          "PUT",
+        )
+      ).status,
+      200,
+    );
+    console.log(
+      "PASS manual client API: admin-only, confirmation, identity, zero-padded code, transactional race, existing-code conflict, import lock, missing tax and company isolation.",
+    );
     console.log(
       "PASS clients API/emulator: role/disabled checks, staged batches, idempotent resume, serialized import, duplicate/forged rows, revisions, country/tax conflicts, missing tax confirmation, multiple FOM clients, stale links, ambiguous work, firm isolation, denied direct Firestore access, unchanged FOM clients, no SAGA connection.",
     );
@@ -1001,6 +1183,63 @@ async function main() {
     await expect(
       page.getByRole("button", { name: "Asociază clientul SAGA", exact: true }),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Asociază clientul SAGA", exact: true })
+      .click();
+    await expect(
+      page.getByText("Nu sunt rezultate selectate.", { exact: false }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Asociază prin cod SAGA", exact: true })
+      .click();
+    await page.getByLabel("Cod client SAGA", { exact: true }).fill("00974");
+    await expect(
+      page.getByLabel("Denumirea clientului în SAGA", { exact: true }),
+    ).toHaveValue("Firma FOM");
+    await expect(
+      page.getByLabel("CUI/CIF al clientului în SAGA", { exact: true }),
+    ).toHaveValue("RO123");
+    await expect(
+      page.getByRole("button", { name: "Salvează asocierea", exact: true }),
+    ).toBeDisabled();
+    await page.getByRole("checkbox", { name: /Am verificat în SAGA/ }).check();
+    await page.getByLabel("Cod client SAGA", { exact: true }).fill("00975");
+    await expect(
+      page.getByRole("checkbox", { name: /Am verificat în SAGA/ }),
+    ).not.toBeChecked();
+    await page.getByLabel("Cod client SAGA", { exact: true }).fill("00974");
+    await page.getByRole("checkbox", { name: /Am verificat în SAGA/ }).check();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(() =>
+        associationDialog.evaluate((el) =>
+          Math.round(el.getBoundingClientRect().left),
+        ),
+      )
+      .toBe(0);
+    await page.screenshot({
+      path: path.join(artifacts, "manual-association-mobile.png"),
+    });
+    await page
+      .getByRole("button", { name: "Salvează asocierea", exact: true })
+      .click();
+    await expect(associationDialog).toHaveCount(0);
+    await page.reload();
+    await expect(
+      page.getByText("00974 · Firma FOM", { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Reasociază clientul SAGA", exact: true })
+      .click();
+    await expect(associationDialog).toContainText("Confirmat manual de admin");
+    await expect(associationDialog).toContainText("Neverificat online");
+    await page.goto(`${url}/ticket`);
+    await page
+      .getByRole("button", { name: "Continuă ciorna", exact: true })
+      .click();
+    await expect(
+      page.getByRole("region", { name: "Client SAGA al facturii" }),
+    ).toContainText("00974");
     assert.deepEqual(
       (await db.collection("clienti").get()).docs.map((d) => ({
         id: d.id,

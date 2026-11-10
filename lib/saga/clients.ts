@@ -11,6 +11,7 @@ export type SagaClientEntry = SagaClientRow & {
   source: string;
   importedAt: string;
   updatedBy: string;
+  origin?: "manual" | "export";
 };
 export type SagaClientLink = {
   clientId: string;
@@ -23,6 +24,8 @@ export type SagaClientLink = {
   revision: number;
   updatedAt: string;
   updatedBy: string;
+  confirmationMethod?: "manual" | "export";
+  confirmedByName?: string;
 };
 export type ClientAssociation = {
   fiscalCode: string;

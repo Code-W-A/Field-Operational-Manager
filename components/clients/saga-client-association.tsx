@@ -35,6 +35,22 @@ export function SagaClientAssociation({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [manualMode, setManualMode] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualTaxId, setManualTaxId] = useState("");
+  const [manualConfirmed, setManualConfirmed] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  function startManual() {
+    setManualMode(true);
+    setManualCode(query.trim());
+    setManualName(data?.clientName || "");
+    setManualTaxId(data?.taxId || "");
+    setCountry(country || "RO");
+    setManualConfirmed(false);
+    setError("");
+    setNotice("");
+  }
   const lock = useRef(false);
   const saving = useRef(false);
   const session = useRef(0);
@@ -42,6 +58,9 @@ export function SagaClientAssociation({
     if (saving.current) return;
     session.current++;
     setEditing(open);
+    setManualMode(false);
+    setManualConfirmed(false);
+    setHasSearched(false);
     setCountry(data?.link?.country || "");
     setQuery("");
     setSelected(null);
@@ -76,6 +95,7 @@ export function SagaClientAssociation({
       setCountry(result.link?.country || "");
       setSelected(null);
       setMissing(false);
+      setManualConfirmed(false);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -106,6 +126,7 @@ export function SagaClientAssociation({
         throw new Error(
           "Lista se actualizează. Așteaptă finalizarea importului.",
         );
+      setHasSearched(true);
       setEntries(
         byTax
           ? result.entries.filter(
@@ -127,7 +148,13 @@ export function SagaClientAssociation({
     }
   }
   async function save(remove = false) {
-    if (!canEdit || !data || lock.current || (!remove && !selected)) return;
+    if (
+      !canEdit ||
+      !data ||
+      lock.current ||
+      (!remove && (manualMode ? !manualConfirmed : !selected))
+    )
+      return;
     saving.current = true;
     lock.current = true;
     setBusy(true);
@@ -138,10 +165,25 @@ export function SagaClientAssociation({
         "PUT",
         {
           expectedRevision: data.revision,
-          sagaClientId: remove ? null : selected!.id,
-          sagaRevision: selected?.revision,
+          ...(remove
+            ? { sagaClientId: null }
+            : manualMode
+              ? {
+                  manualClient: {
+                    code: manualCode,
+                    name: manualName,
+                    taxId: manualTaxId,
+                    country,
+                  },
+                  manualConfirmed,
+                }
+              : {
+                  sagaClientId: selected!.id,
+                  sagaRevision: selected?.revision,
+                }),
           country,
-          missingTaxConfirmed: missing,
+          missingTaxConfirmed:
+            manualMode && !remove ? manualConfirmed : missing,
         },
       );
       setData(result);
@@ -226,7 +268,8 @@ export function SagaClientAssociation({
               : "Asociere SAGA"}
           </SheetTitle>
           <SheetDescription>
-            Lista provine din exportul SAGA. Legătura se salvează în FOM.
+            Alege clientul din listă sau introdu codul lui din SAGA. Asocierea
+            se salvează doar în FOM.
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-4">
@@ -257,6 +300,16 @@ export function SagaClientAssociation({
                 CUI/CIF: {data.entry.taxId || "lipsește"} · Țară:{" "}
                 {data.entry.country}
               </p>
+              {data.link?.confirmationMethod === "manual" && (
+                <p>
+                  Confirmat manual de{" "}
+                  {data.link.confirmedByName || data.link.updatedBy}, la{" "}
+                  {new Date(data.link.updatedAt).toLocaleString("ro-RO", {
+                    timeZone: "Europe/Bucharest",
+                  })}
+                  . Neverificat online.
+                </p>
+              )}
               <p>
                 Sursă: {data.entry.source} · confirmat la{" "}
                 {new Date(data.link!.updatedAt).toLocaleString("ro-RO", {
@@ -310,6 +363,117 @@ export function SagaClientAssociation({
             </div>
           )}
           {!removing && canEdit && data && (
+            <div className="flex flex-wrap gap-2" aria-label="Mod de asociere">
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                variant={manualMode ? "outline" : "default"}
+                aria-pressed={!manualMode}
+                onClick={() => {
+                  setManualMode(false);
+                  setError("");
+                }}
+              >
+                Caută în listă
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                variant={manualMode ? "default" : "outline"}
+                aria-pressed={manualMode}
+                onClick={startManual}
+              >
+                Asociază prin cod SAGA
+              </Button>
+            </div>
+          )}
+          {!removing && canEdit && data && manualMode && (
+            <fieldset disabled={busy} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Deschide clientul în SAGA, copiază codul și verifică datele de
+                mai jos. Nu ai nevoie de export.
+              </p>
+              <label className="block text-sm">
+                Cod client SAGA
+                <Input
+                  autoFocus
+                  value={manualCode}
+                  placeholder="Exemplu: 00973"
+                  maxLength={100}
+                  onChange={(e) => {
+                    setManualCode(e.target.value);
+                    setManualConfirmed(false);
+                  }}
+                />
+              </label>
+              <label className="block text-sm">
+                Denumirea clientului în SAGA
+                <Input
+                  value={manualName}
+                  maxLength={300}
+                  onChange={(e) => {
+                    setManualName(e.target.value);
+                    setManualConfirmed(false);
+                  }}
+                />
+              </label>
+              <label className="block text-sm">
+                CUI/CIF al clientului în SAGA
+                <Input
+                  value={manualTaxId}
+                  maxLength={100}
+                  onChange={(e) => {
+                    setManualTaxId(e.target.value);
+                    setManualConfirmed(false);
+                  }}
+                />
+              </label>
+              <label className="block text-sm">
+                Țara fiscală
+                <Input
+                  value={country}
+                  maxLength={2}
+                  onChange={(e) => {
+                    setCountry(e.target.value.toUpperCase());
+                    setManualConfirmed(false);
+                  }}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Datele sunt precompletate din FOM. Confirmarea este făcută de
+                tine, fără verificare online în SAGA.
+              </p>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={manualConfirmed}
+                  onChange={(e) => setManualConfirmed(e.target.checked)}
+                />
+                <span>
+                  Am verificat în SAGA codul, denumirea și CUI-ul acestui
+                  client.
+                  {(!normalizeTaxId(data.taxId, country) ||
+                    !normalizeTaxId(manualTaxId, country)) &&
+                    " Confirm identitatea clientului chiar dacă lipsește CUI-ul într-una dintre surse."}
+                </span>
+              </label>
+              <Button
+                type="button"
+                disabled={
+                  !manualConfirmed ||
+                  !manualCode.trim() ||
+                  !manualName.trim() ||
+                  !/^[A-Z]{2}$/.test(country)
+                }
+                onClick={() => void save()}
+              >
+                Salvează asocierea
+              </Button>
+            </fieldset>
+          )}
+          {!removing && canEdit && data && !manualMode && (
             <fieldset disabled={busy} className="space-y-3">
               <label className="block text-sm">
                 Țara fiscală a clientului FOM (confirmare)
@@ -341,7 +505,7 @@ export function SagaClientAssociation({
                   variant="outline"
                   onClick={() => void search()}
                 >
-                  Caută în lista SAGA
+                  Caută în lista importată
                 </Button>
                 <Button
                   type="button"
@@ -353,8 +517,9 @@ export function SagaClientAssociation({
               </div>
               {entries.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Nu sunt rezultate selectate. Importă lista din Setări → SAGA
-                  sau restrânge căutarea.
+                  {hasSearched
+                    ? "Nu am găsit clientul în lista FOM. Poți folosi «Asociază prin cod SAGA», fără import."
+                    : "Introdu codul, denumirea sau CUI-ul și apasă «Caută în lista importată»."}
                 </p>
               )}
               <div className="max-h-72 space-y-2 overflow-auto">
