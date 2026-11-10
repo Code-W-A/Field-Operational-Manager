@@ -13,7 +13,7 @@
     "test:audit": "../node_modules/.bin/tsx --test src/audit-log.test.ts"
   },
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/index.js",
   "dependencies": {

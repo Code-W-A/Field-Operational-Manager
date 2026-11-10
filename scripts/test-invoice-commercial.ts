@@ -716,22 +716,24 @@ async function main() {
     assert.equal(old.commercial?.discountApproval, undefined);
     await assert.rejects(() => xmlPreview("old", dispatcher), /Discountul/);
     const { invoiceContent } = await import("../lib/invoicing/draft");
-    for (const [key, value] of [
-      ["price", "0.01"],
-      ["um", "kg"],
-      ["vatPercent", "0"],
-    ]) {
-      const bad = invoiceContent(old);
-      bad.lines = bad.lines.map((l) => ({ ...l, [key]: value }));
-      await assert.rejects(
-        () =>
-          draftService.put(
-            "old",
-            { expectedRevision: old.revision, content: bad },
-            dispatcher,
-          ),
-        (e) => (e as { status: number }).status === 403,
-      );
+    for (const protectedFieldsActor of [dispatcher, actor]) {
+      for (const [key, value] of [
+        ["price", "0.01"],
+        ["um", "kg"],
+        ["vatPercent", "0"],
+      ]) {
+        const bad = invoiceContent(old);
+        bad.lines = bad.lines.map((l) => ({ ...l, [key]: value }));
+        await assert.rejects(
+          () =>
+            draftService.put(
+              "old",
+              { expectedRevision: old.revision, content: bad },
+              protectedFieldsActor,
+            ),
+          (e) => (e as { status: number }).status === 403,
+        );
+      }
     }
     const discountForgery = invoiceContent(old);
     discountForgery.discountPercent = "99";

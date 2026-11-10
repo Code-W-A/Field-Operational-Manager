@@ -1,4 +1,4 @@
-import { privatePhotoPath, type SavedTicketDraft } from "@/packages/fom-domain";
+import { MAX_PHOTO_BYTES, privatePhotoPath, type SavedTicketDraft } from "@/packages/fom-domain";
 import { TechnicianError } from "./service";
 export type PrivatePhotoInput = {
   path: string;
@@ -44,7 +44,7 @@ export function validatePrivatePhoto(
   if (
     !photo ||
     photo.size <= 0 ||
-    photo.size > 3000000 ||
+    photo.size > MAX_PHOTO_BYTES ||
     !["image/jpeg", "image/png"].includes(photo.contentType)
   )
     throw new TechnicianError(

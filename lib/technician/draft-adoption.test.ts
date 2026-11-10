@@ -137,3 +137,11 @@ test("revision adoption cannot reuse photos from a different equipment or instal
     ),
   );
 });
+
+
+test("private-photo adoption accepts exactly 10 MB and rejects larger receipts", () => {
+  const withSize = (size:number) => ({...saved, photos:saved.photos.map(p=>({...p,size}))});
+  for (const size of [3_000_000,5_000_000,10_000_000])
+    assert.equal(validatePrivatePhoto(input,withSize(size),"owner","work","photo_1234","installation","sheet").size,size);
+  assert.throws(()=>validatePrivatePhoto(input,withSize(10_000_001),"owner","work","photo_1234","installation","sheet"));
+});

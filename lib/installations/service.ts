@@ -1600,6 +1600,33 @@ export function installationService(db: Firestore) {
   }
 
   /** Upload is server-only. A file uploaded before a concurrent close is never added to the signed snapshot. */
+  async function photoUploadTarget(
+    tx: Transaction, actor: InstallationActor, workId: string, sheetId: string,
+    offlineStopCommand?: Command,
+  ) {
+    const user = await actorData(tx, actor);
+    const work = (await tx.get(workRef(workId))).data();
+    assertWork(work, true);
+    await assertAssigned(tx, work, user);
+    const ref = sheetsRef(workId).doc(identifier(sheetId));
+    const sheet = (await tx.get(ref)).data() as InstallationSheet | undefined;
+    assertPrincipal(sheet, actor.uid);
+    if (offlineStopCommand) await validateOfflineStop(db, tx, actor.uid, user.displayName, work, offlineStopCommand, sheet);
+    return {ref, sheet};
+  }
+  async function checkPhotoUpload(
+    actor: InstallationActor, workId: string, sheetId: string, fileId: string,
+    expectedRevision?: number, offlineStopCommand?: Command,
+  ) {
+    return db.runTransaction(async tx => {
+      const {sheet} = await photoUploadTarget(tx, actor, workId, sheetId, offlineStopCommand);
+      if (!sheet.photos.some(p => p.id === fileId)) {
+        if (expectedRevision !== undefined)
+          check(sheet.revision === expectedRevision, "Fișa a fost modificată. Ciorna este păstrată.", 409);
+        check(sheet.photos.length < 4, "Fișa permite maximum 4 fotografii.");
+      }
+    });
+  }
   async function attachPhoto(
     actor: InstallationActor,
     workId: string,
@@ -1610,14 +1637,7 @@ export function installationService(db: Firestore) {
     offlineStopCommand?: Command,
   ) {
     return db.runTransaction(async (tx) => {
-      const user = await actorData(tx, actor);
-      const work = (await tx.get(workRef(workId))).data();
-      assertWork(work, true);
-      await assertAssigned(tx, work, user);
-      const ref = sheetsRef(workId).doc(identifier(sheetId));
-      const sheet = (await tx.get(ref)).data() as InstallationSheet | undefined;
-      assertPrincipal(sheet, actor.uid);
-      if (offlineStopCommand) await validateOfflineStop(db, tx, actor.uid, user.displayName, work, offlineStopCommand, sheet);
+      const {ref, sheet} = await photoUploadTarget(tx, actor, workId, sheetId, offlineStopCommand);
       if (remove && !sheet.photos.some((p) => p.id === photo.id))
         return { sheet };
       if (!remove && sheet.photos.some((p) => p.id === photo.id)) {
@@ -1663,5 +1683,6 @@ export function installationService(db: Firestore) {
     delete: (actor: InstallationActor, workId: string) =>
       terminate(actor, workId, "delete"),
     attachPhoto,
+    checkPhotoUpload,
   };
 }

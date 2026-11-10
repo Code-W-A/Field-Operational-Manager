@@ -17,6 +17,7 @@ export function mobileErrorCode(
     return "SIGNATURE_REQUIRED";
   if (/email.*invalid|destinatar.*necesar|adres.*email.*necesar/i.test(message))
     return "RECIPIENT_REQUIRED";
+  if (/maximum 10 MB|cel mult 10 MB/i.test(message)) return "PHOTO_TOO_LARGE";
   if (/maximum 3 MB|cel mult 3 MB/i.test(message)) return "FILE_TOO_LARGE";
   if (/maximum 4 fotografii/i.test(message)) return "PHOTO_LIMIT";
   if (/Așteaptă.*secunde.*oprirea pontajului/i.test(message))

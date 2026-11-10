@@ -13,7 +13,7 @@ service firebase.storage {
           && request.resource.metadata.workId in grant.workIds;
       }
       allow read: if owner();
-      allow create: if request.auth != null && request.auth.uid == uid && access() && request.resource.size > 0 && request.resource.size <= 3000000
+      allow create: if request.auth != null && request.auth.uid == uid && access() && request.resource.size > 0 && request.resource.size <= 10000000
         && request.resource.contentType in ['image/jpeg', 'image/png']
         && request.resource.metadata.ownerUid == uid && request.resource.metadata.draftId == draftId
         && request.resource.metadata.fileId == fileId && fileId.matches('^[a-zA-Z0-9_-]{8,120}$');
@@ -22,9 +22,29 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/mobileDrafts/$(uid)/files/$(fileId)).data.deleting == true
         && firestore.get(/databases/(default)/documents/mobileDrafts/$(uid)/files/$(fileId)).data.refs.size() == 0;
     }
+    // Server-issued permit, exact immutable object, valid for ten minutes.
+    match /mobile-uploads/{uid}/{fileId} {
+      function permit() {
+        return firestore.get(/databases/(default)/documents/mobilePhotoUploads/$(uid + '_' + fileId)).data;
+      }
+      function authorized() {
+        return request.auth != null && request.auth.uid == uid
+          && request.time.toMillis() < permit().expiresAt
+          && permit().ownerUid == uid && permit().fileId == fileId;
+      }
+      allow read: if authorized();
+      allow create: if resource == null && authorized()
+        && request.resource.size == permit().size && request.resource.size <= 10000000
+        && request.resource.contentType == permit().contentType
+        && request.resource.contentType in ['image/jpeg', 'image/png']
+        && request.resource.metadata.ownerUid == uid
+        && request.resource.metadata.fileId == fileId
+        && request.resource.metadata.digest == permit().digest;
+      allow update, delete: if false;
+    }
     // Installation photos are uploaded/read through authenticated server endpoints.
     match /{directory}/{allPaths=**} {
-      allow read, write: if !(directory in ['installations', 'mobile-drafts']);
+      allow read, write: if !(directory in ['installations', 'mobile-drafts', 'mobile-uploads']);
     }
   }
 }

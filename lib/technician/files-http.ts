@@ -1,3 +1,5 @@
+import { authorizePhoto, consumePhoto, photoDownloadUrl } from "./direct-photos";
+import { fileSizeLimit, LEGACY_FILE_BYTES, PHOTO_TOO_LARGE_MESSAGE } from "@/packages/fom-domain";
 import { validatePrivatePhoto } from "./draft-adoption";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID, createHash } from "node:crypto";
@@ -43,6 +45,14 @@ export function fileHandlers(
           a.uid,
           purpose !== "attendance-selfie" && !offlineStopCommand,
         );
+      if (form.get("uploadMode") === "authorize") {
+        if (!mobile) throw new MobileError("Operație mobilă necesară.", 403);
+        return NextResponse.json(await authorizePhoto(a, form), { headers: headers(request) });
+      }
+      if (form.has("directPhoto")) {
+        if (!mobile || form.has("privateDraft") || file) throw new MobileError("Referință invalidă.");
+        file = await consumePhoto(a, form);
+      }
       if (form.has("privateDraft")) {
         let input: any;
         try {
@@ -91,15 +101,18 @@ export function fileHandlers(
           type: photo.contentType,
         });
       }
+      const sizeLimit = mobile && ["photo", "installation"].includes(purpose) && file instanceof File
+        ? fileSizeLimit(file.type) : LEGACY_FILE_BYTES;
       if (
         !/^[\w-]{8,120}$/.test(fileId) ||
         !(file instanceof File) ||
         !file.size ||
-        file.size > 3000000 ||
+        file.size > sizeLimit ||
         !["image/png", "image/jpeg", "application/pdf"].includes(file.type)
       )
         throw new MobileError(
-          "Fișier invalid; limita este 3 MB (JPEG, PNG sau PDF).",
+          sizeLimit > LEGACY_FILE_BYTES && file instanceof File && file.size > sizeLimit
+            ? PHOTO_TOO_LARGE_MESSAGE : "Fișier invalid; limita este 3 MB (JPEG, PNG sau PDF).",
         );
       const bytes = Buffer.from(await file.arrayBuffer());
       const signatureOk =
@@ -206,6 +219,7 @@ export function fileHandlers(
         name: file.name,
         fileName: file.name,
         contentType: file.type,
+        size: file.size,
         createdAt: new Date().toISOString(),
         uploadedAt: new Date().toISOString(),
         compressed: false,
@@ -229,6 +243,10 @@ export function fileHandlers(
         result = { ...meta, sheet: attached.sheet };
       }
       await ref.set({ ...allocation, ...result, status: "ready" });
+      if (form.has("directPhoto")) {
+        // A lost final response is recovered by authorizePhoto's ready receipt.
+        await bucket().file(String(form.get("directPhoto"))).delete({ ignoreNotFound: true }).catch(() => {});
+      }
       return NextResponse.json(result, { headers: headers(request) });
     } catch (e) {
       return failure(request, e);
@@ -268,9 +286,10 @@ export function fileHandlers(
       }
       if (!photos.some((p: any) => p.path === filePath))
         throw new MobileError("Fotografia nu este asociată documentului.", 403);
-      const file = bucket().file(filePath),
-        [metadata] = await file.getMetadata(),
-        [bytes] = await file.download();
+      const file = bucket().file(filePath), [metadata] = await file.getMetadata();
+      if (mobile && q.get("delivery") === "direct" && Number(metadata.size) > LEGACY_FILE_BYTES)
+        return NextResponse.json(await photoDownloadUrl(filePath), { headers: headers(request) });
+      const [bytes] = await file.download();
       return new NextResponse(new Uint8Array(bytes), {
         headers: {
           ...headers(request),
