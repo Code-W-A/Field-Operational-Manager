@@ -4,6 +4,16 @@ Implementare locală: **7 noiembrie 2026**. Lista SAGA este o referință separa
 
 ## Utilizare
 
+### Dialog lateral — 10 noiembrie 2026
+
+Pagina clientului afișează compact starea asocierii, codul și denumirea, plus un singur buton: **Asociază clientul SAGA** sau **Reasociază clientul SAGA** pentru admin, **Vezi asocierea** pentru dispecer. Formularul, datele fiscale, sursa, data confirmării, reîncărcarea și eliminarea sunt într-un `Sheet` din dreapta: 540 px pe desktop și lățime completă pe mobil, cu scroll interior.
+
+Închiderea prin X, Escape, exterior sau butonul Închide abandonează selecția nesalvată. Redeschiderea folosește asocierea salvată. În timpul salvării, închiderea este blocată. Salvarea reușită închide panoul și actualizează rezumatul; erorile/conflictele păstrează panoul și selecția. Eliminarea are confirmare în același panou. Dispecerul nu are controale de modificare. API-urile și modelul de date sunt neschimbate; nu se apelează SAGA.
+
+Pașii de import și validările de mai jos rămân aplicabili; căutarea și confirmarea din pagina clientului se fac acum în dialogul lateral.
+
+Verificări locale executate pentru dialog: `npm run test:saga:clients` — **5/5 trecute**; `npm run test:saga:clients:integration` — **API/emulator și browser trecute**. Acoperirea include conflict 409 cu selecția păstrată, închidere blocată în timpul salvării, Escape/X/exterior fără salvare, revenirea focusului, consultarea dispecerului, persistență după reîncărcare și eliminare cu confirmare. Poziția și lățimea panoului sunt verificate la 1440 px (panou 540 px), 390 și 320 px (panou integral), cu scroll interior; capturile desktop/mobil sunt în `test-results/saga-clients/association-drawer-*.png`. Nu au fost efectuate cereri externe sau publicări.
+
 1. Admin: **Setări → SAGA → Clienți SAGA · listă de referință**. Alege un export CSV UTF-8 sau XLSX, maximum 10 MB și 5.000 de rânduri de date. Prima linie este antetul. CSV acceptă separator `;`, `,` sau tab, ghilimele și BOM UTF-8; XLSX permite alegerea foii.
 2. Alege coloanele pentru cod, denumire, CUI/CIF și țară. Codul și denumirea sunt obligatorii. Țara lipsă trebuie completată explicit cu două litere, pe rând sau pentru întregul import. CUI-ul poate lipsi.
 3. Verifică previzualizarea, editabilă și paginată câte 25 de rânduri. Celulele Excel numerice/calculate folosite drept cod sunt marcate: corectează codul, inclusiv zerourile inițiale, sau confirmă explicit verificarea lui. Codurile text rămân neschimbate. Datele sunt validate înaintea salvării; duplicatele identice se reunesc, cele contradictorii blochează operațiunea.

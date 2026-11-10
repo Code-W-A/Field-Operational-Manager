@@ -642,7 +642,7 @@ async function main() {
           path.join(root, "components/invoicing/**/*.tsx"),
           path.join(root, "components/settings/saga-clients-import.tsx"),
           path.join(root, "components/clients/saga-client-association.tsx"),
-          path.join(root, "components/ui/{button,input}.tsx"),
+          path.join(root, "components/ui/{button,input,sheet}.tsx"),
         ],
       }),
     ]).process(await readFile(path.join(root, "app/globals.css"), "utf8"), {
@@ -783,9 +783,28 @@ async function main() {
     await expect(
       page.getByText("Asocierea necesită reconfirmare", { exact: false }),
     ).toBeVisible();
+    const associationTrigger = page.getByRole("button", {
+      name: "Reasociază clientul SAGA",
+      exact: true,
+    });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Reîncarcă asocierea" }),
+    ).toHaveCount(0);
+    await associationTrigger.click();
+    const associationDialog = page.getByRole("dialog");
+    await expect(associationDialog).toBeVisible();
+    await expect(associationDialog).toHaveCSS("position", "fixed");
     await page
-      .getByRole("button", { name: "Schimbă asocierea", exact: true })
-      .click();
+      .getByLabel("Țara fiscală a clientului FOM", { exact: false })
+      .fill("XX");
+    await page.keyboard.press("Escape");
+    await expect(associationDialog).toHaveCount(0);
+    await expect(associationTrigger).toBeFocused();
+    await associationTrigger.click();
+    await expect(
+      page.getByLabel("Țara fiscală a clientului FOM", { exact: false }),
+    ).not.toHaveValue("XX");
     await page
       .getByLabel("Țara fiscală a clientului FOM", { exact: false })
       .fill("RO");
@@ -794,20 +813,80 @@ async function main() {
       .click();
     await expect(page.getByRole("radio")).toHaveCount(2);
     await page.getByRole("radio", { name: /^00000 · Client CSV/ }).check();
+    await page.route("**/api/clienti/c/saga-link", async (route) => {
+      if (route.request().method() === "PUT")
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Asocierea a fost modificată. Reîncarcă asocierea.",
+          }),
+        });
+      else await route.continue();
+    });
     await page
       .getByRole("button", { name: "Confirmă asocierea în FOM", exact: true })
       .click();
+    await expect(associationDialog.getByRole("alert")).toContainText(
+      "Reîncarcă",
+    );
+    await expect(
+      page.getByRole("radio", { name: /^00000 · Client CSV/ }),
+    ).toBeChecked();
+    await page.unroute("**/api/clienti/c/saga-link");
+    let releaseSave!: () => void;
+    const saveGate = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    await page.route("**/api/clienti/c/saga-link", async (route) => {
+      if (route.request().method() === "PUT") await saveGate;
+      await route.continue();
+    });
+    await page
+      .getByRole("button", { name: "Confirmă asocierea în FOM", exact: true })
+      .click();
+    await expect(associationDialog).toHaveAttribute("aria-busy", "true");
+    await page.keyboard.press("Escape");
+    await expect(associationDialog).toBeVisible();
+    await associationDialog
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
+    await expect(associationDialog).toBeVisible();
+    releaseSave();
     await expect(page.getByRole("status")).toHaveText(
       "Asociere salvată în FOM.",
     );
+    await expect(associationDialog).toHaveCount(0);
+    await page.unroute("**/api/clienti/c/saga-link");
+    await expect(associationTrigger).toBeFocused();
+    await page.reload();
+    await expect(
+      page.getByText("00000 · Client CSV", { exact: true }),
+    ).toBeVisible();
     await page.screenshot({ path: path.join(artifacts, "association.png") });
     await page.goto(`${url}/readonly`);
     await expect(
-      page.getByText("Client SAGA asociat:", { exact: false }),
+      page
+        .getByRole("region", { name: "Asociere client SAGA" })
+        .getByText("Client SAGA asociat:", { exact: false }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Schimbă asocierea", exact: true }),
+      page.getByRole("button", {
+        name: "Reasociază clientul SAGA",
+        exact: true,
+      }),
     ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Vezi asocierea", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toContainText("Sursă:");
+    await expect(
+      page.getByRole("button", { name: "Propune după CUI" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Elimină asocierea" }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await page.goto(`${url}/ticket`);
     await page
       .getByRole("button", { name: "Începe factura", exact: true })
@@ -847,13 +926,69 @@ async function main() {
     await page.screenshot({ path: path.join(artifacts, "invoice-mobile.png") });
     await page.goto(`${url}/client`);
     await page
+      .getByRole("button", { name: "Reasociază clientul SAGA", exact: true })
+      .click();
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect
+        .poll(() =>
+          associationDialog.evaluate((el) =>
+            Math.round(el.getBoundingClientRect().width),
+          ),
+        )
+        .toBe(width);
+      await expect
+        .poll(() =>
+          associationDialog.evaluate((el) =>
+            Math.round(el.getBoundingClientRect().left),
+          ),
+        )
+        .toBe(0);
+      await expect(associationDialog).toHaveCSS("overflow-y", "auto");
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+    }
+    await page.screenshot({
+      path: path.join(artifacts, "association-drawer-mobile.png"),
+    });
+    await associationDialog
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
+    await expect(associationDialog).toHaveCount(0);
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await associationTrigger.click();
+    await expect
+      .poll(() =>
+        associationDialog.evaluate((el) =>
+          Math.round(el.getBoundingClientRect().width),
+        ),
+      )
+      .toBe(540);
+    await expect
+      .poll(() =>
+        associationDialog.evaluate((el) =>
+          Math.round(el.getBoundingClientRect().right),
+        ),
+      )
+      .toBe(1440);
+    await page.screenshot({
+      path: path.join(artifacts, "association-drawer-desktop.png"),
+    });
+    await page.mouse.click(10, 400);
+    await expect(associationDialog).toHaveCount(0);
+    await associationTrigger.click();
+    await page
       .getByRole("button", { name: "Elimină asocierea", exact: true })
       .click();
     await page
       .getByRole("button", { name: "Păstrează asocierea", exact: true })
       .click();
     await expect(
-      page.getByText("Client SAGA asociat:", { exact: false }),
+      associationDialog.getByText("Client SAGA asociat:", { exact: false }),
     ).toBeVisible();
     await page
       .getByRole("button", { name: "Elimină asocierea", exact: true })
@@ -862,6 +997,10 @@ async function main() {
       .getByRole("button", { name: "Confirmă eliminarea", exact: true })
       .click();
     await expect(page.getByRole("status")).toHaveText("Asociere eliminată.");
+    await expect(associationDialog).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Asociază clientul SAGA", exact: true }),
+    ).toBeVisible();
     assert.deepEqual(
       (await db.collection("clienti").get()).docs.map((d) => ({
         id: d.id,
@@ -873,7 +1012,7 @@ async function main() {
     assert.equal((await db.collection("sagaConnections").get()).size, 0);
     assert.deepEqual(errors, []);
     console.log(
-      "PASS clients browser: CSV/XLSX local preview, worksheet/column mapping, numeric code correction, import progress, explicit tax-match confirmation, readonly dispatcher, invoice identity warnings and preserved saved beneficiary, mobile widths and removal confirmation. No external HTTP requests.",
+      "PASS clients browser: CSV/XLSX local preview, worksheet/column mapping, numeric code correction, import progress, explicit tax-match confirmation, readonly dispatcher, drawer focus/escape/backdrop/close, conflict selection preserved, save-close protection, 540px desktop and full-width mobile, invoice identity warnings and preserved saved beneficiary, mobile widths and removal confirmation. No external HTTP requests.",
     );
   } finally {
     await browser?.close();
