@@ -129,6 +129,8 @@ export function InstallationSheetForm({
   }
   async function save(close: boolean, deferred = false) {
     await run(async () => {
+      if (deferred && (technicianSignature || beneficiarySignature))
+        throw new Error("Semnăturile nu sunt trimise prin oprirea lucrului. Închide și semnează fișa pentru a le salva pe server.");
       setSavingAction(deferred ? "stop" : close ? "close" : "save");
       const result = await installationRequest(installationApi(workId), {
         action: deferred ? "stop" : close ? (sheet.state === "awaiting_signature" ? "sign" : "close") : "save",
@@ -142,7 +144,8 @@ export function InstallationSheetForm({
         },
       });
       onSheet(result.sheet);
-      setDirty(false);
+      // Saving content does not persist the signatures held by this form.
+      setDirty(!close && !!(technicianSignature || beneficiarySignature));
       if (deferred) {
         onStopped();
         return;
@@ -150,7 +153,9 @@ export function InstallationSheetForm({
       setNotice(
         close
           ? "Fișa zilei a fost închisă și semnată."
-          : "Ciorna a fost salvată.",
+          : technicianSignature || beneficiarySignature
+            ? "Conținutul ciornei a fost salvat. Semnăturile nu sunt încă salvate pe server; apasă «Semnează fișa» sau «Închide fișa zilei»."
+            : "Ciorna a fost salvată. Fișa nu este încă semnată.",
       );
       if (close) await onRefresh();
     });
@@ -489,7 +494,9 @@ export function InstallationSheetForm({
               {busy
                 ? "Se salvează…"
                 : dirty
-                  ? "Deschide o altă pagină numai după salvarea modificărilor."
+                  ? technicianSignature || beneficiarySignature
+                    ? "Semnăturile nu sunt încă salvate pe server. Închide și semnează fișa înainte de a ieși."
+                    : "Deschide o altă pagină numai după salvarea modificărilor."
                   : "Progresul completat este salvat."}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -512,7 +519,7 @@ export function InstallationSheetForm({
                     className="h-4 w-4 animate-spin"
                   />
                 )}
-                Oprește lucrul și semnează ulterior
+                Semnează ulterior
               </Button>}
               <Button
                 disabled={
@@ -563,8 +570,9 @@ export function InstallationSheetForm({
           <AlertDialogHeader>
             <AlertDialogTitle>Ai modificări nesalvate</AlertDialogTitle>
             <AlertDialogDescription>
-              Salvează ciorna pentru a păstra modificările înainte de a părăsi
-              fișa.
+              {technicianSignature || beneficiarySignature
+                ? "Semnăturile nu sunt salvate prin «Salvează ciorna». Rămâi pe fișă și finalizează semnarea pentru a le salva pe server."
+                : "Salvează ciorna pentru a păstra modificările înainte de a părăsi fișa."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

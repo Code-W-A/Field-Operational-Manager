@@ -9,7 +9,6 @@ import { InstallationWorkspace } from "@/components/installation-workspace"
 import { InstallationTicketDetails } from "@/components/installation/ticket-details"
 import { InstallationManagement } from "@/components/installation/management"
 import { installationManagementKeys } from "@/lib/installations/management"
-import { documentClientPdfFields } from "@/lib/work-documents/document-client-snapshot"
 import { resolveTicketLocation, resolveTicketContact } from "@/firebase-functions/src/client-ticket-sync"
 import { TicketClientInformation, TicketClientReadStatus } from "@/components/ticket-client-information"
 import { TicketContactDetails } from "@/components/ticket-contact-details"
@@ -114,7 +113,6 @@ import { deleteField } from "firebase/firestore"
 import { generateRevisionOperationsPDF, generateRevisionEquipmentPDF } from "@/lib/pdf/revision-operations"
 import { useRevisionCardNotes } from "@/hooks/use-revision-card-notes"
 import { RevisionCardNotes } from "@/components/revision-card-notes"
-import { generateDevizPdf } from "@/lib/utils/offer-pdf"
 import { getTicketEmitent } from "@/lib/utils/ticket-emitent"
 
 const debugClient = (...args: any[]) => {
@@ -629,74 +627,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       loadReinterventii(lucrare.id)
     }
   }, [lucrare?.id, loadReinterventii])
-
-  const openDevizPdf = useCallback(async () => {
-    if (!lucrare?.id) return
-
-    const legacyUrl = String((lucrare as any)?.devizDocument?.url || "").trim()
-    const openLegacy = () => {
-      if (!legacyUrl) return false
-      window.open(
-        `/api/download?lucrareId=${encodeURIComponent(lucrare.id!)}&type=deviz&url=${encodeURIComponent(legacyUrl)}`,
-        "_blank",
-      )
-      return true
-    }
-
-    const sourceProducts = Array.isArray((lucrare as any)?.devizProducts) ? (lucrare as any).devizProducts : []
-    if (sourceProducts.length === 0) {
-      if (openLegacy()) return
-      toast({
-        title: "Deviz indisponibil",
-        description: "Nu există poziții salvate pentru regenerarea PDF-ului.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const preparedAtRaw = (lucrare as any)?.devizPreparedAt
-      const preparedAt =
-        preparedAtRaw?.toDate?.() ||
-        (preparedAtRaw instanceof Date ? preparedAtRaw : typeof preparedAtRaw === "string" ? preparedAtRaw : new Date())
-
-      const blob = await generateDevizPdf({
-        id: String(lucrare.id),
-        numarRaport: String((lucrare as any)?.numarRaport || ""),
-        offerNumber: Number((lucrare as any)?.devizSendCount || 0),
-        client: String(lucrare.client || ""),
-        fromCompany: "NRG Access Systems SRL",
-        products: sourceProducts.map((product: any) => ({
-          name: String(product?.name || ""),
-          quantity: Number(product?.quantity || 0),
-          price: Number(product?.price || 0),
-        })),
-        offerVAT: Number((lucrare as any)?.devizVAT || 0),
-        adjustmentPercent: Number((lucrare as any)?.devizAdjustmentPercent || 0),
-        preparedBy: String((lucrare as any)?.devizPreparedBy || (lucrare as any)?.preluatDe || userData?.displayName || userData?.email || ""),
-        preparedAt,
-        beneficiar: {
-          name: String((lucrare as any)?.client || clientData?.nume || clientData?.name || ""),
-          cui: String((lucrare as any)?.clientInfo?.cui || clientData?.cui || clientData?.cif || ""),
-          reg: String((lucrare as any)?.clientInfo?.rc || clientData?.regCom || ""),
-          address: String((lucrare as any)?.clientInfo?.adresa || clientData?.adresa || ""),
-        },
-        ...documentClientPdfFields((lucrare as any)?.devizClientSnapshot),
-      } as any)
-
-      const blobUrl = URL.createObjectURL(blob)
-      window.open(blobUrl, "_blank")
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
-    } catch (error) {
-      console.error("Eroare la regenerarea devizului:", error)
-      if (openLegacy()) return
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut regenera PDF-ul de deviz.",
-        variant: "destructive",
-      })
-    }
-  }, [lucrare, clientData, userData])
 
   // Verifică lucrările active pe același echipament (inclusiv lucrarea curentă),
   // pentru a clarifica blocajul la creare reintervenție.
@@ -4156,21 +4086,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                         </Button>
                       </div>
 
-                      {(Array.isArray((lucrare as any)?.devizProducts) && (lucrare as any)?.devizProducts.length > 0) ||
-                      (lucrare as any)?.devizDocument?.url ? (
-                        <div>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="bg-slate-700 text-white hover:bg-slate-800"
-                            onClick={() => {
-                              void openDevizPdf()
-                            }}
-                          >
-                            Vizualizează deviz (PDF)
-                          </Button>
-                        </div>
-                      ) : null}
                     </div>
                   </div>
                 )}

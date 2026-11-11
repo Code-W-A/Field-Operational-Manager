@@ -12,12 +12,14 @@ import { updateLucrare, getLucrareById, getClientById, addUserLogEntry } from "@
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/hooks/use-toast"
 import { useTargetValue } from "@/hooks/use-settings"
-import { generateDevizPdf } from "@/lib/utils/offer-pdf"
+import { Download } from "lucide-react"
+import { generateDevizPdf, devizPdfFileName, type OfferPdfInput } from "@/lib/utils/offer-pdf"
 import { buildAutoDevizProducts } from "@/lib/deviz/auto-deviz"
 import { loadWorkDocumentRecipient } from "@/lib/work-documents/recipient"
 import { DEFAULT_OFFER_VAT_PERCENT, getDefaultOfferVatPercent } from "@/lib/settings/offer-vat"
 import {
   blobToBase64,
+  triggerBlobDownload,
   formatPreparedDate,
   resolveRecipientEmailForLocation,
 } from "@/lib/work-documents/shared"
@@ -57,6 +59,7 @@ export function DevizEditorDialog({
   const [versions, setVersions] = useState<DevizVersion[]>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [isPickedUp, setIsPickedUp] = useState(true)
   const [currentWork, setCurrentWork] = useState<any>(null)
   const [clientData, setClientData] = useState<any>(null)
@@ -219,6 +222,58 @@ export function DevizEditorDialog({
     }
   }
 
+  const buildPdfInput = (documentWork: any, documentProducts: ProductItem[], number: number): OfferPdfInput => ({
+    id: String(lucrareId),
+    numarRaport: String((documentWork as any)?.numarRaport || ""),
+    offerNumber: number,
+    client: documentWork?.client || "",
+    attentionTo: documentWork?.persoanaContact || "",
+    fromCompany: "NRG Access Systems SRL",
+    products: documentProducts.map((product: any) => ({
+      name: product?.name || "",
+      quantity: Number(product?.quantity || 0),
+      price: Number(product?.price || 0),
+    })),
+    offerVAT: Number(vatPercent) || 0,
+    adjustmentPercent: Number(adjustmentPercent) || 0,
+    equipmentName: String((documentWork as any)?.echipament || ""),
+    locationName: String((documentWork as any)?.locatie || ""),
+    preparedBy: String((documentWork as any)?.preluatDe || userData?.displayName || userData?.email || ""),
+    preparedAt: formatPreparedDate(new Date()),
+    beneficiar: {
+      name: String((documentWork as any)?.client || (documentWork as any)?.clientInfo?.nume || ""),
+      cui: String((documentWork as any)?.clientInfo?.cui || ""),
+      reg: String((documentWork as any)?.clientInfo?.rc || ""),
+      address: String((documentWork as any)?.clientInfo?.adresa || ""),
+    },
+  })
+
+  const handleDownloadDeviz = async () => {
+    try {
+      setDownloading(true)
+      const freshWork = await getLucrareById(lucrareId, { serverOnly: true })
+      if (!freshWork) throw new Error("Tichetul nu mai este disponibil.")
+      const latestVersion = versions[versions.length - 1]
+      const clientSnapshot = freshWork.devizClientSnapshot || latestVersion?.clientSnapshot ||
+        (latestVersion ? null : await loadDocumentClientSnapshot(freshWork))
+      const documentWork = withDocumentClientSnapshot(freshWork, clientSnapshot)
+      const input = buildPdfInput(documentWork, products, Math.max(1, Number(freshWork.devizSendCount) || 0))
+      if (!products.length) {
+        const legacyUrl = String(freshWork.devizDocument?.url || "").trim()
+        if (!legacyUrl) throw new Error("Adăugați cel puțin un produs în deviz.")
+        const response = await fetch(`/api/download?lucrareId=${encodeURIComponent(lucrareId)}&type=deviz&url=${encodeURIComponent(legacyUrl)}`)
+        if (!response.ok) throw new Error("Nu s-a putut descărca devizul.")
+        triggerBlobDownload(await response.blob(), devizPdfFileName(input))
+      } else {
+        triggerBlobDownload(await generateDevizPdf(input), devizPdfFileName(input))
+      }
+    } catch (error) {
+      toast({ title: "Eroare descărcare", description: error instanceof Error ? error.message : "Nu s-a putut genera PDF-ul.", variant: "destructive" })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const handleSendDeviz = async () => {
     try {
       setSaving(true)
@@ -234,34 +289,9 @@ export function DevizEditorDialog({
 
       const clientSnapshot = latestVersion.clientSnapshot || null
       const documentWork = withDocumentClientSnapshot(freshWork, clientSnapshot)
-      const preparedAt = formatPreparedDate(new Date())
-      const blob = await generateDevizPdf({
-        id: String(lucrareId),
-        numarRaport: String((documentWork as any)?.numarRaport || ""),
-        offerNumber: Number((documentWork as any)?.devizSendCount || 0) + 1,
-        client: documentWork?.client || "",
-        attentionTo: documentWork?.persoanaContact || "",
-        fromCompany: "NRG Access Systems SRL",
-        products: latestVersion.products.map((product: any) => ({
-          name: product?.name || "",
-          quantity: Number(product?.quantity || 0),
-          price: Number(product?.price || 0),
-        })),
-        offerVAT: Number(vatPercent) || 0,
-        adjustmentPercent: Number(adjustmentPercent) || 0,
-        equipmentName: String((documentWork as any)?.echipament || ""),
-        locationName: String((documentWork as any)?.locatie || ""),
-        preparedBy: String((documentWork as any)?.preluatDe || userData?.displayName || userData?.email || ""),
-        preparedAt,
-        beneficiar: {
-          name: String((documentWork as any)?.client || (documentWork as any)?.clientInfo?.nume || ""),
-          cui: String((documentWork as any)?.clientInfo?.cui || ""),
-          reg: String((documentWork as any)?.clientInfo?.rc || ""),
-          address: String((documentWork as any)?.clientInfo?.adresa || ""),
-        },
-      } as any)
-
-      const fileName = `deviz_${String((freshWork as any)?.numarRaport || lucrareId)}.pdf`
+      const input = buildPdfInput(documentWork, latestVersion.products, Number(documentWork?.devizSendCount || 0) + 1)
+      const blob = await generateDevizPdf(input)
+      const fileName = devizPdfFileName(input)
       const attachmentBase64 = await blobToBase64(blob)
       const sentAtIso = new Date().toISOString()
       const subject = `Deviz pentru tichetul ${freshWork?.numarRaport || freshWork?.id || lucrareId}`
@@ -372,7 +402,7 @@ export function DevizEditorDialog({
             <ProductTableForm
               products={products}
               onProductsChange={setProducts}
-              disabled={!isPickedUp || saving}
+              disabled={!isPickedUp || saving || downloading}
               allowDecimalQuantity
             />
 
@@ -423,7 +453,7 @@ export function DevizEditorDialog({
                       setAdjustmentInput(String(safeValue))
                     }}
                     className="w-full border rounded px-2 py-1 text-sm bg-white"
-                    disabled={!isPickedUp || saving}
+                    disabled={!isPickedUp || saving || downloading}
                   />
                 </div>
               </div>
@@ -458,19 +488,28 @@ export function DevizEditorDialog({
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {!isPickedUp && (
                 <span className="text-xs text-muted-foreground mr-auto">
                   Editorul este disponibil după preluarea tichetului de către dispecer.
                 </span>
               )}
-              <Button onClick={handleSave} disabled={saving || products.length === 0 || !isPickedUp}>
+              <Button onClick={handleSave} disabled={saving || downloading || products.length === 0 || !isPickedUp}>
                 {saving ? "Se salvează..." : "Salvează"}
               </Button>
-              <Button onClick={handleSendDeviz} disabled={saving || !canSendDeviz || !isPickedUp}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDownloadDeviz}
+                disabled={saving || downloading || (!products.length && !currentWork?.devizDocument?.url)}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {downloading ? "Se generează..." : "Descarcă deviz PDF"}
+              </Button>
+              <Button onClick={handleSendDeviz} disabled={saving || downloading || !canSendDeviz || !isPickedUp}>
                 Trimite deviz
               </Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || downloading}>
                 Închide
               </Button>
             </div>
@@ -493,7 +532,7 @@ export function DevizEditorDialog({
                         <Button size="sm" variant="outline" onClick={() => setViewIndex(index)}>
                           Vizualizează
                         </Button>
-                        <Button size="sm" onClick={() => handleRestore(index)} disabled={saving}>
+                        <Button size="sm" onClick={() => handleRestore(index)} disabled={saving || downloading}>
                           Restaurează
                         </Button>
                       </div>

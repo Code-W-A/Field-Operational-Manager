@@ -509,9 +509,9 @@ async function generateDevizDocumentPdf(input: OfferPdfInput): Promise<Blob> {
 
   y += 6 + Math.max(prestatorLines.length, 1) * 5 + 20
 
-  doc.setFont("NotoSans", "bold").setFontSize(11)
+  doc.setFont("NotoSans", "normal").setFontSize(11)
   const intro = normalizeForPdf(
-    `In urma interventiei efectuate conform tichetului ${displayWorkId} va facem cunoscut mai jos devizul de reparatii si detalierea costurilor:`,
+    `În urma intervenției efectuate la locația ${input.locationName || "-"}, echipamentul ${input.equipmentName || "-"}, conform tichetului ${displayWorkId} vă facem cunoscut mai jos devizul de reparații și detalierea costurilor:`,
   )
   const introLines = doc.splitTextToSize(intro, W - 4)
   introLines.forEach((line: string) => {
@@ -611,6 +611,15 @@ async function generateDevizDocumentPdf(input: OfferPdfInput): Promise<Blob> {
 // Generate Offer PDF as Blob using a clean layout
 export async function generateOfferPdf(input: OfferPdfInput): Promise<Blob> {
   return generatePricingDocumentPdf({ ...input, documentType: "offer" })
+}
+
+export function devizPdfFileName(input: OfferPdfInput): string {
+  const clean = (value: string) => value.replace(/[<>:"/\\|?*\x00-\x1f]/g, " ").replace(/\s+/g, " ").trim()
+  const client = clean(input.beneficiar?.name || input.client || "Client")
+  const location = clean(input.locationName || "Locație")
+  const equipment = clean(input.equipmentName || "Echipament")
+  const number = clean(`${input.numarRaport || input.id}-${Math.max(1, Number(input.offerNumber) || 0)}`)
+  return `Deviz ${client} ${location} ${equipment} - ${number}.pdf`
 }
 
 export async function generateDevizPdf(input: OfferPdfInput): Promise<Blob> {

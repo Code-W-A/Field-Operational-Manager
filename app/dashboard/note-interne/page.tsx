@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import dynamic from "next/dynamic"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -16,12 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
@@ -29,7 +22,9 @@ import {
   Plus, 
   Edit3, 
   Trash2, 
-  MoreVertical, 
+  ChevronRight,
+  ChevronDown,
+  FileText,
   Search, 
   User,
   StickyNote,
@@ -43,8 +38,6 @@ import {
   updateDoc, 
   deleteDoc, 
   doc, 
-  query, 
-  orderBy, 
   onSnapshot,
   serverTimestamp,
   deleteField,
@@ -64,7 +57,6 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 import {
-  stripHtml,
   isRichContentEmpty,
   plainTextLengthFromHtml,
   isProbablyRichHtml,
@@ -88,6 +80,8 @@ const MAX_PROCEDURE_CONTENT_PLAIN_CHARS = 20000
 const procedureRichHtmlViewClass =
   "text-sm text-gray-600 leading-relaxed break-words [&_p]:mb-1 last:[&_p]:mb-0 [&_strong]:font-semibold [&_b]:font-semibold [&_em]:italic [&_i]:italic [&_u]:underline [&_s]:line-through [&_strike]:line-through [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc [&_ul]:pl-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_ol]:pl-1 [&_li]:my-0.5"
 
+import { buildProcedureTree, procedureMatches } from "@/lib/note-interne/procedure-tree"
+
 import type { ProcedureNote } from "@/packages/fom-domain/procedures";
 type Note = ProcedureNote<Timestamp>;
 
@@ -108,6 +102,7 @@ const categoryLabels = {
 export default function NoteInternePage() {
   const { userData } = useAuth()
   const canManageProcedures = userData?.role === "admin"
+  const canViewProcedures = Boolean(userData && ["admin", "dispecer", "tehnician"].includes(userData.role))
 
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,8 +111,22 @@ export default function NoteInternePage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [parentId, setParentId] = useState<string | null>(null)
+  const tree = useMemo(() => buildProcedureTree(notes), [notes])
+  const matches = useMemo(() => notes.filter(note => procedureMatches(note, searchTerm, selectedCategory)), [notes, searchTerm, selectedCategory])
+  const filtering = searchTerm.trim() !== "" || selectedCategory !== "all"
+  const visibleIds = new Set(matches.flatMap(note => [note.id, ...tree.ancestors(note.id)]))
+  const selectedNote = notes.find(note => note.id === selectedId && visibleIds.has(note.id)) ?? matches[0] ?? null
+  const excludedParents = editingNote ? new Set([editingNote.id, ...tree.descendants(editingNote.id)]) : new Set<string>()
+  const parentOptions = notes.filter(note => !excludedParents.has(note.id))
+  const validParent = !parentId || (tree.byId.has(parentId) && !excludedParents.has(parentId))
+
+  const selectNote = (id: string) => {
+    setSelectedId(id)
+    setExpandedIds(previous => new Set([...previous, id, ...tree.ancestors(id)]))
+  }
 
   // Form state
   const [title, setTitle] = useState("")
@@ -129,11 +138,18 @@ export default function NoteInternePage() {
   const [initialFormState, setInitialFormState] = useState({
     title: "",
     content: "",
+    parentId: null as string | null,
     category: "general" as "general" | "urgent" | "info" | "task"
   })
 
   // Load notes from Firestore
   useEffect(() => {
+    if (!canViewProcedures) {
+      setNotes([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
     const notesRef = collection(db, "note-interne")
 
     const unsubscribe = onSnapshot(notesRef, (snapshot) => {
@@ -155,19 +171,21 @@ export default function NoteInternePage() {
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [userData?.uid, canViewProcedures])
 
   // Reset form function with initial state tracking
   const resetForm = () => {
     const defaultState = {
       title: "",
       content: "",
+      parentId: null as string | null,
       category: "general" as "general" | "urgent" | "info" | "task"
     }
     
     setTitle(defaultState.title)
     setContent(defaultState.content)
     setCategory(defaultState.category)
+    setParentId(null)
     setEditingNote(null)
     
     // Set initial state for comparison
@@ -176,17 +194,17 @@ export default function NoteInternePage() {
 
   // Function to check if form has unsaved changes
   const hasUnsavedChanges = () => {
-    const currentState = { title, content, category }
+    const currentState = { title, content, category, parentId }
     
     // For new notes, check if any field has content
     if (!editingNote) {
-      return title.trim() !== "" || !isRichContentEmpty(content) || category !== "general"
+      return title.trim() !== "" || !isRichContentEmpty(content) || category !== "general" || parentId !== initialFormState.parentId
     }
     
     // For existing notes, compare with initial state
     return currentState.title !== initialFormState.title ||
            currentState.content !== initialFormState.content ||
-           currentState.category !== initialFormState.category
+           currentState.category !== initialFormState.category || currentState.parentId !== initialFormState.parentId
   }
 
   // Handle dialog close attempt
@@ -221,6 +239,10 @@ export default function NoteInternePage() {
       toast({ title: "Acces restricționat", description: "Doar administratorii pot adăuga proceduri.", variant: "destructive" })
       return
     }
+    if (!validParent) {
+      toast({ title: "Părinte invalid", description: "Selectați un element principal valid.", variant: "destructive" })
+      return
+    }
     const plainLen = plainTextLengthFromHtml(content)
     if (!userData || !title.trim() || isRichContentEmpty(content)) {
       toast({
@@ -245,6 +267,7 @@ export default function NoteInternePage() {
         title: title.trim(),
         content: content.trim(),
         category,
+        parentId,
         authorId: userData.uid,
         authorName: userData.displayName || "Utilizator necunoscut",
         createdAt: serverTimestamp(),
@@ -263,6 +286,8 @@ export default function NoteInternePage() {
         description: "Procedura a fost creată cu succes.",
       })
 
+      selectNote(docRef.id)
+      if (parentId) setExpandedIds(previous => new Set([...previous, parentId, ...tree.ancestors(parentId)]))
       resetForm()
       setIsDialogOpen(false)
     } catch (error) {
@@ -281,6 +306,10 @@ export default function NoteInternePage() {
   const handleEditNote = async () => {
     if (!canManageProcedures) {
       toast({ title: "Acces restricționat", description: "Doar administratorii pot modifica proceduri.", variant: "destructive" })
+      return
+    }
+    if (!validParent) {
+      toast({ title: "Părinte invalid", description: "Selectați un element principal valid.", variant: "destructive" })
       return
     }
     const plainLen = plainTextLengthFromHtml(content)
@@ -307,6 +336,7 @@ export default function NoteInternePage() {
         title: title.trim(),
         content: content.trim(),
         category,
+        parentId,
         priority: deleteField(),
         updatedAt: serverTimestamp()
       })
@@ -328,7 +358,7 @@ export default function NoteInternePage() {
         description: "Procedura a fost actualizată cu succes.",
       })
 
-      // Keep dialog open after save to show updated content
+      if (parentId) setExpandedIds(previous => new Set([...previous, parentId, ...tree.ancestors(parentId)]))
 
       resetForm()
       setIsDialogOpen(false)
@@ -350,6 +380,11 @@ export default function NoteInternePage() {
       toast({ title: "Acces restricționat", description: "Doar administratorii pot șterge proceduri.", variant: "destructive" })
       return
     }
+    if (isCreating) return
+    if (notes.some(note => note.parentId === noteId)) {
+      toast({ title: "Procedura are subelemente", description: "Mutați sau ștergeți subelementele înainte de a șterge această procedură.", variant: "destructive" })
+      return
+    }
     const confirmed = window.confirm("Sunteți sigur că doriți să ștergeți această procedură?")
     if (!confirmed) return
 
@@ -361,6 +396,7 @@ export default function NoteInternePage() {
         categorie: "Proceduri",
       })
       await deleteDoc(doc(db, "note-interne", noteId))
+      handleDialogClose()
       toast({
         title: "Succes",
         description: "Procedura a fost ștearsă cu succes.",
@@ -375,97 +411,35 @@ export default function NoteInternePage() {
     }
   }
 
-  // Open edit dialog (for edit button in dropdown)
+  // Open the administrator editor
   const openEditDialog = (note: Note) => {
+    if (!canManageProcedures) return
     setEditingNote(note)
     setTitle(note.title)
     setContent(note.content)
     setCategory(note.category)
+    setParentId(note.parentId ?? null)
     
     // Set initial state for comparison
     setInitialFormState({
       title: note.title,
       content: note.content,
+      parentId: note.parentId ?? null,
       category: note.category
     })
     
     setIsDialogOpen(true)
   }
 
-  // Open create dialog
-  const openCreateDialog = () => {
+  const openCreateDialog = (newParentId: string | null = null) => {
     if (!canManageProcedures) return
     resetForm()
+    setParentId(newParentId)
+    setInitialFormState(previous => ({ ...previous, parentId: newParentId }))
     setIsDialogOpen(true)
   }
 
-  // Open unified dialog (now used when clicking on card)
-  const openViewDialog = (note: Note) => {
-    setEditingNote(note)
-    setTitle(note.title)
-    setContent(note.content)
-    setCategory(note.category)
-    setInitialFormState({
-      title: note.title,
-      content: note.content,
-      category: note.category,
-    })
-    setIsDialogOpen(true)
-  }
-
-  // Calculate optimal width for a card based on content line lengths
-  const getCardWidth = (note: Note) => {
-    // Analyze title line length
-    const titleLines = note.title.split('\n').filter(line => line.trim().length > 0)
-    const maxTitleLineLength = titleLines.length > 0 ? Math.max(...titleLines.map(line => line.length)) : 0
-    
-    // Analyze content line lengths
-    const contentPlain = stripHtml(note.content)
-    const contentLines = contentPlain.split('\n').filter(line => line.trim().length > 0)
-    const maxContentLineLength = contentLines.length > 0 ? Math.max(...contentLines.map(line => line.length)) : 0
-    
-    // Take the longest line from either title or content
-    const maxLineLength = Math.max(maxTitleLineLength, maxContentLineLength)
-    
-    // Calculate width based on longest line (considering font size and padding)
-    if (maxLineLength <= 15) return "min-w-60 max-w-72"      // Very short lines
-    if (maxLineLength <= 25) return "min-w-72 max-w-80"      // Short lines  
-    if (maxLineLength <= 40) return "min-w-80 max-w-96"      // Medium lines
-    if (maxLineLength <= 60) return "min-w-96 max-w-lg"      // Long lines
-    if (maxLineLength <= 80) return "min-w-lg max-w-xl"      // Very long lines
-    return "min-w-xl max-w-2xl"                              // Extremely long lines
-  }
-
-  // Filter and sort notes (newest first)
-  const filteredNotes = notes
-    .filter(note => {
-      const contentPlain = stripHtml(note.content)
-      const matchesSearch = note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           contentPlain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           note.authorName.toLowerCase().includes(searchTerm.toLowerCase())
-      
-      const matchesCategory = selectedCategory === "all" || note.category === selectedCategory
-
-      return matchesSearch && matchesCategory
-    })
-    .sort((a, b) => {
-      // Ensure newest notes appear first (descending order)
-      if (!a.createdAt || !b.createdAt) return 0
-      return b.createdAt.toMillis() - a.createdAt.toMillis()
-    })
-
-  // Pagination
-  const totalPages = Math.ceil(filteredNotes.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedNotes = filteredNotes.slice(startIndex, endIndex)
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, selectedCategory])
-
-  if (userData?.role === "client") {
+  if (userData && !canViewProcedures) {
     return (
       <DashboardShell>
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
@@ -507,7 +481,7 @@ export default function NoteInternePage() {
     }
   }
 
-  if (loading) {
+  if (loading || !userData) {
     return (
       <DashboardShell>
         <div className="flex justify-center items-center py-12">
@@ -531,7 +505,7 @@ export default function NoteInternePage() {
         }
       >
         {canManageProcedures ? (
-          <Button onClick={openCreateDialog}>
+          <Button onClick={() => openCreateDialog()}>
             <Plus className="mr-2 h-4 w-4" />
             Procedură nouă
           </Button>
@@ -543,14 +517,15 @@ export default function NoteInternePage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Căutați proceduri..."
+            aria-label="Caută în toate procedurile"
+            placeholder="Caută în toate titlurile și în conținut..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setSelectedId(null) }}
             className="pl-10"
           />
         </div>
 
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+        <Select value={selectedCategory} onValueChange={value => { setSelectedCategory(value); setSelectedId(null) }}>
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Categorie" />
           </SelectTrigger>
@@ -564,151 +539,61 @@ export default function NoteInternePage() {
         </Select>
       </div>
 
-      {/* Notes Grid */}
-      {filteredNotes.length === 0 ? (
-        <Card className="p-8 text-center">
-          <StickyNote className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Nu există proceduri</h3>
-          <p className="text-gray-500 mb-4">
-            {notes.length === 0
-              ? canManageProcedures
-                ? "Creați prima procedură pentru a începe."
-                : "Nu au fost încă publicate proceduri."
-              : "Nu s-au găsit proceduri care să corespundă criteriilor de filtrare."}
-          </p>
-          {notes.length === 0 && canManageProcedures ? (
-            <Button onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Adaugă prima procedură
-            </Button>
-          ) : null}
-        </Card>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-4 items-start justify-start max-w-full overflow-hidden">
-            {paginatedNotes.map((note) => (
-            <Card key={note.id} className={`group hover:shadow-md transition-shadow cursor-pointer h-auto flex-shrink-0 w-fit ${getCardWidth(note)}`} onClick={() => openViewDialog(note)}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0 mr-2">
-                    <CardTitle className="text-base group-hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap break-words">
-                      {note.title}
-                    </CardTitle>
-                  </div>
-                  {canManageProcedures ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openEditDialog(note)
-                          }}
-                        >
-                          <Edit3 className="mr-2 h-4 w-4" />
-                          Editează
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteNote(note.id)
-                          }}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Șterge
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
-                </div>
-                
-                <div className="flex gap-2 mt-2">
-                  <Badge className={`text-xs ${categoryColors[note.category]}`}>
-                    {categoryLabels[note.category]}
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent className="pt-0">
-                {isProbablyRichHtml(note.content) ? (
-                  <div
-                    className={`mb-4 ${procedureRichHtmlViewClass}`}
-                    dangerouslySetInnerHTML={{ __html: note.content }}
-                  />
-                ) : (
-                  <p className="text-sm text-gray-600 mb-4 whitespace-pre-wrap leading-relaxed break-words">
-                    {note.content}
-                  </p>
-                )}
-                
-                <div className="flex items-center justify-between text-xs text-gray-500 gap-2">
-                  <div className="flex items-center min-w-0 flex-1">
-                    <User className="mr-1 h-3 w-3 flex-shrink-0" />
-                    <span className="truncate">{note.authorName}</span>
-                  </div>
-                  <div className="flex items-center flex-shrink-0">
-                    <Clock className="mr-1 h-3 w-3" />
-                    <span>{formatDate(note.createdAt)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      <div className="grid min-h-[560px] grid-cols-1 rounded-lg border bg-background lg:grid-cols-[320px_minmax(0,1fr)]">
+        <nav aria-label="Cuprins proceduri" className="min-w-0 border-b p-4 lg:border-b-0 lg:border-r">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="font-semibold">Cuprins</h2>
+            <span className="text-xs text-muted-foreground" role="status">{matches.length} proceduri{filtering ? " găsite" : ""}</span>
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6">
-              <div className="text-sm text-gray-500">
-                Afișare {startIndex + 1}-{Math.min(endIndex, filteredNotes.length)} din {filteredNotes.length} proceduri
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                >
-                  Anterior
-                </Button>
-                
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(page)}
-                      className="w-8 h-8 p-0"
-                    >
-                      {page}
-                    </Button>
-                  ))}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                >
-                  Următor
-                </Button>
-              </div>
+          <div className="max-h-[40vh] overflow-auto lg:max-h-[70vh]">
+            {(() => {
+              const renderBranch = (parent: string | null): React.ReactNode => (
+                <ul className={parent ? "ml-3 border-l pl-2" : "space-y-1"}>
+                  {(tree.children.get(parent) ?? []).filter(note => visibleIds.has(note.id)).map(note => {
+                    const hasChildren = (tree.children.get(note.id) ?? []).some(child => visibleIds.has(child.id))
+                    const expanded = filtering || expandedIds.has(note.id)
+                    return <li key={note.id}>
+                      <div className={`flex items-center rounded-md ${selectedNote?.id === note.id ? "bg-blue-50 text-blue-800" : "hover:bg-muted"}`}>
+                        {hasChildren ? <button type="button" className="shrink-0 rounded p-1.5 focus-visible:ring-2 disabled:opacity-60" disabled={filtering} title={filtering ? "Rezultatele sunt extinse automat" : undefined} aria-label={`${expanded ? "Restrânge" : "Extinde"} ${note.title}`} aria-expanded={expanded}
+                          onClick={() => setExpandedIds(previous => { const next = new Set(previous); if (next.has(note.id)) next.delete(note.id); else next.add(note.id); return next })}>
+                          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button> : <FileText className="mx-1.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+                        <button type="button" aria-current={selectedNote?.id === note.id ? "page" : undefined} className="min-w-0 flex-1 rounded px-1 py-2 text-left text-sm break-words focus-visible:ring-2" onClick={() => selectNote(note.id)}>{note.title}</button>
+                      </div>
+                      {hasChildren && expanded ? renderBranch(note.id) : null}
+                    </li>
+                  })}
+                </ul>
+              )
+              return renderBranch(null)
+            })()}
+          </div>
+          {matches.length === 0 && <p className="py-4 text-sm text-muted-foreground">{notes.length ? "Nicio procedură nu corespunde căutării." : "Nu au fost încă publicate proceduri."}</p>}
+        </nav>
+        <article aria-label="Conținut procedură" className="min-w-0 p-5 sm:p-8">
+          {selectedNote ? <>
+            <div className="mb-4 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              {tree.ancestors(selectedNote.id).map(id => <span key={id} className="flex items-center gap-1"><button type="button" className="hover:underline" onClick={() => selectNote(id)}>{tree.byId.get(id)?.title}</button><ChevronRight className="h-3 w-3" /></span>)}
+              <span>{selectedNote.title}</span>
             </div>
-          )}
-        </>
-      )}
+            <div className="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-5 sm:flex-row sm:flex-wrap">
+              <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+                <h1 className="mb-3 break-words text-2xl font-semibold">{selectedNote.title}</h1>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <Badge className={categoryColors[selectedNote.category]}>{categoryLabels[selectedNote.category]}</Badge>
+                  <span>{selectedNote.authorName}</span>
+                  <span>Actualizat: {formatDate(selectedNote.updatedAt ?? selectedNote.createdAt)}</span>
+                </div>
+              </div>
+              {canManageProcedures && <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => openCreateDialog(selectedNote.id)}><Plus className="mr-2 h-4 w-4" />Subelement nou</Button>
+                <Button size="sm" variant="outline" onClick={() => openEditDialog(selectedNote)}><Edit3 className="mr-2 h-4 w-4" />Editează</Button>
+              </div>}
+            </div>
+            {isProbablyRichHtml(selectedNote.content) ? <div className={procedureRichHtmlViewClass} dangerouslySetInnerHTML={{ __html: selectedNote.content }} /> : <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{selectedNote.content}</p>}
+          </> : <div className="py-16 text-center text-muted-foreground"><StickyNote className="mx-auto mb-4 h-10 w-10" /><h2 className="mb-2 text-lg font-medium">{notes.length ? "Niciun rezultat" : "Nu există proceduri"}</h2><p>{notes.length ? "Căutarea verifică toate procedurile, inclusiv conținutul subelementelor." : "Procedurile publicate vor apărea aici."}</p></div>}
+        </article>
+      </div>
 
       {/* Unified View/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -774,6 +659,15 @@ export default function NoteInternePage() {
                     </p>
                   </>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="procedure-parent">Element principal</Label>
+                <select id="procedure-parent" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={parentId ?? ""} onChange={event => setParentId(event.target.value || null)} disabled={isCreating}>
+                  <option value="">La rădăcină (element principal)</option>
+                  {parentOptions.map(note => <option key={note.id} value={note.id}>{[...tree.ancestors(note.id).map(id => tree.byId.get(id)?.title), note.title].join(" / ")}</option>)}
+                </select>
+                <p className="text-xs text-muted-foreground">Alegeți un părinte pentru un subelement sau rădăcina pentru un element principal.</p>
               </div>
 
               <div className="space-y-2 max-w-md">
@@ -859,9 +753,9 @@ export default function NoteInternePage() {
                   {editingNote && canManageProcedures ? (
                     <Button
                       variant="destructive"
+                      disabled={isCreating}
                       onClick={() => {
-                        handleDeleteNote(editingNote.id)
-                        setIsDialogOpen(false)
+                        void handleDeleteNote(editingNote.id)
                       }}
                       className="w-full sm:w-auto"
                     >
@@ -880,6 +774,7 @@ export default function NoteInternePage() {
                     onClick={editingNote ? handleEditNote : handleCreateNote}
                     disabled={
                       isCreating ||
+                      !validParent ||
                       !title.trim() ||
                       isRichContentEmpty(content) ||
                       plainTextLengthFromHtml(content) > MAX_PROCEDURE_CONTENT_PLAIN_CHARS
