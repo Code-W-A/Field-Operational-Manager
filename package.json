@@ -90,6 +90,7 @@
     "test:saga": "tsx --test lib/saga/saga.test.ts lib/saga/catalog.test.ts",
     "test:invoice-user-numbering:integration": "tsx scripts/test-user-invoice-numbering.ts",
     "test:invoice-numbering": "tsx --test lib/invoicing/numbering.test.ts",
+    "test:invoice-compact-summaries": "tsx scripts/test-invoice-compact-summaries.ts",
     "test:invoice-numbering:integration": "tsx scripts/test-invoice-numbering.ts",
     "test:saga:clients": "tsx --test lib/saga/clients.test.ts",
     "test:saga:clients:integration": "tsx scripts/test-saga-clients.ts",
@@ -101,7 +102,8 @@
     "test:invoice-xml:integration": "tsx scripts/test-invoice-xml.ts",
     "test:invoice-saga": "tsx --test lib/invoicing/saga-transfer.test.ts firebase-functions/src/saga-dispatch.test.ts",
     "test:invoice-saga:integration": "tsx scripts/test-invoice-saga.ts",
-    "test:invoice-saga:live": "tsx scripts/test-saga-live-import.ts"
+    "test:invoice-saga:live": "tsx scripts/test-saga-live-import.ts",
+    "saga:worker:local": "tsx scripts/saga-local-worker.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

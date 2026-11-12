@@ -671,7 +671,7 @@ async function main() {
       .click();
     const panel = page.getByRole("dialog", { name: "Ciorna facturii" }),
       estimate = page.getByRole("region", { name: "Numărul facturii" });
-    await expect(estimate).toContainText("Număr estimat — nerezervat");
+    await expect(estimate).toContainText("Număr factură");
     await expect(estimate).toContainText("NRG000126");
     await page
       .getByRole("button", { name: "Salvează ciorna", exact: true })
@@ -701,7 +701,7 @@ async function main() {
       .getByRole("button", { name: "Continuă ciorna", exact: true })
       .last()
       .click();
-    await expect(estimate).toContainText("nerezervat");
+    await expect(estimate).toHaveText("Număr factură · NRG000126");
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await expect

@@ -4,6 +4,7 @@ import {
   InvoiceCommercialActivation,
 } from "./invoice-saga-article";
 
+import { InvoiceHeaderFields, InvoiceProductFields } from "./invoice-fields";
 import { InvoiceEurRate } from "./invoice-eur-rate";
 import type { EurReference } from "@/lib/invoicing/eur-rate";
 
@@ -99,6 +100,15 @@ export function InvoiceDraftSection({
   const [response, setResponse] = useState<InvoiceDraftResponse | null>(null);
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
   const [baseline, setBaseline] = useState<InvoiceDraft | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [productsVisited, setProductsVisited] = useState(false);
+  useEffect(() => {
+    if (step === 2) setProductsVisited(true);
+  }, [step]);
+  useEffect(() => {
+    setStep(1);
+    setProductsVisited(false);
+  }, [workId, user?.uid]);
   const [open, setOpen] = useState(false),
     [minimized, setMinimized] = useState(false);
   const [loading, setLoading] = useState(true),
@@ -181,6 +191,7 @@ export function InvoiceDraftSection({
     // A closed, clean editor starts with the latest saved draft/source data.
     // Restoring a minimized editor always keeps the current local values.
     if (open || dirty || (await load())) {
+      if (!open) setStep(1);
       setOpen(true);
       setMinimized(false);
     }
@@ -360,7 +371,7 @@ export function InvoiceDraftSection({
     }
   }
   const panelContent =
-    open && draft && !minimized ? (
+    open && draft ? (
       <section
         ref={panel}
         role="dialog"
@@ -369,15 +380,16 @@ export function InvoiceDraftSection({
         tabIndex={-1}
         data-testid="invoice-panel"
         className={`${narrow ? "relative mt-4 w-full" : "fixed z-[90] max-h-[calc(100dvh-24px)] w-[840px] max-w-[calc(100vw-32px)]"} flex flex-col overflow-hidden rounded-xl border border-slate-300 bg-white text-slate-950 shadow-2xl outline-none`}
-        style={
-          narrow
-            ? undefined
+        style={{
+          ...(narrow
+            ? {}
             : {
                 left: position.x,
                 top: position.y,
                 maxHeight: `calc(100dvh - ${position.y + 12}px)`,
-              }
-        }
+              }),
+          ...(minimized ? { display: "none" } : {}),
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.stopPropagation();
@@ -574,201 +586,192 @@ export function InvoiceDraftSection({
               </div>
             </details>
           )}
-          <div className="rounded-md bg-slate-50 p-3 text-sm">
-            <p className="font-medium">
-              {draft.references.workType} ·{" "}
-              {invoiceSourceLabel(draft.source.kind)}
-            </p>
-            <p>
-              {[draft.references.location, draft.references.locationAddress]
-                .filter(Boolean)
-                .join(" — ")}
-            </p>
-            <p>
-              {[
-                draft.references.contact,
-                draft.references.phone,
-                draft.references.email,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            {draft.references.contract && (
-              <p>Contract: {draft.references.contract}</p>
-            )}
-            {!!draft.references.equipment.length && (
-              <p>Echipamente: {draft.references.equipment.join(", ")}</p>
-            )}
-            {draft.references.description && (
-              <p className="mt-1 whitespace-pre-wrap">
-                {draft.references.description}
-              </p>
-            )}
-            {draft.references.author && (
-              <p className="mt-1 text-xs text-slate-500">
-                Autor tichet: {draft.references.author}
-              </p>
-            )}
-          </div>
-          {!!draft.source.issues.length && (
-            <div className="space-y-1 rounded-md bg-amber-50 p-3 text-sm">
-              {draft.source.issues.map((issue, i) => (
-                <p key={i}>{issue}</p>
-              ))}
-            </div>
-          )}
-          <InvoiceNumberEstimate
-            key={`number:${workId}:${user?.uid}:${readOnly}`}
-            workId={workId}
-          />
-          <InvoiceClientAssociation
-            commercial={!!draft.commercial || response?.commercialPolicy}
-            key={`${workId}:${user?.uid}`}
-            workId={workId}
-            beneficiaryCui={draft.beneficiary.cui}
-            beneficiaryCountry={draft.beneficiary.country}
-            onCountryProposal={
-              readOnly || saving || busyAction
-                ? undefined
-                : (country) =>
-                    patch({ beneficiary: { ...draft.beneficiary, country } })
-            }
-          />
-          {!readOnly && (
-            <InvoiceCommercialActivation
-              readOnly={saving || busyAction}
-              onBusy={setBusyAction}
-              onActivated={() =>
-                setResponse((r) => (r ? { ...r, commercialPolicy: true } : r))
-              }
+          <nav
+            aria-label="Pașii facturii"
+            className="grid grid-cols-2 gap-2 text-sm"
+          >
+            <Button
+              type="button"
+              variant={step === 1 ? "default" : "outline"}
+              className="h-auto min-w-0 whitespace-normal px-2 py-2 text-xs sm:text-sm"
+              aria-current={step === 1 ? "step" : undefined}
+              disabled={saving || busyAction}
+              onClick={() => setStep(1)}
+            >
+              1. Datele facturii
+            </Button>
+            <Button
+              type="button"
+              variant={step === 2 ? "default" : "outline"}
+              className="h-auto min-w-0 whitespace-normal px-2 py-2 text-xs sm:text-sm"
+              aria-current={step === 2 ? "step" : undefined}
+              disabled={saving || busyAction}
+              onClick={() => setStep(2)}
+            >
+              2. Produse și stoc
+            </Button>
+          </nav>
+          <div hidden={step !== 1} className="space-y-3">
+            <InvoiceNumberEstimate
+              key={`number:${workId}:${user?.uid}:${readOnly}`}
+              workId={workId}
             />
-          )}
-          {(response?.commercialPolicy || draft.commercial) && (
-            <InvoiceCommercialApply
+            <InvoiceClientAssociation
+              key={`${workId}:${user?.uid}`}
+              workId={workId}
+              beneficiaryCui={draft.beneficiary.cui}
+              beneficiaryCountry={draft.beneficiary.country}
+            />
+            {!readOnly && (
+              <InvoiceCommercialActivation
+                readOnly={saving || busyAction}
+                onBusy={setBusyAction}
+                onActivated={() =>
+                  setResponse((r) => (r ? { ...r, commercialPolicy: true } : r))
+                }
+              />
+            )}
+            {response?.commercialPolicy && !draft.commercial && !readOnly && (
+              <InvoiceCommercialApply
+                draft={draft}
+                readOnly={readOnly || saving || busyAction}
+                onApplied={load}
+                onBusy={setBusyAction}
+              />
+            )}
+            <InvoiceHeaderFields
               draft={draft}
               readOnly={readOnly || saving || busyAction}
-              onApplied={load}
-              onBusy={setBusyAction}
+              onChange={patch}
             />
-          )}
-          <DraftForm
-            onBusy={setBusyAction}
-            approveDiscount={approveDiscount}
-            onApproveDiscount={setApproveDiscount}
-            draft={draft}
-            readOnly={readOnly || saving || busyAction}
-            onChange={patch}
-            prefix="invoice"
-          />
-          <InvoiceEurRate
-            workId={workId}
-            date={draft.date}
-            reference={draft.eurReference}
-            readOnly={readOnly || saving || busyAction}
-            onProposal={setEurProposal}
-            onSelect={(eurReference) => patch({ eurReference })}
-          />
-          {!readOnly && (
-            <InvoiceIssuerSettings
-              inline
-              canEdit={userData?.role === "admin"}
-              readOnly={saving || busyAction}
-              onBusy={setBusyAction}
+            <InvoiceEurRate
+              workId={workId}
+              date={draft.date}
+              reference={draft.eurReference}
+              readOnly={readOnly || saving || busyAction}
+              onProposal={setEurProposal}
+              onSelect={(eurReference) => patch({ eurReference })}
             />
-          )}
-          <InvoiceFinalizationPanel
-            key={`finalization:${workId}:${user?.uid}`}
-            workId={workId}
-            draft={draft}
-            onSaveBeforePreview={async () => {
-              if (dirty || draft.revision === 0 || !draft.eurReference)
-                return save();
-              return draft;
-            }}
-            dirty={dirty}
-            readOnly={readOnly || saving}
-            onBusy={setBusyAction}
-            onFrozen={() =>
-              setResponse((r) =>
-                r
-                  ? {
-                      ...r,
-                      canEdit: false,
-                      reason:
-                        "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată.",
-                    }
-                  : r,
-              )
-            }
-            onPrepared={async () => {
-              setResponse((r) =>
-                r
-                  ? {
-                      ...r,
-                      canEdit: false,
-                      reason:
-                        "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată.",
-                    }
-                  : r,
-              );
-              return load();
-            }}
-          />
-          {numericError && (
-            <p role="alert" className="text-sm text-red-700">
-              {numericError}
-            </p>
-          )}
-          {!numericError && totals && (
-            <div
-              className="ml-auto max-w-sm space-y-1 rounded-lg bg-slate-50 p-4 text-sm"
-              aria-live="polite"
-            >
-              <p className="flex justify-between gap-3">
-                <span>Valoare fără TVA</span>
-                <strong>{money(totals.subtotalCents)}</strong>
+            {!readOnly && (
+              <InvoiceIssuerSettings
+                inline
+                canEdit={userData?.role === "admin"}
+                readOnly={saving || busyAction}
+                onBusy={setBusyAction}
+              />
+            )}
+          </div>
+          <div hidden={step !== 2} className="space-y-3">
+            {productsVisited && (
+              <InvoiceProductFields
+                draft={draft}
+                readOnly={readOnly || saving}
+                onChange={patch}
+                onBusy={setBusyAction}
+                approveDiscount={approveDiscount}
+                disabled={busyAction}
+                onApproveDiscount={setApproveDiscount}
+              />
+            )}
+            <InvoiceFinalizationPanel
+              key={`finalization:${workId}:${user?.uid}`}
+              workId={workId}
+              draft={draft}
+              onSaveBeforePreview={async () => {
+                if (dirty || draft.revision === 0 || !draft.eurReference)
+                  return save();
+                return draft;
+              }}
+              dirty={dirty}
+              readOnly={readOnly || saving || busyAction}
+              onBusy={setBusyAction}
+              onFrozen={() =>
+                setResponse((r) =>
+                  r
+                    ? {
+                        ...r,
+                        canEdit: false,
+                        reason:
+                          "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată.",
+                      }
+                    : r,
+                )
+              }
+              onPrepared={async () => {
+                setResponse((r) =>
+                  r
+                    ? {
+                        ...r,
+                        canEdit: false,
+                        reason:
+                          "Documentul XML este pregătit în FOM. Ciorna poate fi doar consultată.",
+                      }
+                    : r,
+                );
+                return load();
+              }}
+            />
+            {numericError && (
+              <p role="alert" className="text-sm text-red-700">
+                {numericError}
               </p>
-              <p className="flex justify-between gap-3">
-                <span>Reducere</span>
-                <span>−{money(totals.discountCents)}</span>
-              </p>
-              <p className="flex justify-between gap-3">
-                <span>Bază după reducere</span>
-                <span>{money(totals.baseCents)}</span>
-              </p>
-              <p className="flex justify-between gap-3">
-                <span>TVA</span>
-                <span>{money(totals.vatCents)}</span>
-              </p>
-              {totals.vatGroups?.map((g) => (
-                <p key={g.rate}>
-                  TVA {g.rate}% · bază {money(g.baseCents)} · TVA{" "}
-                  {money(g.vatCents)}
+            )}
+            {!numericError && totals && (
+              <div
+                className="ml-auto max-w-sm space-y-1 rounded-lg bg-slate-50 p-4 text-sm"
+                aria-live="polite"
+              >
+                <p className="flex justify-between gap-3">
+                  <span>Valoare fără TVA</span>
+                  <strong>{money(totals.subtotalCents)}</strong>
                 </p>
-              ))}
-              <p className="flex justify-between gap-3 border-t pt-2 text-base">
-                <span>Total ciornă</span>
-                <strong data-testid="invoice-total">
-                  {money(totals.totalCents)}
-                </strong>
-              </p>
-              {totals.incomplete && (
-                <p className="pt-2 text-amber-800">
-                  Total parțial: unele poziții sau procente sunt necompletate.
+                {totals.discountCents > 0 && (
+                  <>
+                    <p className="flex justify-between gap-3">
+                      <span>Reducere</span>
+                      <span>−{money(totals.discountCents)}</span>
+                    </p>
+                    <p className="flex justify-between gap-3">
+                      <span>Bază după reducere</span>
+                      <span>{money(totals.baseCents)}</span>
+                    </p>
+                  </>
+                )}
+                <p className="flex justify-between gap-3">
+                  <span>TVA</span>
+                  <span>{money(totals.vatCents)}</span>
                 </p>
-              )}
-            </div>
-          )}
+                {(totals.vatGroups?.length || 0) > 1 &&
+                  totals.vatGroups?.map((g) => (
+                    <p key={g.rate}>
+                      TVA {g.rate}% · bază {money(g.baseCents)} · TVA{" "}
+                      {money(g.vatCents)}
+                    </p>
+                  ))}
+                <p className="flex justify-between gap-3 border-t pt-2 text-base">
+                  <span>Total</span>
+                  <strong data-testid="invoice-total">
+                    {money(totals.totalCents)}
+                  </strong>
+                </p>
+                {totals.incomplete && (
+                  <p className="pt-2 text-amber-800">
+                    Total parțial: unele poziții sau procente sunt necompletate.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-white p-3">
           <Button
+            type="button"
             size="sm"
             variant="outline"
-            disabled={readOnly || saving || busyAction}
-            onClick={() => setConfirm("source")}
+            disabled={saving || busyAction}
+            onClick={() => setStep(step === 1 ? 2 : 1)}
           >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reia datele din tichet
+            {step === 1 ? "Continuă la produse" : "Înapoi la datele facturii"}
           </Button>
           <Button
             size="sm"
@@ -810,9 +813,6 @@ export function InvoiceDraftSection({
                   : "Continuă ciorna"
                 : "Începe factura"}
           </Button>
-          <span className="text-xs text-slate-600">
-            Ciornă și document XML în FOM
-          </span>
         </div>
         {reason && <p className="mt-2 text-sm text-slate-600">{reason}</p>}
         {!open && error && (

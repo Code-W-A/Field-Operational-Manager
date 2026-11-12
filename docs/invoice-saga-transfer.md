@@ -137,3 +137,16 @@ Rezultate locale la 8 noiembrie 2026:
 - Firebase Functions: `tsc --noEmit --project firebase-functions/tsconfig.json` **trecut**. TypeScript Next.js păstrează erorile preexistente, cu **zero diagnostice noi** față de baza înregistrată înainte de modificări.
 - Capturi locale: `test-results/invoice-saga/` și `test-results/invoice-xml/`, ignorate de Git.
 - Configurația pentru testul practic (`SAGA_TEST_COD_FISCAL`, tichet, operator, proiect Firebase și confirmările explicite) lipsește. Scriptul live nu a fost rulat și nu au fost folosite credențialele firmei reale. Nu au fost efectuate importuri reale, publicări sau teste pe telefon fizic. **Scăderea efectivă a mărfii și validarea contabilă în SAGA rămân neconfirmate practic.**
+
+
+## Procesare locală pentru o factură — 11 noiembrie 2026
+
+`npm run saga:worker:local -- --work-id <tichet>` citește configurația Next.js locală și operațiunea existentă, fără procesare, scrieri sau apeluri SAGA. Nu afișează credențiale ori raportul upstream.
+
+Pentru simulare: `npm run saga:worker:local -- --work-id <tichet> --run`. Transportul SAGA este explicit refuzat. Pentru procesarea reală sunt obligatorii configurația reală deja activată, `--run --allow-live --confirm-fiscal <CIF> --confirm-number <numărul exact>`. Aceste argumente nu activează importurile și nu ocolesc condițiile modului test. Comanda nu creează facturi și nu convertește simulările: procesează numai operațiunea deja confirmată în FOM, în colecția modului configurat.
+
+Workerul local reutilizează serviciul persistent, lease-urile și limita ireversibilă a POST-ului. Poate rula în paralel cu dispatcherul Firebase fără a dubla importul. După întrerupere se relansează aceeași comandă; un rezultat incert/parțial rămâne pentru reconciliere. Închiderea browserului nu oprește procesul local, dar închiderea terminalului îl poate opri; operațiunea rămâne persistentă. Producția continuă să folosească Functions și recuperarea programată.
+
+Verificări efectiv executate: 20 de teste unitare pentru workerul local, conector, import/stoc și dispatcher. Preflight local pe tichetul `PiL7MIw5yCJsL4EDFl9b`: document `SIMFOM-ANDREI-26-0001`, simulare terminată; fără scrieri/apeluri SAGA. Nu au fost activate importurile reale și nu s-a verificat descărcarea efectivă în SAGA. Clientul și localitatea de test din acea simulare nu sunt date fiscale confirmate pentru emitere reală.
+
+Fișiere: `lib/invoicing/local-saga-worker.ts`, testul asociat, `scripts/saga-local-worker.ts`, comanda `saga:worker:local` din `package.json`.

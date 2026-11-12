@@ -1075,7 +1075,7 @@ async function main() {
       .click();
     const invoice = page.getByRole("dialog", { name: "Ciorna facturii" }),
       info = page.getByRole("region", { name: "Client SAGA al facturii" });
-    await expect(info).toContainText("Client CSV");
+    await expect(info).toHaveText("Firma FOM · RO123 · Asociat SAGA 00000");
     await page.getByLabel("CUI/CIF", { exact: true }).fill("456");
     await expect(info).toContainText("diferă de clientul FOM");
     await page
@@ -1239,7 +1239,14 @@ async function main() {
       .click();
     await expect(
       page.getByRole("region", { name: "Client SAGA al facturii" }),
-    ).toContainText("00974");
+    ).toContainText("diferă de clientul FOM");
+    await expect(page.getByLabel("CUI/CIF", { exact: true })).toHaveValue(
+      "456",
+    );
+    await page.getByLabel("CUI/CIF", { exact: true }).fill("RO123");
+    await expect(
+      page.getByRole("region", { name: "Client SAGA al facturii" }),
+    ).toContainText("Asociat SAGA 00974");
     assert.deepEqual(
       (await db.collection("clienti").get()).docs.map((d) => ({
         id: d.id,

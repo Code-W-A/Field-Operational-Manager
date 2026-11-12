@@ -312,6 +312,7 @@ export async function POST(request: NextRequest) {
         response: null,
         sentAt: now,
         createdById: actorId,
+        issuer: { userId: actorId, email: actorEmail.trim().toLowerCase() },
         createdAt: existingDraftSnap?.exists ? (existingDraftSnap.data()?.createdAt ?? FieldValue.serverTimestamp()) : FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       },

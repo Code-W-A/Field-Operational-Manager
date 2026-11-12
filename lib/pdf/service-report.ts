@@ -1,6 +1,7 @@
 import { normalizeWorkTimes } from "@/packages/fom-domain";
 import { jsPDF } from "jspdf";
 import { drawFooter as drawCommonFooter } from "./common";
+import { drawSignature } from "./signature";
 import {
   formatUiDate,
   toDateSafe,
@@ -805,9 +806,9 @@ export async function renderServiceReport(
   // Semnătură tehnician (mai mică)
   if (lucrareForPDF.semnaturaTehnician) {
     try {
-      doc.addImage(
+      drawSignature(
+        doc,
         lucrareForPDF.semnaturaTehnician,
-        "PNG",
         M + 2,
         currentY + 13,
         techSectionWidth - 4,
@@ -850,13 +851,14 @@ export async function renderServiceReport(
     try {
       const imgWidth = benefSectionWidth - 4;
       const imgX = rightEdge - imgWidth; // aliniere la dreapta
-      doc.addImage(
+      drawSignature(
+        doc,
         lucrareForPDF.semnaturaBeneficiar,
-        "PNG",
         imgX,
         currentY + 13,
         imgWidth,
         signatureImageHeight,
+        "right",
       );
     } catch (e) {
       console.error("Error adding client signature:", e);

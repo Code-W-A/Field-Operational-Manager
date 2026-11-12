@@ -2,21 +2,31 @@
 
 Implementare locală: **10 noiembrie 2026**. Fără publicare, activarea importurilor reale sau apeluri către firma SAGA în timpul dezvoltării/verificărilor.
 
-## Utilizare
+## Fluxul curent — 11 noiembrie 2026
 
-1. În ciorna facturii, apasă **Adaugă produs din SAGA**, introdu codul exact și apasă **Preia din SAGA** sau Enter.
-2. FOM citește denumirea, UM, TVA și `Pret_Vanzare1` prin conectorul existent. Valorile nu sunt editabile în acest formular.
-3. Pentru un articol neconfigurat, alege explicit **marfă/serviciu** și confirmă moneda **RON**. Acestea sunt confirmări ale operatorului în FOM, separate de datele furnizate de API.
-4. Pentru marfă, alege gestiunea și cantitatea. Stocul este consultat automat la selectarea gestiunii; cantitatea cumulată include liniile repetate din aceeași firmă/articol/gestiune.
-5. Apasă **Adaugă în factură**, apoi salvează ciorna. Asocierea se păstrează în FOM, fără emitere, numerotare sau transmitere în acest pas.
+Editorul flotant are doi pași, datele facturii și produsele/stocul. La deschiderea pasului de produse, FOM citește raportul `GetSituatieStocuri` direct prin conectorul SAGA și returnează lista în aceeași cerere. Raportul rămâne în memoria paginii. Selectarea tipului, gestiunii și căutarea după cod/denumire filtrează imediat acest răspuns. Actualizarea listei și redeschiderea editorului pornesc o citire nouă.
 
-Adminul și dispecerul pot adăuga articole, fără import de referințe. Gestiunile sunt configurate o singură dată de admin. Pentru articole existente nu extindem automat gestiunile permise; articol dezactivat, UM schimbată sau monedă străină cer corectare administrativă.
+Lista nu este salvată sau recitită din `selectionCache` ori `selectionSnapshots` în Firestore. Înregistrările istorice din aceste colecții rămân neutilizate. Firebase continuă să protejeze autentificarea și cheia rotită a conexiunii, precum și datele facturii și asocierile produselor selectate.
 
-Regulile comerciale trebuie să fie active. Adminul le poate activa explicit din editor, după prezentarea efectului asupra firmei. Dispecerul este informat; politica nu se activează automat. Ciornele vechi păstrează **Aplică regulile SAGA**, cu previzualizare și confirmare. O ciornă nouă nesalvată poate utiliza fluxul fără salvare preliminară. Documentele înghețate rămân numai pentru citire.
+La alegerea articolului, `GetArticol` citește UM, TVA și prețul protejat, apoi `GetStocArticol` citește stocul gestiunii. Adăugarea confirmă moneda RON și păstrează verificările existente pentru cantități cumulate, produse dezactivate și gestiuni permise. Serviciile sau gestiunile absente din raport nu apar în selecție.
+
+Răspunsul include dovezi HMAC pentru fiecare rând, legate de firma conectată, utilizator și tichet. Serverul verifică integritatea rândului și expirarea de zece minute la preluare, consultarea stocului și aplicare. Verificarea funcționează între instanțe server diferite și nu necesită persistarea raportului. Datele produsului selectat sunt păstrate în oferta temporară existentă. Reîncărcarea listei nu invalidează alte alegeri încă valabile. O eroare la actualizare semnalează lista anterioară ca indisponibilă pentru adăugare până la o citire reușită.
+
+Limita răspunsului JSON este 4 MiB, pentru încadrarea în limita transportului aplicației. Prima încărcare depinde de durata raportului SAGA. Dropdownurile ulterioare folosesc răspunsul primit. Spinnerul rămâne disponibil la încărcarea inițială, citirea articolului, stocului și adăugare.
+
+Regulile comerciale, numerotarea, XML-ul și transmiterea păstrează validările existente. Ciornele vechi aplică explicit regulile comerciale înainte de folosirea acestui flux. Salvarea asocierii produsului nu salvează automat ciorna.
+
+## Linia unificată a facturii — 11 noiembrie 2026
+
+Fiecare linie conține direct tipul, gestiunea și căutarea articolului după denumire/cod. Codul, UM, TVA și prețul sunt completate din SAGA, iar operatorul editează cantitatea și informațiile suplimentare. „Adaugă produs” creează o linie nouă. Toate liniile folosesc același răspuns API păstrat în memoria editorului.
+
+Selectarea unui articol cu moneda RON deja confirmată aplică automat datele pe aceeași linie după citirea articolului și a stocului. Prima utilizare cere confirmarea monedei și „Confirmă articolul”. Stocul insuficient sau problemele comerciale sunt afișate pe linie. Schimbarea tipului, gestiunii sau căutării elimină asocierea anterioară din ciornă, astfel încât alegerea incompletă să fie verificată la emitere. Înlocuirea păstrează identificatorul liniei, cantitatea și notele.
+
+Testul `test:invoice-commercial:integration` a trecut pentru selecția integrată, aplicarea automată a articolului cunoscut, confirmarea inițială, cantități cumulate, preț protejat, păstrarea editărilor la navigare/minimizare, salvare/redeschidere și XML. Browserul a fost verificat la 320/390 px, cu transport SAGA simulat. Screenshotul local este `/tmp/fom-saga-two-step-mobile.png`.
 
 ## Backend și protecții
 
-- `POST /api/lucrari/[id]/invoice-draft/saga-article/preview`: `{code, expectedRevision}`. Verifică identitatea, rolul, contul activ, eligibilitatea tichetului, politica și documentul înghețat; citește articolul cu `readForInvoice`. Salvează privat în `sagaCatalogs/{firma}/articleLookups` oferta temporară, legată de utilizator, tichet, reviziile ciornei/politicii și amprenta surselor. Valabilitate: zece minute. Răspunsul include identificatorul, datele comerciale, problemele și gestiunile permise. Deschiderea formularului nu apelează SAGA.
+- `POST /api/lucrari/[id]/invoice-draft/saga-article/preview`: `{code, expectedRevision}`. Verifică identitatea, rolul, contul activ, eligibilitatea tichetului, politica și documentul înghețat; citește articolul cu `readForInvoice`. Salvează privat în `sagaCatalogs/{firma}/articleLookups` oferta temporară, legată de utilizator, tichet, reviziile ciornei/politicii și amprenta surselor. Valabilitate: zece minute. Răspunsul include identificatorul, datele comerciale, problemele și gestiunile permise. Deschiderea pasului de produse citește raportul SAGA. Previzualizarea articolului citește `GetArticol`.
 - `POST /api/lucrari/[id]/invoice-draft/saga-article/apply`: `{previewId, quantity, warehouseId, kind, confirmRON}`. Nu acceptă preț/UM/TVA din browser. Reverifică oferta și salvează atomic produsul, referința comercială și legăturile necesare, în colecțiile existente `products`, `referenceItems`, `commercialBindings`. Returnează linia fără salvarea ciornei. Retry-ul aceleiași selecții returnează aceeași linie; sursele schimbate produc `409`.
 - Ruta existentă `POST /api/lucrari/[id]/invoice-draft/stock` acceptă suplimentar `{previewId, warehouseId, kind}` pentru articolul încă neadăugat. Payload-ul vechi rămâne acceptat. Codul și gestiunea sunt rezolvate pe server; sursele sunt verificate înainte și după apel. Parametrul opțional `data` nu este trimis pentru acest flux.
 - Articolele noi au ID determinist după firmă/tip/cod; concurența nu produce duplicate. Cele existente își păstrează ID-urile. Codurile rămân text, cu zerouri inițiale. Referința unei gestiuni lipsă poate fi creată din gestiunea activă deja configurată de admin, fără pretenția unei verificări online a nomenclatorului.
@@ -52,3 +62,10 @@ Fluxul principal folosește [**Emite și trimite în SAGA**, cu o singură confi
 Modul dry-run și activarea separată a importurilor nu au fost schimbate. Nu au fost atinse modificările paralele din zona ofertelor sau invitațiilor de utilizatori.
 
 Actualizare 10 noiembrie: dacă nu există gestiuni active permise, adminul poate introduce gestiunea în același editor. Nu se extind permisiunile produselor existente; cantitatea locală se păstrează la recitirea articolului. [Configurarea simplificată](invoice-user-setup.md).
+
+## Verificări ale listei directe — 11 noiembrie 2026
+
+- `npm run test:invoice-commercial:integration` a trecut cu Auth/Firestore emulator și transport SAGA simulat. Verifică răspunsul de 4.641 rânduri, absența documentelor de cache, citiri noi la fiecare cerere, falsificarea dovezilor, izolarea firmei/utilizatorului/tichetului, expirarea și verificarea pe o instanță separată.
+- Browserul verifică spinnerul la răspuns întârziat, selecțiile dependente și căutarea fără cereri suplimentare, citirea articolului/stocului, prețul protejat, cantitățile cumulate, salvarea/redeschiderea și ecranele de 320/390 px.
+- `tsc --noEmit` raportează 212 diagnostice preexistente, fără diagnostice în fișierele modificate pentru lista directă. `git diff --check` a trecut.
+- Testele acestei modificări folosesc răspunsuri simulate. Durata reală a raportului SAGA nu a fost măsurată în această etapă. Publicarea rămâne separată.

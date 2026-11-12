@@ -154,6 +154,7 @@ test("real issue route stores validity and sends escaped HTML + plain text, with
   const response = await (await issue).POST(request(input))
   assert.equal(response.status, 200, JSON.stringify(await response.json()))
   const offer = state.stored["offer-test"]
+  assert.deepEqual(offer.issuer, { userId: "staff-test", email: "staff@example.test" })
   assert.equal(offer.snapshot.validityText, input.snapshot.validityText)
   assert.deepEqual(offer.snapshot.conditions, input.snapshot.conditions.filter((row) => row.trim()))
   assert.ok(offer.actionExpiresAt.getTime() >= before + 30 * 86400000)

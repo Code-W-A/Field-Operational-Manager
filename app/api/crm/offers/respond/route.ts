@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin"
 import { CRM_COLLECTIONS, CRM_PIPELINE_STAGE_LABELS, isPipelineStageAllowedForOpportunityType } from "@/lib/crm/constants"
 import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { generateCertifiedCrmOfferPdf } from "@/lib/offer/certified-pdf.server"
+import { notifyOfferIssuerOfAcceptance, type OfferAcceptanceNotification, type OfferIssuer } from "@/lib/offer/acceptance-notification.server"
 
 function toDate(value: unknown): Date | null {
   if (!value) return null
@@ -29,6 +30,7 @@ type RespondResult =
       actorId: string
       fromStage: string
       toStage: string | null
+      notification: OfferAcceptanceNotification
     }
   | {
       kind: "error"
@@ -128,6 +130,9 @@ export async function POST(request: NextRequest) {
       const fromStage = String(opportunityData.pipelineStage || "")
       const targetStage = action === "accept" ? "OFERTA_ACCEPTATA" : "OFERTA_REFUZATA"
       const canMoveStage = opportunitySnap.exists && isPipelineStageAllowedForOpportunityType(opportunityType, targetStage)
+      const clientId = String(opportunityData.clientId || "")
+      const clientSnap = action === "accept" && clientId
+        ? await tx.get(adminDb.collection(CRM_COLLECTIONS.clients).doc(clientId)) : null
 
       tx.update(offerRef, {
         status: action === "accept" ? "ACCEPTED" : "REJECTED",
@@ -163,12 +168,23 @@ export async function POST(request: NextRequest) {
         actorId: "__portal_client__",
         fromStage,
         toStage: canMoveStage ? targetStage : null,
+        notification: {
+          source: "crm", offerId, opportunityId,
+          issuer: offerData.issuer as OfferIssuer | undefined,
+          legacyCreatorId: String(offerData.createdById || ""),
+          client: String(clientSnap?.data()?.nume || clientSnap?.data()?.name || ""),
+          reference: String(opportunityData.code || opportunityData.displayTitle || opportunityData.title || opportunityId),
+          version: String(Math.max(1, Number(offerData.version || 0))),
+          acceptedBy: String(verification.email || ""), acceptedAt: now.toISOString(),
+        },
       }
     })
 
     if (txResult.kind === "error") {
       return NextResponse.json({ status: txResult.status, message: txResult.message }, { status: txResult.statusCode })
     }
+
+    if (txResult.action === "accept") await notifyOfferIssuerOfAcceptance(txResult.notification, request)
 
     const activityType = txResult.action === "accept" ? "OFFER_ACCEPTED" : "OFFER_REJECTED"
     await adminDb.collection(CRM_COLLECTIONS.activityLogs).add({

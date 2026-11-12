@@ -11,6 +11,12 @@ import type { InstallationDocument } from "@/types/installation";
 for (const scenario of ["sheet", "long-sheet", "completion", "short-completion"] as const) {
   test(`installation PDF layout: ${scenario}`, async () => {
     const signature = `data:image/png;base64,${(await sharp(Buffer.from('<svg width="300" height="100"><path d="M15 70 Q50 0 65 60 T120 45 T175 65 L275 40" fill="none" stroke="#152450" stroke-width="3"/></svg>')).png().toBuffer()).toString("base64")}`;
+    const signatureBytes = process.env.FOM_SIGNATURE_PNG
+      ? await readFile(process.env.FOM_SIGNATURE_PNG)
+      : Buffer.from(signature.split(",")[1], "base64");
+    const signatureSize = await sharp(signatureBytes).metadata();
+    const signatureRatio = signatureSize.width! / signatureSize.height!;
+    const confirmedSignature = `data:image/png;base64,${signatureBytes.toString("base64")}`;
     const landscape = await sharp({ create: { width: 900, height: 300, channels: 3, background: "#49649b" } }).jpeg().toBuffer();
     const portrait = await sharp({ create: { width: 300, height: 900, channels: 3, background: "#dce6f4" } }).png().toBuffer();
     const logoDataUrl = `data:image/png;base64,${(await readFile("public/nrglogo.png")).toString("base64")}`;
@@ -22,7 +28,7 @@ for (const scenario of ["sheet", "long-sheet", "completion", "short-completion"]
       workNumber: "#001234", workDate: "17.10.2026",
       equipment: [{ id: "eq", name: "Barieră acces", code: "EQ-123", model: "Model exemplu" }],
       technicianName: "Ștefan Ionescu", beneficiaryName: "Andreea Șerban",
-      technicianSignature: signature, beneficiarySignature: signature,
+      technicianSignature: confirmedSignature, beneficiarySignature: confirmedSignature,
       principalName: "Ștefan Ionescu",
       timeIntervals: [{uid: "p", startedAt: "2026-10-17T05:30:00Z", endedAt: "2026-10-17T07:15:00Z"}, {uid: "s", startedAt: "2026-10-17T05:30:00Z", endedAt: "2026-10-17T06:30:00Z"}],
       participants: [{ uid: "p", name: "Ștefan Ionescu", role: "principal", active: true }, { uid: "s", name: "Mihai Popescu", role: "secondary", active: false, moved: true }],
@@ -65,8 +71,10 @@ for (const scenario of ["sheet", "long-sheet", "completion", "short-completion"]
     assert(images.every(image => image.y + image.height <= bottom));
     assert(images.every(image => image.x >= 7 && image.x + image.width <= 203));
     assert.equal(images.length, snapshot.photos.length + 3, "logo, photos and two signatures");
+    for (const image of images.slice(-2))
+      assert(Math.abs(image.width / image.height - signatureRatio) < 0.001, "both signature proportions retained");
     if (snapshot.photos.length) {
-      for (const [index, ratio] of [[1, 3], [2, 1 / 3], [3, 3]]) assert(Math.abs(images[index].width / images[index].height - ratio) < 0.001);
+      for (const [index, ratio] of [[1, 3], [2, 1 / 3], [3, signatureRatio]]) assert(Math.abs(images[index].width / images[index].height - ratio) < 0.001);
     }
     const allText = texts.map(text => text.value).join("\n");
     for (const expected of ["Prestator", "Beneficiar", "Datele lucrării", "EQ-123", "Semnături", "Ștefan Ionescu", "Andreea Șerban"]) assert(allText.includes(expected), expected);

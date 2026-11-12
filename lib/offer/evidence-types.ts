@@ -12,6 +12,7 @@ export type OfferEventType =
   | "OFFER_REJECTED"
   | "OFFER_TOKEN_REISSUED"
   | "OFFER_CONFIRMATION_SENT"
+  | "OFFER_ISSUER_ACCEPTANCE_NOTIFICATION"
   | "OFFER_ERROR_REPORTED"
 
 export type OfferEventSource = "lucrari" | "crm"
@@ -100,6 +101,7 @@ export const OFFER_EVENT_LABELS: Record<string, string> = {
   OFFER_REJECTED: "Ofertă refuzată",
   OFFER_TOKEN_REISSUED: "Link reemis",
   OFFER_CONFIRMATION_SENT: "Email confirmare trimis",
+  OFFER_ISSUER_ACCEPTANCE_NOTIFICATION: "Notificare emitent la acceptare",
   OFFER_ERROR_REPORTED: "Eroare raportată (portal)",
 }
 

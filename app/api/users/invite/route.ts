@@ -25,6 +25,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { to, subject, content, html, attachments, type } = body || {}
+    let offerIssuer: { userId: string; email: string } | undefined
+    let offerVersionSavedAt: string | null = null
     const explicitLucrareId = typeof body?.lucrareId === "string" ? body.lucrareId.trim() : ""
     if (!to || !Array.isArray(to) || to.length === 0) {
       return NextResponse.json({ error: "Destinatari lipsă" }, { status: 400 })
@@ -39,6 +41,9 @@ export async function POST(request: NextRequest) {
       if (Object.keys(fieldErrors).length) {
         return NextResponse.json({ error: "Completați toate câmpurile ofertei și regenerați oferta înainte de trimitere.", fieldErrors }, { status: 400 })
       }
+      const actor = await adminDb.collection("users").doc(session.uid).get()
+      offerIssuer = { userId: session.uid, email: String(actor.data()?.email || "").trim().toLowerCase() }
+      offerVersionSavedAt = work.data()?.offerActionSnapshot?.savedAt || work.data()?.offerActionVersionSavedAt || null
     }
 
     const { messageId, emailEventId } = await sendInviteStyleEmail({
@@ -69,6 +74,7 @@ export async function POST(request: NextRequest) {
             to: (to as string[]) || [],
             status: "sent",
             messageId,
+            ...(offerIssuer ? { issuer: offerIssuer, offerVersionSavedAt } : {}),
           },
         }
         if (String(type || "").toUpperCase() === "OFFER") {

@@ -149,6 +149,7 @@ export interface CrmOfferResponse {
 }
 
 export interface CrmOffer {
+  issuer?: { userId: string; email: string }
   id: string
   opportunityId: string
   version: number

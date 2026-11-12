@@ -16,6 +16,11 @@ import {
   type SagaImportResult,
 } from "./import";
 import { parseSagaResponse } from "./response.server";
+import {
+  parseStockSituation,
+  stockSituationPeriod,
+} from "./stock-situation.server";
+import type { SagaStockSituation } from "./stock-situation";
 
 type Actor = { uid: string; role: string };
 export type SagaConnection = {
@@ -133,7 +138,8 @@ export function createSagaService(
     body: unknown,
     invoice = false,
     upload?: { xml: string; filename: string; beforeSend: () => Promise<void> },
-  ): Promise<SagaReadResult | SagaImportResult> {
+    situation?: { start: string; end: string },
+  ): Promise<SagaReadResult | SagaImportResult | SagaStockSituation> {
     await authorize(actor, invoice);
     if (!getConfig().readsEnabled)
       throw new SagaError(
@@ -141,7 +147,7 @@ export function createSagaService(
         "Citirile SAGA sunt dezactivate. Activează integrarea după publicarea regulilor de protecție a conexiunii.",
         409,
       );
-    const input = upload ? null : parseReadInput(body),
+    const input = upload || situation ? null : parseReadInput(body),
       config = getConfig(),
       connectionRef = ref(config),
       owner = randomUUID();
@@ -221,7 +227,7 @@ export function createSagaService(
       const url = new URL(
         upload
           ? `${config.baseUrl}/Import`
-          : `${config.baseUrl}/Situatii/${input!.kind === "article" ? "GetArticol" : "GetStocArticol"}`,
+          : `${config.baseUrl}/Situatii/${situation ? "GetSituatieStocuri" : input!.kind === "article" ? "GetArticol" : "GetStocArticol"}`,
       );
       let form: FormData | undefined;
       if (upload) {
@@ -234,6 +240,15 @@ export function createSagaService(
         form.append("importAutomat", "true");
         // This callback persists the irreversible send boundary AFTER acquiring the shared token lease.
         await upload.beforeSend();
+      } else if (situation) {
+        url.searchParams.set(
+          "dataStart",
+          situation.start.split("-").reverse().join("."),
+        );
+        url.searchParams.set(
+          "dataEnd",
+          situation.end.split("-").reverse().join("."),
+        );
       } else {
         url.searchParams.set("codArticol", input!.code);
         if (input!.warehouse)
@@ -251,7 +266,7 @@ export function createSagaService(
           "X-Saga-Cod-Fiscal": config.fiscalCode,
           Accept: upload
             ? "application/json, text/plain"
-            : input!.kind === "article"
+            : situation || input!.kind === "article"
               ? "application/xml"
               : "application/json",
         },
@@ -322,7 +337,7 @@ export function createSagaService(
             truncated = true;
             break;
           }
-          if (!upload && size > 262144)
+          if (!upload && size > (situation ? 16 * 1024 * 1024 : 262144))
             throw new SagaError(
               "INVALID_RESPONSE",
               "Răspunsul SAGA depășește dimensiunea acceptată.",
@@ -343,7 +358,17 @@ export function createSagaService(
             [config.apiKey, token, rotation],
             truncated,
           )
-        : parseSagaResponse(input!, raw, at, [config.apiKey, token, rotation]);
+        : situation
+          ? parseStockSituation(raw, situation, at, [
+              config.apiKey,
+              token,
+              rotation,
+            ])
+          : parseSagaResponse(input!, raw, at, [
+              config.apiKey,
+              token,
+              rotation,
+            ]);
       await updateOwned({
         state: "connected",
         owner: null,
@@ -412,6 +437,14 @@ export function createSagaService(
       }) as Promise<SagaImportResult>;
     },
     status,
+    readSituationForInvoice: (actor: Actor) =>
+      execute(
+        actor,
+        null,
+        true,
+        undefined,
+        stockSituationPeriod(now()),
+      ) as Promise<SagaStockSituation>,
     read: (actor: Actor, body: unknown) =>
       execute(actor, body) as Promise<SagaReadResult>,
     readForInvoice: (actor: Actor, body: unknown) =>

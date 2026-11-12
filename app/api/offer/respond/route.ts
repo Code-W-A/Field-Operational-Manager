@@ -4,6 +4,7 @@ import { sendInviteStyleEmail } from "@/lib/email/send-invite-style-email.server
 import { logOfferEvent } from "@/lib/offer/offer-events.server"
 import { logOfferPortalEvent } from "@/lib/offer/portal-audit"
 import { generateCertifiedLucrariOfferPdf } from "@/lib/offer/certified-pdf.server"
+import { notifyOfferIssuerOfAcceptance, type OfferAcceptanceNotification } from "@/lib/offer/acceptance-notification.server"
 
 function toDate(value: any): Date | null {
   if (!value) return null
@@ -20,7 +21,7 @@ function toDate(value: any): Date | null {
 }
 
 type RespondTxResult =
-  | { kind: "success"; action: "accept" | "reject" }
+  | { kind: "success"; action: "accept" | "reject"; notification: OfferAcceptanceNotification }
   | {
       kind: "error"
       status: "invalid" | "used" | "expired" | "verification_required" | "verification_invalid"
@@ -290,7 +291,17 @@ export async function POST(req: NextRequest) {
       }
 
       tx.update(workRef, update)
-      return { kind: "success", action: safeFinalAction }
+      const lastEmail = data.lastOfferEmail || {}
+      const sameVersion = !lastEmail.offerVersionSavedAt || lastEmail.offerVersionSavedAt === versionSavedAt
+      return { kind: "success", action: safeFinalAction, notification: {
+        source: "lucrari", lucrareId: workId,
+        issuer: sameVersion ? lastEmail.issuer : null,
+        legacyMessageId: sameVersion ? String(lastEmail.messageId || "") : "",
+        client: String(data.offerActionSnapshot?.clientSnapshot?.client || data.client || ""),
+        reference: String(data.nrLucrare || data.numarRaport || workId),
+        version: versionSavedAt || undefined,
+        acceptedBy: verifiedEmail, acceptedAt: now.toISOString(),
+      } }
     })
 
     if (txResult.kind === "error") {
@@ -304,6 +315,8 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ status: txResult.status, message: txResult.message }, { status: txResult.statusCode })
     }
+
+    if (txResult.action === "accept") await notifyOfferIssuerOfAcceptance(txResult.notification, req)
 
     await logOfferPortalEvent({
       lucrareId: workId,

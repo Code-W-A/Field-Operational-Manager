@@ -867,7 +867,7 @@ async function main() {
     ).toContainText("NRGV F260002");
     await expect(
       page.getByRole("region", { name: "Numărul facturii" }),
-    ).toContainText("dispecer");
+    ).not.toContainText("Utilizator emitent");
     await page
       .getByRole("button", {
         name: "Simulează emiterea și trimiterea",

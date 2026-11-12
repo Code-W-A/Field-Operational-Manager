@@ -221,6 +221,12 @@ export function createSagaCatalogService(
         name: p.articleName,
         unit: p.unit,
         kind: p.kind,
+        ...(p.sagaTypeCode
+          ? {
+              typeCode: p.sagaTypeCode,
+              typeName: p.sagaTypeName || p.sagaTypeCode,
+            }
+          : {}),
         warehouseCode: warehouse?.code || "",
         warehouseName: warehouse?.name || "",
       },

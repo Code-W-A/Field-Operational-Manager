@@ -2,11 +2,17 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { SagaError, type SagaReadResult } from "@/lib/saga/contracts";
 import { sagaConfig, type SagaConfig } from "@/lib/saga/config.server";
-import type { SagaProduct, SagaWarehouse } from "@/lib/saga/catalog";
+import {
+  unitsMatch,
+  type SagaProduct,
+  type SagaWarehouse,
+} from "@/lib/saga/catalog";
 import { normalizeReference } from "@/lib/saga/references";
 import { commercialReferenceId } from "./commercial.server";
 import { commercialDecimal } from "./commercial";
 import { invoiceEditReason, type InvoiceLine } from "./draft";
+import type { SagaStockRow } from "@/lib/saga/stock-situation";
+import type { createSagaSelectionService } from "./saga-selection.server";
 
 type Actor = { uid: string; role: string };
 type Read = (actor: Actor, input: unknown) => Promise<SagaReadResult>;
@@ -39,6 +45,10 @@ export function createInvoiceSagaArticleService(
   read: Read,
   config: () => SagaConfig = sagaConfig,
   now = () => Date.now(),
+  selectionService?: Pick<
+    ReturnType<typeof createSagaSelectionService>,
+    "selectedIn"
+  >,
 ) {
   const root = () => db.doc(`sagaCatalogs/${config().fiscalCode}`);
   async function authorize(tx: Transaction, actor: Actor, workId: string) {
@@ -76,7 +86,11 @@ export function createInvoiceSagaArticleService(
       }
     );
   }
-  async function sources(tx: Transaction, code: string) {
+  async function sources(
+    tx: Transaction,
+    code: string,
+    selection?: SagaStockRow,
+  ) {
     const r = root(),
       articleId = commercialReferenceId("articles", code);
     const [products, article, binding, ws] = await Promise.all([
@@ -107,6 +121,29 @@ export function createInvoiceSagaArticleService(
         };
       }),
     );
+    if (
+      selection &&
+      !warehouses.some((v) => v.warehouse.code === selection.warehouseCode)
+    ) {
+      const id = commercialReferenceId("warehouses", selection.warehouseCode);
+      const [reference, binding] = await Promise.all([
+        tx.get(r.collection("referenceItems").doc(id)),
+        tx.get(r.collection("commercialBindings").doc(id)),
+      ]);
+      warehouses.push({
+        warehouse: {
+          id,
+          code: selection.warehouseCode,
+          name: selection.warehouseName,
+          active: true,
+          revision: 1,
+          updatedAt: "",
+          updatedBy: "",
+        },
+        reference: reference.data() || null,
+        binding: binding.data() || null,
+      });
+    }
     return {
       product,
       article: article.data() || null,
@@ -149,6 +186,22 @@ export function createInvoiceSagaArticleService(
     const code = text(input?.code);
     const draft = await db.runTransaction((tx) => authorize(tx, actor, workId));
     if (input.expectedRevision !== draft.revision) throw conflict();
+    const selection = input.selection
+      ? {
+          snapshotId: text(input.selection.snapshotId),
+          code,
+          typeCode: text(input.selection.typeCode),
+          warehouseCode: text(input.selection.warehouseCode),
+          row: input.selection.row,
+          selectionProof: input.selection.selectionProof,
+        }
+      : null;
+    if (selection && !selectionService)
+      throw fail("Selecția SAGA nu este disponibilă.", 503);
+    if (selection)
+      await db.runTransaction((tx) =>
+        selectionService!.selectedIn(tx, selection, actor, workId),
+      );
     const result = await read(actor, { kind: "article", code });
     const a = result.article;
     if (!a?.name || !a.unit || a.unit.length > 40)
@@ -157,8 +210,19 @@ export function createInvoiceSagaArticleService(
     return db.runTransaction(async (tx) => {
       const current = await authorize(tx, actor, workId);
       if (current.revision !== draft.revision) throw conflict();
-      const s = await sources(tx, code),
+      const selectedRow = selection
+        ? await selectionService!.selectedIn(tx, selection, actor, workId)
+        : undefined;
+      const s = await sources(tx, code, selectedRow),
         state = issues(s, a);
+      if (
+        selectedRow &&
+        ((!!selectedRow.unit && !unitsMatch(selectedRow.unit, a.unit)) ||
+          (s.product && s.product.kind !== "goods"))
+      )
+        state.issues.push(
+          "Tipul sau UM diferă între raport și articol. Cere verificare administrativă.",
+        );
       const quote = {
         workId,
         uid: actor.uid,
@@ -170,6 +234,7 @@ export function createInvoiceSagaArticleService(
         policyRevision: current.commercial.policyRevision,
         fingerprint: digest(s),
         sources: s,
+        ...(selection ? { selection, selectedRow } : {}),
       };
       if (Buffer.byteLength(JSON.stringify(quote)) > 512 * 1024)
         throw fail(
@@ -183,10 +248,15 @@ export function createInvoiceSagaArticleService(
         article: a,
         checkedAt: result.checkedAt,
         expiresAt: quote.expiresAt,
-        kind: s.product?.kind || null,
+        kind: s.product?.kind || (selection ? "goods" : null),
         currencyConfirmed: state.currency === "RON",
         issues: state.issues,
-        warehouses: allowed(s).map((v) => v.warehouse),
+        warehouses: allowed(s)
+          .filter(
+            (v) =>
+              !selectedRow || v.warehouse.code === selectedRow.warehouseCode,
+          )
+          .map((v) => v.warehouse),
       };
     });
   }
@@ -211,21 +281,30 @@ export function createInvoiceSagaArticleService(
   }
   async function stock(actor: Actor, workId: string, input: any) {
     const selection = await db.runTransaction(async (tx) => {
-      const { quote } = await quoteIn(tx, actor, workId, input?.previewId),
-        s = await sources(tx, quote.code);
+      const { quote } = await quoteIn(tx, actor, workId, input?.previewId);
+      if (quote.selection)
+        await selectionService!.selectedIn(tx, quote.selection, actor, workId);
+      const s = await sources(tx, quote.code, quote.selectedRow);
       if (digest(s) !== quote.fingerprint) throw conflict();
       if (s.product?.kind === "service" || input.kind === "service")
         throw fail("Stoc neaplicabil pentru serviciu.");
       const w = allowed(s).find(
         (v) => v.warehouse.id === input.warehouseId,
       )?.warehouse;
-      if (!w) throw fail("Alege o gestiune permisă.");
+      if (
+        !w ||
+        (quote.selectedRow && w.code !== quote.selectedRow.warehouseCode)
+      )
+        throw fail("Alege o gestiune permisă.");
       return { code: quote.code, warehouse: w.code };
     });
     const result = await read(actor, { kind: "stock", ...selection });
     await db.runTransaction(async (tx) => {
       const { quote } = await quoteIn(tx, actor, workId, input.previewId);
-      if (digest(await sources(tx, quote.code)) !== quote.fingerprint)
+      if (
+        digest(await sources(tx, quote.code, quote.selectedRow)) !==
+        quote.fingerprint
+      )
         throw conflict();
     });
     return result;
@@ -264,16 +343,31 @@ export function createInvoiceSagaArticleService(
         if (quote.selectionHash !== selectionHash) throw conflict();
         return { line: quote.result as InvoiceLine };
       }
-      const s = await sources(tx, quote.code);
+      if (quote.selection)
+        await selectionService!.selectedIn(tx, quote.selection, actor, workId);
+      const s = await sources(tx, quote.code, quote.selectedRow);
       if (digest(s) !== quote.fingerprint) throw conflict();
       const state = issues(s, quote.article);
+      if (
+        quote.selectedRow &&
+        ((!!quote.selectedRow.unit &&
+          !unitsMatch(quote.selectedRow.unit, quote.article.unit)) ||
+          input.kind !== "goods")
+      )
+        throw fail("Tipul sau UM diferă de raportul SAGA.", 409);
       if (state.issues.length) throw fail(state.issues.join(" "), 409);
       if (input.confirmRON !== true && state.currency !== "RON")
         throw fail("Confirmă că prețul este în RON.");
       if (s.product && s.product.kind !== input.kind)
         throw fail("Tipul articolului diferă de configurația existentă.", 409);
       const w = allowed(s).find((v) => v.warehouse.id === input.warehouseId);
-      if (input.kind === "goods" && !w) throw fail("Alege o gestiune permisă.");
+      if (
+        input.kind === "goods" &&
+        (!w ||
+          (quote.selectedRow &&
+            w.warehouse.code !== quote.selectedRow.warehouseCode))
+      )
+        throw fail("Alege o gestiune permisă.");
       if (input.kind === "service" && input.warehouseId)
         throw fail("Serviciile nu folosesc gestiune.");
       if (w && input.kind === "goods") {
@@ -282,6 +376,9 @@ export function createInvoiceSagaArticleService(
         if (w.binding && w.binding.targetId !== w.warehouse.id)
           throw conflict();
       }
+      const storedWarehouse = w
+        ? await tx.get(root().collection("warehouses").doc(w.warehouse.id))
+        : null;
       // Complete all reads before the first write; existing admin configurations are preserved.
       const stamp = new Date(now()).toISOString(),
         r = root();
@@ -333,6 +430,12 @@ export function createInvoiceSagaArticleService(
       };
       const product = s.product || {
         id: productId,
+        ...(quote.selectedRow
+          ? {
+              sagaTypeCode: quote.selectedRow.typeCode,
+              sagaTypeName: quote.selectedRow.typeName,
+            }
+          : {}),
         name: apiSnapshot.name,
         code: quote.code,
         unit: apiSnapshot.unit,
@@ -358,8 +461,19 @@ export function createInvoiceSagaArticleService(
         updatedAt: stamp,
         updatedBy: actor.uid,
       };
+      if (w && !storedWarehouse?.exists && quote.selection)
+        tx.create(r.collection("warehouses").doc(w.warehouse.id), {
+          ...w.warehouse,
+          updatedAt: stamp,
+          updatedBy: actor.uid,
+        });
       if (!s.product)
         tx.create(r.collection("products").doc(productId), product);
+      else if (quote.selectedRow && !s.product.sagaTypeCode)
+        tx.update(r.collection("products").doc(productId), {
+          sagaTypeCode: quote.selectedRow.typeCode,
+          sagaTypeName: quote.selectedRow.typeName,
+        });
       if (changes) tx.set(r.collection("referenceItems").doc(articleId), entry);
       if (!s.binding || s.binding.referenceRevision !== entry.revision)
         tx.set(r.collection("commercialBindings").doc(articleId), binding);
@@ -373,7 +487,9 @@ export function createInvoiceSagaArticleService(
           exportData: { code: w.warehouse.code, name: w.warehouse.name },
           apiSnapshot: null,
           revision: 1,
-          source: "Gestiune configurată de admin în FOM",
+          source: quote.selection
+            ? "Gestiune preluată prin API SAGA"
+            : "Gestiune configurată de admin în FOM",
           importId: "",
           importedAt: stamp,
           updatedAt: stamp,
@@ -420,6 +536,12 @@ export function createInvoiceSagaArticleService(
             name: apiSnapshot.name,
             unit: apiSnapshot.unit,
             kind: input.kind,
+            ...(quote.selectedRow
+              ? {
+                  typeCode: quote.selectedRow.typeCode,
+                  typeName: quote.selectedRow.typeName,
+                }
+              : {}),
             warehouseCode: input.kind === "goods" ? w!.warehouse.code : "",
             warehouseName: input.kind === "goods" ? w!.warehouse.name : "",
           },

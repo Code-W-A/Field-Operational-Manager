@@ -9,6 +9,8 @@ export type SagaWarehouse = {
   updatedBy: string;
 };
 export type SagaProduct = {
+  sagaTypeCode?: string;
+  sagaTypeName?: string;
   id: string;
   name: string;
   code: string;
@@ -35,6 +37,8 @@ export type InvoiceSagaLink = {
   warehouseRevision?: number;
   // The server resolves these fields; browser snapshots are never authoritative.
   snapshot?: {
+    typeCode?: string;
+    typeName?: string;
     code: string;
     name: string;
     unit: string;

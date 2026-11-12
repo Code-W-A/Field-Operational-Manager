@@ -1,3 +1,7 @@
+import { createSagaService } from "../lib/saga/service.server";
+import { createSagaSelectionService } from "../lib/invoicing/saga-selection.server";
+import { sagaSelectionHandlers } from "../lib/invoicing/saga-selection-http";
+import type { SagaStockRow } from "../lib/saga/stock-situation";
 import { createInvoiceSagaArticleService } from "../lib/invoicing/saga-article.server";
 import { invoiceSagaArticleHandlers } from "../lib/invoicing/saga-article-http";
 import {
@@ -311,6 +315,60 @@ async function main() {
       },
       "00081": { name: "Preț zero API", unit: "buc", vat: "21", price: "0" },
     };
+    inlinePrices["00083"] = {
+      name: "Articol API TVA zero",
+      unit: "buc",
+      vat: "0",
+      price: "9.99",
+    };
+    let situationCalls = 0;
+    let situationFailure = false;
+    const situationRows: SagaStockRow[] = [
+      "0001",
+      "00082",
+      "00083",
+      "00081",
+    ].map((code) => ({
+      code,
+      name: inlinePrices[code].name,
+      typeCode: "01",
+      typeName: "Mărfuri",
+      warehouseCode: "01",
+      warehouseName: "Depozit",
+      unit: inlinePrices[code].unit,
+      vat: inlinePrices[code].vat,
+      quantity: code === "00081" ? "0" : "10",
+      available: code === "00081" ? "0" : "10",
+    }));
+    situationRows.push({
+      ...situationRows[1],
+      code: "00084",
+      name: "Articol gestiune nouă",
+      warehouseCode: "0005",
+      warehouseName: "Depozit API nou",
+    });
+    inlinePrices["00084"] = {
+      name: "Articol gestiune nouă",
+      unit: "buc",
+      vat: "21",
+      price: "4.50",
+    };
+    const selectionService = createSagaSelectionService(
+      db,
+      async () => {
+        situationCalls++;
+        if (situationFailure) throw Error("Simulated report failure");
+        return {
+          checkedAt: new Date(inlineClock).toISOString(),
+          start: "2026-01-01",
+          end: "2026-11-07",
+          rows: situationRows,
+        };
+      },
+      () => config,
+      () => inlineClock,
+    );
+    const selectionHttp = sagaSelectionHandlers(selectionService, authenticate);
     const inlineService = createInvoiceSagaArticleService(
       db,
       async (_actor, raw) => {
@@ -334,6 +392,7 @@ async function main() {
       },
       () => config,
       () => inlineClock,
+      selectionService,
     );
     const inlineHttp = invoiceSagaArticleHandlers(inlineService, authenticate);
     const refs = createSagaReferencesService(
@@ -513,7 +572,20 @@ async function main() {
         id = p.split("/")[3];
       if (p.endsWith("/saga-article/preview")) return inlineHttp.preview(r, id);
       if (p.endsWith("/saga-article/apply")) return inlineHttp.apply(r, id);
-      if (p.endsWith("/stock")) return inlineHttp.stock(r, id);
+      if (p.endsWith("/stock")) {
+        const body = await r.clone().json();
+        if (body.previewId) return inlineHttp.stock(r, id);
+        return Response.json({
+          kind: "stock",
+          quantity: inlineStock,
+          checkedAt: new Date(inlineClock).toISOString(),
+        });
+      }
+      if (p.endsWith("/saga-selection"))
+        return r.method === "POST"
+          ? selectionHttp.refresh(r, id)
+          : selectionHttp.get(r, id);
+      if (p.endsWith("/issuer")) return handlers.profile(r);
       if (p.endsWith("/eur-rate")) return eurHttp.get(r, id);
       if (p.endsWith("/clients")) return clients.search(r);
       if (p.endsWith("/commercial-policy"))
@@ -1092,6 +1164,329 @@ async function main() {
       })
       .click();
     await expect(settings.getByRole("status")).toContainText("exclusiv în FOM");
+    // Selection is sourced from an API report, independent of configured product lists.
+    await db.doc("lucrari/selectionTest").set(work);
+    assert.equal(
+      (
+        await request(
+          "/api/lucrari/selectionTest/invoice-draft/saga-selection",
+          "",
+        )
+      ).status,
+      401,
+    );
+    await assert.rejects(
+      () =>
+        selectionService.list(
+          { uid: "tehnician", role: "tehnician" },
+          "selectionTest",
+          {},
+        ),
+      (e: any) => e.status === 403,
+    );
+    const reportCallsBefore = situationCalls;
+    const initialSelection = await selectionService.list(
+      dispatcher,
+      "selectionTest",
+      { type: "01", warehouse: "0005", q: "00084" },
+    );
+    assert.equal(initialSelection.entries[0].code, "00084");
+    assert.equal(
+      initialSelection.warehouses.some((w) => w.code === "0005"),
+      true,
+    );
+    assert.equal(
+      initialSelection.entries.some((e) => e.code === "0009"),
+      false,
+    );
+    await Promise.all([
+      selectionService.list(actor, "selectionTest", {
+        type: "01",
+        warehouse: "01",
+        q: "Articol",
+      }),
+      selectionService.list(dispatcher, "selectionTest", {}),
+    ]);
+    assert.equal(situationCalls, reportCallsBefore + 3);
+    const zeroStock = await selectionService.list(dispatcher, "selectionTest", {
+      type: "01",
+      warehouse: "01",
+      q: "00081",
+    });
+    assert.equal(zeroStock.entries[0].quantity, "0");
+    const chosen = {
+      snapshotId: initialSelection.snapshotId,
+      typeCode: "01",
+      warehouseCode: "0005",
+      row: initialSelection.entries[0],
+      selectionProof: initialSelection.entries[0].selectionProof,
+    };
+    const apiQuote = await inlineService.preview(dispatcher, "selectionTest", {
+      expectedRevision: 0,
+      code: "00084",
+      selection: chosen,
+    });
+    assert.equal(apiQuote.warehouses.length, 1);
+    const apiWarehouse = apiQuote.warehouses[0].id;
+    assert.equal(
+      (await rootCatalog.collection("warehouses").doc(apiWarehouse).get())
+        .exists,
+      false,
+    );
+    const stockFromApi = await inlineService.stock(
+      dispatcher,
+      "selectionTest",
+      {
+        previewId: apiQuote.previewId,
+        warehouseId: apiWarehouse,
+        kind: "goods",
+      },
+    );
+    assert.equal(stockFromApi.quantity, "10");
+    const apiChoice = {
+      previewId: apiQuote.previewId,
+      quantity: "1.5",
+      warehouseId: apiWarehouse,
+      kind: "goods",
+      confirmRON: true,
+    };
+    await assert.rejects(() =>
+      inlineService.apply(dispatcher, "selectionTest", {
+        ...apiChoice,
+        warehouseId: "g",
+      }),
+    );
+    await assert.rejects(() =>
+      inlineService.apply(dispatcher, "selectionTest", {
+        ...apiChoice,
+        price: "0.01",
+      }),
+    );
+    const apiLine = (
+      await inlineService.apply(dispatcher, "selectionTest", apiChoice)
+    ).line;
+    assert.equal(apiLine.saga?.snapshot?.warehouseCode, "0005");
+    assert.equal(apiLine.saga?.snapshot?.typeName, "Mărfuri");
+    assert.equal(apiLine.price, "4.50");
+    assert.deepEqual(
+      (await inlineService.apply(dispatcher, "selectionTest", apiChoice)).line,
+      apiLine,
+    );
+    assert.equal(
+      (await db.doc("invoiceDrafts/selectionTest").get()).exists,
+      false,
+    );
+    assert.equal(
+      (await rootCatalog.collection("warehouses").doc(apiWarehouse).get())
+        .exists,
+      true,
+    );
+    const sourceBeforeRefresh = await inlineService.preview(
+      dispatcher,
+      "selectionTest",
+      { expectedRevision: 0, code: "00084", selection: chosen },
+    );
+    situationFailure = true;
+    await assert.rejects(
+      () => selectionService.list(actor, "selectionTest", {}, true),
+      /Simulated report failure/,
+    );
+    situationFailure = false;
+    await selectionService.list(actor, "selectionTest", {}, true);
+    // Independent live reads preserve a valid signed choice until its expiry.
+    await inlineService.apply(dispatcher, "selectionTest", {
+      ...apiChoice,
+      previewId: sourceBeforeRefresh.previewId,
+    });
+    for (const invalid of [
+      { ...chosen, row: { ...chosen.row, warehouseName: "Forged warehouse" } },
+      { ...chosen, selectionProof: "x".repeat(43) },
+    ])
+      await assert.rejects(
+        () =>
+          inlineService.preview(dispatcher, "selectionTest", {
+            expectedRevision: 0,
+            code: "00084",
+            selection: invalid,
+          }),
+        (e: any) => e.status === 409,
+      );
+    await assert.rejects(
+      () =>
+        db.runTransaction((tx) =>
+          selectionService.selectedIn(
+            tx,
+            { ...chosen, code: "00084" },
+            actor,
+            "selectionTest",
+          ),
+        ),
+      (e: any) => e.status === 409,
+    );
+    await assert.rejects(
+      () =>
+        db.runTransaction((tx) =>
+          selectionService.selectedIn(
+            tx,
+            { ...chosen, code: "00084" },
+            dispatcher,
+            "otherTicket",
+          ),
+        ),
+      (e: any) => e.status === 409,
+    );
+    const savedClock = inlineClock;
+    inlineClock += 600001;
+    await assert.rejects(
+      () =>
+        db.runTransaction((tx) =>
+          selectionService.selectedIn(
+            tx,
+            { ...chosen, code: "00084" },
+            dispatcher,
+            "selectionTest",
+          ),
+        ),
+      (e: any) => e.status === 409,
+    );
+    inlineClock = savedClock;
+    const otherFirmSelection = createSagaSelectionService(
+      db,
+      async () => {
+        throw Error("unused");
+      },
+      () => ({ ...config, fiscalCode: "654321" }),
+      () => inlineClock,
+    );
+    await assert.rejects(
+      () =>
+        db.runTransaction((tx) =>
+          otherFirmSelection.selectedIn(
+            tx,
+            { ...chosen, code: "00084" },
+            dispatcher,
+            "selectionTest",
+          ),
+        ),
+      (e: any) => e.status === 409,
+    );
+    assert.equal(
+      (await rootCatalog.collection("selectionCache").get()).size,
+      0,
+    );
+    assert.equal(
+      (await rootCatalog.collection("selectionSnapshots").get()).size,
+      0,
+    );
+    // A full API response is returned without storing report rows in Firestore.
+    const largeConfig = { ...config, fiscalCode: "789012" };
+    let largeReads = 0;
+    const largeSelection = createSagaSelectionService(
+      db,
+      async () => {
+        largeReads++;
+        return {
+          checkedAt: new Date(inlineClock).toISOString(),
+          start: "2026-01-01",
+          end: "2026-11-07",
+          rows: Array.from({ length: 4641 }, (_, i) => ({
+            ...situationRows[0],
+            code: String(i).padStart(8, "0"),
+            name: `Articol ${i} ${"x".repeat(200)}`,
+          })),
+        };
+      },
+      () => largeConfig,
+      () => inlineClock,
+    );
+    const largeFirst = await largeSelection.list(actor, "selectionTest", {
+      type: "01",
+      warehouse: "01",
+    });
+    assert.equal(largeFirst.entries.length, 20);
+    assert.equal(largeFirst.hasMore, true);
+    const largeNext = await largeSelection.list(actor, "selectionTest", {
+      type: "01",
+      warehouse: "01",
+      offset: "20",
+    });
+    assert.notEqual(largeFirst.entries[0].code, largeNext.entries[0].code);
+    assert.equal(largeReads, 2);
+    assert.equal(largeFirst.rows.length, 4641);
+    assert.equal(
+      (
+        await db
+          .doc("sagaCatalogs/789012")
+          .collection("selectionSnapshots")
+          .get()
+      ).size,
+      0,
+    );
+    // A separate server instance can verify a choice without a shared report cache.
+    const separateInstance = createSagaSelectionService(
+      db,
+      async () => {
+        throw Error("Verification must not read SAGA");
+      },
+      () => config,
+      () => inlineClock,
+    );
+    assert.equal(
+      (
+        await db.runTransaction((tx) =>
+          separateInstance.selectedIn(
+            tx,
+            { ...chosen, code: "00084" },
+            dispatcher,
+            "selectionTest",
+          ),
+        )
+      ).code,
+      "00084",
+    );
+    // The new report shares the same token lease and rotation logic as individual reads.
+    const mockConfig = { ...config, fiscalCode: "998877" };
+    let gatewayCalls = 0;
+    const gateway = createSagaService(db, {
+      config: () => mockConfig,
+      fetch: async (url, options) => {
+        assert.equal(options?.method, "GET");
+        const u = new URL(String(url));
+        assert.equal(
+          new Headers(options?.headers).get("Authorization"),
+          gatewayCalls
+            ? "Bearer rotated-report-token"
+            : "Bearer unused-local-fixture",
+        );
+        gatewayCalls++;
+        if (u.pathname.endsWith("GetSituatieStocuri")) {
+          assert.match(u.searchParams.get("dataStart")!, /^01\.01\.\d{4}$/);
+          return new Response(
+            "<Situatie><LinieSituatieXML><GESTIUNE>0005</GESTIUNE><DEN_GEST>Depozit</DEN_GEST><COD_ART>00084</COD_ART><DENUMIRE>Articol</DENUMIRE><UM>BUC</UM><TIP>01</TIP><DEN_TIP>Marfuri</DEN_TIP><TVA>21</TVA><CANT_FIN>0</CANT_FIN><DISPONIBIL>0</DISPONIBIL></LinieSituatieXML></Situatie>",
+            { headers: { "X-Saga-Refresh-Token": "rotated-report-token" } },
+          );
+        }
+        return Response.json({ success: true, data: "0" });
+      },
+    });
+    assert.equal(
+      (await gateway.readSituationForInvoice(dispatcher)).rows[0].code,
+      "00084",
+    );
+    assert.equal(
+      (
+        await gateway.readForInvoice(dispatcher, {
+          kind: "stock",
+          code: "00084",
+          warehouse: "0005",
+        })
+      ).quantity,
+      "0",
+    );
+    await db.doc("sagaConnections/998877").delete();
+    console.log(
+      "PASS live SAGA selection: fresh reads, 4641-row response, no Firestore report storage, signed selections isolated by company/user/ticket, tampering/expiry rejection, cross-instance verification, zero stock, protected price and token rotation.",
+    );
     const callsBeforeBrowser = sagaCalls;
     await page.goto(url + "/ticket");
     await page
@@ -1109,9 +1504,15 @@ async function main() {
         exact: true,
       })
       .click();
+    await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
     await expect(page.getByLabel("invoice: Preț unitar 1")).toHaveValue(
       "11.25",
     );
+    await expect(
+      page.getByRole("region", { name: "Aplicare reguli SAGA" }),
+    ).toHaveCount(0);
     await expect(page.getByLabel("invoice: Preț unitar 1")).toHaveAttribute(
       "readonly",
       "",
@@ -1120,10 +1521,7 @@ async function main() {
       "readonly",
       "",
     );
-    await expect(page.getByLabel("invoice: Reducere (%)")).toHaveAttribute(
-      "readonly",
-      "",
-    );
+    await expect(page.getByLabel("invoice: Reducere (%)")).toHaveCount(0);
     await expect(page.getByLabel("TVA linie 1", { exact: true })).toHaveValue(
       "21",
     );
@@ -1141,44 +1539,61 @@ async function main() {
     await page
       .getByRole("button", { name: /Continuă ciorna|Vezi ciorna/ })
       .click();
-    await page
-      .getByText("Identifică clientul după CUI sau denumire", { exact: true })
-      .click();
-    await page
-      .getByLabel("Caută client SAGA după CUI sau denumire", { exact: true })
-      .fill("123");
-    await page
-      .getByRole("button", { name: "Caută client în referințe", exact: true })
-      .click();
     await expect(
-      page.getByText("0002 — Client · CUI RO123", { exact: true }),
-    ).toBeVisible();
+      page.getByRole("region", { name: "Aplicare reguli SAGA" }),
+    ).toHaveCount(0);
     await page
       .getByLabel("Informații suplimentare factură", { exact: true })
       .fill("Factură & detalii client");
     await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
+    await page
       .getByLabel("Informații suplimentare linie 1", { exact: true })
       .fill("Linie <detaliu>");
     await page
-      .getByRole("button", { name: "Adaugă poziție", exact: true })
+      .getByRole("button", { name: "Adaugă produs", exact: true })
       .click();
-    await page
-      .getByLabel("Caută referință articol 2", { exact: true })
-      .fill("0009");
-    await page
-      .getByLabel("Caută referință articol 2", { exact: true })
-      .press("Enter");
+    const apiPicker = page.getByRole("region", {
+      name: "Produs factură 2",
+      exact: true,
+    });
+    await apiPicker.getByLabel("Tip SAGA", { exact: true }).selectOption("01");
+    await apiPicker
+      .getByLabel("Gestiune SAGA", { exact: true })
+      .selectOption("01");
+    await apiPicker
+      .getByRole("combobox", {
+        name: "invoice: Denumire 2",
+      })
+      .fill("00083");
     await expect(
-      page.getByRole("button", { name: "Alege 0009", exact: true }),
-    ).toBeEnabled();
-    await page
-      .getByLabel("Caută referință articol 2", { exact: true })
+      apiPicker.getByRole("listbox").getByRole("button"),
+    ).toHaveCount(1);
+    await apiPicker
+      .getByRole("combobox", {
+        name: "invoice: Denumire 2",
+      })
       .press("ArrowDown");
-    await page.keyboard.press("Enter");
+    await apiPicker
+      .getByRole("combobox", {
+        name: "invoice: Denumire 2",
+      })
+      .press("Enter");
+    await expect(apiPicker.getByText(/Stoc disponibil 10/)).toBeVisible();
+    await apiPicker
+      .getByRole("checkbox", { name: /Confirm că prețul/ })
+      .check();
+    await apiPicker
+      .getByRole("button", { name: "Confirmă articolul", exact: true })
+      .click();
     await expect(page.getByLabel("TVA linie 2", { exact: true })).toHaveValue(
       "0",
     );
     await page.getByLabel("invoice: Cantitate 2", { exact: true }).fill("2");
+    await page
+      .getByRole("button", { name: "Înapoi la datele facturii", exact: true })
+      .click();
     await page
       .getByLabel("invoice: Data documentului", { exact: true })
       .fill("2026-11-08");
@@ -1220,6 +1635,9 @@ async function main() {
     await expect(
       page.getByText("Ciornă salvată.", { exact: true }),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
     await page
       .getByRole("button", {
         name: "Simulează emiterea și trimiterea",
@@ -1277,6 +1695,9 @@ async function main() {
     await expect(
       page.getByLabel("Informații suplimentare factură", { exact: true }),
     ).toHaveValue("Factură & detalii client");
+    await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       assert.ok(
@@ -1642,52 +2063,124 @@ async function main() {
         actor,
       )
     ).draft!;
+    async function holdNextSelectorRequest(pattern: string) {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(
+        pattern,
+        async (route) => {
+          await gate;
+          await route.continue();
+        },
+        { times: 1 },
+      );
+      return release;
+    }
+    const releaseTypes = await holdNextSelectorRequest(
+      "**/invoice-draft/saga-selection",
+    );
     await page.goto(`${url}/ticket?work=inlineBrowser`);
     await page
       .getByRole("button", { name: /Continuă ciorna|Începe factura/ })
       .click();
+    await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Adaugă produs", exact: true })
+      .click();
     const directUi = page.getByRole("region", {
-      name: "Produs direct din SAGA",
+      name: "Produs factură 1",
+      exact: true,
     });
-    await directUi
-      .getByRole("button", { name: "Adaugă produs din SAGA", exact: true })
-      .click();
-    await directUi
-      .getByLabel("Cod articol SAGA", { exact: true })
-      .fill("00082");
-    await directUi
-      .getByLabel("Cod articol SAGA", { exact: true })
-      .press("Enter");
+    await expect(directUi.getByRole("status")).toHaveText(
+      "Se încarcă tipurile…",
+    );
     await expect(
-      directUi.getByText("00082 · Produs nou din editor", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      directUi.getByRole("button", { name: "Adaugă în factură", exact: true }),
+      directUi.getByLabel("Tip SAGA", { exact: true }),
     ).toBeDisabled();
-    await directUi.getByLabel("Tip articol direct SAGA").selectOption("goods");
+    releaseTypes();
+    await expect(
+      directUi.getByLabel("Tip SAGA", { exact: true }),
+    ).toBeEnabled();
+    const selectionCallsAfterLoad = situationCalls;
+    await directUi.getByLabel("Tip SAGA", { exact: true }).selectOption("01");
+    await expect(
+      directUi.getByLabel("Gestiune SAGA", { exact: true }),
+    ).toBeEnabled();
     await directUi
-      .getByRole("checkbox", { name: /Am verificat că prețul/ })
-      .check();
-    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("g");
-    await expect(directUi.getByText(/Stoc: 10/)).toBeVisible();
+      .getByLabel("Gestiune SAGA", { exact: true })
+      .selectOption("01");
     await directUi
-      .getByLabel("Cantitate de adăugat", { exact: true })
-      .fill("11");
-    await expect(directUi.getByText(/Stoc insuficient/)).toBeVisible();
+      .getByRole("combobox", {
+        name: "invoice: Denumire 1",
+      })
+      .fill("00082");
+    await expect(
+      directUi
+        .getByRole("listbox")
+        .getByRole("button", { name: /Produs nou din editor/ }),
+    ).toBeVisible();
+    assert.equal(
+      situationCalls,
+      selectionCallsAfterLoad,
+      "Dropdown changes and typing filter the current API response without another report request",
+    );
+    const releaseArticle = await holdNextSelectorRequest(
+      "**/invoice-draft/saga-article/preview",
+    );
+    const releaseStock = await holdNextSelectorRequest(
+      "**/invoice-draft/stock",
+    );
     await directUi
-      .getByLabel("Cantitate de adăugat", { exact: true })
-      .fill("2");
-    await expect(directUi.getByText(/Stoc insuficient/)).toHaveCount(0);
-    inlineStockError = true;
-    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("");
-    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("g");
-    await expect(directUi.getByText(/Stoc neconfirmat/)).toBeVisible();
-    inlineStockError = false;
-    inlineStock = "0";
-    await directUi
-      .getByRole("button", { name: "Reîncearcă citirea stocului" })
+      .getByRole("listbox")
+      .getByRole("button", { name: /Produs nou din editor/ })
       .click();
-    await expect(directUi.getByText(/Stoc: 0/)).toBeVisible();
+    await expect(directUi.getByRole("status")).toHaveText(
+      "Se preiau datele articolului…",
+    );
+    releaseArticle();
+    await expect(directUi.getByRole("status")).toHaveText(
+      "Se verifică stocul curent…",
+    );
+    releaseStock();
+    await expect(directUi.getByText(/Stoc disponibil 10/)).toBeVisible();
+    await directUi.getByRole("checkbox", { name: /Confirm că prețul/ }).check();
+    await directUi.getByLabel("invoice: Cantitate 1").fill("11");
+    await expect(directUi.getByText(/Stoc insuficient/)).toBeVisible();
+    await expect(
+      directUi.getByRole("button", { name: "Confirmă articolul", exact: true }),
+    ).toBeDisabled();
+    await directUi.getByLabel("invoice: Cantitate 1").fill("2");
+    await page
+      .getByRole("button", { name: "Înapoi la datele facturii", exact: true })
+      .click();
+    await expect(directUi).toBeHidden();
+    await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
+    await expect(directUi.getByLabel("invoice: Cantitate 1")).toHaveValue("2");
+    await directUi
+      .getByRole("button", { name: "Confirmă articolul", exact: true })
+      .click();
+    await expect(
+      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
+    ).toHaveValue("12.50");
+    await expect(
+      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
+    ).toHaveAttribute("readonly", "");
+    await page.getByLabel("invoice: Cantitate 1", { exact: true }).fill("3");
+    await page
+      .getByRole("button", { name: "Minimizează factura", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: /Continuă ciorna · nesalvată/ })
+      .click();
+    await expect(
+      page.getByLabel("invoice: Cantitate 1", { exact: true }),
+    ).toHaveValue("3");
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       assert.ok(
@@ -1696,43 +2189,66 @@ async function main() {
         ),
       );
     }
+    const stepsBounds = await page
+      .getByRole("navigation", { name: "Pașii facturii" })
+      .evaluate((el) => ({ width: el.clientWidth, scroll: el.scrollWidth }));
+    assert.ok(stepsBounds.scroll <= stepsBounds.width);
     await page.screenshot({
-      path: "/tmp/fom-saga-direct-mobile.png",
+      path: "/tmp/fom-saga-two-step-mobile.png",
       fullPage: true,
     });
-    await directUi
-      .getByRole("button", { name: "Adaugă în factură", exact: true })
+    await page
+      .getByRole("button", { name: "Adaugă produs", exact: true })
       .click();
-    await expect(
-      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
-    ).toHaveValue("12.50");
-    await expect(
-      page.getByLabel("invoice: Preț unitar 1", { exact: true }),
-    ).toHaveAttribute("readonly", "");
-    inlineStock = "10";
-    await directUi
-      .getByRole("button", { name: "Adaugă produs din SAGA", exact: true })
-      .click();
-    await directUi
-      .getByLabel("Cod articol SAGA", { exact: true })
-      .fill("00082");
-    await directUi
-      .getByRole("button", { name: "Preia din SAGA", exact: true })
-      .click();
-    await expect(directUi.getByLabel("Tip articol direct SAGA")).toBeDisabled();
-    await directUi.getByLabel("Gestiune produs direct SAGA").selectOption("g");
-    await expect(directUi.getByText(/Stoc: 10/)).toBeVisible();
-    await directUi
-      .getByLabel("Cantitate de adăugat", { exact: true })
-      .fill("9");
-    await expect(directUi.getByText(/Stoc insuficient/)).toBeVisible();
-    await directUi
-      .getByLabel("Cantitate de adăugat", { exact: true })
+    const secondUi = page.getByRole("region", {
+      name: "Produs factură 2",
+      exact: true,
+    });
+    await secondUi.getByLabel("Tip SAGA", { exact: true }).selectOption("01");
+    await secondUi
+      .getByLabel("Gestiune SAGA", { exact: true })
+      .selectOption("01");
+    await secondUi
+      .getByLabel("invoice: Cantitate 2", { exact: true })
       .fill("8");
-    await expect(directUi.getByText(/Stoc insuficient/)).toHaveCount(0);
-    await directUi
-      .getByRole("button", { name: "Adaugă în factură", exact: true })
+    await secondUi
+      .getByRole("combobox", { name: "invoice: Denumire 2" })
+      .fill("00082");
+    await secondUi
+      .getByRole("listbox")
+      .getByRole("button", { name: /Produs nou din editor/ })
       .click();
+    await expect(secondUi.getByText(/Stoc insuficient/)).toBeVisible();
+    await secondUi
+      .getByLabel("invoice: Cantitate 2", { exact: true })
+      .fill("7");
+    await secondUi
+      .getByRole("button", { name: "Confirmă articolul", exact: true })
+      .click();
+    await expect(
+      secondUi.getByLabel("invoice: Cod 2", { exact: true }),
+    ).toHaveValue("00082");
+    // Choosing an already configured article replaces the same row automatically.
+    await secondUi
+      .getByRole("combobox", { name: "invoice: Denumire 2" })
+      .fill("00082");
+    await secondUi
+      .getByRole("listbox")
+      .getByRole("button", { name: /Produs nou din editor/ })
+      .click();
+    await expect(
+      secondUi.getByRole("button", { name: "Confirmă articolul", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      secondUi.getByLabel("invoice: Cod 2", { exact: true }),
+    ).toHaveValue("00082");
+    await expect(secondUi.getByRole("status")).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: /^Produs factură / }),
+    ).toHaveCount(2);
+    await expect(
+      page.getByRole("button", { name: "Schimbă articolul", exact: true }),
+    ).toHaveCount(0);
     await page
       .getByRole("button", { name: "Salvează ciorna", exact: true })
       .click();
@@ -1741,12 +2257,18 @@ async function main() {
     ).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: /Continuă ciorna/ }).click();
+    await page
+      .getByRole("button", { name: "Continuă la produse", exact: true })
+      .click();
     await expect(
       page.getByLabel("invoice: Preț unitar 1", { exact: true }),
     ).toHaveValue("12.50");
     await expect(
-      page.getByLabel("Gestiune SAGA 1", { exact: true }),
-    ).toHaveValue("g");
+      page.getByLabel("invoice: Cantitate 1", { exact: true }),
+    ).toHaveValue("3");
+    await expect(
+      page.getByLabel("invoice: Cod 1", { exact: true }),
+    ).toHaveValue("00082");
     const savedInline = (
       await db.doc("invoiceDrafts/inlineBrowser").get()
     ).data()!;
@@ -1766,7 +2288,7 @@ async function main() {
       "Nefacturat",
     );
     console.log(
-      "PASS direct article browser: Enter lookup, warehouse auto-stock, insufficiency, stock error vs zero/retry, protected price, 320/390px, save/reopen and XML preparation. No external traffic.",
+      "PASS API selector browser: delayed-response loading indicators for initial report/article/stock, instant local dependent dropdowns and search without extra requests, two steps, type/warehouse/code search, automatic stock, cumulative insufficiency, protected prices, local edits across navigation/minimize, 320/390px, save/reopen and XML preparation. No external traffic.",
     );
     assert.equal(sagaCalls, callsBeforeBrowser);
     assert.deepEqual(errors, []);
