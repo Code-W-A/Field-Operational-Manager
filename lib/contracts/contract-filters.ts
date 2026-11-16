@@ -20,6 +20,8 @@ export type ContractFilterRecord = {
     locationId?: string
     locationName?: string
   }>
+  type?: string
+  contractType?: string
   customFields?: Record<string, string>
   observatii?: string
   createdAt?: unknown
@@ -32,6 +34,33 @@ export type ClientLookup = {
 }
 
 export type ActiveContractFilter = Pick<FilterOption, "id" | "type" | "value">
+
+function normalizeContractType(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : ""
+}
+
+export function getContractTypeFieldId(fields: Array<{ id: string; name: string }>): string | undefined {
+  return fields.find((field) => {
+    const name = normalizeContractType(field.name).replace(/\s+/g, " ")
+    return name === "tip contract" || name === "tip de contract"
+  })?.id
+}
+
+export function getContractType(contract: ContractFilterRecord, typeFieldId?: string): string {
+  const fields = contract.customFields || {}
+  const candidates = [
+    typeFieldId ? fields[typeFieldId] : undefined,
+    contract.type,
+    contract.contractType,
+    fields.contractType,
+    fields.type,
+    fields.tipContract,
+    fields.tip,
+    fields["Tip contract"],
+    fields["tip contract"],
+  ]
+  return candidates.map(normalizeContractType).find(Boolean) || ""
+}
 
 export function getContractClientName(
   contract: ContractFilterRecord,
@@ -148,6 +177,16 @@ export function buildContractFilterOptions(
       value: [],
     },
     {
+      id: "tipContract",
+      label: "Tip contract",
+      type: "multiselect",
+      options: [
+        { value: "Abonament", label: "Abonament" },
+        { value: "La cerere", label: "La cerere" },
+      ],
+      value: [],
+    },
+    {
       id: "locatie",
       label: "Locație",
       type: "multiselect",
@@ -247,6 +286,7 @@ export function applyContractFilters(
   contracts: ContractFilterRecord[],
   activeFilters: ActiveContractFilter[],
   clients: ClientLookup[],
+  typeFieldId?: string,
 ): ContractFilterRecord[] {
   if (!activeFilters.length) return contracts
 
@@ -255,6 +295,10 @@ export function applyContractFilters(
       if (!filterHasValue(filter)) return true
 
       switch (filter.id) {
+        case "tipContract": {
+          const selected = getFilterValues(filter).map(normalizeContractType)
+          return selected.includes(getContractType(contract, typeFieldId))
+        }
         case "clienti": {
           const selected = getFilterValues(filter)
           return selected.includes(String(contract.clientId || ""))
@@ -322,10 +366,11 @@ export function filterContracts(
   activeFilters: ActiveContractFilter[],
   searchText: string,
   clients: ClientLookup[],
+  typeFieldId?: string,
 ): ContractFilterRecord[] {
   let result = contracts
   if (activeFilters.length) {
-    result = applyContractFilters(result, activeFilters, clients)
+    result = applyContractFilters(result, activeFilters, clients, typeFieldId)
   }
   if (searchText.trim()) {
     result = result.filter((contract) => contractMatchesSearch(contract, searchText, clients))

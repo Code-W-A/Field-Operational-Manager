@@ -1,3 +1,5 @@
+import { buildOfferEmailAttachments, resolveOfferAttachments } from "@/lib/offer/email-attachments.server"
+import { OfferAttachmentError } from "@/lib/offer/email-attachments"
 import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue, Timestamp } from "firebase-admin/firestore"
 import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
@@ -227,6 +229,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Oportunitatea nu există sau nu ai acces de editare." }, { status: 404 })
     }
 
+    const emailAttachments = await resolveOfferAttachments({ kind: "crm", id: opportunityId }, body.emailAttachments)
+    const mailAttachments = await buildOfferEmailAttachments({ kind: "crm", id: opportunityId }, emailAttachments, {
+      filename: pdfFilename, content: Buffer.from(attachmentBase64, "base64"), contentType: pdfMime,
+    })
     const offersCollection = adminDb.collection(CRM_COLLECTIONS.offers)
     const existingDraftRef =
       draftOfferId ? offersCollection.doc(draftOfferId) : offersCollection.doc()
@@ -278,15 +284,7 @@ export async function POST(request: NextRequest) {
         version,
         actorId,
       },
-      attachments: attachmentBase64
-        ? [
-            {
-              filename: pdfFilename,
-              content: Buffer.from(attachmentBase64, "base64"),
-              contentType: pdfMime,
-            },
-          ]
-        : undefined,
+      attachments: mailAttachments,
     })
 
     const now = new Date()
@@ -300,6 +298,7 @@ export async function POST(request: NextRequest) {
         recipientName: recipientName || null,
         subject,
         message,
+        emailAttachments,
         pdfUrl,
         pdfStoragePath,
         pdfFilename,
@@ -384,7 +383,7 @@ export async function POST(request: NextRequest) {
       actorName,
     })
   } catch (error: unknown) {
-    if (error instanceof RequireRoleError) {
+    if (error instanceof RequireRoleError || error instanceof OfferAttachmentError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
     logFirestoreIndexHintIfPresent(error, "POST /api/crm/offers/issue")

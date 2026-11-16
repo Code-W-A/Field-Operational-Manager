@@ -42,9 +42,19 @@ service firebase.storage {
         && request.resource.metadata.digest == permit().digest;
       allow update, delete: if false;
     }
+    // Immutable files authorized by an authenticated offer attachment permit.
+    match /offer-email-attachments/{uid}/{fileId} {
+      function permit() { return firestore.get(/databases/(default)/documents/offerEmailAttachments/$(fileId)).data; }
+      allow create: if resource == null && request.auth != null && request.auth.uid == uid
+        && permit().ownerUid == uid && permit().ready == false
+        && request.time.toMillis() < permit().expiresAt
+        && request.resource.size == permit().size && request.resource.size > 0 && request.resource.size <= 10000000
+        && request.resource.contentType == permit().contentType;
+      allow read, update, delete: if false;
+    }
     // Installation photos are uploaded/read through authenticated server endpoints.
     match /{directory}/{allPaths=**} {
-      allow read, write: if !(directory in ['installations', 'mobile-drafts', 'mobile-uploads']);
+      allow read, write: if !(directory in ['installations', 'mobile-drafts', 'mobile-uploads', 'offer-email-attachments']);
     }
   }
 }

@@ -79,3 +79,44 @@ test.describe("Contracte — filtrare E2E", () => {
     await expect(page.getByRole("button", { name: "Resetează filtrele și căutarea" })).toBeVisible()
   })
 })
+
+test("tip contract: aplicare, persistență, combinare și resetare", async ({ page }) => {
+  await gotoContracteList(page)
+  const dialog = page.getByRole("dialog", { name: "Filtrare contracte" })
+  const selectType = async (label: string) => {
+    await dialog.locator("div.space-y-2").filter({ has: page.locator('label[for="tipContract"]') }).getByRole("combobox").click()
+    const popover = page.locator("[data-radix-popper-content-wrapper]")
+    await popover.getByText(label, { exact: true }).click()
+    await page.keyboard.press("Escape")
+  }
+
+  await openFilterModal(page)
+  await selectType("Abonament")
+  await dialog.getByRole("button", { name: "Aplică filtrele" }).click()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 1 din 5 contracte/)
+  await expect(page.getByText("MNT-2026-001")).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 1 din 5 contracte/)
+  await openFilterModal(page)
+  await expect(dialog.getByText("Abonament", { exact: true })).toBeVisible()
+  await selectType("La cerere")
+  await dialog.getByRole("button", { name: "Aplică filtrele" }).click()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 2 din 5 contracte/)
+
+  await openFilterModal(page)
+  await dialog.getByRole("checkbox", { name: "Acme SRL" }).check()
+  await dialog.getByRole("button", { name: "Aplică filtrele" }).click()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 1 din 5 contracte/)
+
+  await page.getByTestId("contract-reset-all").click()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 5 din 5 contracte/)
+  await openFilterModal(page)
+  await selectType("La cerere")
+  await dialog.getByRole("button", { name: "Aplică filtrele" }).click()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 1 din 5 contracte/)
+  await expect(page.getByText("MNT-2026-005")).toBeVisible()
+  await openFilterModal(page)
+  await dialog.getByRole("button", { name: "Resetează", exact: true }).click()
+  await expect(page.getByTestId("contract-results-count")).toHaveText(/Afișate 5 din 5 contracte/)
+})

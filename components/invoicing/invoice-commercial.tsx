@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceAction } from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -55,10 +56,15 @@ export function InvoiceCommercialApply({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const lock = useRef(false);
-  async function run(fn: () => Promise<void>) {
+  const [action, setAction] = useState<"preview" | "apply" | null>(null);
+  async function run(
+    fn: () => Promise<void>,
+    kind: "preview" | "apply" = "preview",
+  ) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
+    setAction(kind);
     onBusy?.(true);
     setError("");
     try {
@@ -68,6 +74,7 @@ export function InvoiceCommercialApply({
     } finally {
       lock.current = false;
       setBusy(false);
+      setAction(null);
       onBusy?.(false);
     }
   }
@@ -113,9 +120,14 @@ export function InvoiceCommercialApply({
           )
         }
       >
-        {draft.commercial
-          ? "Actualizează regulile SAGA"
-          : "Aplică regulile SAGA"}
+        <InvoiceAction
+          pending={action === "preview"}
+          label="Se verifică regulile SAGA…"
+        >
+          {draft.commercial
+            ? "Actualizează regulile SAGA"
+            : "Aplică regulile SAGA"}
+        </InvoiceAction>
       </Button>
       {preview && (
         <div
@@ -186,10 +198,15 @@ export function InvoiceCommercialApply({
                 });
                 await onApplied();
                 setPreview(null);
-              })
+              }, "apply")
             }
           >
-            Confirmă și salvează regulile SAGA
+            <InvoiceAction
+              pending={action === "apply"}
+              label="Se salvează regulile SAGA…"
+            >
+              Confirmă și salvează regulile SAGA
+            </InvoiceAction>
           </Button>
           <Button
             type="button"
@@ -295,7 +312,9 @@ export function InvoiceCommercialSelector({
           disabled={busy}
           onClick={() => load()}
         >
-          Caută în referințe
+          <InvoiceAction pending={busy} label="Se caută articolul…">
+            Caută în referințe
+          </InvoiceAction>
         </Button>
       </div>
       <div

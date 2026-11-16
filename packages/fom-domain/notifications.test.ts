@@ -178,3 +178,22 @@ test("navigation never exposes a withdrawn ticket and respects attendance", () =
     "dashboard",
   );
 });
+
+test("completed installation cannot produce an overdue reminder before dispatcher pickup", () => {
+  const ticket = {
+    ...work,
+    dataInterventie: "13.11.2026 00:00",
+    preluatDispecer: false,
+    installation: {
+      schemaVersion: 1,
+      closedReason: "completed",
+      completionDocumentId: "final",
+    },
+  };
+  const at = new Date("2026-11-16T18:00:00Z");
+  assert.equal(overdueReminder(ticket, {}, at), false);
+  assert.equal(
+    overdueReminder({ ...ticket, installation: { schemaVersion: 1 } }, {}, at),
+    true,
+  );
+});

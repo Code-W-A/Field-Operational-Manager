@@ -1,3 +1,4 @@
+import type { OfferEmailAttachment } from "@/lib/offer/email-attachments"
 import type { Timestamp } from "firebase/firestore"
 import type { OfferResponseCertifiedPdf } from "@/lib/offer/evidence-types"
 import {
@@ -149,6 +150,7 @@ export interface CrmOfferResponse {
 }
 
 export interface CrmOffer {
+  emailAttachments?: OfferEmailAttachment[]
   issuer?: { userId: string; email: string }
   id: string
   opportunityId: string
@@ -416,6 +418,7 @@ export interface SendCrmOpportunityEmailInput {
 }
 
 export interface SaveCrmOfferDraftInput {
+  emailAttachments?: OfferEmailAttachment[]
   offerId?: string
   opportunityId: string
   snapshot: CrmOfferSnapshot
@@ -427,6 +430,7 @@ export interface SaveCrmOfferDraftInput {
 }
 
 export interface IssueCrmOfferInput {
+  emailAttachments?: OfferEmailAttachment[]
   opportunityId: string
   draftOfferId?: string
   recipientEmail: string

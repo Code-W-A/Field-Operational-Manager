@@ -90,6 +90,7 @@
     "test:saga": "tsx --test lib/saga/saga.test.ts lib/saga/catalog.test.ts",
     "test:invoice-user-numbering:integration": "tsx scripts/test-user-invoice-numbering.ts",
     "test:invoice-numbering": "tsx --test lib/invoicing/numbering.test.ts",
+    "test:invoice-feedback": "tsx scripts/test-invoice-feedback.ts",
     "test:invoice-compact-summaries": "tsx scripts/test-invoice-compact-summaries.ts",
     "test:invoice-numbering:integration": "tsx scripts/test-invoice-numbering.ts",
     "test:saga:clients": "tsx --test lib/saga/clients.test.ts",

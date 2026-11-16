@@ -1,5 +1,15 @@
 import * as functions from "firebase-functions";
 import { getFirestore } from "firebase-admin/firestore";
+
+// Firebase Functions v1 resolves Pub/Sub resources through GCLOUD_PROJECT.
+// Configuration-only updates may omit it while retaining FIREBASE_CONFIG.
+if (!process.env.GCLOUD_PROJECT && process.env.FIREBASE_CONFIG) {
+  const firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+  if (typeof firebaseConfig.projectId === "string") {
+    process.env.GCLOUD_PROJECT = firebaseConfig.projectId;
+  }
+}
+
 const region = "europe-west1";
 function configuration() {
   if (process.env.SAGA_WORKER_ENABLED !== "true") return null;

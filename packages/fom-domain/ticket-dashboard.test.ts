@@ -263,3 +263,57 @@ test("legacy canceled metadata stays outside all groups", () => {
     assert.equal(Object.values(groups).flat().length, 0);
   }
 });
+
+test("completed tickets never become overdue even before dispatcher pickup or without legacy scan flag", () => {
+  const completedInstallation = {
+    schemaVersion: 1,
+    closedReason: "completed",
+    completionDocumentId: "final",
+  };
+  for (const patch of [
+    { statusLucrare: "Finalizat" },
+    { statusLucrare: " finalizat " },
+    { raportGenerat: true },
+    { installation: completedInstallation },
+    { statusLucrare: "Finalizat", installation: completedInstallation },
+  ]) {
+    const ticket = work("002389", "13.11.2026 00:00", {
+      preluatDispecer: false,
+      ...patch,
+    });
+    const before = JSON.stringify(ticket);
+    const at = new Date("2026-11-16T18:00:00Z");
+    for (const config of [{}, { intarziateRequireNotScanned: false }]) {
+      assert.equal(isOverdueWork(ticket, config, at), false);
+      const grouped = groupDashboardTickets([ticket], config, at);
+      assert.deepEqual(grouped.overdue, []);
+      assert.equal(grouped.current[0].work.id, ticket.id);
+      assert.match(grouped.current[0].note!, /consultare/);
+    }
+    assert.equal(JSON.stringify(ticket), before);
+  }
+});
+test("unfinished installations remain overdue until the whole ticket is completed", () => {
+  for (const installation of [
+    { schemaVersion: 1 },
+    { schemaVersion: 1, closedReason: "completed" },
+    { schemaVersion: 1, completionDocumentId: "final" },
+    {
+      schemaVersion: 1,
+      closedReason: "continuation",
+      completionDocumentId: "final",
+    },
+  ]) {
+    const ticket = work("unfinished", "2026-10-11", {
+      installation,
+      statusLucrare: "În lucru",
+      // A legacy report flag cannot finalize a modern installation.
+      raportGenerat: true,
+    });
+    assert.equal(isOverdueWork(ticket, {}, now), true);
+    assert.deepEqual(
+      groupDashboardTickets([ticket], {}, now).overdue.map((e) => e.work.id),
+      ["unfinished"],
+    );
+  }
+});

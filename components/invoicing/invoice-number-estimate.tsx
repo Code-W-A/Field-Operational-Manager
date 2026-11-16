@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceLoading } from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 type Estimate = {
@@ -13,12 +14,15 @@ export function InvoiceNumberEstimate({ workId }: { workId: string }) {
   currentUser.current = user;
   const [data, setData] = useState<Estimate | null>(null),
     [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(true);
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     let generation = 0;
     let disposed = false;
     async function load() {
       const request = ++generation;
       setError("");
+      setRefreshing(true);
       try {
         const token = await currentUser.current?.getIdToken();
         const response = await fetch(
@@ -39,30 +43,43 @@ export function InvoiceNumberEstimate({ workId }: { workId: string }) {
         if (!disposed && request === generation) setData(value);
       } catch {
         if (disposed || request !== generation) return;
-        setData(null);
         setError("Numărul facturii nu poate fi încărcat momentan.");
+      } finally {
+        if (!disposed && request === generation) setRefreshing(false);
       }
     }
-    setData(null);
     void load();
     window.addEventListener("focus", load);
     return () => {
       disposed = true;
       window.removeEventListener("focus", load);
     };
-  }, [workId, user?.uid]);
+  }, [workId, user?.uid, refresh]);
+  useEffect(() => setData(null), [workId, user?.uid]);
   const configurationMissing =
     data &&
     !data.number &&
     (!data.reason || data.reason.startsWith("Lipsește profilul de facturare"));
   return (
     <section
+      aria-busy={refreshing}
       aria-label="Numărul facturii"
       className="space-y-2 rounded border p-3 text-sm"
     >
-      {error ? (
-        <p className="text-amber-800">{error}</p>
-      ) : data?.number ? (
+      {error && (
+        <p role="alert" className="text-amber-800">
+          {error}{" "}
+          <button
+            type="button"
+            className="underline"
+            disabled={refreshing}
+            onClick={() => setRefresh((v) => v + 1)}
+          >
+            Reîncearcă
+          </button>
+        </p>
+      )}
+      {data?.number ? (
         <p>
           Număr factură · <strong className="break-words">{data.number}</strong>
         </p>
@@ -82,7 +99,14 @@ export function InvoiceNumberEstimate({ workId }: { workId: string }) {
       ) : data?.reason ? (
         <p className="text-amber-800">{data.reason}</p>
       ) : (
-        <p className="text-muted-foreground">Se încarcă numărul facturii…</p>
+        <>
+          {!error && (
+            <InvoiceLoading>Se încarcă numărul facturii…</InvoiceLoading>
+          )}
+        </>
+      )}
+      {data && refreshing && (
+        <InvoiceLoading>Se actualizează numărul facturii…</InvoiceLoading>
       )}
     </section>
   );

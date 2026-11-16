@@ -1,4 +1,6 @@
 "use client";
+import { InvoiceAction, InvoiceLoading } from "./invoice-feedback";
+import { InvoiceTransferProgress } from "./invoice-transfer-progress";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -37,19 +39,32 @@ export function InvoiceSagaPanel({
   const { user } = useAuth();
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
+    [action, setAction] = useState<"start" | "recheck" | "report" | null>(null),
+    [statusError, setStatusError] = useState(""),
+    [reload, setReload] = useState(0),
+    [statusLoading, setStatusLoading] = useState(true),
     [confirm, setConfirm] = useState(false);
+  const busy = action !== null;
+  const actor = useRef(user);
+  actor.current = user;
   const lock = useRef(false);
   const statusCallback = useRef(onStatus);
   statusCallback.current = onStatus;
   const pending =
     !!state?.transfer && transferPending(state.transfer as SagaTransfer);
-  async function request(suffix = "", method = "GET", body?: unknown) {
-    const token = await user?.getIdToken();
+  async function request(
+    suffix = "",
+    method = "GET",
+    body?: unknown,
+    signal?: AbortSignal,
+  ) {
+    const token = await actor.current?.getIdToken();
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const r = await fetch(
       `/api/lucrari/${encodeURIComponent(workId)}/invoice-saga${suffix}`,
       {
         method,
+        signal,
         cache: "no-store",
         headers: {
           Authorization: `Bearer ${token || ""}`,
@@ -69,34 +84,53 @@ export function InvoiceSagaPanel({
   }
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    setStatusLoading(true);
     async function load() {
       try {
-        const data = await request();
+        const data: State = await request(
+          "",
+          "GET",
+          undefined,
+          controller.signal,
+        );
         if (!active) return;
-        setState(data);
-        statusCallback.current?.(data);
-        setError("");
-        if (data.transfer && transferPending(data.transfer))
+        // A poll started before a POST must not replace newer progress.
+        setState((previous) =>
+          previous?.transfer &&
+          (!data.transfer ||
+            previous.transfer.revision > data.transfer.revision)
+            ? previous
+            : data,
+        );
+        setStatusError("");
+        if (data.transfer && transferPending(data.transfer as SagaTransfer))
           timer = setTimeout(() => void load(), 2000);
       } catch (e) {
         if (active) {
-          setError((e as Error).message);
+          setStatusError((e as Error).message);
           timer = setTimeout(() => void load(), 5000);
         }
+      } finally {
+        if (active) setStatusLoading(false);
       }
     }
     void load();
     return () => {
       active = false;
+      controller.abort();
       clearTimeout(timer);
     };
-  }, [workId, user?.uid, pending, refreshKey]);
+  }, [workId, user?.uid, refreshKey, reload]);
+  useEffect(() => {
+    if (state) statusCallback.current?.(state);
+  }, [state]);
   async function act(kind: "start" | "recheck" | "report") {
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
-    onBusy(true);
+    setAction(kind);
+    if (kind !== "report") onBusy(true);
     setError("");
     try {
       if (kind === "report") {
@@ -117,13 +151,14 @@ export function InvoiceSagaPanel({
         );
         setState((s) => (s ? { ...s, ...data } : data));
         setConfirm(false);
+        setReload((value) => value + 1);
       }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       lock.current = false;
-      setBusy(false);
-      onBusy(false);
+      setAction(null);
+      if (kind !== "report") onBusy(false);
     }
   }
   const t = state?.transfer,
@@ -148,14 +183,45 @@ export function InvoiceSagaPanel({
           {error}
         </p>
       )}
-      {!state && <p>Se citește starea operațiunii…</p>}
+      {statusError && (
+        <div className="space-y-1">
+          <p role="alert" className="text-amber-800">
+            Progresul nu poate fi actualizat.{" "}
+            {state ? "Ultimul rezultat este păstrat." : statusError}
+          </p>
+          {state?.transfer && (
+            <p className="text-xs text-slate-600">
+              Ultima actualizare:{" "}
+              {new Date(state.transfer.updatedAt).toLocaleString("ro-RO")}.
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={statusLoading}
+            onClick={() => setReload((value) => value + 1)}
+          >
+            <InvoiceAction
+              pending={statusLoading}
+              label="Se actualizează progresul…"
+            >
+              Reîncearcă actualizarea
+            </InvoiceAction>
+          </Button>
+        </div>
+      )}
+      {!state && !statusError && (
+        <InvoiceLoading>Se citește starea operațiunii…</InvoiceLoading>
+      )}
       {state && !state.canStart && (
         <p className="text-amber-800">{state.reason}</p>
       )}
       {state && !t && <p>Import factură: Netrimisă</p>}
       {t && (
         <>
-          <dl className="space-y-1">
+          <InvoiceTransferProgress transfer={t as SagaTransfer} />
+          <dl className="space-y-1" aria-live="polite">
             <div>
               <dt className="inline font-medium">Import factură: </dt>
               <dd className="inline">
@@ -173,7 +239,8 @@ export function InvoiceSagaPanel({
           </dl>
           {t.error && <p className="break-words text-amber-800">{t.error}</p>}
           {t.importStatus === "imported" &&
-            ["checking", "not_confirmed"].includes(t.stockStatus) && (
+            !pending &&
+            t.stockStatus === "not_confirmed" && (
               <p className="text-amber-800">
                 {sim ? "Simulare: " : ""}
                 {STOCK_UNCONFIRMED}
@@ -235,7 +302,12 @@ export function InvoiceSagaPanel({
                 className="h-auto max-w-full whitespace-normal py-2 text-left"
                 onClick={() => void act("report")}
               >
-                Descarcă raportul importului
+                <InvoiceAction
+                  pending={action === "report"}
+                  label="Se pregătește descărcarea…"
+                >
+                  Descarcă raportul importului
+                </InvoiceAction>
               </Button>
             )}
             {!pending &&
@@ -251,7 +323,12 @@ export function InvoiceSagaPanel({
                   className="h-auto max-w-full whitespace-normal py-2 text-left"
                   onClick={() => void act("recheck")}
                 >
-                  Reverifică stocul (fără retrimitere)
+                  <InvoiceAction
+                    pending={action === "recheck"}
+                    label="Se pornește reverificarea…"
+                  >
+                    Reverifică stocul (fără retrimitere)
+                  </InvoiceAction>
                 </Button>
               )}
           </div>
@@ -294,7 +371,12 @@ export function InvoiceSagaPanel({
               disabled={busy}
               onClick={() => void act("start")}
             >
-              {sim ? "Confirmă simularea" : "Confirmă trimiterea în SAGA"}
+              <InvoiceAction
+                pending={action === "start"}
+                label="Se pornește trimiterea…"
+              >
+                {sim ? "Confirmă simularea" : "Confirmă trimiterea în SAGA"}
+              </InvoiceAction>
             </Button>
             <Button
               type="button"

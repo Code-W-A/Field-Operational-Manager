@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { EmailAttachmentsField } from "@/components/offer/email-attachments-field"
+import { validateOfferEmailSize, type OfferEmailAttachment } from "@/lib/offer/email-attachments"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { AlertCircle, Download, ExternalLink, FileCheck2, Mail, Save, Send, TableProperties } from "lucide-react"
@@ -86,6 +88,8 @@ export default function OpportunityOffersPage() {
   const [validityText, setValidityText] = useState("")
   const [fieldErrors, setFieldErrors] = useState<OfferFieldErrors>({})
   const [subject, setSubject] = useState("")
+  const [emailAttachments, setEmailAttachments] = useState<OfferEmailAttachment[]>([])
+  const [attachmentsBusy, setAttachmentsBusy] = useState(false)
   const [message, setMessage] = useState("")
   const [editingDraftOfferId, setEditingDraftOfferId] = useState<string | null>(null)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -94,7 +98,7 @@ export default function OpportunityOffersPage() {
   const [startingNewOffer, setStartingNewOffer] = useState(false)
   const editorBaseline = useRef<string | null>(null)
   const captureEditorBaseline = useRef(false)
-  const editorFingerprint = JSON.stringify({ products, optionalProducts, vatPercent, adjustmentPercent, commercialTerms, comments, validityText, subject, message })
+  const editorFingerprint = JSON.stringify({ products, optionalProducts, vatPercent, adjustmentPercent, commercialTerms, comments, validityText, subject, message, emailAttachments })
   // Capture the applied form after all state setters commit, including identical snapshots.
   useEffect(() => {
     if (captureEditorBaseline.current) {
@@ -127,7 +131,7 @@ export default function OpportunityOffersPage() {
   )
 
   const editorUnavailable = isTechnician || isTerminalStage
-  const editorBusy = savingDraft || issuingOffer || Boolean(deletingDraftOfferId) || startingNewOffer
+  const editorBusy = attachmentsBusy || savingDraft || issuingOffer || Boolean(deletingDraftOfferId) || startingNewOffer
   const canOpenEditor = !editorUnavailable && !editorBusy && Boolean(primaryContact?.email && isValidEmail(primaryRecipientEmail))
 
   const load = async () => {
@@ -229,6 +233,7 @@ export default function OpportunityOffersPage() {
     captureEditorBaseline.current = true
     setEditingDraftOfferId(null)
     setSourceOfferVersion(null)
+    setEmailAttachments([])
     setProducts([createEmptyProduct()])
     setOptionalProducts([])
     setVatPercent(String(vat))
@@ -261,6 +266,7 @@ export default function OpportunityOffersPage() {
     setFieldErrors({})
     setSubject(offer.subject || "")
     setMessage(offer.message || "")
+    setEmailAttachments(offer.emailAttachments || [])
     setEditingDraftOfferId(offer.status === "DRAFT" ? offer.id : null)
     setSourceOfferVersion(offer.status === "DRAFT" ? null : offer.version)
     setOfferEditorOpen(true)
@@ -360,6 +366,7 @@ export default function OpportunityOffersPage() {
         recipientName: primaryRecipientName,
         subject: subject.trim(),
         message: message.trim(),
+        emailAttachments,
         actorId: user.uid,
       })
       setEditingDraftOfferId(offerId)
@@ -435,6 +442,7 @@ export default function OpportunityOffersPage() {
         },
       })
 
+      validateOfferEmailSize(emailAttachments, blob.size)
       const pdfFilename = `crm_oferta_${opportunity.code || opportunity.id}.pdf`
       const file = new File([blob], pdfFilename, { type: "application/pdf" })
       const uploaded = await crmStorageProvider.uploadOpportunityFile({
@@ -450,6 +458,7 @@ export default function OpportunityOffersPage() {
         recipientName: primaryRecipientName,
         subject: subject.trim(),
         message: message.trim(),
+        emailAttachments,
         snapshot,
         pdfUrl: uploaded.url,
         pdfStoragePath: uploaded.path,
@@ -594,6 +603,7 @@ export default function OpportunityOffersPage() {
               />
               {fieldError("message")}
             </div>
+            <EmailAttachmentsField context={{ kind: "crm", id: opportunityId }} value={emailAttachments} onChange={setEmailAttachments} onBusyChange={setAttachmentsBusy} disabled={editorBusy || editorUnavailable} />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="offer-vat" className="text-sm font-medium text-neutral-800">
@@ -805,7 +815,7 @@ export default function OpportunityOffersPage() {
           </div>
         </div>
 
-        <Dialog open={offerEditorOpen} onOpenChange={setOfferEditorOpen}>
+        <Dialog open={offerEditorOpen} onOpenChange={(open) => { if (!editorBusy) setOfferEditorOpen(open) }}>
           <DialogContent className="[&_[aria-invalid=true]]:border-red-500 flex max-h-[95vh] w-[calc(100%-2rem)] max-w-[1600px] min-h-0 flex-col gap-0 overflow-hidden p-0">
             <DialogHeader className="min-w-0 shrink-0 space-y-2 border-b border-neutral-200/80 bg-neutral-50/50 px-5 py-4 text-left pr-10 sm:px-7 sm:py-5 sm:pr-12">
               <DialogTitle className="text-xl font-semibold tracking-tight text-neutral-900">Editor ofertă</DialogTitle>

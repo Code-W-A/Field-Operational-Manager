@@ -80,6 +80,7 @@ export const E2E_CONTRACTS: ContractFilterRecord[] = [
   {
     id: "sm-5",
     name: "Gamma fără recurență",
+    customFields: { tipContract: "La cerere" },
     number: "MNT-2026-005",
     clientId: "client-gamma",
     locationName: "Punct service",

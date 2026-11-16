@@ -1,3 +1,5 @@
+import { resolveOfferAttachments } from "@/lib/offer/email-attachments.server"
+import { OfferAttachmentError } from "@/lib/offer/email-attachments"
 import { NextResponse, type NextRequest } from "next/server"
 import { FieldValue } from "firebase-admin/firestore"
 import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
@@ -131,6 +133,7 @@ function serializeOffer(offerId: string, data: Record<string, unknown>) {
     recipientName: normalizeString(data.recipientName) || undefined,
     subject: normalizeString(data.subject) || undefined,
     message: normalizeString(data.message) || undefined,
+    emailAttachments: data.emailAttachments || [],
     pdfUrl: normalizeString(data.pdfUrl) || undefined,
     pdfStoragePath: normalizeString(data.pdfStoragePath) || undefined,
     pdfFilename: normalizeString(data.pdfFilename) || undefined,
@@ -228,7 +231,7 @@ export async function GET(request: NextRequest) {
       items: rows.docs.map((doc) => serializeOffer(doc.id, doc.data() as Record<string, unknown>)),
     })
   } catch (error: unknown) {
-    if (error instanceof RequireRoleError) {
+    if (error instanceof RequireRoleError || error instanceof OfferAttachmentError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
     logFirestoreIndexHintIfPresent(error, "GET /api/crm/offers")
@@ -276,7 +279,7 @@ export async function DELETE(request: NextRequest) {
     }, request)
     return NextResponse.json({ ok: true, offerId })
   } catch (error: unknown) {
-    if (error instanceof RequireRoleError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof RequireRoleError || error instanceof OfferAttachmentError) return NextResponse.json({ error: error.message }, { status: error.status })
     logFirestoreIndexHintIfPresent(error, "DELETE /api/crm/offers")
     return NextResponse.json({ error: error instanceof Error ? error.message : "Nu s-a putut șterge draftul." }, { status: 500 })
   }
@@ -319,6 +322,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Oportunitatea nu există sau nu ai acces de editare." }, { status: 404 })
     }
 
+    const emailAttachments = await resolveOfferAttachments({ kind: "crm", id: opportunityId }, body.emailAttachments)
+
     const offersCollection = adminDb.collection(CRM_COLLECTIONS.offers)
 
     if (offerId) {
@@ -342,6 +347,7 @@ export async function POST(request: NextRequest) {
           recipientName: recipientName || null,
           subject: subject || null,
           message: message || null,
+          emailAttachments,
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -378,6 +384,7 @@ export async function POST(request: NextRequest) {
       recipientName: recipientName || null,
       subject: subject || null,
       message: message || null,
+      emailAttachments,
       createdById,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -397,7 +404,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, offerId: newOfferRef.id, version })
   } catch (error: unknown) {
-    if (error instanceof RequireRoleError) {
+    if (error instanceof RequireRoleError || error instanceof OfferAttachmentError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
     logFirestoreIndexHintIfPresent(error, "POST /api/crm/offers")

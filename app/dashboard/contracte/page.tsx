@@ -19,6 +19,7 @@ import { FilterButton } from "@/components/filter-button"
 import { FilterModal, type FilterOption } from "@/components/filter-modal"
 import {
   buildContractFilterOptions,
+  getContractTypeFieldId,
   countActiveContractFilters,
   filterContracts,
   normalizeActiveContractFilters,
@@ -556,9 +557,14 @@ const [startDateWorkload, setStartDateWorkload] = useState<{ loading: boolean; c
     [contracts, clientLookups],
   )
 
+  const contractTypeFieldId = useMemo(
+    () => getContractTypeFieldId(dynamicFieldsParents),
+    [dynamicFieldsParents],
+  )
+
   const filteredContracts = useMemo(
-    () => filterContracts(sortedContracts, activeFilters, searchText, clientLookups),
-    [sortedContracts, activeFilters, searchText, clientLookups],
+    () => filterContracts(sortedContracts, activeFilters, searchText, clientLookups, contractTypeFieldId),
+    [sortedContracts, activeFilters, searchText, clientLookups, contractTypeFieldId],
   )
 
   const activeFilterCount = useMemo(

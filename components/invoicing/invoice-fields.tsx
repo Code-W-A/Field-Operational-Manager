@@ -1,4 +1,9 @@
 "use client";
+import {
+  InvoiceAction,
+  InvoiceLoading,
+  useInvoiceActivity,
+} from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -47,6 +52,9 @@ export function InvoiceHeaderFields({
   } | null>(null);
   const [vatCash, setVatCash] = useState<boolean | null>(null);
   const [error, setError] = useState("");
+  const [contextLoading, setContextLoading] = useState(true);
+  const [issuerLoading, setIssuerLoading] = useState(true);
+  const [refresh, setRefresh] = useState(0);
   const [fiscalOpen, setFiscalOpen] = useState(
     () =>
       !draft.beneficiary.address ||
@@ -56,12 +64,18 @@ export function InvoiceHeaderFields({
   );
   useEffect(() => {
     let disposed = false;
+    setError("");
+    setContextLoading(true);
+    setIssuerLoading(true);
     void request("/commercial-context")
       .then((value) => {
         if (!disposed) setContext(value);
       })
       .catch(() => {
         if (!disposed) setError("Agentul nu poate fi încărcat momentan.");
+      })
+      .finally(() => {
+        if (!disposed) setContextLoading(false);
       });
     void (async () => {
       try {
@@ -76,12 +90,14 @@ export function InvoiceHeaderFields({
       } catch {
         if (!disposed)
           setError("Datele emitentului nu pot fi încărcate momentan.");
+      } finally {
+        if (!disposed) setIssuerLoading(false);
       }
     })();
     return () => {
       disposed = true;
     };
-  }, [draft.workId, draft.revision, user?.uid]);
+  }, [draft.workId, draft.revision, user?.uid, refresh]);
   return (
     <fieldset disabled={readOnly} className="space-y-3">
       <legend className="sr-only">Datele facturii</legend>
@@ -146,22 +162,38 @@ export function InvoiceHeaderFields({
       <div className="grid gap-2 text-sm sm:grid-cols-2">
         <p>
           Agent ·{" "}
-          {context?.agent
-            ? `${context.agent.name} (${context.agent.code})`
-            : "De configurat în pagina utilizatorului"}
+          {contextLoading && !context ? (
+            <InvoiceLoading>Se încarcă agentul…</InvoiceLoading>
+          ) : context?.agent ? (
+            `${context.agent.name} (${context.agent.code})`
+          ) : (
+            "De configurat în pagina utilizatorului"
+          )}
         </p>
         <p>
           TVA la încasare ·{" "}
-          {vatCash === null
-            ? "De configurat pentru emitent"
-            : vatCash
-              ? "Da"
-              : "Nu"}
+          {issuerLoading && vatCash === null ? (
+            <InvoiceLoading>Se încarcă datele emitentului…</InvoiceLoading>
+          ) : vatCash === null ? (
+            "De configurat pentru emitent"
+          ) : vatCash ? (
+            "Da"
+          ) : (
+            "Nu"
+          )}
         </p>
       </div>
       {error && (
         <p role="alert" className="text-sm text-amber-800">
-          {error}
+          {error}{" "}
+          <button
+            type="button"
+            className="underline"
+            disabled={contextLoading || issuerLoading}
+            onClick={() => setRefresh((v) => v + 1)}
+          >
+            Reîncearcă
+          </button>
         </p>
       )}
       <label className="block text-sm">
@@ -231,6 +263,7 @@ export function InvoiceProductFields({
   onApproveDiscount: (value: boolean) => void;
 }) {
   const { userData } = useAuth();
+  const { setActivity } = useInvoiceActivity(onBusy);
   const list = useInvoiceSagaList(draft.workId, !readOnly);
   const [stocks, setStocks] = useState<Record<string, InvoiceStock>>({});
   const stockKey = (line: InvoiceLine) =>
@@ -291,7 +324,7 @@ export function InvoiceProductFields({
           onStock={(stock) =>
             setStocks((previous) => ({ ...previous, [stockKey(line)]: stock }))
           }
-          onBusy={onBusy}
+          onBusy={(pending) => setActivity(line.id, pending)}
         />
       ))}
       {list.error && (
@@ -330,9 +363,14 @@ export function InvoiceProductFields({
             disabled={disabled || list.loading}
             onClick={list.refresh}
           >
-            {list.loading
-              ? "Se încarcă lista SAGA…"
-              : "Actualizează lista SAGA"}
+            <InvoiceAction
+              pending={list.loading}
+              label="Se încarcă lista SAGA…"
+            >
+              {list.error
+                ? "Reîncearcă încărcarea listei SAGA"
+                : "Actualizează lista SAGA"}
+            </InvoiceAction>
           </Button>
         </div>
       )}

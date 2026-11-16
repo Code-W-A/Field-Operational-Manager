@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceAction } from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ export function InvoiceEurRate({
   date,
   reference,
   readOnly,
+  disabled = false,
   onProposal,
   onSelect,
 }: {
@@ -15,6 +17,7 @@ export function InvoiceEurRate({
   date: string;
   reference?: EurReference;
   readOnly: boolean;
+  disabled?: boolean;
   onProposal: (r: EurReference | undefined) => void;
   onSelect: (r: EurReference) => void;
 }) {
@@ -58,6 +61,7 @@ export function InvoiceEurRate({
     }
   }
   useEffect(() => {
+    setBusy(false);
     setProposal(undefined);
     setError("");
     setOmitConfirm(false);
@@ -70,6 +74,7 @@ export function InvoiceEurRate({
   const shown = stored || proposal;
   return (
     <section
+      aria-busy={busy}
       aria-label="Curs EUR informativ"
       className="space-y-2 rounded border bg-slate-50 p-3 text-sm"
     >
@@ -104,7 +109,6 @@ export function InvoiceEurRate({
             : "Alege data facturii pentru preluarea cursului."}
         </p>
       )}
-      {busy && <p>Se preia cursul BNR… Ciorna poate fi salvată separat.</p>}
       {stored && proposal && (
         <p>
           Propunere:{" "}
@@ -119,16 +123,20 @@ export function InvoiceEurRate({
             type="button"
             size="sm"
             variant="outline"
-            disabled={busy || !date}
+            disabled={disabled || busy || !date}
             onClick={() => load(false)}
           >
-            Actualizează cursul EUR
+            <InvoiceAction pending={busy} label="Se preia cursul BNR…">
+              {error
+                ? "Reîncearcă preluarea cursului"
+                : "Actualizează cursul EUR"}
+            </InvoiceAction>
           </Button>
           {proposal && (
             <Button
               type="button"
               size="sm"
-              disabled={busy}
+              disabled={disabled || busy}
               onClick={() => {
                 onSelect(proposal);
                 onProposal(undefined);
@@ -157,7 +165,7 @@ export function InvoiceEurRate({
                 size="sm"
                 variant="outline"
                 onClick={() => setOmitConfirm(true)}
-                disabled={!date || busy}
+                disabled={disabled || !date || busy}
               >
                 Continuă fără curs EUR
               </Button>
@@ -174,6 +182,7 @@ export function InvoiceEurRate({
                   <Button
                     type="button"
                     size="sm"
+                    disabled={disabled || busy}
                     onClick={() => {
                       onSelect({ status: "omitted", requestedDate: date });
                       onProposal(undefined);
@@ -188,6 +197,7 @@ export function InvoiceEurRate({
                     type="button"
                     size="sm"
                     variant="outline"
+                    disabled={disabled || busy}
                     onClick={() => setOmitConfirm(false)}
                   >
                     Renunță

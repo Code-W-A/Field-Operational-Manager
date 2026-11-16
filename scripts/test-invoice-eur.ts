@@ -855,14 +855,14 @@ async function main() {
       page.getByText("Ciornă salvată.", { exact: true }),
     ).toBeVisible();
     await page
-      .getByLabel("invoice: Denumire 1", { exact: true })
+      .getByLabel("Informații suplimentare factură", { exact: true })
       .fill("Editare păstrată");
     await page
       .getByLabel("invoice: Data documentului", { exact: true })
       .fill("2026-11-09");
     await expect(ratePanel.getByRole("alert")).toContainText("viitoare");
     await expect(
-      page.getByLabel("invoice: Denumire 1", { exact: true }),
+      page.getByLabel("Informații suplimentare factură", { exact: true }),
     ).toHaveValue("Editare păstrată");
     await ratePanel
       .getByRole("button", { name: "Continuă fără curs EUR", exact: true })
@@ -879,6 +879,7 @@ async function main() {
     await expect(
       page.getByText("Ciornă salvată.", { exact: true }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Continuă la produse", exact: true }).click();
     await page
       .getByRole("button", {
         name: "Simulează emiterea și trimiterea",

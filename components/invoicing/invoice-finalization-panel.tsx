@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  InvoiceAction,
+  InvoiceLoading,
+  useInvoiceActivity,
+} from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -56,7 +61,15 @@ export function InvoiceFinalizationPanel({
   const [state, setState] = useState<State | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [action, setAction] = useState<
+    "save" | "preview" | "confirm" | "download" | null
+  >(null);
+  const { setActivity } = useInvoiceActivity(onBusy);
+  function setActionBusy(value: typeof action) {
+    setAction(value);
+    setActivity("action", value !== null);
+  }
+  const [transferBusy, setTransferBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const summaryElement = useRef<HTMLDivElement>(null);
   const startButton = useRef<HTMLButtonElement>(null);
@@ -119,12 +132,12 @@ export function InvoiceFinalizationPanel({
   async function inspect() {
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
-    onBusy(true);
+    setActionBusy(dirty ? "save" : "preview");
     setError("");
     try {
       const saved = doc ? draft : await onSaveBeforePreview();
       if (!saved) return; // Parent preserves local edits and displays the save conflict.
+      setActionBusy("preview");
       const result = await request("invoice-finalization/preview", {
         expectedRevision: saved.revision,
       });
@@ -140,15 +153,13 @@ export function InvoiceFinalizationPanel({
       setError((e as Error).message);
     } finally {
       lock.current = false;
-      setBusy(false);
-      onBusy(false);
+      setActionBusy(null);
     }
   }
   async function confirm() {
     if (!summary || lock.current) return;
     lock.current = true;
-    setBusy(true);
-    onBusy(true);
+    setActionBusy("confirm");
     setError("");
     try {
       const result = await request("invoice-finalization", {
@@ -169,15 +180,13 @@ export function InvoiceFinalizationPanel({
       setRefresh((v) => v + 1); // Recover a committed document even when the response was lost.
     } finally {
       lock.current = false;
-      setBusy(false);
-      onBusy(false);
+      setActionBusy(null);
     }
   }
   async function download() {
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
-    onBusy(true);
+    setAction("download");
     setError("");
     try {
       const token = await user?.getIdToken();
@@ -201,8 +210,7 @@ export function InvoiceFinalizationPanel({
       setError((e as Error).message);
     } finally {
       lock.current = false;
-      setBusy(false);
-      onBusy(false);
+      setAction(null);
     }
   }
   const sim = (summary?.mode || state?.mode) === "dry-run";
@@ -222,7 +230,9 @@ export function InvoiceFinalizationPanel({
           {error}
         </p>
       )}
-      {!state && !error && <p>Se verifică starea facturii…</p>}
+      {!state && !error && (
+        <InvoiceLoading>Se verifică starea facturii…</InvoiceLoading>
+      )}
       {!state && error && (
         <Button
           type="button"
@@ -247,16 +257,23 @@ export function InvoiceFinalizationPanel({
       {!summary && canInspect && (
         <Button
           type="button"
-          disabled={busy || (!doc && readOnly) || !state?.canStart}
+          disabled={
+            !!action || transferBusy || (!doc && readOnly) || !state?.canStart
+          }
           ref={startButton}
           className="h-auto max-w-full whitespace-normal py-2"
           onClick={() => void inspect()}
         >
-          {busy
-            ? "Se verifică factura…"
-            : sim
+          <InvoiceAction
+            pending={action === "save" || action === "preview"}
+            label={
+              action === "save" ? "Se salvează ciorna…" : "Se verifică factura…"
+            }
+          >
+            {sim
               ? "Simulează emiterea și trimiterea"
               : "Emite și trimite în SAGA"}
+          </InvoiceAction>
         </Button>
       )}
       {summary && (
@@ -359,18 +376,23 @@ export function InvoiceFinalizationPanel({
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              disabled={busy || !summary.canConfirm}
+              disabled={!!action || transferBusy || !summary.canConfirm}
               className="h-auto max-w-full whitespace-normal py-2"
               onClick={() => void confirm()}
             >
-              {sim
-                ? "Confirmă simularea emiterii și trimiterii"
-                : "Confirmă emiterea și trimiterea"}
+              <InvoiceAction
+                pending={action === "confirm"}
+                label="Se confirmă emiterea…"
+              >
+                {sim
+                  ? "Confirmă simularea emiterii și trimiterii"
+                  : "Confirmă emiterea și trimiterea"}
+              </InvoiceAction>
             </Button>
             <Button
               type="button"
               variant="outline"
-              disabled={busy}
+              disabled={!!action || transferBusy}
               onClick={() => {
                 setSummary(null);
                 operation.current = "";
@@ -387,7 +409,10 @@ export function InvoiceFinalizationPanel({
           <InvoiceSagaPanel
             workId={workId}
             sha256={doc.sha256}
-            onBusy={onBusy}
+            onBusy={(pending) => {
+              setTransferBusy(pending);
+              setActivity("transfer", pending);
+            }}
             allowStart={false}
             refreshKey={refresh}
             onStatus={setState}
@@ -403,10 +428,15 @@ export function InvoiceFinalizationPanel({
               <Button
                 type="button"
                 variant="outline"
-                disabled={busy}
+                disabled={!!action || transferBusy}
                 onClick={() => void download()}
               >
-                Descarcă XML
+                <InvoiceAction
+                  pending={action === "download"}
+                  label="Se pregătește descărcarea…"
+                >
+                  Descarcă XML
+                </InvoiceAction>
               </Button>
             </div>
           </details>

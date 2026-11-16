@@ -1,5 +1,7 @@
 # Ciorna facturii din tichet — etapa 1
 
+Actualizare **12 noiembrie 2026**: feedback vizibil la operațiunile editorului, progres SAGA pe etape și păstrarea rezultatelor la erori de conexiune. Detalii și verificări în secțiunea de mai jos.
+
 Actualizare **10 noiembrie 2026**: editorul principal folosește acum [finalizarea printr-o singură confirmare](invoice-finalization.md), cu autosalvare, rezumat și commit atomic număr + XML + transfer. Implementare/teste locale, fără publicare sau apeluri SAGA reale în această livrare. Pașii tehnici descriși mai jos se păstrează ca referință pentru serviciile reutilizate.
 
 Actualizare 7 noiembrie 2026: catalogul reutilizabil de produse/gestiuni și consultarea stocului în editor sunt implementate local; detalii în [saga-connection.md](saga-connection.md#catalog-si-ciorna-facturii--7-noiembrie-2026). Salvarea ciornei rezolvă asocierile pe server, fără apel SAGA. Consultarea stocului pornește numai prin buton.
@@ -55,3 +57,25 @@ Etapa 3 adaugă versiunea comercială 2 a ciornei, cu activare pe firmă și con
 ## Planul 2 — curs EUR informativ
 
 Etapa 4 adaugă propunerea BNR pentru data facturii și păstrarea explicită în ciornă/document. Totalurile RON rămân identice. [API, cache, omiterea confirmată și teste](invoice-eur-reference.md).
+
+## Feedback pentru operațiunile editorului — 12 noiembrie 2026
+
+- Indicatori locali pentru deschidere, număr, client, agent, emitent, EUR, lista SAGA, articol, stoc și completarea liniei. Filtrarea locală a selectoarelor nu introduce întârzieri.
+- Acțiuni distincte pentru salvare, verificarea rezumatului, confirmare și descărcări. Descărcările nu blochează întregul editor; mutațiile incompatibile rămân protejate. Operațiunile simultane sunt urmărite pe chei separate, inclusiv pe liniile de produse.
+- Progresul transferului folosește fazele serverului: stoc inițial, trimitere, verificare stoc. Nu afișează procente sau validare contabilă dedusă.
+- Mesajul „Factură importată în SAGA; scăderea stocului nu este confirmată.” apare numai la rezultatul final `not_confirmed`, nu în `checking`.
+- Fără progres timp de 30 de secunde: mesaj discret și ultima actualizare. Pollingul nu schimbă indicatorii la fiecare GET, păstrează ultimul rezultat la eroare și refuză înlocuirea unei revizii noi cu una veche. Reîncercarea actualizării citește doar statusul.
+- Reverificarea stocului reutilizează ruta existentă și nu retrimite factura. În simulare rezultatele rămân etichetate explicit.
+- EUR separă indisponibilitatea temporară a controalelor de starea definitivă numai pentru citire, astfel încât alte operațiuni să nu anuleze preluarea cursului.
+- Indicatorii respectă preferința pentru mișcare redusă; butoanele păstrează numele accesibile în timpul încărcării.
+
+Verificări executate local:
+
+- `npm run test:invoice-feedback`: browser cu componente reale și API simulate; încărcări întârziate, selecție în lanț, eroare de stoc cu păstrarea ultimei valori, salvare/dublu click, minimizare în timpul salvării, tastatură la confirmare, descărcări, întârziere de 30 secunde, recuperarea pollingului, rezultate terminale, servicii fără stoc, reverificare fără import, operațiuni concurente și 320/390 px cu mișcare redusă.
+- `npm run test:invoice-compact-summaries`: trecut.
+- `npm run test:invoice-commercial:integration`: API/emulatoare/browser, trecut, transport SAGA simulat.
+- `npm run test:invoice-eur:integration`: API/emulatoare/browser, trecut. Scenariul browser a fost adaptat editorului actual în doi pași: editare locală în antet și navigare la produse înainte de confirmare.
+- `npm run test:invoice-saga`: 10 teste trecute.
+- `git diff --check`: trecut. Verificarea TypeScript globală raportează erori în alte zone ale proiectului; nu raportează erori în componentele sau scripturile modificate în această livrare.
+
+Modificări numai în interfață și testele acesteia: fără API-uri noi, fără publicare, fără emitere/import real și fără modificări în SAGA. Testele browser noi blochează traficul extern, iar verificările cu Firebase folosesc proiecte demo în emulatoare.

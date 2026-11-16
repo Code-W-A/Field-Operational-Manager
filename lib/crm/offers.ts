@@ -21,6 +21,7 @@ function normalizeOfferStatus(value: unknown): CrmOffer["status"] {
 
 function mapOffer(docId: string, data: Record<string, unknown>): CrmOffer {
   return {
+    emailAttachments: (data.emailAttachments as CrmOffer["emailAttachments"]) || [],
     id: docId,
     opportunityId: String(data.opportunityId || ""),
     version: Number(data.version || 0),
@@ -95,6 +96,7 @@ export async function saveCrmOfferDraft(input: SaveCrmOfferDraftInput) {
     credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...(await firebaseBearerHeader()) },
     body: JSON.stringify({
+      emailAttachments: input.emailAttachments || [],
       offerId: input.offerId,
       opportunityId: input.opportunityId,
       snapshot: input.snapshot,

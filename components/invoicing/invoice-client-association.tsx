@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceLoading } from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { normalizeTaxId, type ClientAssociation } from "@/lib/saga/clients";
@@ -17,12 +18,15 @@ export function InvoiceClientAssociation({
   currentUser.current = user;
   const [data, setData] = useState<ClientAssociation | null>(null);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(true);
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     let generation = 0;
     let disposed = false;
     async function load() {
       const request = ++generation;
       setError("");
+      setRefreshing(true);
       try {
         const token = await currentUser.current?.getIdToken();
         const response = await fetch(
@@ -37,18 +41,19 @@ export function InvoiceClientAssociation({
         if (!disposed && request === generation) setData(value);
       } catch {
         if (disposed || request !== generation) return;
-        setData(null);
         setError("Asocierea SAGA nu poate fi încărcată momentan.");
+      } finally {
+        if (!disposed && request === generation) setRefreshing(false);
       }
     }
-    setData(null);
     void load();
     window.addEventListener("focus", load);
     return () => {
       disposed = true;
       window.removeEventListener("focus", load);
     };
-  }, [workId, user?.uid]);
+  }, [workId, user?.uid, refresh]);
+  useEffect(() => setData(null), [workId, user?.uid]);
   const country = data?.link?.country || "";
   const fiscalDifference =
     !!data?.link &&
@@ -68,13 +73,29 @@ export function InvoiceClientAssociation({
   ) : null;
   return (
     <section
+      aria-busy={refreshing}
       aria-label="Client SAGA al facturii"
       className="rounded border bg-slate-50 p-3 text-sm"
     >
-      {error ? (
-        <p className="text-amber-800">{error}</p>
-      ) : !data ? (
-        <p className="text-muted-foreground">Se încarcă asocierea SAGA…</p>
+      {error && (
+        <p role="alert" className="text-amber-800">
+          {error}{" "}
+          <button
+            type="button"
+            className="underline"
+            disabled={refreshing}
+            onClick={() => setRefresh((v) => v + 1)}
+          >
+            Reîncearcă
+          </button>
+        </p>
+      )}
+      {!data ? (
+        <>
+          {!error && (
+            <InvoiceLoading>Se încarcă asocierea SAGA…</InvoiceLoading>
+          )}
+        </>
       ) : !data.clientId ? (
         <p className="text-amber-800">
           Clientul tichetului lipsește sau este ambiguu. Corectează clientul din
@@ -100,6 +121,9 @@ export function InvoiceClientAssociation({
           {data.taxId ? ` · ${data.taxId}` : ""} · Asociat SAGA{" "}
           {data.entry.code}
         </p>
+      )}
+      {data && refreshing && (
+        <InvoiceLoading>Se actualizează asocierea SAGA…</InvoiceLoading>
       )}
     </section>
   );

@@ -1,5 +1,7 @@
 "use client"
 
+import { EmailAttachmentsField } from "@/components/offer/email-attachments-field"
+import { validateOfferEmailSize, type OfferEmailAttachment } from "@/lib/offer/email-attachments"
 import { workArrayUnion as arrayUnion } from "@/lib/installations/management-client"
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -44,6 +46,7 @@ interface OfferEditorDialogProps {
 }
 
 type OfferVersion = {
+  emailAttachments?: OfferEmailAttachment[]
   clientSnapshot?: DocumentClientSnapshot
   savedAt: string
   savedBy?: string
@@ -60,6 +63,8 @@ export function OfferEditorDialog({ lucrareId, open, onOpenChange, initialProduc
   const { userData } = useAuth()
   const canPrepareBeforePickup = userData?.role === "admin" || userData?.role === "dispecer"
   const [products, setProducts] = useState<ProductItem[]>(initialProducts)
+  const [emailAttachments, setEmailAttachments] = useState<OfferEmailAttachment[]>([])
+  const [attachmentsBusy, setAttachmentsBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [versions, setVersions] = useState<OfferVersion[]>([])
   const [viewIndex, setViewIndex] = useState<number | null>(null)
@@ -127,6 +132,7 @@ useEffect(() => {
       const current = await getLucrareById(lucrareId, { serverOnly: true })
       const loadedVersions = ((current as any)?.offerVersions || []) as any
       setVersions(loadedVersions)
+      setEmailAttachments((current as any)?.emailAttachments || loadedVersions[loadedVersions.length - 1]?.emailAttachments || [])
       setIsPickedUp(Boolean((current as any)?.preluatDispecer))
       setStatusOferta((current as any)?.statusOferta)
       setCurrentWork(current)
@@ -246,6 +252,7 @@ useEffect(() => {
   }, [open, versions?.length, editingNewVersion])
 
   const handleSave = async () => {
+    if (attachmentsBusy || saving) return
     try {
       setSaving(true)
       // determinăm baseline: ultima versiune sau baseline-ul din deschidere
@@ -254,7 +261,7 @@ useEffect(() => {
       const adjToSave = (() => { const n = parseFloat(String(adjustmentInput).replace(',', '.')); return isNaN(n) ? 0 : n })()
       const versionTotal = total * (1 - adjToSave / 100)
       const conditiiOferta = buildPricingConditions(termsPayment, termsDelivery, termsInstallation)
-      const changed = JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== versionTotal
+      const changed = JSON.stringify(emailAttachments) !== JSON.stringify(last?.emailAttachments || []) || JSON.stringify(products) !== JSON.stringify(baseline) || (last?.total ?? 0) !== versionTotal
         || JSON.stringify(conditiiOferta) !== JSON.stringify(last?.conditions || currentWork?.conditiiOferta || [])
         || last?.vatPercent !== vatPercent || last?.adjustmentPercent !== adjToSave
         || (last?.adjustmentInput !== undefined && last.adjustmentInput !== adjustmentInput)
@@ -272,6 +279,7 @@ useEffect(() => {
         Object.entries(product).filter(([, value]) => value !== undefined),
       )) as ProductItem[]
       const version: OfferVersion = {
+        emailAttachments,
         clientSnapshot,
         savedAt: new Date().toISOString(),
         savedBy: userData?.displayName || userData?.email || "Unknown",
@@ -286,6 +294,7 @@ useEffect(() => {
       const newVersions = [...existing, version]
       await updateLucrare(lucrareId, {
         products: savedProducts,
+        emailAttachments,
         // Save discounted total as the effective offer total
         offerTotal: versionTotal,
         offerVAT: Number(vatPercent) || 0,
@@ -324,9 +333,11 @@ useEffect(() => {
       // Restaurăm produsele și totalul fără a crea o versiune nouă în istoric
       await updateLucrare(lucrareId, {
         products: v.products,
+        emailAttachments: v.emailAttachments || [],
         offerTotal: v.total,
       } as any)
       setProducts(v.products)
+      setEmailAttachments(v.emailAttachments || [])
       // Istoricul rămâne neschimbat (nu adăugăm o versiune nouă)
     } finally {
       setSaving(false)
@@ -341,7 +352,7 @@ useEffect(() => {
   })
   const hasSendErrors = Object.keys(sendFieldErrors).length > 0
   const savedOffer = versions[versions.length - 1]
-  const hasUnsavedOfferChanges = !!savedOffer && (
+  const hasUnsavedOfferChanges = JSON.stringify(emailAttachments) !== JSON.stringify(versions[versions.length - 1]?.emailAttachments || []) || !!savedOffer && (
     JSON.stringify(products) !== JSON.stringify(savedOffer.products)
     || JSON.stringify(buildPricingConditions(termsPayment, termsDelivery, termsInstallation)) !== JSON.stringify(savedOffer.conditions || currentWork?.conditiiOferta || [])
     || vatPercent !== (savedOffer.vatPercent ?? vatPercent)
@@ -445,6 +456,7 @@ useEffect(() => {
   }
 
   const handleSendOffer = async () => {
+    if (attachmentsBusy || saving) return
     if (hasSendErrors) {
       toast({ title: "Oferta este incompletă", description: Object.values(sendFieldErrors).join(" "), variant: "destructive" })
       return
@@ -469,6 +481,7 @@ useEffect(() => {
         vat: Number(vatPercent) || 0,
         adjustmentPercent: Number(adjustmentInput.replace(',', '.')),
         conditions: buildPricingConditions(termsPayment, termsDelivery, termsInstallation),
+        emailAttachments,
         savedAt: String(lastVersion?.savedAt || new Date().toISOString()),
       }
       setCurrentWork(freshWork)
@@ -602,7 +615,7 @@ useEffect(() => {
   
       // atașament PDF ofertă pentru client
       let attachmentData: any[] | undefined = undefined
-      try {
+      {
         const currentProducts = products || []
         if (currentProducts.length) {
           const { generateOfferPdf } = await import("@/lib/utils/offer-pdf")
@@ -618,6 +631,7 @@ useEffect(() => {
           })
           const blob = await generateOfferPdf(input)
 
+          validateOfferEmailSize(emailAttachments, blob.size)
           const base64 = await blobToBase64(blob)
           attachmentData = [{ 
             filename: offerPdfAttachmentFileName(currentWork || freshWork, lucrareId), 
@@ -627,7 +641,8 @@ useEffect(() => {
             lucrareId: lucrareId // pentru logging în emailEvents
           }]
         }
-      } catch {}
+      }
+      if (!attachmentData?.length) throw new Error("PDF-ul ofertei nu a putut fi generat.")
 
       // trimite email (cu atașament, dacă există)
       const resp = await fetch('/api/users/invite', {
@@ -699,6 +714,7 @@ useEffect(() => {
   // Helper: reset all local editor states to initial values
   const resetEditorForm = () => {
     try { if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey) } catch {}
+    setEmailAttachments([])
     setProducts(initialProducts || [])
     setBaselineProducts(initialProducts || [])
     setAdjustmentPercent(0)
@@ -713,6 +729,7 @@ useEffect(() => {
 
   return (
     <Dialog open={open} modal={!floating.enabled} onOpenChange={(isOpen) => {
+      if (attachmentsBusy || saving) return
       if (!isOpen) {
         resetEditorForm()
       }
@@ -902,6 +919,7 @@ useEffect(() => {
             </div>
             </div>
 
+            <EmailAttachmentsField context={{ kind: "ticket", id: lucrareId }} value={emailAttachments} onChange={setEmailAttachments} onBusyChange={setAttachmentsBusy} disabled={effectiveDisabled || saving || attachmentsBusy} />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
               <div className="mr-auto space-y-1">
                 {((!isPickedUp && !canPrepareBeforePickup) || statusOferta === "OFERTAT") && (
@@ -919,23 +937,23 @@ useEffect(() => {
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
               {statusOferta === "OFERTAT" && !editingNewVersion ? (
-                <Button onClick={startNewVersion} disabled={saving || previewingPdf}>Începe versiune nouă</Button>
+                <Button onClick={startNewVersion} disabled={attachmentsBusy || saving || previewingPdf}>Începe versiune nouă</Button>
               ) : (
-                <Button onClick={handleSave} disabled={saving || previewingPdf || products.length === 0 || (!isPickedUp && !canPrepareBeforePickup && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
+                <Button onClick={handleSave} disabled={attachmentsBusy || saving || previewingPdf || products.length === 0 || (!isPickedUp && !canPrepareBeforePickup && !editingNewVersion)}>{saving ? "Se salvează..." : "Salvează"}</Button>
               )}
               {canPreviewOfferPdf && (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleDownloadOfferPreview}
-                  disabled={saving || previewingPdf}
+                  disabled={attachmentsBusy || saving || previewingPdf}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   {previewingPdf ? "Se generează..." : "Descarcă previzualizare PDF"}
                 </Button>
               )}
-              <Button onClick={handleSendOffer} disabled={saving || previewingPdf || !canSendOffer || hasSendErrors || hasUnsavedOfferChanges}>Trimite ofertă</Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || previewingPdf} className="ml-2">Închide</Button>
+              <Button onClick={handleSendOffer} disabled={attachmentsBusy || saving || previewingPdf || !canSendOffer || hasSendErrors || hasUnsavedOfferChanges}>Trimite ofertă</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={attachmentsBusy || saving || previewingPdf} className="ml-2">Închide</Button>
               </div>
             </div>
           </div>
@@ -984,7 +1002,7 @@ useEffect(() => {
                       size="sm"
                       variant="outline"
                       onClick={() => void handleDownloadOfferVersion(i)}
-                      disabled={saving || previewingPdf || downloadingVersionIndex !== null}
+                      disabled={attachmentsBusy || saving || previewingPdf || downloadingVersionIndex !== null}
                     >
                       <Download className="mr-2 h-4 w-4" />
                       {downloadingVersionIndex === i ? "Se descarcă..." : "Descarcă"}

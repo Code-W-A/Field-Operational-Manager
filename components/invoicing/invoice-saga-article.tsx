@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceAction, InvoiceLoading } from "./invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { InvoiceWarehouseSetup } from "./invoice-warehouse-setup";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ export function InvoiceCommercialActivation({
   const [confirmed, setConfirmed] = useState(false),
     [error, setError] = useState("");
   const lock = useRef(false);
+  const [activating, setActivating] = useState(false);
   useEffect(() => {
     let active = true;
     void request("commercial-policy")
@@ -58,6 +60,9 @@ export function InvoiceCommercialActivation({
       aria-label="Activare facturare cu date SAGA"
       className="space-y-2 rounded border p-3 text-sm"
     >
+      {!policy && !error && (
+        <InvoiceLoading>Se verifică regulile SAGA…</InvoiceLoading>
+      )}
       {error && <p role="alert">{error}</p>}
       {policy &&
         (policy.canAdmin ? (
@@ -79,10 +84,13 @@ export function InvoiceCommercialActivation({
             </label>
             <Button
               type="button"
-              disabled={readOnly || !confirmed || !policy.writesEnabled}
+              disabled={
+                readOnly || activating || !confirmed || !policy.writesEnabled
+              }
               onClick={async () => {
                 if (lock.current) return;
                 lock.current = true;
+                setActivating(true);
                 onBusy(true);
                 setError("");
                 try {
@@ -96,11 +104,17 @@ export function InvoiceCommercialActivation({
                   setError((e as Error).message);
                 } finally {
                   lock.current = false;
+                  setActivating(false);
                   onBusy(false);
                 }
               }}
             >
-              Activează facturarea cu date SAGA
+              <InvoiceAction
+                pending={activating}
+                label="Se activează regulile SAGA…"
+              >
+                Activează facturarea cu date SAGA
+              </InvoiceAction>
             </Button>
           </>
         ) : (
@@ -171,10 +185,15 @@ export function InvoiceSagaArticle({
       active = false;
     };
   }, [preview?.previewId, warehouseId, kind, retry]);
-  async function run(fn: () => Promise<void>) {
+  const [action, setAction] = useState<"article" | "apply" | null>(null);
+  async function run(
+    fn: () => Promise<void>,
+    kind: "article" | "apply" = "article",
+  ) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
+    setAction(kind);
     onBusy?.(true);
     setError("");
     try {
@@ -184,6 +203,7 @@ export function InvoiceSagaArticle({
     } finally {
       lock.current = false;
       setBusy(false);
+      setAction(null);
       onBusy?.(false);
     }
   }
@@ -265,7 +285,12 @@ export function InvoiceSagaArticle({
                 disabled={readOnly || busy || !code.trim()}
                 onClick={() => lookup()}
               >
-                Preia din SAGA
+                <InvoiceAction
+                  pending={action === "article"}
+                  label="Se preia articolul…"
+                >
+                  Preia din SAGA
+                </InvoiceAction>
               </Button>
             </div>
             {preview && (
@@ -365,7 +390,9 @@ export function InvoiceSagaArticle({
                     onChange={(e) => setQuantity(e.target.value)}
                   />
                 </label>
-                {stockBusy && <p role="status">Se consultă stocul…</p>}
+                {stockBusy && (
+                  <InvoiceLoading>Se verifică stocul…</InvoiceLoading>
+                )}
                 {stock && (
                   <p>
                     Stoc: {stock.quantity} {preview.article.unit} · gestiune{" "}
@@ -418,10 +445,15 @@ export function InvoiceSagaArticle({
                       setPreview(null);
                       setCode("");
                       setStock(null);
-                    })
+                    }, "apply")
                   }
                 >
-                  Adaugă în factură
+                  <InvoiceAction
+                    pending={action === "apply"}
+                    label="Se completează linia…"
+                  >
+                    Adaugă în factură
+                  </InvoiceAction>
                 </Button>
                 <p className="text-xs text-muted-foreground">
                   Asocierea se păstrează în FOM. Ciorna trebuie salvată; nu se

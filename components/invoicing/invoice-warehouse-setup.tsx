@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceAction } from "./invoice-feedback";
 import { useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export function InvoiceWarehouseSetup({
   }
   return (
     <fieldset
+      aria-busy={busy}
       disabled={readOnly || busy}
       className="space-y-2 rounded border p-3"
       aria-label="Gestiune lipsă"
@@ -108,7 +110,9 @@ export function InvoiceWarehouseSetup({
         disabled={!confirmed || !code.trim() || !name.trim()}
         onClick={() => void save()}
       >
-        {busy ? "Se salvează…" : "Salvează gestiunea în FOM"}
+        <InvoiceAction pending={busy} label="Se salvează gestiunea…">
+          Salvează gestiunea în FOM
+        </InvoiceAction>
       </Button>
     </fieldset>
   );

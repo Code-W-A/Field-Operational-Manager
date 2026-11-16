@@ -1,6 +1,9 @@
 "use client";
+import {
+  InvoiceAction,
+  InvoiceLoading as LoadingIndicator,
+} from "./invoice-feedback";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,20 +16,6 @@ import {
 } from "@/lib/saga/stock-situation";
 import { useCommercialTicketRequest } from "./invoice-commercial";
 
-function LoadingIndicator({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      role="status"
-      className="inline-flex items-center gap-1.5 text-xs text-slate-600"
-    >
-      <Loader2
-        aria-hidden="true"
-        className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
-      />
-      {children}
-    </span>
-  );
-}
 export function useInvoiceSagaList(workId: string, enabled: boolean) {
   const { user } = useAuth();
   const actor = useRef(user);
@@ -309,6 +298,7 @@ export function InvoiceSagaSelection({
   const unit = article?.unit ?? line.um;
   return (
     <section
+      aria-busy={busy || loading}
       aria-label={`Produs factură ${number}`}
       className="min-w-0 space-y-2 rounded border p-3"
     >
@@ -573,7 +563,12 @@ export function InvoiceSagaSelection({
               }
             }}
           >
-            Confirmă articolul
+            <InvoiceAction
+              pending={phase === "apply"}
+              label="Se completează linia…"
+            >
+              Confirmă articolul
+            </InvoiceAction>
           </Button>
         )}
         <div className="flex flex-wrap gap-2">
@@ -599,7 +594,12 @@ export function InvoiceSagaSelection({
                 }
               }}
             >
-              Actualizează stocul
+              <InvoiceAction
+                pending={phase === "stock"}
+                label="Se verifică stocul…"
+              >
+                Actualizează stocul
+              </InvoiceAction>
             </Button>
           )}
           {!readOnly && (
@@ -618,15 +618,17 @@ export function InvoiceSagaSelection({
       {loading && index === 0 && (
         <LoadingIndicator>Se încarcă tipurile…</LoadingIndicator>
       )}
-      {phase && (
-        <LoadingIndicator>
-          {phase === "article"
-            ? "Se preiau datele articolului…"
-            : phase === "stock"
-              ? "Se verifică stocul curent…"
-              : "Se completează linia…"}
-        </LoadingIndicator>
-      )}
+      {phase &&
+        !(phase === "apply" && picked) &&
+        !(phase === "stock" && line.saga && !picked) && (
+          <LoadingIndicator>
+            {phase === "article"
+              ? "Se preiau datele articolului…"
+              : phase === "stock"
+                ? "Se verifică stocul curent…"
+                : "Se completează linia…"}
+          </LoadingIndicator>
+        )}
       {snapshot?.kind === "service" ? (
         <p className="text-sm">Stoc neaplicabil</p>
       ) : (

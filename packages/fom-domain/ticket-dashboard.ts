@@ -1,5 +1,8 @@
 /** Shared, read-only dashboard classification. Never writes a work status. */
-import { hasTicketCompletionDocument, type TicketCompletion } from "./work-completion";
+import {
+  hasTicketCompletionDocument,
+  type TicketCompletion,
+} from "./work-completion";
 export const OVERDUE_DEFAULTS = {
   intarziateEnabled: true,
   intarziateRequireExecDate: true,
@@ -128,13 +131,26 @@ function isDashboardCanceled(work: Omit<DashboardWork, "id">) {
     )
   );
 }
+function isDashboardCompleted(work: Omit<DashboardWork, "id">) {
+  return (
+    String(work.statusLucrare || "")
+      .trim()
+      .toLocaleLowerCase("ro-RO") === "finalizat" ||
+    hasTicketCompletionDocument(work)
+  );
+}
 export function isOverdueWork(
   work: Omit<DashboardWork, "id">,
   config: Partial<OverdueConfig> = {},
   now = new Date(),
 ): boolean {
   const cfg = { ...OVERDUE_DEFAULTS, ...config };
-  if (!cfg.intarziateEnabled || isDashboardCanceled(work)) return false;
+  if (
+    !cfg.intarziateEnabled ||
+    isDashboardCanceled(work) ||
+    isDashboardCompleted(work)
+  )
+    return false;
   const scheduled = ticketSchedule(work.dataInterventie);
   // Next.js also excludes a missing date when requireExecDate is false.
   if (!scheduled) return false;
@@ -184,8 +200,7 @@ export function groupDashboardTickets<T extends DashboardWork>(
     )
       continue;
     const scheduled = schedules.get(work.id);
-    const finalized =
-      work.raportGenerat === true || work.statusLucrare === "Finalizat";
+    const finalized = isDashboardCompleted(work);
     if (finalized)
       groups.current.push({
         work,

@@ -7,7 +7,7 @@ import path from 'node:path'
 
 const root = process.cwd()
 const mocks = {
-  "@/lib/firebase/config": `export const db = null;`,
+  "@/lib/firebase/config": `export const db = null; export const auth = { currentUser: null }; export const storage = null;`,
   '@/lib/firebase/firestore': `
     const read = async (kind, id, options) => {
       window.fixture.reads.push({ kind, id, options });
@@ -37,6 +37,7 @@ const mocks = {
       return new Blob(['pdf'], { type: 'application/pdf' });
     };
     export const generateDevizPdf = generateOfferPdf;
+    export const devizPdfFileName = () => "deviz.pdf";
   `,
 }
 const result = await build({

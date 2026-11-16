@@ -1,4 +1,8 @@
 "use client";
+import {
+  InvoiceAction,
+  InvoiceLoading,
+} from "@/components/invoicing/invoice-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -33,7 +37,9 @@ export function InvoiceIssuerSettings({
     [busy, setBusy] = useState(false),
     [confirmed, setConfirmed] = useState(false);
   const lock = useRef(false);
+  const loadGeneration = useRef(0);
   const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
   async function request(method = "GET", body?: unknown) {
     const token = await user?.getIdToken();
     const r = await fetch("/api/integrations/saga/issuer", {
@@ -50,9 +56,13 @@ export function InvoiceIssuerSettings({
     return data;
   }
   async function load() {
+    if (lock.current) return;
+    const generation = ++loadGeneration.current;
+    setLoading(true);
     setError("");
     try {
       const data = await request();
+      if (generation !== loadGeneration.current) return;
       if (typeof data.fiscalCode !== "string")
         throw new Error("Profil indisponibil.");
       setSaved(data.profile);
@@ -60,13 +70,19 @@ export function InvoiceIssuerSettings({
       setForm(data.profile || empty());
       setConfirmed(false);
     } catch (e) {
-      setError((e as Error).message);
+      if (generation === loadGeneration.current) setError((e as Error).message);
     } finally {
-      setLoaded(true);
+      if (generation === loadGeneration.current) {
+        setLoaded(true);
+        setLoading(false);
+      }
     }
   }
   useEffect(() => {
     void load();
+    return () => {
+      loadGeneration.current++;
+    };
   }, [user?.uid]);
   async function save() {
     if (lock.current || !confirmed || !canEdit || readOnly) return;
@@ -91,7 +107,9 @@ export function InvoiceIssuerSettings({
       lock.current = false;
     }
   }
-  if (inline && (!loaded || saved)) return null;
+  if (inline && !loaded)
+    return <InvoiceLoading>Se încarcă firma emitentă…</InvoiceLoading>;
+  if (inline && saved) return null;
   if (inline && !canEdit)
     return (
       <p className="rounded border border-amber-300 p-3 text-sm">
@@ -101,6 +119,7 @@ export function InvoiceIssuerSettings({
     );
   return (
     <section
+      aria-busy={busy || loading}
       aria-label="Firma emitentă"
       className="space-y-3 rounded-lg border p-4"
     >
@@ -123,12 +142,14 @@ export function InvoiceIssuerSettings({
         type="button"
         variant="outline"
         size="sm"
-        disabled={busy}
+        disabled={busy || loading}
         onClick={() => void load()}
       >
-        Reîncarcă profilul emitentului
+        <InvoiceAction pending={loading} label="Se încarcă firma emitentă…">
+          Reîncarcă profilul emitentului
+        </InvoiceAction>
       </Button>
-      <fieldset disabled={busy || readOnly} className="space-y-3">
+      <fieldset disabled={busy || loading || readOnly} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           {Object.entries(issuerLabels).map(([k, label]) => (
             <label key={k} className="text-sm">
@@ -176,7 +197,9 @@ export function InvoiceIssuerSettings({
           disabled={!enabled || !confirmed}
           onClick={() => void save()}
         >
-          Salvează firma emitentă
+          <InvoiceAction pending={busy} label="Se salvează firma emitentă…">
+            Salvează firma emitentă
+          </InvoiceAction>
         </Button>
         {!enabled && (
           <p className="text-sm text-muted-foreground">

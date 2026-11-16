@@ -152,6 +152,7 @@ export function deleteE2eCrmOfferDraft(opportunityId: string, offerId: string): 
 }
 
 export function saveE2eCrmOfferDraft(input: {
+  emailAttachments?: CrmOffer["emailAttachments"]
   offerId?: string
   opportunityId: string
   snapshot: CrmOfferSnapshot
@@ -172,6 +173,7 @@ export function saveE2eCrmOfferDraft(input: {
     recipientName: input.recipientName,
     subject: input.subject,
     message: input.message,
+    emailAttachments: input.emailAttachments || [],
     createdById: E2E_CRM_OWNER_ID,
   }
 

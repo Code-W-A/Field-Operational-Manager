@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceAction } from "./invoice-feedback";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -278,7 +279,9 @@ export function InvoiceSagaFields({
                   }
                   onClick={() => void check()}
                 >
-                  {busy ? "Se consultă…" : "Verifică stocul"}
+                  <InvoiceAction pending={busy} label="Se verifică stocul…">
+                    Verifică stocul
+                  </InvoiceAction>
                 </Button>
               )}
               {result && (

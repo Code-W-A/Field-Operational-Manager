@@ -1,4 +1,5 @@
 "use client";
+import { InvoiceAction, useInvoiceActivity } from "./invoice-feedback";
 import {
   InvoiceSagaArticle,
   InvoiceCommercialActivation,
@@ -112,8 +113,9 @@ export function InvoiceDraftSection({
   const [open, setOpen] = useState(false),
     [minimized, setMinimized] = useState(false);
   const [loading, setLoading] = useState(true),
-    [saving, setSaving] = useState(false),
-    [busyAction, setBusyAction] = useState(false);
+    [saving, setSaving] = useState(false);
+  const { busy: busyAction, setActivity } = useInvoiceActivity();
+  const [replacing, setReplacing] = useState(false);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const [confirm, setConfirm] = useState<"close" | "source" | "reload" | null>(
@@ -130,6 +132,7 @@ export function InvoiceDraftSection({
   );
   const panel = useRef<HTMLElement>(null);
   const saveLock = useRef(false);
+  const replaceLock = useRef(false);
   const owner = useRef(workId);
   owner.current = workId;
   const dirty =
@@ -297,7 +300,10 @@ export function InvoiceDraftSection({
     }
   }
   async function replace(action: "source" | "reload") {
-    setBusyAction(true);
+    if (busyAction || replaceLock.current) return;
+    replaceLock.current = true;
+    setActivity("replace", true);
+    setReplacing(true);
     setError("");
     try {
       const data = await request("GET", undefined, action === "source");
@@ -337,7 +343,9 @@ export function InvoiceDraftSection({
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusyAction(false);
+      replaceLock.current = false;
+      setActivity("replace", false);
+      setReplacing(false);
     }
   }
   function pointerDown(e: ReactPointerEvent<HTMLDivElement>) {
@@ -524,7 +532,9 @@ export function InvoiceDraftSection({
                       disabled={saving || readOnly || !!numericError}
                       onClick={() => void save(true)}
                     >
-                      Salvează și închide
+                      <InvoiceAction pending={saving} label="Se salvează…">
+                        Salvează și închide
+                      </InvoiceAction>
                     </Button>
                     <Button
                       size="sm"
@@ -548,7 +558,12 @@ export function InvoiceDraftSection({
                     disabled={busyAction}
                     onClick={() => void replace(confirm)}
                   >
-                    Înlocuiește datele
+                    <InvoiceAction
+                      pending={replacing}
+                      label="Se preiau datele…"
+                    >
+                      Înlocuiește datele
+                    </InvoiceAction>
                   </Button>
                 )}
                 <Button
@@ -625,7 +640,7 @@ export function InvoiceDraftSection({
             {!readOnly && (
               <InvoiceCommercialActivation
                 readOnly={saving || busyAction}
-                onBusy={setBusyAction}
+                onBusy={(pending) => setActivity("activation", pending)}
                 onActivated={() =>
                   setResponse((r) => (r ? { ...r, commercialPolicy: true } : r))
                 }
@@ -636,7 +651,7 @@ export function InvoiceDraftSection({
                 draft={draft}
                 readOnly={readOnly || saving || busyAction}
                 onApplied={load}
-                onBusy={setBusyAction}
+                onBusy={(pending) => setActivity("rules", pending)}
               />
             )}
             <InvoiceHeaderFields
@@ -648,7 +663,8 @@ export function InvoiceDraftSection({
               workId={workId}
               date={draft.date}
               reference={draft.eurReference}
-              readOnly={readOnly || saving || busyAction}
+              readOnly={readOnly}
+              disabled={saving || busyAction}
               onProposal={setEurProposal}
               onSelect={(eurReference) => patch({ eurReference })}
             />
@@ -657,7 +673,7 @@ export function InvoiceDraftSection({
                 inline
                 canEdit={userData?.role === "admin"}
                 readOnly={saving || busyAction}
-                onBusy={setBusyAction}
+                onBusy={(pending) => setActivity("issuer", pending)}
               />
             )}
           </div>
@@ -667,7 +683,7 @@ export function InvoiceDraftSection({
                 draft={draft}
                 readOnly={readOnly || saving}
                 onChange={patch}
-                onBusy={setBusyAction}
+                onBusy={(pending) => setActivity("products", pending)}
                 approveDiscount={approveDiscount}
                 disabled={busyAction}
                 onApproveDiscount={setApproveDiscount}
@@ -684,7 +700,7 @@ export function InvoiceDraftSection({
               }}
               dirty={dirty}
               readOnly={readOnly || saving || busyAction}
-              onBusy={setBusyAction}
+              onBusy={(pending) => setActivity("finalization", pending)}
               onFrozen={() =>
                 setResponse((r) =>
                   r
@@ -779,8 +795,10 @@ export function InvoiceDraftSection({
             disabled={readOnly || saving || busyAction || !!numericError}
             onClick={() => void save()}
           >
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? "Se salvează…" : "Salvează ciorna"}
+            <InvoiceAction pending={saving} label="Se salvează…">
+              <Save aria-hidden="true" className="mr-2 h-4 w-4" />
+              Salvează ciorna
+            </InvoiceAction>
           </Button>
         </div>
       </section>
@@ -804,14 +822,14 @@ export function InvoiceDraftSection({
             disabled={loading || !draft || (!response?.saved && !!reason)}
             onClick={() => void openEditor()}
           >
-            <FilePenLine className="mr-2 h-4 w-4" />
-            {loading
-              ? "Se verifică ciorna…"
-              : response?.saved
+            <InvoiceAction pending={loading} label="Se verifică ciorna…">
+              <FilePenLine aria-hidden="true" className="mr-2 h-4 w-4" />
+              {response?.saved
                 ? reason
                   ? "Vezi ciorna"
                   : "Continuă ciorna"
                 : "Începe factura"}
+            </InvoiceAction>
           </Button>
         </div>
         {reason && <p className="mt-2 text-sm text-slate-600">{reason}</p>}
@@ -820,8 +838,15 @@ export function InvoiceDraftSection({
             <span role="alert" className="text-red-700">
               {error}
             </span>
-            <Button size="sm" variant="ghost" onClick={() => void load()}>
-              Reîncearcă
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              <InvoiceAction pending={loading} label="Se încarcă ciorna…">
+                Reîncearcă
+              </InvoiceAction>
             </Button>
           </div>
         )}

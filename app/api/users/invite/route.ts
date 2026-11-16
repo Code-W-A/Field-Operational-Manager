@@ -1,3 +1,5 @@
+import { buildOfferEmailAttachments } from "@/lib/offer/email-attachments.server"
+import { OfferAttachmentError } from "@/lib/offer/email-attachments"
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
 import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
@@ -25,6 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { to, subject, content, html, attachments, type } = body || {}
+    let mailAttachments = attachments
     let offerIssuer: { userId: string; email: string } | undefined
     let offerVersionSavedAt: string | null = null
     const explicitLucrareId = typeof body?.lucrareId === "string" ? body.lucrareId.trim() : ""
@@ -41,6 +44,11 @@ export async function POST(request: NextRequest) {
       if (Object.keys(fieldErrors).length) {
         return NextResponse.json({ error: "Completați toate câmpurile ofertei și regenerați oferta înainte de trimitere.", fieldErrors }, { status: 400 })
       }
+      const pdf = Array.isArray(attachments) ? attachments[0] : null
+      mailAttachments = await buildOfferEmailAttachments({ kind: "ticket", id: workId }, work.data()?.offerActionSnapshot?.emailAttachments, {
+        filename: pdf?.filename || "oferta.pdf", contentType: "application/pdf",
+        content: Buffer.from(typeof pdf?.content === "string" ? pdf.content : "", "base64"),
+      })
       const actor = await adminDb.collection("users").doc(session.uid).get()
       offerIssuer = { userId: session.uid, email: String(actor.data()?.email || "").trim().toLowerCase() }
       offerVersionSavedAt = work.data()?.offerActionSnapshot?.savedAt || work.data()?.offerActionVersionSavedAt || null
@@ -51,7 +59,7 @@ export async function POST(request: NextRequest) {
       subject,
       content,
       html,
-      attachments,
+      attachments: mailAttachments,
       type,
       lucrareId: explicitLucrareId || undefined,
       source: explicitLucrareId ? "lucrari" : undefined,
@@ -97,7 +105,7 @@ export async function POST(request: NextRequest) {
       acceptedBySmtp: true,
     })
   } catch (e: unknown) {
-    if (e instanceof RequireRoleError) {
+    if (e instanceof RequireRoleError || e instanceof OfferAttachmentError) {
       return NextResponse.json({ error: e.message }, { status: e.status })
     }
     console.error("Invite email error", e)

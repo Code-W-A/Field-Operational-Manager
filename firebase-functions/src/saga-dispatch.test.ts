@@ -1,9 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import {
   onInvoiceSagaTransferQueued,
   onInvoiceSagaSimulationQueued,
 } from "./saga-dispatch";
+
+test("scheduled wrapper resolves the project from Firebase configuration", () => {
+  const modulePath = path.resolve("firebase-functions/src/saga-dispatch.ts");
+  const script = `
+    delete process.env.GCLOUD_PROJECT;
+    process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: "demo-saga-worker" });
+    process.env.SAGA_WORKER_ENABLED = "false";
+    const { processPendingSagaTransfers } = require(${JSON.stringify(modulePath)});
+    processPendingSagaTransfers({}, {
+      eventId: "fixture",
+      timestamp: "2026-11-12T10:00:00Z",
+      eventType: "google.pubsub.topic.publish",
+      resource: "projects/demo-saga-worker/topics/fixture"
+    }).then(() => console.log(process.env.GCLOUD_PROJECT));
+  `;
+  const output = execFileSync(process.execPath, ["--import", "tsx", "-e", script], {
+    encoding: "utf8",
+    timeout: 15000,
+  });
+  assert.equal(output.trim(), "demo-saga-worker");
+});
+
 test("Firebase dispatches only new/resumed matching-company jobs to protected Next worker", async () => {
   const keys = [
     "SAGA_WORKER_ENABLED",

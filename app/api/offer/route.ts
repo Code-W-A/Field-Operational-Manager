@@ -1,3 +1,6 @@
+import { requireRole, RequireRoleError } from "@/lib/auth/require-role"
+import { resolveOfferAttachments } from "@/lib/offer/email-attachments.server"
+import { OfferAttachmentError } from "@/lib/offer/email-attachments"
 import { withDocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
 import { NextResponse, type NextRequest } from "next/server"
 import { adminDb } from "@/lib/firebase/admin"
@@ -156,6 +159,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const actor = await requireRole(["admin", "dispecer"], req)
+    if (!actor.uid) return NextResponse.json({ error: "Autentificare necesară." }, { status: 401 })
     const { lucrareId, snapshot } = await req.json()
     if (!lucrareId) return NextResponse.json({ error: "lucrareId lipsă" }, { status: 400 })
     const fieldErrors = validateTicketOfferForSend(snapshot)
@@ -166,6 +171,8 @@ export async function POST(req: NextRequest) {
     const workRef = adminDb.collection("lucrari").doc(String(lucrareId))
     const workSnap = await workRef.get()
     if (!workSnap.exists) return NextResponse.json({ error: "Tichetul nu există" }, { status: 404 })
+
+    snapshot.emailAttachments = await resolveOfferAttachments({ kind: "ticket", id: String(lucrareId) }, snapshot.emailAttachments)
 
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 zile
@@ -209,6 +216,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ token, acceptUrl, rejectUrl, expiresAt })
   } catch (e) {
+    if (e instanceof RequireRoleError || e instanceof OfferAttachmentError) return NextResponse.json({ error: e.message }, { status: e.status })
     console.error("Mint offer token failed:", e)
     return NextResponse.json({ error: "Eroare server" }, { status: 500 })
   }

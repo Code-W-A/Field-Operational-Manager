@@ -42,7 +42,7 @@ test("all terms and every product field are mandatory; explicit zero price/disco
 const state = { snapshot: null as any, writes: 0, mails: 0, events: 0 }
 ;(globalThis as any).__ticketOfferValidation = state
 const adapters: Record<string, string> = {
-  "@/lib/firebase/admin": `export const adminDb = { collection() { return { doc() { return {
+  "@/lib/firebase/admin": `export const adminApp = {}; export const adminDb = { collection() { return { doc() { return {
     async get() { return { exists: true, data: () => ({ offerActionSnapshot: globalThis.__ticketOfferValidation.snapshot }) } },
     async update(patch) { globalThis.__ticketOfferValidation.writes++; globalThis.__ticketOfferValidation.snapshot = patch.offerActionSnapshot },
     async set() { globalThis.__ticketOfferValidation.writes++ }
@@ -88,7 +88,7 @@ test("real token and email routes reject incomplete offers before writes, loggin
   assert.equal((await invite.POST(request({ lucrareId: "ticket", type: "OFFER", to: ["test@example.test"] }))).status, 400)
   assert.equal((await invite.POST(request({ type: "OFFER", to: ["test@example.test"] }))).status, 400)
   assert.equal((await mint.POST(request({ lucrareId: "ticket", snapshot: complete() }))).status, 200)
-  assert.equal((await invite.POST(request({ lucrareId: "ticket", type: "OFFER", to: ["test@example.test"] }))).status, 200)
+  assert.equal((await invite.POST(request({ lucrareId: "ticket", type: "OFFER", to: ["test@example.test"], attachments: [{ filename: "oferta.pdf", content: Buffer.from("%PDF-1.4 simulated").toString("base64") }] }))).status, 200)
   assert.equal(state.mails, 1)
   assert.equal((await invite.POST(request({ type: "DEVIZ", to: ["test@example.test"] }))).status, 200)
 })

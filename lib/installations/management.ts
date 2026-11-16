@@ -1,7 +1,7 @@
 /** Commercial fields are separate from equipment, sheets and signed documents. */
 export const installationManagementKeys = [
   "preluatDispecer", "preluatDe", "necesitaOferta", "comentariiOferta", "statusOferta",
-  "products", "offerTotal", "offerVAT", "offerAdjustmentPercent", "offerVersions", "conditiiOferta",
+  "emailAttachments", "products", "offerTotal", "offerVAT", "offerAdjustmentPercent", "offerVersions", "conditiiOferta",
   "offerPreparedBy", "offerPreparedAt", "ofertaDocument",
   "devizProducts", "devizTotal", "devizVAT", "devizAdjustmentPercent", "devizVersions",
   "devizClientSnapshot", "devizConditions", "devizPreparedBy", "devizPreparedAt",

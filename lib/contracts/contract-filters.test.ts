@@ -10,6 +10,9 @@ import {
   filterContracts,
   filterHasValue,
   getContractClientName,
+  getContractType,
+  getContractTypeFieldId,
+  type ContractFilterRecord,
   getContractCreatedAt,
   getContractLocations,
   hasContractEquipment,
@@ -362,4 +365,55 @@ test("integration: full table-settings-contracte style payload replays filters +
 
   const result = filterContracts(baseContracts, normalized, tableSettings.searchText, clients)
   assert.deepEqual(result.map((c) => c.id), ["ct1"])
+})
+
+const typedContracts: ContractFilterRecord[] = [
+  { id: "subscription", name: "Abonament Acme", number: "T1", clientId: "c1", customFields: { tipContract: " ABONAMENT " } },
+  { id: "request", name: "La cerere Acme", number: "T2", clientId: "c1", customFields: { tipContract: " la CERERE " } },
+  { id: "missing", name: "Fără tip", number: "T3" },
+  { id: "other", name: "Alt tip", number: "T4", customFields: { tipContract: "Premium" } },
+]
+
+function typeFilter(value: string[]) {
+  return { id: "tipContract", type: "multiselect" as const, value }
+}
+
+test("contract type filter supports each type, both types and empty selection", () => {
+  for (const [selection, expected] of [
+    [["Abonament"], ["subscription"]],
+    [["La cerere"], ["request"]],
+    [["Abonament", "La cerere"], ["subscription", "request"]],
+    [[], ["subscription", "request", "missing", "other"]],
+  ]) {
+    assert.deepEqual(applyContractFilters(typedContracts, [typeFilter(selection)], clients).map(c => c.id), expected)
+  }
+})
+
+test("contract type uses configured dynamic field before legacy aliases", () => {
+  assert.equal(getContractTypeFieldId([{ id: "field-123", name: " Tip  contract " }]), "field-123")
+  assert.equal(getContractTypeFieldId([{ id: "other", name: "Observații" }]), undefined)
+  const contracts: ContractFilterRecord[] = [{ name: "Dynamic", number: "D1", customFields: { "field-123": "La cerere", tipContract: "Abonament" } }]
+  assert.equal(filterContracts(contracts, [typeFilter(["La cerere"])], "", clients, "field-123").length, 1)
+  assert.equal(filterContracts(contracts, [typeFilter(["Abonament"])], "", clients, "field-123").length, 0)
+})
+
+test("contract type supports known legacy aliases without reading unrelated fields", () => {
+  for (const key of ["contractType", "type", "tipContract", "tip", "Tip contract", "tip contract"]) {
+    assert.equal(getContractType({ name: "Legacy", number: "L1", customFields: { [key]: " Abonament " } }), "abonament")
+  }
+  for (const key of ["type", "contractType"]) {
+    assert.equal(getContractType({ name: "Legacy", number: "L1", [key]: " La cerere " }), "la cerere")
+  }
+  assert.equal(getContractType({ name: "Other", number: "L2", customFields: { observatii: "Abonament" } }), "")
+})
+
+test("contract type combines with client and search and survives saved filter normalization", () => {
+  const persisted = JSON.parse(JSON.stringify([typeFilter(["Abonament"])]))
+  const filters = normalizeActiveContractFilters(persisted.map((f: any) => ({ ...f, label: "Tip contract" })))
+  const result = filterContracts(typedContracts, [...filters, { id: "clienti", type: "multiselect", value: ["c1"] }], "acme", clients)
+  assert.deepEqual(result.map(c => c.id), ["subscription"])
+  assert.equal(countActiveContractFilters(filters), 1)
+  const option = buildContractFilterOptions(typedContracts, clients)[1]
+  assert.equal(option.id, "tipContract")
+  assert.deepEqual(option.options?.map(o => o.value), ["Abonament", "La cerere"])
 })

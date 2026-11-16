@@ -2,6 +2,7 @@
 export function completeOffer() {
   return {
     opportunityId: "test-opportunity", recipientEmail: "client@example.test", subject: "Ofertă", message: "Bună ziua,",
+    attachmentBase64: Buffer.from("%PDF-1.4 simulated").toString("base64"),
     pdfUrl: "https://example.test/offer.pdf", pdfStoragePath: "test/offer.pdf",
     snapshot: {
       validityText: "30 de zile de la emitere", conditions: ["Plata: conform contract", "Livrare: 30 zile lucrătoare", "Instalare: nu este inclusă"], comments: "Comentariu intern secret",
