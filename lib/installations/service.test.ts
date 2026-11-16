@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { initializeApp, deleteApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { installationService } from "./service";
+import { isOverdueWork } from "@/packages/fom-domain/ticket-dashboard";
 import { verifyQr, workDate } from "./validation";
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation";
 
@@ -703,6 +704,7 @@ test("continuation works with zero finished equipment, no assignments and is ide
   assert.deepEqual(next.equipmentIds, ["e1", "e2"]);
   assert.equal(next.installation.rootWorkId, work.id);
   assert.deepEqual(next.installation.inheritedStartedEquipmentIds, ["e1"]);
+  assert.deepEqual(next.installation.startedEquipmentIds, []);
   await assert.rejects(
     service.edit(manager, results[0].workId, { equipmentIds: ["e2"] }),
     /nu pot fi eliminate/,
@@ -1602,4 +1604,25 @@ test("pickup checks all sheets even outside the displayed page or selected sheet
   assert.equal(page.managementActions!.pickup.eligible, false);
   assert.equal((await service.list(manager, work.id, undefined, sheet.id)).managementActions!.pickup.eligible, false);
   await assert.rejects(service.manage(manager, work.id, { work: { preluatDispecer: true }, expectedAssignmentVersion: 0 }), /toate fișele/);
+});
+
+
+test("overdue marker is committed with the first daily sheet and work interval", async () => {
+  const work = await create();
+  const ref = db.doc(`lucrari/${work.id}`);
+  const now = new Date("2026-11-16T18:00:00Z");
+  assert.equal(isOverdueWork((await ref.get()).data()!, {}, now), true);
+  await assert.rejects(() => service.start(tech, work.id, {
+    equipmentId: "e1", qrRaw: "WRONG", requestId: randomUUID(),
+  }));
+  assert.deepEqual((await ref.get()).data()!.installation.startedEquipmentIds, []);
+  assert.equal((await ref.collection("installationSheets").get()).size, 0);
+  const {sheet} = await start(work.id);
+  const stored = (await ref.get()).data()!;
+  const dailySheet = (await ref.collection("installationSheets").doc(sheet.id).get()).data()!;
+  assert.deepEqual(stored.installation.startedEquipmentIds, ["e1"]);
+  assert.ok(dailySheet.timeIntervals.length > 0);
+  assert.ok(dailySheet.timeIntervals.every((i: any) => i.startedAt === dailySheet.createdAt));
+  assert.equal(stored.statusLucrare, "În lucru");
+  assert.equal(isOverdueWork(stored, {}, now), false);
 });

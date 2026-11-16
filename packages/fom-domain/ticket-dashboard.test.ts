@@ -269,6 +269,7 @@ test("completed tickets never become overdue even before dispatcher pickup or wi
     schemaVersion: 1,
     closedReason: "completed",
     completionDocumentId: "final",
+    startedEquipmentIds: ["equipment"],
   };
   for (const patch of [
     { statusLucrare: "Finalizat" },
@@ -293,7 +294,7 @@ test("completed tickets never become overdue even before dispatcher pickup or wi
     assert.equal(JSON.stringify(ticket), before);
   }
 });
-test("unfinished installations remain overdue until the whole ticket is completed", () => {
+test("installations without their own work start remain overdue", () => {
   for (const installation of [
     { schemaVersion: 1 },
     { schemaVersion: 1, closedReason: "completed" },
@@ -315,5 +316,64 @@ test("unfinished installations remain overdue until the whole ticket is complete
       groupDashboardTickets([ticket], {}, now).overdue.map((e) => e.work.id),
       ["unfinished"],
     );
+  }
+});
+
+test("installation overdue depends on its own work start, never completion or inherited work", () => {
+  for (const statusLucrare of ["În lucru", "Finalizat"]) {
+    const ticket = work("installation", "2026-10-11", {
+      statusLucrare,
+      equipmentVerified: true,
+      raportGenerat: true,
+      installation: {
+        schemaVersion: 1,
+        startedEquipmentIds: [],
+        inheritedStartedEquipmentIds: ["equipment"],
+        closedReason: "completed",
+        completionDocumentId: "final",
+      },
+    });
+    assert.equal(isOverdueWork(ticket, {}, now), true);
+    assert.equal(groupDashboardTickets([ticket], {}, now).overdue.length, 1);
+    for (const ids of [undefined, [], [""], [null]]) {
+      assert.equal(
+        isOverdueWork(
+          {
+            ...ticket,
+            installation: { ...ticket.installation, startedEquipmentIds: ids },
+          },
+          {},
+          now,
+        ),
+        true,
+      );
+    }
+    const started = {
+      ...ticket,
+      installation: {
+        ...ticket.installation,
+        startedEquipmentIds: ["equipment"],
+      },
+    };
+    const before = JSON.stringify(started);
+    assert.equal(isOverdueWork(started, {}, now), false);
+    assert.equal(
+      isOverdueWork(started, { intarziateRequireNotScanned: false }, now),
+      false,
+    );
+    const grouped = groupDashboardTickets([started], {}, now);
+    assert.equal(grouped.overdue.length, 0);
+    assert.equal(grouped.current.length, 1);
+    if (statusLucrare === "În lucru") {
+      const ongoing = {
+        ...started,
+        installation: { schemaVersion: 1, startedEquipmentIds: ["equipment"] },
+      };
+      assert.doesNotMatch(
+        groupDashboardTickets([ongoing], {}, now).current[0].note || "",
+        /finalizat/,
+      );
+    }
+    assert.equal(JSON.stringify(started), before);
   }
 });

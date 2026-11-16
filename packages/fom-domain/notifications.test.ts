@@ -179,13 +179,14 @@ test("navigation never exposes a withdrawn ticket and respects attendance", () =
   );
 });
 
-test("completed installation cannot produce an overdue reminder before dispatcher pickup", () => {
+test("started installation cannot produce an overdue reminder before dispatcher pickup", () => {
   const ticket = {
     ...work,
     dataInterventie: "13.11.2026 00:00",
     preluatDispecer: false,
     installation: {
       schemaVersion: 1,
+      startedEquipmentIds: ["equipment"],
       closedReason: "completed",
       completionDocumentId: "final",
     },
@@ -195,5 +196,33 @@ test("completed installation cannot produce an overdue reminder before dispatche
   assert.equal(
     overdueReminder({ ...ticket, installation: { schemaVersion: 1 } }, {}, at),
     true,
+  );
+});
+
+test("modern installation overdue reminders ignore finalization and legacy scan flags until work starts", () => {
+  const ticket = {
+    ...work,
+    dataInterventie: "13.11.2026 00:00",
+    statusLucrare: "Finalizat",
+    raportGenerat: true,
+    equipmentVerified: true,
+    preluatDispecer: false,
+    installation: { schemaVersion: 1, startedEquipmentIds: [] },
+  };
+  const at = new Date("2026-11-16T18:00:00Z");
+  assert.equal(overdueReminder(ticket, {}, at), true);
+  assert.equal(
+    overdueReminder(
+      {
+        ...ticket,
+        installation: {
+          ...ticket.installation,
+          startedEquipmentIds: ["equipment"],
+        },
+      },
+      {},
+      at,
+    ),
+    false,
   );
 });

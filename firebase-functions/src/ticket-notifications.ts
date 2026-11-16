@@ -245,7 +245,7 @@ export function ticketNotificationRuntime(db: Firestore) {
       if (rows.empty) break;
       for (const row of rows.docs) {
         const work = row.data();
-        if (!reminderEligible(work)) continue;
+        if (!activeNotificationWork(work)) continue;
         const recipients = notificationRecipients(work, people);
         for (const uid of recipients) {
           if (dueReminder(work, now))
@@ -259,7 +259,11 @@ export function ticketNotificationRuntime(db: Firestore) {
             });
           if (!morning) continue;
           const scheduled = ticketSchedule(work.dataInterventie);
-          if (scheduled?.day === calendar.day && scheduled.time === "00:00:00")
+          if (
+            reminderEligible(work) &&
+            scheduled?.day === calendar.day &&
+            scheduled.time === "00:00:00"
+          )
             today.set(uid, [...(today.get(uid) || []), row.id]);
           if (overdueReminder(work, config, now))
             overdue.set(uid, [...(overdue.get(uid) || []), row.id]);
@@ -357,10 +361,10 @@ export function ticketNotificationRuntime(db: Firestore) {
       (row) =>
         row.exists &&
         notificationRecipients(row.data()!, people).includes(uid) &&
-        reminderEligible(row.data()!) &&
         (event.kind === "daily_overdue"
           ? overdueReminder(row.data()!, config, now)
-          : ticketSchedule(row.data()!.dataInterventie)?.day === calendar.day &&
+          : reminderEligible(row.data()!) &&
+            ticketSchedule(row.data()!.dataInterventie)?.day === calendar.day &&
             ticketSchedule(row.data()!.dataInterventie)?.time === "00:00:00"),
     );
     // Avoid a stale summary count after schedule/assignment changes.

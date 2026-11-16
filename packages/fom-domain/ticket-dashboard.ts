@@ -116,7 +116,9 @@ export type DashboardWork = {
   tehnicieni?: unknown;
   technicianIds?: unknown;
   raportGenerat?: unknown;
-  installation?: TicketCompletion["installation"];
+  installation?: TicketCompletion["installation"] & {
+    startedEquipmentIds?: unknown;
+  };
   anulat?: unknown;
   anulatAt?: unknown;
   motivAnulare?: unknown;
@@ -145,10 +147,19 @@ export function isOverdueWork(
   now = new Date(),
 ): boolean {
   const cfg = { ...OVERDUE_DEFAULTS, ...config };
+  const modernInstallation = work.installation?.schemaVersion === 1;
+  // A confirmed sheet start records this marker atomically with its work interval.
+  // Inherited starts belong to a previous ticket and do not count here.
+  const started =
+    modernInstallation &&
+    Array.isArray(work.installation?.startedEquipmentIds) &&
+    work.installation.startedEquipmentIds.some(
+      (id) => typeof id === "string" && id.trim().length > 0,
+    );
   if (
     !cfg.intarziateEnabled ||
     isDashboardCanceled(work) ||
-    isDashboardCompleted(work)
+    (modernInstallation ? started : isDashboardCompleted(work))
   )
     return false;
   const scheduled = ticketSchedule(work.dataInterventie);
@@ -168,7 +179,9 @@ export function isOverdueWork(
   return (
     !!dateCondition &&
     (!cfg.intarziateRequireAssigned || assigned) &&
-    (!cfg.intarziateRequireNotScanned || !work.equipmentVerified) &&
+    (modernInstallation ||
+      !cfg.intarziateRequireNotScanned ||
+      !work.equipmentVerified) &&
     !work.preluatDispecer
   );
 }
@@ -201,12 +214,12 @@ export function groupDashboardTickets<T extends DashboardWork>(
       continue;
     const scheduled = schedules.get(work.id);
     const finalized = isDashboardCompleted(work);
-    if (finalized)
+    if (isOverdueWork(work, config, now)) groups.overdue.push({ work });
+    else if (finalized)
       groups.current.push({
         work,
         note: "Raport finalizat · Disponibil pentru consultare",
       });
-    else if (isOverdueWork(work, config, now)) groups.overdue.push({ work });
     else if (scheduled && scheduled.day > today) groups.future.push({ work });
     else
       groups.current.push({

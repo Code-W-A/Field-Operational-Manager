@@ -135,3 +135,40 @@ test("assignment deduplication respects owner, withdrawal, and distinct event ki
     ["withdrawn"],
   );
 });
+
+test("installation overdue summaries follow this ticket's work start despite finalization or legacy scan", () => {
+  const summary: TicketNotification = {
+    ...event,
+    kind: "daily_overdue",
+    workId: undefined,
+    workIds: ["work"],
+  };
+  const installation = {
+    ...work,
+    statusLucrare: "Finalizat",
+    equipmentVerified: true,
+    raportGenerat: true,
+    installation: {
+      schemaVersion: 1,
+      closedReason: "completed",
+      completionDocumentId: "final",
+      startedEquipmentIds: [] as string[],
+    },
+  };
+  assert.deepEqual(
+    inboxEvent(summary, actor, new Map([["work", installation]]), {}, now)
+      ?.workIds,
+    ["work"],
+  );
+  const started = {
+    ...installation,
+    installation: {
+      ...installation.installation,
+      startedEquipmentIds: ["equipment"],
+    },
+  };
+  assert.equal(
+    inboxEvent(summary, actor, new Map([["work", started]]), {}, now),
+    null,
+  );
+});

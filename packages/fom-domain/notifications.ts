@@ -239,7 +239,11 @@ export function overdueReminder(
   config: Partial<OverdueConfig>,
   now: Date,
 ) {
-  return reminderEligible(work) && isOverdueWork(work as any, config, now);
+  const eligible =
+    work.installation?.schemaVersion === 1
+      ? activeNotificationWork(work)
+      : reminderEligible(work);
+  return eligible && isOverdueWork(work as any, config, now);
 }
 export function notificationDestination(
   event: Pick<TicketNotification, "kind" | "workId">,

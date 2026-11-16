@@ -41,9 +41,11 @@ export function inboxEvent(
   if (bucharestCalendar(new Date(event.createdAt)).day !== day) return null;
   const workIds = (event.workIds || []).filter((id) => {
     const work = works.get(id);
-    if (!usable(work) || !reminderEligible(work)) return false;
     if (event.kind === "daily_overdue")
-      return overdueReminder(work, config, now);
+      return (
+        !!work && assigned(work, actor) && overdueReminder(work, config, now)
+      );
+    if (!usable(work) || !reminderEligible(work)) return false;
     const schedule = ticketSchedule(work.dataInterventie);
     return schedule?.day === day && schedule.time === "00:00:00";
   });

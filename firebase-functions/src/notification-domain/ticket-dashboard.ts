@@ -1,5 +1,8 @@
 /** Shared, read-only dashboard classification. Never writes a work status. */
-import { hasTicketCompletionDocument, type TicketCompletion } from "./work-completion";
+import {
+  hasTicketCompletionDocument,
+  type TicketCompletion,
+} from "./work-completion";
 export const OVERDUE_DEFAULTS = {
   intarziateEnabled: true,
   intarziateRequireExecDate: true,
@@ -113,7 +116,9 @@ export type DashboardWork = {
   tehnicieni?: unknown;
   technicianIds?: unknown;
   raportGenerat?: unknown;
-  installation?: TicketCompletion["installation"];
+  installation?: TicketCompletion["installation"] & {
+    startedEquipmentIds?: unknown;
+  };
   anulat?: unknown;
   anulatAt?: unknown;
   motivAnulare?: unknown;
@@ -128,13 +133,35 @@ function isDashboardCanceled(work: Omit<DashboardWork, "id">) {
     )
   );
 }
+function isDashboardCompleted(work: Omit<DashboardWork, "id">) {
+  return (
+    String(work.statusLucrare || "")
+      .trim()
+      .toLocaleLowerCase("ro-RO") === "finalizat" ||
+    hasTicketCompletionDocument(work)
+  );
+}
 export function isOverdueWork(
   work: Omit<DashboardWork, "id">,
   config: Partial<OverdueConfig> = {},
   now = new Date(),
 ): boolean {
   const cfg = { ...OVERDUE_DEFAULTS, ...config };
-  if (!cfg.intarziateEnabled || isDashboardCanceled(work)) return false;
+  const modernInstallation = work.installation?.schemaVersion === 1;
+  // A confirmed sheet start records this marker atomically with its work interval.
+  // Inherited starts belong to a previous ticket and do not count here.
+  const started =
+    modernInstallation &&
+    Array.isArray(work.installation?.startedEquipmentIds) &&
+    work.installation.startedEquipmentIds.some(
+      (id) => typeof id === "string" && id.trim().length > 0,
+    );
+  if (
+    !cfg.intarziateEnabled ||
+    isDashboardCanceled(work) ||
+    (modernInstallation ? started : isDashboardCompleted(work))
+  )
+    return false;
   const scheduled = ticketSchedule(work.dataInterventie);
   // Next.js also excludes a missing date when requireExecDate is false.
   if (!scheduled) return false;
@@ -152,7 +179,9 @@ export function isOverdueWork(
   return (
     !!dateCondition &&
     (!cfg.intarziateRequireAssigned || assigned) &&
-    (!cfg.intarziateRequireNotScanned || !work.equipmentVerified) &&
+    (modernInstallation ||
+      !cfg.intarziateRequireNotScanned ||
+      !work.equipmentVerified) &&
     !work.preluatDispecer
   );
 }
@@ -184,14 +213,13 @@ export function groupDashboardTickets<T extends DashboardWork>(
     )
       continue;
     const scheduled = schedules.get(work.id);
-    const finalized =
-      work.raportGenerat === true || work.statusLucrare === "Finalizat";
-    if (finalized)
+    const finalized = isDashboardCompleted(work);
+    if (isOverdueWork(work, config, now)) groups.overdue.push({ work });
+    else if (finalized)
       groups.current.push({
         work,
         note: "Raport finalizat · Disponibil pentru consultare",
       });
-    else if (isOverdueWork(work, config, now)) groups.overdue.push({ work });
     else if (scheduled && scheduled.day > today) groups.future.push({ work });
     else
       groups.current.push({
