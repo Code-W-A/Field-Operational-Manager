@@ -150,6 +150,7 @@ export async function renderInstallationPdf(
     [snapshot.technicianSignature, MARGIN + 2],
     [snapshot.beneficiarySignature, MARGIN + 10 + halfWidth],
   ] as const) {
+    if (!signature) continue; // Unsigned preview for a remote signing invitation.
     const properties = doc.getImageProperties(signature);
     const scale = Math.min(70 / properties.width, 22 / properties.height);
     doc.addImage(signature, "PNG", x, y + 3, properties.width * scale, properties.height * scale);

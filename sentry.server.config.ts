@@ -8,4 +8,13 @@ Sentry.init({
   enabled: Boolean(dsn),
   tracesSampleRate: isProd ? 0.1 : 1,
   debug: false,
+  beforeSend(event) {
+    if (event.request?.url?.includes("/api/remote-signatures")) {
+      event.request.data = undefined;
+      event.request.headers = undefined;
+      event.breadcrumbs = undefined;
+      event.extra = undefined;
+    }
+    return event;
+  },
 })

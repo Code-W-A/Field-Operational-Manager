@@ -1,3 +1,4 @@
+import { remoteSignatureContentChanged } from "@/packages/fom-domain/remote-signatures";
 import { prepareLocationEvent, locationEventReceipt, locationCommandFingerprint } from "../tracking/location-event";
 import { TechnicianError } from "./errors";
 import { revisionReportSnapshot } from "./revision-report-snapshot";
@@ -559,6 +560,7 @@ export function technicianService(db: Firestore) {
               updatedAt: now,
               ...(!existing.exists ? { createdAt: now } : {}),
             };
+            if (remoteSignatureContentChanged(existing.data() || {}, revision)) revision.remoteSignatureEpoch = Number(existing.data()?.remoteSignatureEpoch || 0) + 1;
             tx.set(ref.collection("revisions").doc(eq.id), revision, {
               merge: true,
             });
@@ -708,6 +710,7 @@ export function technicianService(db: Firestore) {
               }
             }
           }
+          if (remoteSignatureContentChanged(w, patch)) patch.remoteSignatureEpoch = Number(w.remoteSignatureEpoch || 0) + 1;
           offlineCommit?.();
           // Same incidental effects as updateLucrare; reading notifications is handled separately.
           Object.assign(patch, {

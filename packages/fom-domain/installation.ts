@@ -122,6 +122,7 @@ export type InstallationListResponse = {
   };
   work: {
     id: string;
+    mobileVersion?: string | null;
     client: string;
     locatie: string;
     nrLucrare?: string;

@@ -1,4 +1,5 @@
 "use client";
+import { RemoteSignatureRequest } from "@/components/remote-signatures/request";
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -532,6 +533,13 @@ export function InstallationSheetForm({
               >
                 {sheet.state === "awaiting_signature" ? "Semnează fișa" : "Închide fișa zilei"}
               </Button>
+              {sheet.state === "awaiting_signature" && <RemoteSignatureRequest workId={workId} kind="sheet" sheetId={sheet.id} disabled={busy} contentKey={JSON.stringify(content)} prepare={async () => {
+                if (!technicianSignature) throw new Error("Adaugă semnătura tehnicianului.");
+                const result = await installationRequest(installationApi(workId), { action: "save", sheetId: sheet.id, fields: content, revision: sheet.revision });
+                onSheet(result.sheet);
+                return { technicianSignature, expectedVersion: result.sheet.revision };
+              }} />}
+
             </div>
           </div>
         </>
@@ -596,10 +604,12 @@ export function InstallationSheetForm({
 
 export function InstallationCompletionForm({
   workId,
+  expectedVersion,
   onComplete,
 }: {
   workId: string;
   onComplete: () => Promise<void>;
+  expectedVersion?: string | null;
 }) {
   const { userData } = useAuth();
   const [observations, setObservations] = useState("");
@@ -690,6 +700,8 @@ export function InstallationCompletionForm({
         >
           Semnează și finalizează tichetul
         </Button>
+        <RemoteSignatureRequest workId={workId} kind="completion" disabled={busy} contentKey={observations} prepare={async () => ({ technicianSignature, observations, expectedVersion: expectedVersion || undefined })} />
+
       </fieldset>
     </section>
   );
@@ -897,6 +909,8 @@ function InstallationDeferredSignatures({
         >
           Semnează fișa zilei
         </Button>
+        <RemoteSignatureRequest workId={workId} kind="sheet" sheetId={sheet.id} disabled={busy} contentKey={String(sheet.revision)} prepare={async () => ({ technicianSignature, expectedVersion: sheet.revision })} />
+
       </fieldset>
     </FormSection>
   );

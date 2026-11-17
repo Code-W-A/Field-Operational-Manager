@@ -1,4 +1,5 @@
 "use client";
+import { RemoteSignatureRequest } from "./remote-signatures/request";
 import {
   useCallback,
   useEffect,
@@ -560,8 +561,10 @@ export function InstallationWorkspace({
                       router.push(originHref(pageUrl(workId) + "?tab=documents&complete=1"))
                     }
                   />
+                  <RemoteSignatureRequest workId={workId} kind="completion" manageOnly prepare={async () => ({ technicianSignature: "" })} />
                   {complete && canComplete && (
                     <InstallationCompletionForm
+                      expectedVersion={data.work.mobileVersion}
                       workId={workId}
                       onComplete={async () => {
                         if (source === "dashboard") router.push(ticketExitHref(source));

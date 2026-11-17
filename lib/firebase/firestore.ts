@@ -1,3 +1,5 @@
+import { increment } from "firebase/firestore";
+import { remoteSignatureContentChanged } from "@/packages/fom-domain/remote-signatures";
 import { technicianCrmCommand } from "@/lib/crm/technician-client";
 import type { PersoanaContact as CanonicalPersoanaContact, Lucrare as CanonicalLucrare, Client as CanonicalClient, Echipament as CanonicalEchipament, Contract as CanonicalContract, Locatie as CanonicalLocatie, ProductItem as CanonicalProductItem } from "@/packages/fom-domain/works";
 import type { DocumentClientSnapshot } from "@/lib/work-documents/document-client-snapshot"
@@ -936,6 +938,9 @@ export const updateLucrare = async (
     lucrare.notificationReadBy = [] // Resetăm lista utilizatorilor care au citit
   }
   
+  if (oldLucrareData && remoteSignatureContentChanged(oldLucrareData, lucrare)) {
+    Object.assign(lucrare, { remoteSignatureEpoch: increment(1) });
+  }
   await updateDoc(lucrareDoc, lucrare as DocumentData)
   
   // Trackingul modificărilor (dacă avem informații despre utilizator și nu e actualizare silentioasă)

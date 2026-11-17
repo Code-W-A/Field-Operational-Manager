@@ -19,7 +19,7 @@ service cloud.firestore {
         || data.get('parentId', '') in ['equipment-manufacturers', 'equipment-models'];
     }
     function serverOnlyCollection(name) {
-      return name in ['offerEmailAttachments', 'note-interne', 'invoiceExchangeRateCache', 'invoiceExchangeRateQuotes', 'invoiceSagaTransfers', 'invoiceSagaSimulations', 'invoiceSagaReports', 'invoiceSagaCompanyLeases', 'invoiceIssuerProfiles', 'invoices', 'invoiceArtifacts', 'invoiceNumbering', 'invoiceCounters', 'invoiceNumberReservations', 'sagaCatalogs', 'sagaConnections', 'invoiceDrafts', 'mobileDrafts', 'mobilePhotoUploads', 'mobileUpdatePolicies'] || name in ['mobileOfflineGrants', 'mobileOfflineWork', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'trackingEvents', 'crm_command_receipts', 'crm_equipment_uploads'];
+      return name in ['remoteSignatures', 'remoteSignatureTargets', 'offerEmailAttachments', 'note-interne', 'invoiceExchangeRateCache', 'invoiceExchangeRateQuotes', 'invoiceSagaTransfers', 'invoiceSagaSimulations', 'invoiceSagaReports', 'invoiceSagaCompanyLeases', 'invoiceIssuerProfiles', 'invoices', 'invoiceArtifacts', 'invoiceNumbering', 'invoiceCounters', 'invoiceNumberReservations', 'sagaCatalogs', 'sagaConnections', 'invoiceDrafts', 'mobileDrafts', 'mobilePhotoUploads', 'mobileUpdatePolicies'] || name in ['mobileOfflineGrants', 'mobileOfflineWork', 'mobileDraftAccess', 'revisionPhotoDeletions', 'mobilePushDevices', 'mobileNotifications', 'mobileNotificationDeliveries', 'mobileNotificationHeads', 'mobileTicketNotificationSchedules', 'mobileTermsAcceptances', 'installationTechnicianSessions', 'installationCommands', 'mobileCommands', 'mobileFiles', 'mobileEffects', 'trackingPoints', 'trackingLatest', 'trackingEvents', 'crm_command_receipts', 'crm_equipment_uploads'];
     }
     function draftOwner(uid) {
       return request.auth != null && request.auth.uid == uid
@@ -150,13 +150,14 @@ service cloud.firestore {
       allow create: if !serverOnlyCollection(collectionName)
         && (collectionName != 'settings' || !catalogDocument(documentId, request.resource.data) || isAdmin())
         && (collectionName != 'users' || isAdmin())
-        && (collectionName != 'lucrari' || !request.resource.data.keys().hasAny(['installation']));
+        && (collectionName != 'lucrari' || !request.resource.data.keys().hasAny(['installation', 'remoteSignatureEvidence']));
       allow update: if !serverOnlyCollection(collectionName)
         && (collectionName != 'settings' || (!catalogDocument(documentId, resource.data) && !catalogDocument(documentId, request.resource.data)) || isAdmin())
         && (collectionName != 'users' || isAdmin()
           || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'displayName', 'uid']))
         && (collectionName != 'lucrari' || (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['installation'])
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['installation', 'remoteSignatureEvidence'])
+          && (!resource.data.keys().hasAny(['remoteSignatureEvidence']) || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['raportSnapshot', 'raportGenerat', 'raportDataLocked', 'statusFinalizareInterventie', 'semnaturaTehnician', 'semnaturaBeneficiar', 'numeBeneficiar', 'numeTehnician', 'numarRaport', 'timpSosire', 'timpPlecare', 'durataInterventie', 'constatareLaLocatie', 'descriereInterventie', 'products', 'imaginiDefecte']))
           && (!resource.data.keys().hasAny(['installation'])
             || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
               'tipLucrare', 'equipmentIds', 'echipamentId', 'echipamentCod', 'echipament',

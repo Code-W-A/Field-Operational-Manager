@@ -37,6 +37,8 @@ export function middleware(req: NextRequest) {
   // Public legal information must remain readable for every account role.
   if (pathname === "/confidentialitate" || pathname === "/confidentialitate/") return NextResponse.next()
 
+  if (pathname === "/semneaza" || pathname === "/semneaza/") return NextResponse.next()
+
   const roleCookie = req.cookies.get("userRole")?.value
   const role = roleCookie ? decodeURIComponent(roleCookie) : undefined
 

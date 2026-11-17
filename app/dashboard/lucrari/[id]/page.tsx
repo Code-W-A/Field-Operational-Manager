@@ -1,4 +1,5 @@
 "use client"
+import { RemoteSignatureRequest } from "@/components/remote-signatures/request";
 
 import { romanianWorkDate, romanianWorkTime, romanianWorkDisplay } from "@/packages/fom-domain";
 import { isInstallationV1 } from "@/types/installation"
@@ -3276,6 +3277,7 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
                     )}
                   </div>
                 )}
+                {["Fără semnătură", "Finalizat"].includes(lucrare.statusLucrare) && <RemoteSignatureRequest workId={lucrare.id!} kind="report" manageOnly prepare={async () => ({ technicianSignature: "" })} />}
                 {/* Rând cu: Locație | Persoană contact (locație) | Echipament */}
                 <TicketClientReadStatus unavailable={ticketClient.unavailable} issues={clientDisplay.issues} />
                 {contactSyncIssues.length > 0 && <p role="alert" className="text-sm text-amber-700 mt-3">Date de contact păstrate pentru verificare: {contactSyncIssues.join("; ")}</p>}

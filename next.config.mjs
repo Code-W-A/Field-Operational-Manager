@@ -14,6 +14,7 @@ const nextConfig = {
   },
   // PDF font paths are resolved dynamically and must be included in server bundles.
   outputFileTracingIncludes: {
+    "/api/remote-signatures{,/*}": ["./public/fonts/NotoSans-Regular.ttf", "./public/fonts/NotoSans-Bold.ttf", "./public/nrglogo.png"],
     "/api/technician/*": ["./public/fonts/NotoSans-Regular.ttf", "./public/fonts/NotoSans-Bold.ttf", "./public/nrglogo.png"],
     "/api/mobile/*": ["./public/fonts/NotoSans-Regular.ttf", "./public/fonts/NotoSans-Bold.ttf", "./public/nrglogo.png"],
     "/api/lucrari/*/installation": ["./public/fonts/NotoSans-Regular.ttf", "./public/fonts/NotoSans-Bold.ttf", "./public/nrglogo.png"],

@@ -44,8 +44,17 @@ export type LocalFile = {
   remote?: RecordData;
   privateDraft?: { path: string; draftId: string; saveId: string };
 };
+/** Read-only command lookup; session evidence never proves an absent command succeeded. */
+export type AttendanceReceipt = { contractVersion: number; mutationId: string } & (
+  | { state: "confirmed"; commandDigest: string; session?: never }
+  | { state: "absent"; commandDigest?: never; session?: {
+      attendanceId: string; state: "closed" | "active" | "missing" | "inconsistent";
+      sessionEnd: string | null; activeSessionId: string | null; checkedAt: string;
+    } }
+);
 export type Operation = Command & {
-  confirmation?: "rejected";
+  confirmation?: "rejected" | "session_closed";
+  recovery?: { resolution: "confirmed" | "rejected" | "session_closed"; checkedAt: string; attendanceId?: string; sessionEnd?: string; activeSessionId?: string | null };
   lastFailure?: { code?: string; kind: string; httpStatus: number; at: string; definitive: boolean };
   privateDraftKey?: string;
   privateDraftRevision?: number;
@@ -55,6 +64,8 @@ export type Operation = Command & {
   files: LocalFile[];
   result?: RecordData;
 };
+export const operationSettled = (op: { status: string; confirmation?: string }) =>
+  op.status === "synced" || op.confirmation === "rejected" || op.confirmation === "session_closed";
 import type { RevisionSection } from "./revision";
 import type { Bundle } from "./wire";
 export * from "./wire";
@@ -432,3 +443,5 @@ export * from "./offline-work";
 export * from "./offline-stop";
 
 export * from "./photo-limits";
+
+export * from "./remote-signatures";

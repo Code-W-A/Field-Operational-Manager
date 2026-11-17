@@ -1,3 +1,4 @@
+import { remoteSignatureContentChanged } from "@/packages/fom-domain/remote-signatures";
 import { prepareLocationEvent, locationEventReceipt, locationCommandFingerprint } from "../tracking/location-event";
 import { validateOfflineStop } from "@/lib/mobile/offline-stop";
 import { prepareOfflineWork } from "@/lib/mobile/offline-work";
@@ -506,6 +507,7 @@ export function installationService(db: Firestore) {
         notificationRead: false,
         notificationReadBy: [],
       };
+      if (remoteSignatureContentChanged(work, update)) Object.assign(update, { remoteSignatureEpoch: Number(work.remoteSignatureEpoch || 0) + 1 });
       tx.update(ref, update);
       audit(tx, workId, actor, "edit", { teamChanged, assignmentVersion: meta.assignmentVersion || 0 });
       return { id: workId, ...work, ...update };
@@ -1007,6 +1009,7 @@ export function installationService(db: Firestore) {
             }
           : {}),
       };
+      if (remoteSignatureContentChanged(sheet, update)) Object.assign(update, { remoteSignatureEpoch: Number((sheet as any).remoteSignatureEpoch || 0) + 1 });
       offlineCommit?.();
       tx.update(sr, update);
       if (mode !== "save") {
@@ -1462,6 +1465,7 @@ export function installationService(db: Firestore) {
       } } : {}),
       work: {
         id: workId,
+        mobileVersion: versionOf(work),
         client: work.client,
         locatie: work.locatie,
         nrLucrare: work.nrLucrare,
@@ -1660,6 +1664,7 @@ export function installationService(db: Firestore) {
       tx.update(ref, {
         photos,
         ...frozen,
+        remoteSignatureEpoch: Number((sheet as any).remoteSignatureEpoch || 0) + 1,
         revision: sheet.revision + 1,
         updatedAt: new Date().toISOString(),
       });

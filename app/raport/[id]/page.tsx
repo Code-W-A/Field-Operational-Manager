@@ -1,4 +1,5 @@
 "use client"
+import { RemoteSignatureRequest } from "@/components/remote-signatures/request";
 
 import { romanianWorkDate, romanianWorkTime, romanianWorkDisplay, romanianManualInstant, normalizeWorkTimes } from "@/packages/fom-domain";
 import { isInstallationV1 } from "@/types/installation"
@@ -13,7 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator"
 import { Send, ArrowLeft, Download, FileDown, Loader2, Save, Calendar, Clock, AlertTriangle, Edit } from "lucide-react"
 import SignatureCanvas from "react-signature-canvas"
-import { assigned } from "@/packages/fom-domain"
+import { assigned, versionOf } from "@/packages/fom-domain"
 import { technicianCommand } from "@/lib/technician/client"
 import { getLucrareById, updateLucrare } from "@/lib/firebase/firestore"
 import { useAuth } from "@/contexts/AuthContext"
@@ -867,7 +868,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
     }
   }
 
-  const handleFinalizeLater = async () => {
+  const handleFinalizeLater = async (stay = false) => {
     if (reportActionLock.current || isSubmitting || isFinalizingLater || !validatePaid()) return
     reportActionLock.current = true
     try {
@@ -897,9 +898,9 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
       }
 
       const now = new Date()
-      const timpPlecare = now.toISOString()
-      const dataPlecare = romanianWorkDate(now)
-      const oraPlecare = romanianWorkTime(now)
+      const timpPlecare = tichet?.timpPlecare || now.toISOString()
+      const dataPlecare = romanianWorkDate(timpPlecare)
+      const oraPlecare = romanianWorkTime(timpPlecare)
       const durataInterventie = tichet?.timpSosire
         ? calculateDuration(tichet.timpSosire, timpPlecare)
         : "-"
@@ -955,7 +956,8 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         description: "Intervenția a fost închisă. Puteți genera raportul mai târziu.",
       })
 
-      router.push(exitHref)
+      if (!stay) router.push(exitHref)
+      return updatedLucrareData
     } catch (error) {
       console.error("Eroare la salvarea fără semnătură:", error)
       toast({
@@ -963,6 +965,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
         description: "Nu s-a putut salva intervenția fără semnătură.",
         variant: "destructive",
       })
+      if (stay) throw error
     } finally {
       reportActionLock.current = false
       setIsFinalizingLater(false)
@@ -2373,7 +2376,7 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
               {allowFinalizeLater && (
                 <Button
                   type="button"
-                  onClick={handleFinalizeLater}
+                  onClick={() => handleFinalizeLater(true)}
                   disabled={savingIntervention || isFinalizingLater || isSubmitting || tichet?.raportDataLocked}
                   className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
                 >
@@ -2387,6 +2390,17 @@ export default function RaportPage({ params }: { params: Promise<{ id: string }>
                   )}
                 </Button>
               )}
+              {!tichet?.raportDataLocked && statusLucrare === WORK_STATUS.NO_SIGNATURE && <RemoteSignatureRequest
+                workId={tichet.id} kind="report" defaultEmail={tichet.persoanaContactEmail || ""}
+                disabled={savingIntervention || isFinalizingLater || isSubmitting}
+                contentKey={JSON.stringify([tichet.updatedAt, products, cauzaPrincipalaDefectId])}
+                prepare={async () => {
+                  const signature = techSignatureRef.current && !techSignatureRef.current.isEmpty() ? techSignatureRef.current.toDataURL("image/png") : techSignatureData || "";
+                  if (!signature) throw new Error("Adaugă semnătura tehnicianului.");
+                  const saved = await handleFinalizeLater(true);
+                  if (!saved) throw new Error("Salvează datele obligatorii înainte de solicitare.");
+                  return { technicianSignature: signature, expectedVersion: versionOf(saved) || undefined };
+                }} />}
               <Button
                 ref={submitButtonRef}
                 className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
