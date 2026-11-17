@@ -73,8 +73,8 @@ const server = createServer((req, res) => {
 await new Promise(resolve => server.listen(0,'127.0.0.1',resolve))
 const browser = await chromium.launch({ headless:true, channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome' })
 try {
-  for(const kind of ['ticket','crm']) {
-    const page = await browser.newPage({viewport:{width:1440,height:1000}})
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844}]) for(const kind of ['ticket','crm']) {
+    const page = await browser.newPage({viewport})
     const errors=[]; page.on('pageerror',error=>errors.push(error.message))
     const permits = new Map(); const calls=[]
     await page.route('**/api/**', async route => {
@@ -102,7 +102,9 @@ try {
     await page.getByRole('button',{name:kind==='crm'?'Încarcă draft':'Redeschide oferta',exact:true}).click()
     await page.getByRole('button',{name:'Fișă tehnică.pdf',exact:true}).waitFor()
     await page.getByRole("button",{name:"Atașează fișiere",exact:true}).scrollIntoViewIfNeeded()
-    await page.screenshot({animations:"disabled",path:`/tmp/fom-attachments-${kind}.png`,fullPage:true})
+    await page.screenshot({animations:"disabled",path:`/tmp/fom-attachments-${kind}${viewport.width < 500 ? "-narrow" : ""}.png`,fullPage:true})
+    const bounds = await page.getByRole("button",{name:"Atașează fișiere",exact:true}).boundingBox();
+    assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= viewport.width, 'Attachment button stays inside viewport');
     await files.setInputFiles({name:'program.exe',mimeType:'application/octet-stream',buffer:Buffer.from('bad')})
     await page.getByRole('alert').filter({hasText:'format neacceptat'}).waitFor()
     await page.evaluate(()=>window.fixture.uploadFailure=true)
@@ -122,7 +124,7 @@ try {
       assert.equal(calls.find(c=>c.url.endsWith('/api/offer')).data.snapshot.emailAttachments.length,1)
     }
     assert.deepEqual(errors,[])
-    console.log(`PASS ${kind}: multiple files, busy guard, remove, save/reopen, invalid type, upload failure, sending snapshot${kind==='crm'?', send failure retention and new offer reset':''}`)
+    console.log(`PASS ${kind} ${viewport.width}px: multiple files, busy guard, remove, save/reopen, invalid type, upload failure, sending snapshot${kind==='crm'?', send failure retention and new offer reset':''}`)
     await page.close()
   }
 } finally { await browser.close(); server.close() }

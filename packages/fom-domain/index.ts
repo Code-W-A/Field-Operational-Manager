@@ -45,6 +45,8 @@ export type LocalFile = {
   privateDraft?: { path: string; draftId: string; saveId: string };
 };
 export type Operation = Command & {
+  confirmation?: "rejected";
+  lastFailure?: { code?: string; kind: string; httpStatus: number; at: string; definitive: boolean };
   privateDraftKey?: string;
   privateDraftRevision?: number;
   status: OperationStatus;
