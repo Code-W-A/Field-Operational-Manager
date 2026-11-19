@@ -95,3 +95,16 @@ test("open installations remain listed; ordinary completed reports are excluded"
   assert.equal(isListedDashboardWork({ ...open, raportGenerat: true }, true), true)
   assert.equal(isListedDashboardWork({ statusLucrare: "Listată", raportGenerat: true }, false), false)
 })
+
+test("assigned installations leave Listate even when the technician filter is off", () => {
+  const open = { tipLucrare: "Instalare", statusLucrare: "Listată", tehnicieni: [] as string[], technicianIds: [] as string[], installation: { schemaVersion: 1 } }
+  for (const requireNoTechnicians of [true, false]) {
+    assert.equal(isListedDashboardWork(open, requireNoTechnicians), true)
+    assert.equal(isListedDashboardWork({ ...open, tehnicieni: ["Ion"] }, requireNoTechnicians), false)
+    assert.equal(isListedDashboardWork({ ...open, technicianIds: ["tech-1"] }, requireNoTechnicians), false)
+    assert.equal(isListedDashboardWork({ ...open, statusLucrare: "Atribuită" }, requireNoTechnicians), false)
+    assert.equal(isListedDashboardWork({ ...open, statusLucrare: "În lucru" }, requireNoTechnicians), false)
+  }
+  assert.equal(isListedDashboardWork({ ...open, tehnicieni: ["  "] }, false), true)
+  assert.equal(isListedDashboardWork({ ...manual, tehnicieni: ["Ion"] }, false), true)
+})

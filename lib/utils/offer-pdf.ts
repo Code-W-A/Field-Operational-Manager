@@ -366,7 +366,7 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
   if (optionalItems.length) {
     y += 10
     checkPage(12)
-    doc.setFont("NotoSans", "bold").setFontSize(10).text("Opționale", M, y)
+    doc.setFont("NotoSans", "bold").setFontSize(10).text("Accesorii opționale", M, y)
     y += 6
 
     checkPage(9)
@@ -403,7 +403,7 @@ async function generatePricingDocumentPdf(input: OfferPdfInput): Promise<Blob> {
     checkPage(6)
     doc.setFont("NotoSans", "normal").setFontSize(8.5)
     doc.setTextColor(107, 114, 128)
-    doc.text(normalizeForPdf("Prețurile de mai sus nu sunt incluse în total."), M, y)
+    doc.text(normalizeForPdf("Prețurile accesoriilor opționale nu sunt incluse în total."), M, y)
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(9)
   }

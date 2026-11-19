@@ -88,3 +88,20 @@ test('real hook: finalized installation #002168 moves from Listate to Nefacturat
   }
   assert.deepEqual(works,original)
 })
+
+test('real hook: assigned or unfinished installations stay out of Listate and Nefacturate', () => {
+  const base = { tipLucrare:'Instalare', tehnicieni:[], preluatDispecer:false, statusFacturare:'Nefacturat' }
+  const open = { ...base, id:'open', statusLucrare:'Listată', installation:{ schemaVersion:1 } }
+  const named = { ...open, id:'named', tehnicieni:['Ion'] }
+  const byId = { ...open, id:'by-id', technicianIds:['tech-1'] }
+  const assigned = { ...open, id:'assigned', statusLucrare:'Atribuită' }
+  const started = { ...open, id:'started', statusLucrare:'În lucru' }
+  const partial = { ...base, id:'partial', statusLucrare:'Finalizat', equipmentIds:['e1','e2'],
+    installation:{ schemaVersion:1, closedReason:'completed', completionDocumentId:'final', equipmentStatus:{ e1:'done', e2:'pending' } } }
+  const ready = { ...partial, id:'ready', installation:{ ...partial.installation, equipmentStatus:{ e1:'done', e2:'done' } } }
+  const { buckets } = run({ works:[open, named, byId, assigned, started, partial, ready] }, {
+    listateRequireNoTechnicians:false, nefacturateEnabled:true,
+  })
+  assert.deepEqual(buckets.listate.map(x => x.id), ['open'])
+  assert.deepEqual(buckets.nefacturate.map(x => x.id), ['ready'])
+})

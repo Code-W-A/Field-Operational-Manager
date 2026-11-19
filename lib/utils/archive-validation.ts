@@ -1,6 +1,7 @@
 /**
  * Utilități pentru validarea regulilor de arhivare
  */
+import { toDateSafe as parseDate } from "@/lib/utils/time-format"
 
 export interface ArchiveValidationResult {
   canArchive: boolean
@@ -35,44 +36,61 @@ export interface ArchiveValidationDetails {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const OFFER_ARCHIVE_WAIT_DAYS = 10
+const OFFER_ARCHIVE_WAIT_DAYS = 30
+const OFFER_TOKEN_TTL_DAYS = 30
 
-const toDateSafe = (v: any): Date | null => {
-  try {
-    if (v === null || v === undefined || v === "") return null
-    const date = v instanceof Date ? v
-      : typeof v?.toDate === "function" ? v.toDate()
-      : typeof v?.seconds === "number" ? new Date(v.seconds * 1000)
-      : typeof v === "string" || typeof v === "number" ? new Date(v)
-      : null
-    return date instanceof Date && Number.isFinite(date.getTime()) ? date : null
-  } catch {
-    return null
+function readDate(value: unknown): Date | null {
+  const finite = (date: Date | null | undefined) =>
+    date instanceof Date && Number.isFinite(date.getTime()) ? date : null
+  if (typeof value === "number" && Number.isFinite(value)) return finite(new Date(value))
+  if (value && typeof value === "object" && typeof (value as { _seconds?: unknown })._seconds === "number") {
+    return finite(new Date((value as { _seconds: number })._seconds * 1000))
   }
+  return finite(parseDate(value))
+}
+
+function earliestDate(values: unknown[]): Date | null {
+  const dates = values.map(readDate).filter((date): date is Date => date instanceof Date)
+  if (!dates.length) return null
+  return dates.reduce((earliest, date) => (date.getTime() < earliest.getTime() ? date : earliest))
+}
+
+/** Data trimiterii, nu expirarea unui link regenerat. */
+function offerSentAt(lucrare: any): Date | null {
+  const recorded = readDate(lucrare?.offerArchiveSentAt)
+  if (recorded) return recorded
+  if (lucrare?.lastOfferEmail?.status !== "failed") {
+    const emailed = readDate(lucrare?.lastOfferEmail?.sentAt)
+    if (emailed) return emailed
+  }
+
+  const reissued = Boolean(lucrare?.offerActionReissuedAt || lucrare?.offerActionReissueCount)
+  const legacyExpiry = readDate(lucrare?.offerActionExpiresAt)
+  if (legacyExpiry && !reissued) {
+    return new Date(legacyExpiry.getTime() - OFFER_TOKEN_TTL_DAYS * DAY_MS)
+  }
+
+  const versions = Array.isArray(lucrare?.offerVersions) ? lucrare.offerVersions : []
+  return earliestDate([
+    lucrare?.offerActionVersionSavedAt,
+    lucrare?.offerPreparedAt,
+    ...versions.map((version: { savedAt?: unknown }) => version?.savedAt),
+  ])
 }
 
 function offerArchiveDeadline(lucrare: any): Date | null {
-  const sentAt = toDateSafe(lucrare?.offerArchiveSentAt) ||
-    (lucrare?.lastOfferEmail?.status !== "failed" ? toDateSafe(lucrare?.lastOfferEmail?.sentAt) : null)
-  if (sentAt) return new Date(sentAt.getTime() + OFFER_ARCHIVE_WAIT_DAYS * DAY_MS)
-
-  // Oferte vechi: tokenul inițial era emis pentru 30 de zile.
-  // După regenerare, expirarea tokenului nu mai indică data trimiterii.
-  const legacyExpiry = toDateSafe(lucrare?.offerActionExpiresAt)
-  if (legacyExpiry && !lucrare?.offerActionReissuedAt && !lucrare?.offerActionReissueCount) {
-    return new Date(legacyExpiry.getTime() - (30 - OFFER_ARCHIVE_WAIT_DAYS) * DAY_MS)
-  }
-  return null
+  const sentAt = offerSentAt(lucrare)
+  return sentAt ? new Date(sentAt.getTime() + OFFER_ARCHIVE_WAIT_DAYS * DAY_MS) : null
 }
 
 function offerWaitingReason(lucrare: any): string | undefined {
   const deadline = offerArchiveDeadline(lucrare)
   if (!deadline) {
-    return "Oferta a fost transmisă, dar nu există data trimiterii. Retrimite oferta pentru a seta perioada de așteptare de 10 zile."
+    return "Oferta a fost transmisă, dar nu există data trimiterii. Retrimite oferta pentru a seta perioada de așteptare de 30 zile."
   }
   const remaining = deadline.getTime() - Date.now()
   if (remaining > 0) {
-    return `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 10 zile de la trimitere (mai rămân ${Math.ceil(remaining / DAY_MS)} zile)`
+    return `Oferta a fost transmisă fără răspuns. Se poate arhiva după expirarea perioadei de 30 zile de la trimitere (mai rămân ${Math.ceil(remaining / DAY_MS)} zile)`
   }
 }
 
@@ -165,7 +183,7 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
       const reason = offerWaitingReason(lucrare)
       if (reason) blockingReasons.push(reason)
     } else {
-      ignoredRules.push("Așteptare 10 zile fără răspuns la ofertă")
+      ignoredRules.push("Așteptare 30 zile fără răspuns la ofertă")
     }
   }
 
@@ -183,7 +201,7 @@ export function getArchiveValidationDetails(lucrare: any, config?: Partial<Archi
  * 2. Nu se poate arhiva dacă are o ofertă transmisă și acceptată. 
  *    Următoarea acțiune trebuie să fie reintervenție și abia apoi se activează butonul de arhivare
  * 3. Se activează butonul de arhivare dacă refuză oferta
- * 4. Se activează butonul de arhivare la 10 zile de la transmiterea ofertei care nu are un răspuns accept/refuz
+ * 4. Se activează butonul de arhivare la 30 zile de la transmiterea ofertei care nu are un răspuns accept/refuz
  */
 export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
   // Regulă 1: Nu se poate arhiva dacă necesită ofertă și nu are ofertă transmisă
@@ -221,7 +239,7 @@ export function validateArchiveRules(lucrare: any): ArchiveValidationResult {
     }
   }
 
-  // Regulă 4: Se poate arhiva după 10 zile de la transmiterea ofertei fără răspuns
+  // Regulă 4: Se poate arhiva după 30 zile de la transmiterea ofertei fără răspuns
   const hasOfferSent = (lucrare.offerSendCount && lucrare.offerSendCount > 0) || 
                       (lucrare.offerVersions && lucrare.offerVersions.length > 0)
   

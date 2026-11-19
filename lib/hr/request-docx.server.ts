@@ -3,7 +3,7 @@ import path from "node:path"
 import Docxtemplater from "docxtemplater"
 import PizZip from "pizzip"
 import type { HrRequest } from "@/lib/hr/types"
-import { formatHrRequestSerial, hrRequestKindLabel } from "@/lib/hr/hr-requests"
+import { formatHrRequestSerial, hrRequestKindLabel, nextHrRequestSerial } from "@/lib/hr/hr-requests"
 import { adminDb } from "@/lib/firebase/admin"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
 import { getHrRequestDocxTemplateFile } from "@/lib/hr/request-document-format"
@@ -95,12 +95,6 @@ function buildDurationText(params: {
   return "—"
 }
 
-function requestNumberFromId(requestId: string): string {
-  const clean = String(requestId || "").trim()
-  if (!clean) return `HR-${Date.now()}`
-  return `HR-${clean.slice(0, 8).toUpperCase()}`
-}
-
 function sanitizeFileNameChunk(raw: string): string {
   return String(raw || "")
     .trim()
@@ -164,6 +158,27 @@ async function fetchUserByUid(uid: string): Promise<UserSnapshot | null> {
   }
 }
 
+async function ensureDocumentSerial(request: HrRequest): Promise<number> {
+  const current = request.documentSerial
+  if (typeof current === "number" && Number.isFinite(current) && current >= 1) return Math.trunc(current)
+  if (!request.id) return nextHrRequestSerial(0, 0)
+  return adminDb.runTransaction(async (tx) => {
+    const ref = adminDb.collection("hrRequests").doc(request.id)
+    const counterRef = adminDb.collection("hrCounters").doc("leaveRequestSerial")
+    const [snap, counter, top] = await Promise.all([
+      tx.get(ref),
+      tx.get(counterRef),
+      tx.get(adminDb.collection("hrRequests").orderBy("documentSerial", "desc").limit(1)),
+    ])
+    const existing = snap.data()?.documentSerial
+    if (typeof existing === "number" && Number.isFinite(existing) && existing >= 1) return Math.trunc(existing)
+    const next = nextHrRequestSerial(counter.data()?.last, top.docs[0]?.data()?.documentSerial)
+    tx.set(counterRef, { last: next }, { merge: true })
+    if (snap.exists) tx.update(ref, { documentSerial: next })
+    return next
+  })
+}
+
 export async function generateHrRequestDocxBuffer(
   request: HrRequest,
 ): Promise<{ buffer: Buffer; filename: string }> {
@@ -206,13 +221,13 @@ export async function generateHrRequestDocxBuffer(
   const managerLabel = safeText(managerUser?.displayName || managerUser?.email || request.managerUid)
   const clientName = safeText(payload?.clientName, "—")
   const reason = safeText(payload?.reason, "—")
-  const registrationNumber = requestNumberFromId(request.id)
+  const documentNumber = formatHrRequestSerial(await ensureDocumentSerial(request))
 
   const placeholders: Record<string, string> = {
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
-    "nr-cerere": formatHrRequestSerial(request.documentSerial),
+    "nr-cerere": documentNumber,
     "tip-eveniment": hrRequestKindLabel(request.kind),
     "nume-angajat": employeeLastName,
     "prenume-angajat": employeeFirstName,
@@ -227,7 +242,7 @@ export async function generateHrRequestDocxBuffer(
     "data-cererii": requestDateLabel,
     solicitant: requesterLabel,
     "superior-direct": managerLabel,
-    "număr-de-înregistrare": registrationNumber,
+    "număr-de-înregistrare": documentNumber,
     "motiv-delegare": reason,
     "nume-client": clientName,
     "serie-si-numar-CI": employeeCi,

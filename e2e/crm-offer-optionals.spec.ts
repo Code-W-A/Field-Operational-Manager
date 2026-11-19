@@ -39,7 +39,7 @@ test.describe("CRM — Opționale în editorul de ofertă", () => {
     const dialog = await openSeededDraft(page)
     const optionals = dialog.getByTestId("offer-optionals-section")
 
-    await expect(optionals.getByRole("heading", { name: "Opționale" })).toBeVisible()
+    await expect(optionals.getByRole("heading", { name: "Accesorii opționale" })).toBeVisible()
     await expect(optionals.getByText("Apar în PDF cu preț, dar nu se adaugă la totalul ofertei.")).toBeVisible()
     await expect(optionals.getByText("Total opționale (nu se adună la ofertă)")).toBeVisible()
   })

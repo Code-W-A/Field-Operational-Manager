@@ -98,12 +98,6 @@ function buildDurationText(params: {
   return "—"
 }
 
-function requestNumberFromId(requestId: string): string {
-  const clean = String(requestId || "").trim()
-  if (!clean) return `HR-${Date.now()}`
-  return `HR-${clean.slice(0, 8).toUpperCase()}`
-}
-
 function sanitizeFileNameChunk(raw: string): string {
   return String(raw || "")
     .trim()
@@ -214,14 +208,14 @@ function buildPlaceholderMap(params: {
   requesterLabel: string
   managerLabel: string
   clientName: string
-  registrationNumber: string
   reason: string
 }): Record<string, string> {
+  const documentNumber = formatHrRequestSerial(params.request.documentSerial)
   return {
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
-    "nr-cerere": formatHrRequestSerial(params.request.documentSerial),
+    "nr-cerere": documentNumber,
     "tip-eveniment": hrRequestKindLabel(params.request.kind),
     "nume-angajat": params.employeeLastName,
     "prenume-angajat": params.employeeFirstName,
@@ -236,7 +230,7 @@ function buildPlaceholderMap(params: {
     "data-cererii": params.requestDateLabel,
     solicitant: params.requesterLabel,
     "superior-direct": params.managerLabel,
-    "număr-de-înregistrare": params.registrationNumber,
+    "număr-de-înregistrare": documentNumber,
     "motiv-delegare": params.reason,
     "nume-client": params.clientName,
     "serie-si-numar-CI": params.employeeCi,
@@ -299,7 +293,6 @@ export async function generateHrRequestDOCXAsync(
   const managerLabel = safeText(managerUser?.displayName || managerUser?.email || request.managerUid)
   const clientName = safeText(payload?.clientName, "—")
   const reason = safeText(payload?.reason, "—")
-  const registrationNumber = requestNumberFromId(request.id)
 
   const placeholders = buildPlaceholderMap({
     request,
@@ -317,7 +310,6 @@ export async function generateHrRequestDOCXAsync(
     requesterLabel,
     managerLabel,
     clientName,
-    registrationNumber,
     reason,
   })
 

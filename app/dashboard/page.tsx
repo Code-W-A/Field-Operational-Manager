@@ -419,6 +419,21 @@ export default function Dashboard() {
     />
   )
 
+  const crmOfferBubble = (it: any) => {
+    const color = it.offerStatus === "accept" ? "bg-green-600" : it.offerStatus === "reject" ? "bg-red-700" : "bg-indigo-600"
+    return (
+      <WorkBubbleStatus
+        key={it.id}
+        title={it.locatie}
+        subtitle={it.equipmentLabel}
+        workType={it.workType}
+        colorClass={color}
+        href={it.href}
+        className="mb-2"
+      />
+    )
+  }
+
   // Bubble cu culoare dinamică în funcție de offerStatus
   const offerStatusBubble = () => (it: any) => {
     const color = it.offerStatus === "accept" ? "bg-green-600" : "bg-red-700"
@@ -661,8 +676,7 @@ export default function Dashboard() {
       <div className="md:hidden space-y-4 pb-8">
         {/* Status Cards Grid */}
         <div className="grid grid-cols-2 gap-3">
-          {/* Întârziate */}
-          {dashboardConfig.intarziateEnabled && (
+          {dashboardConfig.intarziateEnabled && buckets.intarziate.length > 0 && (
             <MobileStatCard
               title="Întârziate"
               count={buckets.intarziate.length}
@@ -671,8 +685,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Amânate */}
-          {dashboardConfig.amanateEnabled && (
+          {dashboardConfig.amanateEnabled && buckets.amanate.length > 0 && (
             <MobileStatCard
               title="Amânate"
               count={buckets.amanate.length}
@@ -681,8 +694,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Listate */}
-          {dashboardConfig.listateEnabled && (
+          {dashboardConfig.listateEnabled && buckets.listate.length > 0 && (
             <MobileStatCard
               title="Listate"
               count={buckets.listate.length}
@@ -691,15 +703,16 @@ export default function Dashboard() {
             />
           )}
 
-          <MobileStatCard
-            title="Fără semnătură"
-            count={buckets.faraSemnatura.length}
-            countClassName="text-amber-700"
-            onClick={() => setMobileDialogOpen("faraSemnatura")}
-          />
+          {buckets.oferteCrm.length > 0 && (
+            <MobileStatCard
+              title="Oferte CRM"
+              count={buckets.oferteCrm.length}
+              countClassName="text-green-700"
+              onClick={() => setMobileDialogOpen("oferteCrm")}
+            />
+          )}
 
-          {/* Nepreluate */}
-          {dashboardConfig.nepreluateEnabled && (
+          {dashboardConfig.nepreluateEnabled && buckets.nepreluate.length > 0 && (
             <MobileStatCard
               title="Nepreluate"
               count={buckets.nepreluate.length}
@@ -708,8 +721,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Nefacturate */}
-          {dashboardConfig.nefacturateEnabled && (
+          {dashboardConfig.nefacturateEnabled && buckets.nefacturate.length > 0 && (
             <MobileStatCard
               title="Nefacturate"
               count={buckets.nefacturate.length}
@@ -718,8 +730,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Necesită ofertă */}
-          {dashboardConfig.necesitaOfertaEnabled && (
+          {dashboardConfig.necesitaOfertaEnabled && buckets.necesitaOferta.length > 0 && (
             <MobileStatCard
               title="Necesită ofertă"
               count={buckets.necesitaOferta.length}
@@ -728,8 +739,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Ofertate */}
-          {dashboardConfig.ofertateEnabled && (
+          {dashboardConfig.ofertateEnabled && buckets.ofertate.length > 0 && (
             <MobileStatCard
               title="Ofertate (în așteptare)"
               count={buckets.ofertate.length}
@@ -738,8 +748,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Status oferte */}
-          {dashboardConfig.statusOferteEnabled && (
+          {dashboardConfig.statusOferteEnabled && buckets.statusOferte.length > 0 && (
             <MobileStatCard
               title="Status oferte"
               count={buckets.statusOferte.length}
@@ -748,8 +757,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Stare echipament */}
-          {dashboardConfig.equipmentStatusEnabled && (
+          {dashboardConfig.equipmentStatusEnabled && buckets.equipmentStatus.length > 0 && (
             <MobileStatCard
               title="Stare echipament"
               count={buckets.equipmentStatus.length}
@@ -758,8 +766,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Programator revizii (ultimul) */}
-          {dashboardConfig.programatorReviziiEnabled && (
+          {dashboardConfig.programatorReviziiEnabled && buckets.programatorRevizii.length > 0 && (
             <MobileStatCard
               title="Programator revizii"
               count={buckets.programatorRevizii.length}
@@ -833,17 +840,17 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={mobileDialogOpen === "faraSemnatura"} onOpenChange={(open) => !open && setMobileDialogOpen(null)}>
+      <Dialog open={mobileDialogOpen === "oferteCrm"} onOpenChange={(open) => !open && setMobileDialogOpen(null)}>
         <DialogContent className="max-w-md max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Fără semnătură ({buckets.faraSemnatura.length})</DialogTitle>
+            <DialogTitle>Oferte CRM ({buckets.oferteCrm.length})</DialogTitle>
             <DialogDescription>
-              Tichete la care s-a folosit „Semnează mai târziu” — finalizare cu semnătură din raport.
+              Acceptate, refuzate sau încă fără răspuns. O ofertă iese din listă după ce oportunitatea trece mai departe.
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-2 pr-4">
-              {buckets.faraSemnatura.map(statusBubble("bg-amber-600"))}
+              {buckets.oferteCrm.map(crmOfferBubble)}
             </div>
           </ScrollArea>
         </DialogContent>
@@ -972,44 +979,63 @@ export default function Dashboard() {
       <div className="hidden md:flex flex-col h-full min-h-0 gap-4">
         {/* Prima secțiune: Statusuri (50% din înălțime) */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3 h-full min-w-0">
-            <StatusBox title="Întârziate" count={buckets.intarziate.length} disabled={!dashboardConfig.intarziateEnabled}>
-              {buckets.intarziate.map(statusBubble("bg-red-600"))}
-            </StatusBox>
-            <StatusBox title="Amânate" count={buckets.amanate.length} disabled={!dashboardConfig.amanateEnabled}>
-              {buckets.amanate.map(statusBubble("bg-violet-600"))}
-            </StatusBox>
-            <StatusBox title="Listate" count={buckets.listate.length} disabled={!dashboardConfig.listateEnabled}>
-              {buckets.listate.map(statusBubble("bg-gray-600"))}
-            </StatusBox>
-            <StatusBox title="Fără semnătură" count={buckets.faraSemnatura.length}>
-              {buckets.faraSemnatura.map(statusBubble("bg-amber-600"))}
-            </StatusBox>
-            <StatusBox title="Nepreluate" count={buckets.nepreluate.length} disabled={!dashboardConfig.nepreluateEnabled}>
-              {buckets.nepreluate.map(statusBubble("bg-orange-600"))}
-            </StatusBox>
-            <StatusBox title="Nefacturate" count={buckets.nefacturate.length} disabled={!dashboardConfig.nefacturateEnabled}>
-              {buckets.nefacturate.map(statusBubble("bg-rose-600"))}
-            </StatusBox>
-            <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length} disabled={!dashboardConfig.necesitaOfertaEnabled}>
-              {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
-            </StatusBox>
-            <StatusBox
-              title="Oferte"
-              count={(dashboardConfig.ofertateEnabled ? buckets.ofertate.length : 0) + (dashboardConfig.statusOferteEnabled ? buckets.statusOferte.length : 0)}
-              disabled={!dashboardConfig.ofertateEnabled && !dashboardConfig.statusOferteEnabled}
-            >
-              <div className="flex flex-wrap gap-1">
-                {dashboardConfig.statusOferteEnabled && buckets.statusOferte.map(offerStatusBubble())}
-                {dashboardConfig.ofertateEnabled && buckets.ofertate.map(statusBubble("bg-indigo-600"))}
-              </div>
-            </StatusBox>
-            <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length} disabled={!dashboardConfig.equipmentStatusEnabled}>
-              {buckets.equipmentStatus.map(equipmentStatusBubble())}
-            </StatusBox>
-            <StatusBox title="Programator revizii" count={buckets.programatorRevizii.length} disabled={!dashboardConfig.programatorReviziiEnabled}>
-              {buckets.programatorRevizii.map(programatorReviziiBubble("bg-emerald-700"))}
-            </StatusBox>
+          <div className="grid gap-3 h-full min-w-0" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            {buckets.intarziate.length > 0 && (
+              <StatusBox title="Întârziate" count={buckets.intarziate.length}>
+                {buckets.intarziate.map(statusBubble("bg-red-600"))}
+              </StatusBox>
+            )}
+            {buckets.amanate.length > 0 && (
+              <StatusBox title="Amânate" count={buckets.amanate.length}>
+                {buckets.amanate.map(statusBubble("bg-violet-600"))}
+              </StatusBox>
+            )}
+            {buckets.listate.length > 0 && (
+              <StatusBox title="Listate" count={buckets.listate.length}>
+                {buckets.listate.map(statusBubble("bg-gray-600"))}
+              </StatusBox>
+            )}
+            {buckets.oferteCrm.length > 0 && (
+              <StatusBox title="Oferte CRM" count={buckets.oferteCrm.length}>
+                {buckets.oferteCrm.map(crmOfferBubble)}
+              </StatusBox>
+            )}
+            {buckets.nepreluate.length > 0 && (
+              <StatusBox title="Nepreluate" count={buckets.nepreluate.length}>
+                {buckets.nepreluate.map(statusBubble("bg-orange-600"))}
+              </StatusBox>
+            )}
+            {buckets.nefacturate.length > 0 && (
+              <StatusBox title="Nefacturate" count={buckets.nefacturate.length}>
+                {buckets.nefacturate.map(statusBubble("bg-rose-600"))}
+              </StatusBox>
+            )}
+            {buckets.necesitaOferta.length > 0 && (
+              <StatusBox title="Necesită ofertă" count={buckets.necesitaOferta.length}>
+                {buckets.necesitaOferta.map(statusBubble("bg-sky-600"))}
+              </StatusBox>
+            )}
+            {(dashboardConfig.ofertateEnabled ? buckets.ofertate.length : 0) + (dashboardConfig.statusOferteEnabled ? buckets.statusOferte.length : 0) > 0 && (
+              <StatusBox
+                title="Oferte"
+                count={(dashboardConfig.ofertateEnabled ? buckets.ofertate.length : 0) + (dashboardConfig.statusOferteEnabled ? buckets.statusOferte.length : 0)}
+              >
+                <div className="flex flex-wrap gap-1">
+                  {dashboardConfig.statusOferteEnabled && buckets.statusOferte.map(offerStatusBubble())}
+                  {dashboardConfig.ofertateEnabled && buckets.ofertate.map(statusBubble("bg-indigo-600"))}
+                </div>
+              </StatusBox>
+            )}
+            {buckets.equipmentStatus.length > 0 && (
+              <StatusBox title="Stare echipament" count={buckets.equipmentStatus.length}>
+                {buckets.equipmentStatus.map(equipmentStatusBubble())}
+              </StatusBox>
+            )}
+            {buckets.programatorRevizii.length > 0 && (
+              <StatusBox title="Programator revizii" count={buckets.programatorRevizii.length}>
+                {buckets.programatorRevizii.map(programatorReviziiBubble("bg-emerald-700"))}
+              </StatusBox>
+            )}
           </div>
         </div>
       

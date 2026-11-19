@@ -91,6 +91,30 @@ test("installation #002168 uses the final handover instead of the ordinary repor
   ]) assert.equal(isUninvoicedWork({ ...work, ...invoice }), false)
 })
 
+test("instalarea intră la nefacturate doar când toate echipamentele sunt done și PV-ul este emis", () => {
+  const ready = {
+    raportGenerat: true,
+    statusFacturare: "Nefacturat",
+    equipmentIds: ["e1", "e2"],
+    installation: {
+      schemaVersion: 1,
+      closedReason: "completed",
+      completionDocumentId: "final",
+      equipmentStatus: { e1: "done", e2: "done" },
+    },
+  }
+  assert.equal(isUninvoicedWork(ready), true)
+  for (const equipmentStatus of [
+    { e1: "done", e2: "pending" },
+    { e1: "done", e2: "in_progress" },
+    { e1: "done", e2: "blocked" },
+    { e1: "done" },
+  ]) {
+    assert.equal(isUninvoicedWork({ ...ready, installation: { ...ready.installation, equipmentStatus } }), false)
+  }
+  assert.equal(isUninvoicedWork({ ...ready, numarFactura: "F-1" }), false)
+})
+
 test("unfinished, unsigned and continuation installations are not invoice-ready", () => {
   for (const installation of [
     { schemaVersion: 1 },

@@ -20,6 +20,32 @@ function toDate(value: unknown): Date | null {
   }
 }
 
+function clientNameFrom(data: Record<string, unknown> | undefined) {
+  if (!data) return ""
+  return String(data.name || data.nume || data.denumire || data.firma || "").trim()
+}
+
+async function readCrmClientName(
+  tx: {
+    get: (ref: ReturnType<ReturnType<typeof adminDb.collection>["doc"]>) => Promise<{
+      exists: boolean
+      data: () => Record<string, unknown> | undefined
+    }>
+  },
+  clientId: string,
+  opportunity: Record<string, unknown>,
+) {
+  if (clientId) {
+    const crmSnap = await tx.get(adminDb.collection(CRM_COLLECTIONS.clients).doc(clientId))
+    const fromCrm = clientNameFrom(crmSnap.exists ? (crmSnap.data() as Record<string, unknown>) : undefined)
+    if (fromCrm) return fromCrm
+    const legacySnap = await tx.get(adminDb.collection("clienti").doc(clientId))
+    const fromLegacy = clientNameFrom(legacySnap.exists ? (legacySnap.data() as Record<string, unknown>) : undefined)
+    if (fromLegacy) return fromLegacy
+  }
+  return String(opportunity.clientName || "").trim()
+}
+
 type RespondResult =
   | {
       kind: "success"
@@ -131,8 +157,13 @@ export async function POST(request: NextRequest) {
       const targetStage = action === "accept" ? "OFERTA_ACCEPTATA" : "OFERTA_REFUZATA"
       const canMoveStage = opportunitySnap.exists && isPipelineStageAllowedForOpportunityType(opportunityType, targetStage)
       const clientId = String(opportunityData.clientId || "")
-      const clientSnap = action === "accept" && clientId
-        ? await tx.get(adminDb.collection(CRM_COLLECTIONS.clients).doc(clientId)) : null
+      const clientName = action === "accept"
+        ? await readCrmClientName(tx, clientId, opportunityData)
+        : ""
+      const snapshot = (offerData.snapshot || {}) as Record<string, unknown>
+      const offerTotal = typeof snapshot.total === "number" && Number.isFinite(snapshot.total)
+        ? snapshot.total
+        : undefined
 
       tx.update(offerRef, {
         status: action === "accept" ? "ACCEPTED" : "REJECTED",
@@ -172,8 +203,11 @@ export async function POST(request: NextRequest) {
           source: "crm", offerId, opportunityId,
           issuer: offerData.issuer as OfferIssuer | undefined,
           legacyCreatorId: String(offerData.createdById || ""),
-          client: String(clientSnap?.data()?.nume || clientSnap?.data()?.name || ""),
+          client: clientName,
+          contact: String(offerData.recipientName || ""),
           reference: String(opportunityData.code || opportunityData.displayTitle || opportunityData.title || opportunityId),
+          title: String(opportunityData.title || ""),
+          ...(offerTotal !== undefined ? { total: offerTotal } : {}),
           version: String(Math.max(1, Number(offerData.version || 0))),
           acceptedBy: String(verification.email || ""), acceptedAt: now.toISOString(),
         },

@@ -63,8 +63,11 @@ const db = {
             key,
             id,
             async get() {
-              const value = clone(state.rows.get(key));
-              return { id, exists: !!value, data: () => value };
+              const stored = state.rows.get(key);
+              if (stored == null)
+                return { id, exists: false, data: () => undefined };
+              const value = clone(stored);
+              return { id, exists: true, data: () => value };
             },
             async set(value: any) {
               patchRow(key, value);
@@ -392,6 +395,23 @@ for (const source of ["lucrari", "crm"] as const) {
     assert.doesNotMatch(notifications()[0].content, /wrong/);
   });
 }
+
+test("crm: clientul din registrul vechi, titlul, contactul și totalul ajung în notificare", async () => {
+  seed("crm");
+  state.rows.delete("crm_clients/client");
+  state.rows.set("clienti/client", { nume: "Firma Veche SRL" });
+  state.rows.get("crm_opportunities/opportunity").title = "Bariera serviciu";
+  const offer = state.rows.get("crm_offers/offer");
+  offer.recipientName = "Ion Popescu";
+  offer.snapshot = { ...offer.snapshot, total: 1250.5 };
+  assert.equal((await (await routes.crm).POST(request("crm"))).status, 200);
+  const mail = notifications()[0];
+  assert.match(mail.content, /Client: Firma Veche SRL/);
+  assert.match(mail.content, /Contact: Ion Popescu/);
+  assert.match(mail.content, /Titlu: Bariera serviciu/);
+  assert.match(mail.content, /Total ofertă \(fără TVA\): 1250\.50 lei/);
+  assert.doesNotMatch(mail.content, /Client: —/);
+});
 
 test("FOM send persists authenticated issuer only after successful send and ignores supplied issuer", async () => {
   seed("lucrari");

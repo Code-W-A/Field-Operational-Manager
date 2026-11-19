@@ -543,7 +543,7 @@ export default function OpportunityOffersPage() {
               className="space-y-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3"
             >
               <div className="space-y-0.5">
-                <h3 className="text-sm font-semibold text-neutral-900">Opționale</h3>
+                <h3 className="text-sm font-semibold text-neutral-900">Accesorii opționale</h3>
                 <p className="text-xs text-neutral-500">
                   Apar în PDF cu preț, dar nu se adaugă la totalul ofertei.
                 </p>

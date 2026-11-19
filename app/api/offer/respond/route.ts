@@ -297,8 +297,22 @@ export async function POST(req: NextRequest) {
         source: "lucrari", lucrareId: workId,
         issuer: sameVersion ? lastEmail.issuer : null,
         legacyMessageId: sameVersion ? String(lastEmail.messageId || "") : "",
-        client: String(data.offerActionSnapshot?.clientSnapshot?.client || data.client || ""),
+        client: String(
+          data.offerActionSnapshot?.clientSnapshot?.client ||
+            data.client ||
+            data.clientInfo?.nume ||
+            "",
+        ),
+        contact: String(
+          data.offerActionSnapshot?.clientSnapshot?.persoanaContact ||
+            data.persoanaContact ||
+            "",
+        ),
         reference: String(data.nrLucrare || data.numarRaport || workId),
+        ...(typeof data.offerActionSnapshot?.total === "number" &&
+        Number.isFinite(data.offerActionSnapshot.total)
+          ? { total: data.offerActionSnapshot.total }
+          : {}),
         version: versionSavedAt || undefined,
         acceptedBy: verifiedEmail, acceptedAt: now.toISOString(),
       } }

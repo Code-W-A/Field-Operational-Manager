@@ -14,6 +14,7 @@ import type { DashboardStatusConfig } from "@/hooks/use-dashboard-status-setting
 import { isUninvoicedWork } from "@/lib/reports/uninvoiced"
 import { toDateSafe } from "@/lib/utils/time-format"
 import { buildAutomaticRevisionIndex, findScheduledAutomaticRevision, isListedDashboardWork } from "@/lib/utils/dashboard-revisions"
+import { buildCrmOfferDashboardItems } from "@/lib/utils/dashboard-crm-offers"
 
 export interface DashboardBubbleItem {
   id: string
@@ -25,6 +26,7 @@ export interface DashboardBubbleItem {
   nrLucrare?: string
   statusLucrare?: string
   offerStatus?: "accept" | "reject"
+  href?: string
   equipmentStatus?: string
   contractId?: string
   workType?: string
@@ -38,8 +40,8 @@ export interface DashboardBuckets {
   intarziate: DashboardBubbleItem[]
   amanate: DashboardBubbleItem[]
   listate: DashboardBubbleItem[]
-  /** Tichete cu „Semnează mai târziu” (status Fără semnătură) */
-  faraSemnatura: DashboardBubbleItem[]
+  /** Oferte CRM: acceptate, refuzate sau trimise, cât timp oportunitatea e încă la ofertă. */
+  oferteCrm: DashboardBubbleItem[]
   nepreluate: DashboardBubbleItem[]
   nefacturate: DashboardBubbleItem[]
   necesitaOferta: DashboardBubbleItem[]
@@ -80,10 +82,6 @@ function toDate(input: any | undefined): Date | null {
 function eqInsensitive(a?: string, ...candidates: string[]): boolean {
   const x = String(a || "").toLowerCase()
   return candidates.some((y) => x === String(y || "").toLowerCase())
-}
-
-function isOpenWorkStatus(status: string | undefined): boolean {
-  return !eqInsensitive(status, WORK_STATUS.COMPLETED, WORK_STATUS.ARCHIVED, WORK_STATUS.CANCELED)
 }
 
 function buildBubble(l: any, offerStatus?: "accept" | "reject", sortDate?: Date, equipmentStatus?: string): DashboardBubbleItem {
@@ -247,6 +245,13 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
   // Technicians list for personal board
   const { data: users, loading: loadingUsers } = useFirebaseCollection<any>("users")
+  const { data: crmOffers, loading: loadingCrmOffers } = useFirebaseCollection<any>("crm_offers", [
+    where("status", "in", ["SENT", "ACCEPTED", "REJECTED"]),
+    limit(500),
+  ])
+  const { data: crmOpportunities, loading: loadingCrmOpportunities } = useFirebaseCollection<any>("crm_opportunities", [limit(500)])
+  const { data: crmClients, loading: loadingCrmClients } = useFirebaseCollection<any>("crm_clients", [limit(500)])
+  const { data: legacyClients, loading: loadingLegacyClients } = useFirebaseCollection<any>("clienti", [limit(500)])
 
   // Recompute at/after 18:00 without reload
   const [, setTick] = useState(0)
@@ -278,7 +283,7 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
       intarziate: [],
       amanate: [],
       listate: [],
-      faraSemnatura: [],
+      oferteCrm: [],
       nepreluate: [],
       nefacturate: [],
       necesitaOferta: [],
@@ -404,11 +409,6 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
         }
       }
 
-      // Fără semnătură (flux „Semnează mai târziu”) — lucrări deschise, așteaptă semnare din raport
-      if (eqInsensitive(status, WORK_STATUS.NO_SIGNATURE) && isOpenWorkStatus(status)) {
-        res.faraSemnatura.push(buildBubble(l, undefined, toDate(l.updatedAt) || toDate(l.createdAt) || undefined))
-      }
-
       // Nepreluate (raport generat, nepreluat) - sortate după data generării raportului
       if (cfg.nepreluateEnabled) {
         const reportOk = cfg.nepreluateRequireReportGenerated ? hasTicketCompletionDocument(l) : true
@@ -477,7 +477,6 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     res.intarziate = sortByDate(res.intarziate)
     res.amanate = sortByDate(res.amanate)
     res.listate = sortByDate(res.listate)
-    res.faraSemnatura = sortByDate(res.faraSemnatura)
     res.nepreluate = sortByDate(res.nepreluate)
     res.nefacturate = sortByDate(res.nefacturate)
     res.necesitaOferta = sortByDate(res.necesitaOferta)
@@ -487,6 +486,17 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
 
     return res
   }, [activeLucrari, lucrariForEquipmentStatus, contracts, modificariAtribuire, modificariStatus, startOfToday, config])
+
+  const oferteCrm = useMemo(
+    () =>
+      buildCrmOfferDashboardItems({
+        offers: crmOffers,
+        opportunities: crmOpportunities,
+        clients: crmClients,
+        legacyClients,
+      }),
+    [crmOffers, crmOpportunities, crmClients, legacyClients],
+  )
 
   const personal: PersonalBoard = useMemo(() => {
     const active = activeLucrari || []
@@ -558,7 +568,11 @@ export function useDashboardStatus(config?: DashboardStatusConfig) {
     loadingContracts ||
     loadingModificari ||
     loadingStatusModificari ||
-    loadingUsers
+    loadingUsers ||
+    loadingCrmOffers ||
+    loadingCrmOpportunities ||
+    loadingCrmClients ||
+    loadingLegacyClients
 
-  return { buckets, personal, loading }
+  return { buckets: { ...buckets, oferteCrm }, personal, loading }
 }

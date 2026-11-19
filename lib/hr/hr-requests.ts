@@ -88,3 +88,12 @@ export function formatHrRequestSerial(documentSerial: number | undefined): strin
   return String(k)
 }
 
+/** Următorul număr de cerere: cel mai mare număr deja folosit, plus unu. */
+export function nextHrRequestSerial(lastCounter: unknown, highestStored: unknown): number {
+  const stored = (value: unknown) => {
+    const n = typeof value === "number" ? value : Number(value)
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0
+  }
+  return Math.max(stored(lastCounter), stored(highestStored)) + 1
+}
+

@@ -1,6 +1,6 @@
 import jsPDF from "jspdf"
 import type { HrRequest } from "@/lib/hr/types"
-import { hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
+import { formatHrRequestSerial, hrRequestKindLabel, hrRequestStatusLabel } from "@/lib/hr/hr-requests"
 import { doc as firestoreDoc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/firebase"
 import { formatRomanianDateDots, formatRomanianDateDotsISO } from "@/lib/utils/date-utils"
@@ -93,17 +93,6 @@ function buildDurationText(params: {
   }
   if (workDays > 0) return `${workDays} zi${workDays === 1 ? "" : "le"} lucrătoare`
   return "—"
-}
-
-function requestNumberFromId(requestId: string): string {
-  const clean = String(requestId || "").trim()
-  if (!clean) return `HR-${Date.now()}`
-  return `HR-${clean.slice(0, 8).toUpperCase()}`
-}
-
-function formatNrCerere(documentSerial: number | undefined): string {
-  if (documentSerial == null || !Number.isFinite(documentSerial)) return "—"
-  return String(Math.trunc(documentSerial)).padStart(4, "0")
 }
 
 async function fetchDepartmentName(departmentId: string, fallback?: string): Promise<string> {
@@ -253,14 +242,14 @@ function buildPlaceholderMap(params: {
   requesterLabel: string
   managerLabel: string
   clientName: string
-  registrationNumber: string
   reason: string
 }): Record<string, string> {
+  const documentNumber = formatHrRequestSerial(params.request.documentSerial)
   return {
     "nume-companie": HR_COMPANY.name,
     "cui-companie": HR_COMPANY.cui,
     "număr-de-înregistrare-companie": HR_COMPANY.registrationNumber,
-    "nr-cerere": formatNrCerere(params.request.documentSerial),
+    "nr-cerere": documentNumber,
     "tip-eveniment": hrRequestKindLabel(params.request.kind),
     "nume-angajat": params.employeeLastName,
     "prenume-angajat": params.employeeFirstName,
@@ -275,7 +264,7 @@ function buildPlaceholderMap(params: {
     "data-cererii": params.requestDateLabel,
     "solicitant": params.requesterLabel,
     "superior-direct": params.managerLabel,
-    "număr-de-înregistrare": params.registrationNumber,
+    "număr-de-înregistrare": documentNumber,
     "motiv-delegare": params.reason,
     "nume-client": params.clientName,
     "serie-si-numar-CI": params.employeeCi,
@@ -327,7 +316,6 @@ export async function generateHrRequestPDFAsync(
   const managerLabel = safeText(managerUser?.displayName || managerUser?.email || request.managerUid)
   const clientName = safeText(payload?.clientName, "—")
   const reason = safeText(payload?.reason, "—")
-  const registrationNumber = requestNumberFromId(request.id)
 
   const placeholders = buildPlaceholderMap({
     request,
@@ -345,7 +333,6 @@ export async function generateHrRequestPDFAsync(
     requesterLabel,
     managerLabel,
     clientName,
-    registrationNumber,
     reason,
   })
 

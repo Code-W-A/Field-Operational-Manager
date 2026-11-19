@@ -14,7 +14,10 @@ export type OfferAcceptanceNotification = {
   legacyCreatorId?: string
   legacyMessageId?: string
   client: string
+  contact?: string
   reference: string
+  title?: string
+  total?: number
   version?: string
   acceptedBy: string
   acceptedAt: string
@@ -105,11 +108,20 @@ export async function notifyOfferIssuerOfAcceptance(
     const date = new Date(input.acceptedAt).toLocaleString("ro-RO", {
       timeZone: "Europe/Bucharest",
     })
+    const title = text(input.title)
+    const contact = text(input.contact)
+    const total =
+      typeof input.total === "number" && Number.isFinite(input.total)
+        ? `Total ofertă (fără TVA): ${input.total.toFixed(2)} lei`
+        : ""
     const lines = [
       "Clientul a acceptat oferta trimisă de tine.",
-      `Client: ${input.client || "—"}`,
+      `Client: ${text(input.client) || "—"}`,
+      ...(contact ? [`Contact: ${contact}`] : []),
       `${label}: ${input.reference}`,
+      ...(title && title !== text(input.reference) ? [`Titlu: ${title}`] : []),
       ...(input.version ? [`Versiune ofertă: ${input.version}`] : []),
+      ...(total ? [total] : []),
       `Confirmat de: ${input.acceptedBy || "—"}`,
       `Data acceptării: ${date} (Europe/Bucharest)`,
     ]

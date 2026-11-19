@@ -99,17 +99,17 @@ test("conținutul PDF: secțiune Opționale cu prețuri, sub totaluri, exclusă 
   }
   const withoutOptionals = extractText(await pdfBuffer(baseInput))!
 
-  assert.match(withOptionals, /Opționale/)
-  assert.doesNotMatch(withoutOptionals, /Opționale/)
+  assert.match(withOptionals, /Accesorii opționale/)
+  assert.doesNotMatch(withoutOptionals, /Accesorii opționale/)
 
   assert.match(withOptionals, /Iluminat LED pe brat/)
   assert.match(withOptionals, /Bucla inductiva/)
   assert.match(withOptionals, /465/)
   assert.match(withOptionals, /640/)
-  assert.match(withOptionals, /Prețurile de mai sus nu sunt incluse în total\./)
+  assert.match(withOptionals, /Prețurile accesoriilor opționale nu sunt incluse în total\./)
 
   const totalIndex = withOptionals.indexOf("Total insumat LEI fara TVA")
-  const optionalIndex = withOptionals.indexOf("Opționale")
+  const optionalIndex = withOptionals.indexOf("Accesorii opționale")
   const termsIndex = withOptionals.indexOf("Termeni și condiții")
   assert.ok(totalIndex < optionalIndex, "secțiunea trebuie să apară după banda de totaluri")
   assert.ok(optionalIndex < termsIndex, "secțiunea trebuie să apară înainte de termeni și condiții")
@@ -142,7 +142,7 @@ test("conținutul PDF: opționalul fără denumire nu este tipărit", async (t) 
     return
   }
 
-  assert.match(text, /Opționale/)
+  assert.match(text, /Accesorii opționale/)
   assert.doesNotMatch(text, /12\.345/)
 })
 

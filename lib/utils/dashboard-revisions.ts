@@ -16,6 +16,7 @@ export interface RevisionDashboardWork extends TicketCompletion {
   locationName?: unknown
   locatie?: unknown
   tehnicieni?: unknown
+  technicianIds?: unknown
   statusLucrare?: string
 }
 
@@ -28,10 +29,24 @@ export function isAutomaticRevision(work: RevisionDashboardWork): boolean {
   return text(work.createdBy) === "system" && text(work.createdByName) === "CRON Revizie"
 }
 
+const filled = (value: unknown) =>
+  Array.isArray(value) ? value.map((item) => text(item)).filter(Boolean) : []
+
+/** Instalarea v1 atribuită iese din Listate chiar dacă setarea de tehnicieni este oprită. */
+function isAssignedInstallation(work: RevisionDashboardWork): boolean {
+  if (work.installation?.schemaVersion !== 1) return false
+  const status = text(work.statusLucrare).toLocaleLowerCase("ro-RO")
+  return filled(work.tehnicieni).length > 0
+    || filled(work.technicianIds).length > 0
+    || status === WORK_STATUS.ASSIGNED.toLocaleLowerCase("ro-RO")
+    || status === WORK_STATUS.IN_PROGRESS.toLocaleLowerCase("ro-RO")
+}
+
 /** Listate conține lucrări deschise, fără document final; reviziile automate au coloana lor. */
 export function isListedDashboardWork(work: RevisionDashboardWork, requireNoTechnicians: boolean): boolean {
   const technicians = Array.isArray(work.tehnicieni) ? work.tehnicieni : []
-  return !isAutomaticRevision(work)
+  return !isAssignedInstallation(work)
+    && !isAutomaticRevision(work)
     && !isLucrareAnulata(work)
     && !hasTicketCompletionDocument(work)
     && text(work.statusLucrare).toLowerCase() !== WORK_STATUS.COMPLETED.toLowerCase()

@@ -12,8 +12,23 @@ function toDate(value: any): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
+/** Echipamentele cunoscute trebuie să fie toate instalate; un PV fără hartă rămâne facturabil. */
+function installationEquipmentReady(work: any) {
+  const installation = work?.installation
+  if (installation?.schemaVersion !== 1) return true
+  const status = installation.equipmentStatus
+  const fromStatus = status && typeof status === "object" && !Array.isArray(status) ? Object.keys(status) : []
+  const fromIds = Array.isArray(work?.equipmentIds)
+    ? work.equipmentIds.map((id: unknown) => String(id ?? "").trim()).filter(Boolean)
+    : []
+  const ids = [...new Set([...fromIds, ...fromStatus.map((id) => id.trim()).filter(Boolean)])]
+  if (!ids.length) return true
+  return ids.every((id) => status?.[id] === "done")
+}
+
 export function isUninvoicedWork(work: any) {
   if (!work || !hasTicketCompletionDocument(work)) return false
+  if (!installationEquipmentReady(work)) return false
   if (String(work?.numarFactura || "").trim()) return false
   if (work?.facturaDocument && (work.facturaDocument.url || work.facturaDocument.fileName || work.facturaDocument.numarFactura)) {
     return false
