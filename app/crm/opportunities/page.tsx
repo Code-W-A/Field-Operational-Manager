@@ -29,6 +29,7 @@ import { formatDateTime, priorityLabel, stageLabel, taskStatusLabel, workStatusL
 import type { CrmFilters, CrmOpportunity, CrmTask } from "@/lib/crm/types"
 import { CreateOpportunityDialog } from "@/components/crm/create-opportunity-dialog"
 import { OpportunitiesKanban } from "@/components/crm/opportunities-kanban"
+import { OpportunityDeleteAlertDialog } from "@/components/crm/opportunity-delete-dialog"
 import { changeCrmOpportunityStage } from "@/lib/crm/opportunities"
 import { useToast } from "@/hooks/use-toast"
 import { crmUi } from "@/components/crm/ui"
@@ -54,6 +55,11 @@ type LeftTypeItem = {
   label: string
   count: number
 }
+
+type DeleteConfirmTarget =
+  | { kind: "single"; opportunity: CrmOpportunity }
+  | { kind: "bulk"; opportunityIds: string[] }
+  | null
 
 const TASK_QUICK_FILTER_LABELS: Record<TaskQuickFilterKey, string> = {
   ACTIVE: "Active",
@@ -191,6 +197,7 @@ export default function CrmOpportunitiesPage() {
   const [selectedOpportunityIds, setSelectedOpportunityIds] = useState<string[]>([])
   const [deletingOpportunityId, setDeletingOpportunityId] = useState<string | null>(null)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<DeleteConfirmTarget>(null)
   const [editingOpportunity, setEditingOpportunity] = useState<CrmOpportunity | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [leftRailOpen, setLeftRailOpen] = useState(true)
@@ -589,10 +596,8 @@ export default function CrmOpportunitiesPage() {
     </div>
   )
 
-  const handleDeleteOpportunity = async (opportunity: CrmOpportunity) => {
+  const executeDeleteOpportunity = async (opportunity: CrmOpportunity) => {
     if (!isAdmin || !user?.uid) return
-    const confirmed = window.confirm(`Ștergi oportunitatea "${opportunity.displayTitle}"? Acțiunea este ireversibilă.`)
-    if (!confirmed) return
     setDeletingOpportunityId(opportunity.id)
     try {
       await deleteCrmOpportunity({ opportunityId: opportunity.id, actorId: user.uid })
@@ -601,6 +606,7 @@ export default function CrmOpportunitiesPage() {
         title: "Oportunitate ștearsă",
         description: `${opportunity.displayTitle} a fost ștearsă.`,
       })
+      setDeleteConfirmTarget(null)
       await loadData()
     } catch (error) {
       toast({
@@ -613,12 +619,9 @@ export default function CrmOpportunitiesPage() {
     }
   }
 
-  const handleBulkDelete = async () => {
-    if (!isAdmin || !user?.uid || selectedOpportunityIds.length === 0 || isBulkDeleting) return
-    const confirmed = window.confirm(`Ștergi ${selectedOpportunityIds.length} oportunități selectate? Acțiunea este ireversibilă.`)
-    if (!confirmed) return
+  const executeBulkDelete = async (idsToDelete: string[]) => {
+    if (!isAdmin || !user?.uid || idsToDelete.length === 0 || isBulkDeleting) return
 
-    const idsToDelete = [...selectedOpportunityIds]
     setIsBulkDeleting(true)
     try {
       const results = await Promise.allSettled(
@@ -627,7 +630,7 @@ export default function CrmOpportunitiesPage() {
       const successCount = results.filter((row) => row.status === "fulfilled").length
       const failedCount = results.length - successCount
 
-      setSelectedOpportunityIds([])
+      setSelectedOpportunityIds((prev) => prev.filter((id) => !idsToDelete.includes(id)))
       toast({
         title: failedCount === 0 ? "Ștergere finalizată" : "Ștergere parțială",
         description:
@@ -636,10 +639,20 @@ export default function CrmOpportunitiesPage() {
             : `Șterse: ${successCount}, eșuate: ${failedCount}.`,
         variant: failedCount === 0 ? "default" : "destructive",
       })
+      setDeleteConfirmTarget(null)
       await loadData()
     } finally {
       setIsBulkDeleting(false)
     }
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmTarget) return
+    if (deleteConfirmTarget.kind === "single") {
+      await executeDeleteOpportunity(deleteConfirmTarget.opportunity)
+      return
+    }
+    await executeBulkDelete(deleteConfirmTarget.opportunityIds)
   }
 
   return (
@@ -778,7 +791,10 @@ export default function CrmOpportunitiesPage() {
                   variant="destructive"
                   size="sm"
                   className="h-9"
-                  onClick={handleBulkDelete}
+                  onClick={() => {
+                    if (selectedOpportunityIds.length === 0) return
+                    setDeleteConfirmTarget({ kind: "bulk", opportunityIds: [...selectedOpportunityIds] })
+                  }}
                   disabled={isBulkDeleting}
                 >
                   {isBulkDeleting ? "Se șterg..." : `Șterge selectate (${selectedOpportunityIds.length})`}
@@ -974,7 +990,7 @@ export default function CrmOpportunitiesPage() {
                               onClick={(event) => {
                                 event.preventDefault()
                                 event.stopPropagation()
-                                void handleDeleteOpportunity(opportunity)
+                                setDeleteConfirmTarget({ kind: "single", opportunity })
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1114,6 +1130,23 @@ export default function CrmOpportunitiesPage() {
         </RailDrawer>
         ) : null}
       </div>
+      <OpportunityDeleteAlertDialog
+        open={deleteConfirmTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingOpportunityId && !isBulkDeleting) {
+            setDeleteConfirmTarget(null)
+          }
+        }}
+        mode={deleteConfirmTarget?.kind === "bulk" ? "bulk" : "single"}
+        label={
+          deleteConfirmTarget?.kind === "single"
+            ? deleteConfirmTarget.opportunity.displayTitle || deleteConfirmTarget.opportunity.code
+            : undefined
+        }
+        bulkCount={deleteConfirmTarget?.kind === "bulk" ? deleteConfirmTarget.opportunityIds.length : 0}
+        busy={Boolean(deletingOpportunityId) || isBulkDeleting}
+        onConfirm={handleDeleteConfirm}
+      />
     </PageShell>
   )
 }

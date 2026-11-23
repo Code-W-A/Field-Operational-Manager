@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from "next/navigation"
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardCheck, FileText, Loader2, Mail, Menu, MessageSquare, Pencil, Phone, Star, Timer, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { MobileRailSheet, OpportunityTypeSidebar, RailDrawer, TabsHeader } from "@/components/crm"
+import { OpportunityDeleteAlertDialog } from "@/components/crm/opportunity-delete-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -148,6 +149,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     functie: "",
   })
   const [isDeletingOpportunity, setIsDeletingOpportunity] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [savingField, setSavingField] = useState<"pipelineStage" | "priority" | "workStatus" | null>(null)
   const [savingPrimaryContactId, setSavingPrimaryContactId] = useState<string | null>(null)
   const [isSavingContactEdit, setIsSavingContactEdit] = useState(false)
@@ -289,14 +291,9 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
     [activeOpportunityCounts]
   )
 
-  const handleOpportunityDelete = async () => {
+  const handleOpportunityDeleteConfirm = async () => {
     if (!isAdmin) return
     if (!opportunity || !user?.uid) return
-
-    const confirmed = window.confirm(
-      `Sigur vrei să ștergi definitiv oportunitatea ${opportunity.code}? Acțiunea nu poate fi anulată.`
-    )
-    if (!confirmed) return
 
     setIsDeletingOpportunity(true)
     try {
@@ -308,6 +305,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         title: "Oportunitate ștearsă",
         description: "Oportunitatea a fost eliminată definitiv.",
       })
+      setDeleteDialogOpen(false)
       router.push("/crm/opportunities")
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nu am putut șterge oportunitatea."
@@ -966,7 +964,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                         size="sm"
                         variant="destructive"
                         className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => void handleOpportunityDelete()}
+                        onClick={() => setDeleteDialogOpen(true)}
                         disabled={isDeletingOpportunity}
                       >
                         {isDeletingOpportunity ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -1029,7 +1027,7 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
                               size="sm"
                               variant="destructive"
                               className="h-8 gap-1 px-2.5 text-xs"
-                              onClick={() => void handleOpportunityDelete()}
+                              onClick={() => setDeleteDialogOpen(true)}
                               disabled={isDeletingOpportunity}
                             >
                               {isDeletingOpportunity ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -1258,6 +1256,16 @@ export default function OpportunityLayout({ children }: OpportunityLayoutProps) 
         onSaved={async () => {
           await loadOpportunityData()
         }}
+      />
+      <OpportunityDeleteAlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!isDeletingOpportunity) setDeleteDialogOpen(open)
+        }}
+        mode="single"
+        label={opportunity ? opportunity.displayTitle || opportunity.code : undefined}
+        busy={isDeletingOpportunity}
+        onConfirm={handleOpportunityDeleteConfirm}
       />
     </div>
   )

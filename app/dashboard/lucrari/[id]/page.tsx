@@ -1045,14 +1045,18 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
       const refreshed = await getLucrareById(lucrare.id)
       setLucrare(refreshed || ({ ...lucrare, ...updatedPayload } as Lucrare))
       setInstallationRefresh(value => value + 1)
-      if (searchParams.get("editSource") === "legacy" && (
+      if (
         updatedPayload.dataInterventie !== lucrare.dataInterventie ||
         JSON.stringify(updatedPayload.tehnicieni) !== JSON.stringify(lucrare.tehnicieni) ||
-        updatedPayload.locatie !== editOriginalLocation.current || updatedPayload.statusLucrare !== lucrare.statusLucrare
-      )) {
+        updatedPayload.locatie !== editOriginalLocation.current ||
+        updatedPayload.statusLucrare !== lucrare.statusLucrare
+      ) {
         try {
           const result = await sendWorkOrderNotifications({ ...lucrare, ...updatedPayload, ...refreshed, id: lucrare.id })
+          const assigned = Array.isArray(updatedPayload.tehnicieni) ? updatedPayload.tehnicieni : []
+          const sent = (result.result?.technicianEmails || []).filter((item: { success?: boolean }) => item.success)
           if (!result.success) toast({ title: "Notificări netrimise", description: "Tichetul a fost salvat, dar notificările nu au putut fi trimise.", variant: "destructive" })
+          else if (assigned.length > 0 && sent.length === 0) toast({ title: "Tehnicienii nu au primit email", description: "Tichetul a fost salvat. Nu s-a găsit o adresă de email pentru tehnicienii aleși.", variant: "destructive" })
         } catch { toast({ title: "Notificări netrimise", description: "Tichetul a fost salvat, dar notificările nu au putut fi trimise.", variant: "destructive" }) }
       }
       closeEditDialog()
@@ -1074,7 +1078,6 @@ export default function LucrarePage({ params }: { params: Promise<{ id: string }
   }, [
     lucrare,
     isAdminOrDispatcher,
-    searchParams,
     closeEditDialog,
     isEditSubmitting,
     validateEditForm,

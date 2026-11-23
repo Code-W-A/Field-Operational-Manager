@@ -78,6 +78,12 @@ try {
    assert.equal(await page.evaluate(()=>window.writes),2)
    assert.equal(await page.evaluate(()=>window.toasts.at(-1).title),'Procedura are subelemente')
    await page.getByRole('button',{name:'Anulează',exact:true}).click()
+   await page.getByRole('button',{name:'Procedură nouă',exact:true}).click()
+   await page.getByLabel('Titlu *',{exact:true}).fill('Tipuri de tichete')
+   await expect(page.getByRole('button',{name:'Creează procedura',exact:true})).toBeEnabled()
+   await page.getByRole('button',{name:'Creează procedura',exact:true}).click()
+   assert.equal(await page.evaluate(()=>window.notes.find(n=>n.title==='Tipuri de tichete').content),'')
+   await expect(article.getByRole('heading',{level:1})).toHaveText('Tipuri de tichete')
   }else{
    await expect(page.getByRole('button',{name:'Procedură nouă',exact:true})).toHaveCount(0)
    await expect(page.getByRole('button',{name:'Editează',exact:true})).toHaveCount(0)

@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useFloatingDialog } from "@/components/ui/floating-dialog"
 import { Badge } from "@/components/ui/badge"
 // Adăugăm importul pentru componenta EquipmentQRCode
 import { EquipmentQRCode } from "@/components/equipment-qr-code"
@@ -187,6 +188,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
 
   // State pentru gestionarea dialogului de adăugare/editare echipament
   const [isEchipamentDialogOpen, setIsEchipamentDialogOpen] = useState(false)
+  const equipmentFloating = useFloatingDialog(isEchipamentDialogOpen)
   const [selectedLocatieIndex, setSelectedLocatieIndex] = useState<number | null>(null)
   const [selectedEchipamentIndex, setSelectedEchipamentIndex] = useState<number | null>(null)
   const hasAutoOpenedEquipmentRef = useRef(false)
@@ -1624,8 +1626,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
       </div>
 
       {/* Dialog pentru adăugare/editare echipament */}
-      <Dialog 
-        open={isEchipamentDialogOpen} 
+      <Dialog
+        open={isEchipamentDialogOpen}
+        modal={!equipmentFloating.enabled}
         onOpenChange={(open) => {
           if (!open) {
             handleCloseEchipamentDialog()
@@ -1634,8 +1637,30 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
           }
         }}
       >
-        <DialogContent className="sm:max-w-[900px] w-[95%] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent
+          {...equipmentFloating.contentProps}
+          className="sm:max-w-[900px] w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto"
+          onPointerDownOutside={(event) => {
+            const target = event.detail.originalEvent.target
+            if (
+              !equipmentFloating.enabled &&
+              target instanceof Element &&
+              target.matches('[data-state="open"].fixed.inset-0') &&
+              document.querySelectorAll('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]').length === 1
+            ) {
+              handleCloseEchipamentDialog()
+            }
+          }}
+          onEscapeKeyDown={(event) => {
+            event.preventDefault()
+            handleCloseEchipamentDialog()
+          }}
+        >
+          <DialogHeader
+            className={cn(
+              equipmentFloating.enabled && "cursor-grab active:cursor-grabbing select-none pr-8"
+            )}
+          >
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
             </DialogTitle>
@@ -1643,6 +1668,7 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
             <DialogDescription>
               Completați detaliile echipamentului. Codul trebuie să fie unic, să conțină maxim 10 caractere și să
               includă atât litere cât și cifre.
+              {equipmentFloating.enabled ? " Trageți de antet pentru a muta fereastra și puteți folosi pagina din spate." : null}
             </DialogDescription>
           </DialogHeader>
 

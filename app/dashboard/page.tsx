@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AddLucrareDialog } from "@/components/add-lucrare-dialog"
 import { addLucrare, getNextReportNumber, type PersoanaContact } from "@/lib/firebase/firestore"
+import { sendWorkOrderNotifications } from "@/components/work-order-notification-service"
 import { WORK_STATUS } from "@/lib/utils/constants"
 import { validateWorkEquipmentForCreation } from "@/lib/utils/work-equipment-validation"
 import { toast } from "@/hooks/use-toast"
@@ -321,12 +322,40 @@ export default function Dashboard() {
       }
 
       // Adăugăm lucrarea în Firestore cu nrLucrare
-      await addLucrare({
+      const createdWork = await addLucrare({
         ...newLucrare,
         nrLucrare: nrLucrareGenerated,
         createdBy: userData?.uid || "",
         createdByName: userData?.displayName || userData?.email || "Utilizator necunoscut",
       })
+
+      try {
+        const notificationResult = await sendWorkOrderNotifications(createdWork)
+        if (!notificationResult.success) {
+          toast({
+            title: "Notificări netrimise",
+            description: "Tichetul a fost salvat, dar emailurile de informare nu au putut fi trimise.",
+            variant: "destructive",
+          })
+        } else {
+          const techEmails = notificationResult.result?.technicianEmails || []
+          const sent = techEmails.filter((item: { success?: boolean }) => item.success)
+          if (newLucrare.tehnicieni.length > 0 && sent.length === 0) {
+            toast({
+              title: "Tehnicienii nu au primit email",
+              description: "Tichetul a fost salvat. Nu s-a găsit o adresă de email pentru tehnicienii aleși.",
+              variant: "destructive",
+            })
+          }
+        }
+      } catch (notificationError) {
+        console.error("Eroare la trimiterea notificărilor:", notificationError)
+        toast({
+          title: "Notificări netrimise",
+          description: "Tichetul a fost salvat, dar emailurile de informare nu au putut fi trimise.",
+          variant: "destructive",
+        })
+      }
 
       // Reset form și închidere dialog
       handleCloseAddDialog()

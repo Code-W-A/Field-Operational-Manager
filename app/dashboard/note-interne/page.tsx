@@ -244,10 +244,10 @@ export default function NoteInternePage() {
       return
     }
     const plainLen = plainTextLengthFromHtml(content)
-    if (!userData || !title.trim() || isRichContentEmpty(content)) {
+    if (!userData || !title.trim()) {
       toast({
         title: "Eroare",
-        description: "Vă rugăm să completați toate câmpurile obligatorii.",
+        description: "Vă rugăm să completați titlul.",
         variant: "destructive"
       })
       return
@@ -265,7 +265,7 @@ export default function NoteInternePage() {
     try {
       const docRef = await addDoc(collection(db, "note-interne"), {
         title: title.trim(),
-        content: content.trim(),
+        content: isRichContentEmpty(content) ? "" : content.trim(),
         category,
         parentId,
         authorId: userData.uid,
@@ -313,10 +313,10 @@ export default function NoteInternePage() {
       return
     }
     const plainLen = plainTextLengthFromHtml(content)
-    if (!editingNote || !title.trim() || isRichContentEmpty(content)) {
+    if (!editingNote || !title.trim()) {
       toast({
         title: "Eroare",
-        description: "Vă rugăm să completați toate câmpurile obligatorii.",
+        description: "Vă rugăm să completați titlul.",
         variant: "destructive"
       })
       return
@@ -334,7 +334,7 @@ export default function NoteInternePage() {
     try {
       await updateDoc(doc(db, "note-interne", editingNote.id), {
         title: title.trim(),
-        content: content.trim(),
+        content: isRichContentEmpty(content) ? "" : content.trim(),
         category,
         parentId,
         priority: deleteField(),
@@ -590,7 +590,7 @@ export default function NoteInternePage() {
                 <Button size="sm" variant="outline" onClick={() => openEditDialog(selectedNote)}><Edit3 className="mr-2 h-4 w-4" />Editează</Button>
               </div>}
             </div>
-            {isProbablyRichHtml(selectedNote.content) ? <div className={procedureRichHtmlViewClass} dangerouslySetInnerHTML={{ __html: selectedNote.content }} /> : <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{selectedNote.content}</p>}
+            {!isRichContentEmpty(selectedNote.content) && (isProbablyRichHtml(selectedNote.content) ? <div className={procedureRichHtmlViewClass} dangerouslySetInnerHTML={{ __html: selectedNote.content }} /> : <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{selectedNote.content}</p>)}
           </> : <div className="py-16 text-center text-muted-foreground"><StickyNote className="mx-auto mb-4 h-10 w-10" /><h2 className="mb-2 text-lg font-medium">{notes.length ? "Niciun rezultat" : "Nu există proceduri"}</h2><p>{notes.length ? "Căutarea verifică toate procedurile, inclusiv conținutul subelementelor." : "Procedurile publicate vor apărea aici."}</p></div>}
         </article>
       </div>
@@ -634,7 +634,7 @@ export default function NoteInternePage() {
               </div>
 
               <div className="space-y-2 w-full min-w-0">
-                <Label htmlFor="content">Conținut *</Label>
+                <Label htmlFor="content">Conținut</Label>
                 {dialogReadOnly ? (
                   isProbablyRichHtml(content) ? (
                     <div
@@ -776,7 +776,6 @@ export default function NoteInternePage() {
                       isCreating ||
                       !validParent ||
                       !title.trim() ||
-                      isRichContentEmpty(content) ||
                       plainTextLengthFromHtml(content) > MAX_PROCEDURE_CONTENT_PLAIN_CHARS
                     }
                     className="w-full sm:w-auto"
