@@ -1638,8 +1638,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         }}
       >
         <DialogContent
-          {...equipmentFloating.contentProps}
-          className="sm:max-w-[900px] w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto"
+          floating={equipmentFloating.enabled}
+          style={equipmentFloating.contentProps.style}
+          className="flex sm:max-w-[900px] w-[calc(100%-2rem)] max-h-[90dvh] flex-col overflow-hidden gap-0 p-0"
           onPointerDownOutside={(event) => {
             const target = event.detail.originalEvent.target
             if (
@@ -1658,8 +1659,10 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
         >
           <DialogHeader
             className={cn(
-              equipmentFloating.enabled && "cursor-grab active:cursor-grabbing select-none pr-8"
+              "shrink-0 space-y-1.5 px-6 pt-6 pb-2",
+              equipmentFloating.enabled && "cursor-grab active:cursor-grabbing select-none pr-10"
             )}
+            onPointerDownCapture={equipmentFloating.contentProps.onPointerDownCapture}
           >
             <DialogTitle>
               {selectedEchipamentIndex !== null ? "Editare Echipament" : "Adăugare Echipament Nou"}
@@ -1672,7 +1675,8 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-3 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-3">
+          <div className="grid gap-4">
             {selectedEchipamentIndex !== null && mode === "edit" && !isAdmin && (
               <Alert variant="default" className="mt-2 bg-yellow-50 border-yellow-200 text-yellow-800">
                 <AlertTriangle className="h-4 w-4" />
@@ -2235,8 +2239,9 @@ const ClientForm = forwardRef(({ mode = "add", client, onSuccess, onCreatedClien
               </div>
             </div>
           </div>
+          </div>
 
-          <DialogFooter className="pt-2 flex-col gap-2 sm:flex-row">
+          <DialogFooter className="shrink-0 border-t px-6 pb-6 pt-3 flex-col gap-2 sm:flex-row">
             <Button
               type="button"
               variant="outline"
